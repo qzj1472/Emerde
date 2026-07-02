@@ -453,7 +453,7 @@ public partial class SettingsViewModel : ReactiveObject
         }
         catch (HttpRequestException e)
         {
-            Toast.Success("ProxyErrorOfExceptionMessage".Tr(e.Message));
+            Toast.Error("ProxyErrorOfExceptionMessage".Tr(e.Message));
         }
     }
 
