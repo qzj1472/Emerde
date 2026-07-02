@@ -24,3 +24,6 @@ jobs:
 
       - name: Build
         run: cd src\Emerde && dotnet build Emerde.csproj --configuration Release -p:Platform=x64 --no-restore
+
+      - name: Test
+        run: dotnet test Emerde.sln --configuration Release -p:Platform=x64 --no-build
