@@ -1,0 +1,3 @@
+/build/*.bat linguist-vendored
+/build/*.cmd linguist-vendored
+/build/*.ps linguist-vendored

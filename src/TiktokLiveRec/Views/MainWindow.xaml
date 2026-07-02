@@ -1,0 +1,400 @@
+<ui:FluentWindow x:Class="TiktokLiveRec.Views.MainWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:b="http://schemas.github.com/computedbehaviors/2024/xaml"
+                 xmlns:c="http://schemas.github.com/computedconverters/2024/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
+                 xmlns:local="clr-namespace:TiktokLiveRec"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:vio="http://schemas.lepo.co/wpfui/2022/xaml/violeta"
+                 Title="TiktokLiveRec"
+                 Width="860"
+                 Height="600"
+                 d:Background="#FF101010"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowStartupLocation="CenterScreen"
+                 mc:Ignorable="d">
+    <Grid>
+        <ui:Grid Margin="8,42,8,8" RowDefinitions="Auto,*,Auto">
+            <ui:Grid Grid.Row="0">
+                <ui:StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button MinWidth="80" Command="{Binding AddRoomCommand}">
+                        <Button.Content>
+                            <ui:StackPanel Orientation="Horizontal" Spacing="8">
+                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Add}" />
+                                <TextBlock Text="{I18N ButtonOfAdd}" />
+                            </ui:StackPanel>
+                        </Button.Content>
+                    </Button>
+                    <Button MinWidth="80" Command="{Binding OpenSettingsDialogCommand}">
+                        <Button.Content>
+                            <ui:StackPanel Orientation="Horizontal" Spacing="8">
+                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Settings}" />
+                                <TextBlock Text="{I18N ButtonOfSettings}" />
+                            </ui:StackPanel>
+                        </Button.Content>
+                    </Button>
+                </ui:StackPanel>
+                <ui:StackPanel HorizontalAlignment="Right"
+                               Orientation="Horizontal"
+                               Spacing="8">
+                    <Button MinWidth="80" Command="{Binding OpenSaveFolderCommand}">
+                        <Button.Content>
+                            <ui:StackPanel Orientation="Horizontal" Spacing="8">
+                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.FolderOpen}" />
+                                <TextBlock Text="{I18N SaveFolder}" />
+                            </ui:StackPanel>
+                        </Button.Content>
+                    </Button>
+                </ui:StackPanel>
+            </ui:Grid>
+            <ui:Grid Grid.Row="1" Margin="0,8,0,0">
+                <ui:Grid.Resources>
+                    <c:ValueConverterGroup x:Key="NotZeroIntToToVisibilityConverter">
+                        <c:IntToBoolConverter TrueValue="0" />
+                        <c:BoolToVisibilityConverter />
+                    </c:ValueConverterGroup>
+                </ui:Grid.Resources>
+                <ui:StackPanel HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Opacity="0.8"
+                               Spacing="8"
+                               Visibility="{Binding RoomStatuses.Count, Converter={StaticResource NotZeroIntToToVisibilityConverter}}">
+                    <ui:FontIcon FontFamily="{DynamicResource CustomSymbolThemeFontFamily}"
+                                 FontSize="40"
+                                 Glyph="{x:Static ui:CustomFontSymbols.Empty}" />
+                    <TextBlock Text="{I18N EmptyRoomHint}" />
+                </ui:StackPanel>
+                <ui:BitmapIcon Width="100"
+                               Height="100"
+                               Margin="8"
+                               HorizontalAlignment="Right"
+                               VerticalAlignment="Bottom"
+                               Opacity="0.5"
+                               ShowAsMonochrome="True"
+                               UriSource="pack://application:,,,/Assets/Background.png" />
+            </ui:Grid>
+            <DataGrid Grid.Row="1"
+                      Margin="0,8,0,0"
+                      AutoGenerateColumns="False"
+                      Background="Transparent"
+                      CanUserAddRows="False"
+                      CanUserSortColumns="True"
+                      ColumnHeaderHeight="50"
+                      ColumnWidth="100"
+                      DataGrid.CellStyle="{StaticResource CenteredDataGridCellStyle}"
+                      DataGrid.ColumnHeaderStyle="{StaticResource CenteredDataGridColumnHeaderStyle}"
+                      EnableColumnVirtualization="False"
+                      EnableRowVirtualization="False"
+                      IsReadOnly="True"
+                      ItemsSource="{Binding RoomStatuses}"
+                      RowHeight="40"
+                      SelectionMode="Single"
+                      SelectionUnit="FullRow">
+                <DataGrid.ContextMenu>
+                    <ContextMenu Loaded="{c:EventBinding ContextMenuLoadedCommand}">
+                        <MenuItem Header="{Binding SelectedItem.NickName}" IsEnabled="False" />
+                        <MenuItem Command="{Binding GotoRoomUrlCommand}" Header="{I18N GotoLiveRoom}">
+                            <MenuItem.Icon>
+                                <ui:FontIcon Margin="2,0,2,0"
+                                             FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                             FontSize="16"
+                                             Glyph="{x:Static ui:FontSymbols.OpenInNewWindow}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Command="{Binding RowUpRoomUrlCommand}" Header="{I18N RowUpRoom}">
+                            <MenuItem.Icon>
+                                <ui:FontIcon Margin="2,0,2,0"
+                                             FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                             FontSize="16"
+                                             Glyph="{x:Static ui:FontSymbols.ChevronUp}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Command="{Binding RowDownRoomUrlCommand}" Header="{I18N RowDownRoom}">
+                            <MenuItem.Icon>
+                                <ui:FontIcon Margin="2,0,2,0"
+                                             FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                             FontSize="16"
+                                             Glyph="{x:Static ui:FontSymbols.ChevronDown}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Command="{Binding RemoveRoomUrlCommand}" Header="{I18N RemoveRoom}">
+                            <MenuItem.Icon>
+                                <ui:FontIcon Margin="2,0,2,0"
+                                             FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                             FontSize="16"
+                                             Glyph="{x:Static ui:FontSymbols.CalculatorMultiply}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <Separator />
+                        <MenuItem Command="{Binding OpenSaveFolderCommand}" Header="{I18N SaveFolder}">
+                            <MenuItem.Icon>
+                                <ui:FontIcon Margin="2,0,2,0"
+                                             FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             FontSize="16"
+                                             Glyph="{x:Static ui:FontSymbols.FolderOpen}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Command="{Binding PlayRecordCommand}" Header="{I18N PlayRecord}">
+                            <MenuItem.Icon>
+                                <ui:FontIcon Margin="2,0,2,0"
+                                             FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             FontSize="16"
+                                             Glyph="{x:Static ui:FontSymbols.Play}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <MenuItem Command="{Binding StopRecordCommand}" Header="{I18N StopRecord}">
+                            <MenuItem.Icon>
+                                <ui:FontIcon Margin="2,0,2,0"
+                                             FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             FontSize="16"
+                                             Glyph="{x:Static ui:FontSymbols.Stop}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                        <!--<MenuItem Command="{Binding ShowRecordLogCommand}" Header="{I18N RecordLog}">
+                            <MenuItem.Icon>
+                                <ui:FontIcon Margin="2,0,2,0"
+                                             FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             FontSize="16"
+                                             Glyph="{x:Static ui:FontSymbols.List}" />
+                            </MenuItem.Icon>
+                        </MenuItem>-->
+                        <Separator />
+                        <MenuItem Header="{I18N SingleSettings}" IsEnabled="False" />
+                        <MenuItem Command="{Binding IsToNotifyCommand}"
+                                  Header="{I18N LiveNotification}"
+                                  IsCheckable="True"
+                                  IsChecked="{Binding SelectedItem.IsToNotify, Mode=TwoWay}"
+                                  ToolTip="{I18N LiveNotificationHint}" />
+                        <MenuItem Command="{Binding IsToRecordCommand}"
+                                  Header="{I18N EnableRecord}"
+                                  IsCheckable="True"
+                                  IsChecked="{Binding SelectedItem.IsToRecord, Mode=TwoWay}"
+                                  ToolTip="{I18N EnableRecordHint}" />
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Width="0.5*">
+                        <DataGridTemplateColumn.CellStyle>
+                            <Style BasedOn="{StaticResource DefaultDataGridCellStyle}" TargetType="{x:Type DataGridCell}">
+                                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="{x:Type DataGridCell}">
+                                            <vio:PersonPicture Width="28"
+                                                               Height="28"
+                                                               ProfilePicture="{Binding AvatarThumbUrl}"
+                                                               RenderOptions.BitmapScalingMode="HighQuality"
+                                                               SnapsToDevicePixels="True" />
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </DataGridTemplateColumn.CellStyle>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Width="*"
+                                        Binding="{Binding NickName}"
+                                        CellStyle="{StaticResource CenteredDataGridTextColumnCellStyle}"
+                                        EditingElementStyle="{StaticResource CenteredDataGridTextColumnEditingElementStyle}"
+                                        ElementStyle="{StaticResource CenteredDataGridTextColumnElementStyle}"
+                                        Header="{I18N LiveRoom}"
+                                        IsReadOnly="True"
+                                        SortMemberPath="LiveRoom" />
+                    <DataGridTextColumn Width="*"
+                                        Binding="{Binding StreamStatusText}"
+                                        CellStyle="{StaticResource CenteredDataGridTextColumnCellStyle}"
+                                        EditingElementStyle="{StaticResource CenteredDataGridTextColumnEditingElementStyle}"
+                                        ElementStyle="{StaticResource CenteredDataGridTextColumnElementStyle}"
+                                        Header="{I18N StreamStatus}"
+                                        IsReadOnly="True"
+                                        SortMemberPath="StreamStatusText" />
+                    <DataGridTextColumn Width="*"
+                                        Binding="{Binding RecordStatusText}"
+                                        CellStyle="{StaticResource CenteredDataGridTextColumnCellStyle}"
+                                        EditingElementStyle="{StaticResource CenteredDataGridTextColumnEditingElementStyle}"
+                                        ElementStyle="{StaticResource CenteredDataGridTextColumnElementStyle}"
+                                        Header="{I18N RecordStatus}"
+                                        IsReadOnly="True"
+                                        SortMemberPath="RecordStatusText" />
+                    <DataGridTemplateColumn Width="1.6*" Header="{I18N Operation}">
+                        <DataGridTemplateColumn.CellStyle>
+                            <Style BasedOn="{StaticResource DefaultDataGridCellStyle}" TargetType="{x:Type DataGridCell}">
+                                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="{x:Type DataGridCell}">
+                                            <ui:StackPanel HorizontalAlignment="Center"
+                                                           Orientation="Horizontal"
+                                                           Spacing="8">
+                                                <Button Command="{Binding PlayRecordCommand}"
+                                                        Tag="{Binding}"
+                                                        ToolTip="{I18N PlayRecord}">
+                                                    <Button.Content>
+                                                        <ui:StackPanel Orientation="Horizontal" Spacing="4">
+                                                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Play}" />
+                                                            <TextBlock Text="{I18N ButtonOfPlay}" />
+                                                        </ui:StackPanel>
+                                                    </Button.Content>
+                                                </Button>
+                                                <Button Command="{Binding GotoRoomUrlCommand}"
+                                                        Tag="{Binding}"
+                                                        ToolTip="{I18N GotoLiveRoom}">
+                                                    <Button.Content>
+                                                        <ui:StackPanel Orientation="Horizontal" Spacing="4">
+                                                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.OpenInNewWindow}" />
+                                                            <TextBlock Text="{I18N ButtonOfGoto}" />
+                                                        </ui:StackPanel>
+                                                    </Button.Content>
+                                                </Button>
+                                            </ui:StackPanel>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </DataGridTemplateColumn.CellStyle>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+            <ui:Grid Grid.Row="2">
+                <ui:StackPanel Margin="0,5,0,0"
+                               HorizontalAlignment="Right"
+                               Opacity="0.9"
+                               Orientation="Horizontal"
+                               Spacing="8">
+                    <ContentControl ToolTip="{I18N LiveNotification}">
+                        <c:If Condition="{Binding StatusOfIsToNotify, Mode=OneWay}">
+                            <c:If.TrueValue>
+                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                             Glyph="{x:Static ui:FontSymbols.Ringer}" />
+                            </c:If.TrueValue>
+                            <c:If.FalseValue>
+                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
+                                             Glyph="{x:Static ui:FontSymbols.Ringer}" />
+                            </c:If.FalseValue>
+                        </c:If>
+                    </ContentControl>
+                    <ContentControl ToolTip="{I18N EnableRecord}">
+                        <c:If Condition="{Binding StatusOfIsToRecord, Mode=OneWay}">
+                            <c:If.TrueValue>
+                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                             Glyph="{x:Static ui:FontSymbols.Video}" />
+                            </c:If.TrueValue>
+                            <c:If.FalseValue>
+                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
+                                             Glyph="{x:Static ui:FontSymbols.Video}" />
+                            </c:If.FalseValue>
+                        </c:If>
+                    </ContentControl>
+                    <ContentControl ToolTip="{I18N UseProxy}">
+                        <c:If Condition="{Binding StatusOfIsUseProxy, Mode=OneWay}">
+                            <c:If.TrueValue>
+                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                             Glyph="{x:Static ui:FontSymbols.VPN}" />
+                            </c:If.TrueValue>
+                            <c:If.FalseValue>
+                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
+                                             Glyph="{x:Static ui:FontSymbols.VPN}" />
+                            </c:If.FalseValue>
+                        </c:If>
+                    </ContentControl>
+                    <ContentControl ToolTip="{I18N KeepAwake}">
+                        <c:If Condition="{Binding StatusOfIsUseKeepAwake, Mode=OneWay}">
+                            <c:If.TrueValue>
+                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                             Glyph="{x:Static ui:FontSymbols.Recent}" />
+                            </c:If.TrueValue>
+                            <c:If.FalseValue>
+                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
+                                             Glyph="{x:Static ui:FontSymbols.Recent}" />
+                            </c:If.FalseValue>
+                        </c:If>
+                    </ContentControl>
+                    <ContentControl ToolTip="{I18N AutoShutdown}">
+                        <c:If Condition="{Binding StatusOfIsUseAutoShutdown, Mode=OneWay}">
+                            <c:If.TrueValue>
+                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                             Glyph="{x:Static ui:FontSymbols.PowerButton}" />
+                            </c:If.TrueValue>
+                            <c:If.FalseValue>
+                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
+                                             Glyph="{x:Static ui:FontSymbols.PowerButton}" />
+                            </c:If.FalseValue>
+                        </c:If>
+                    </ContentControl>
+                    <TextBlock FontSize="12"
+                               Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                               Text="{Binding StatusOfAutoShutdownTime}"
+                               ToolTip="{I18N AutoShutdown}"
+                               Visibility="{Binding StatusOfIsUseAutoShutdown, Converter={x:Static c:BoolToVisibilityConverter.Instance}}" />
+                    <Separator />
+                    <ui:StackPanel Orientation="Horizontal" ToolTip="{I18N RoutineInterval}">
+                        <TextBlock VerticalAlignment="Center"
+                                   FontSize="12"
+                                   Opacity="0.6"
+                                   Text="{Binding StatusOfRoutineIntervalWithUnit}"
+                                   ToolTip="{I18N RoutineInterval}" />
+                    </ui:StackPanel>
+                    <Separator />
+                    <TextBlock VerticalAlignment="Center"
+                               FontSize="12"
+                               Opacity="0.6"
+                               Text="{Binding StatusOfRecordFormat}"
+                               ToolTip="{I18N RecordFormat}" />
+                </ui:StackPanel>
+            </ui:Grid>
+        </ui:Grid>
+        <Grid>
+            <ui:TitleBar Title="{I18N Title}" ShowMaximize="False">
+                <ui:TitleBar.Icon>
+                    <ui:ImageIcon Source="pack://application:,,,/Assets/Favicon.png" />
+                </ui:TitleBar.Icon>
+                <ui:TitleBar.TrailingContent>
+                    <ui:Button Width="44"
+                               Height="30"
+                               Margin="0,-16,0,0"
+                               Background="Transparent"
+                               BorderBrush="Transparent"
+                               CornerRadius="0"
+                               Icon="{ui:SymbolIcon CaretDown16}">
+                        <ui:Button.ContextMenu>
+                            <ContextMenu FontSize="12">
+                                <MenuItem Command="{Binding OpenSaveFolderCommand}" Header="{I18N SaveFolder}">
+                                    <MenuItem.Icon>
+                                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.FolderOpen}" />
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Command="{Binding OpenSettingsFileFolderCommand}" Header="{I18N SettingsFile}">
+                                    <MenuItem.Icon>
+                                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.OpenLocal}" />
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <Separator />
+                                <MenuItem Command="{Binding OpenAboutCommand}" Header="{I18N About}">
+                                    <MenuItem.Icon>
+                                        <ui:SymbolIcon FontSize="16" Symbol="Info16" />
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                            </ContextMenu>
+                        </ui:Button.ContextMenu>
+                        <i:Interaction.Behaviors>
+                            <b:LeftContextMenuBehavior />
+                        </i:Interaction.Behaviors>
+                    </ui:Button>
+                </ui:TitleBar.TrailingContent>
+            </ui:TitleBar>
+        </Grid>
+    </Grid>
+</ui:FluentWindow>
