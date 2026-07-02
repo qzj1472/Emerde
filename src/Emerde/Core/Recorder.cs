@@ -169,26 +169,7 @@ public sealed class Recorder
                     {
                         formatArrow = "." + formatArrow.Split('>')[1].Trim().ToLower();
 
-                        // Execute the converter asynchronously.
-                        // So don't use await here.
-                        _ = new Converter().ExecuteAsync(FileName, formatArrow)
-                            .ContinueWith(task =>
-                            {
-                                // Remove only the conversion is successful.
-                                if (task.Result && Configurations.IsRemoveTs.Get())
-                                {
-                                    try
-                                    {
-                                        File.Delete(FileName);
-                                        FileName = Path.ChangeExtension(FileName, formatArrow);
-                                    }
-                                    catch (Exception e)
-                                    {
-                                        Debug.WriteLine(e);
-                                    }
-                                }
-                            })
-                            .ConfigureAwait(false);
+                        _ = ConvertRecordedFileAsync(FileName, formatArrow);
                     }
                 }
             }
@@ -229,6 +210,24 @@ public sealed class Recorder
             Data = data,
         });
         return Task.CompletedTask;
+    }
+
+    private async Task ConvertRecordedFileAsync(string fileName, string targetFormat)
+    {
+        try
+        {
+            bool isConverted = await new Converter().ExecuteAsync(fileName, targetFormat);
+
+            if (isConverted && Configurations.IsRemoveTs.Get())
+            {
+                File.Delete(fileName);
+                FileName = Path.ChangeExtension(fileName, targetFormat);
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e);
+        }
     }
 
     internal static string BuildOutputFileName(string saveFolder, string nickName, DateTime timestamp, bool isToSegment, bool isHls)
