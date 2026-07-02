@@ -7,24 +7,36 @@ internal static class AutoStartupHelper
 {
     public static bool IsAutorun()
     {
-        RegistyAutoRunHelper.Disable(AppConfig.LegacyPackName);
-        return RegistyAutoRunHelper.IsEnabled("Emerde", $"\"{Process.GetCurrentProcess().MainModule?.FileName!}\" /autorun");
+        string launchCommand = GetLaunchCommand();
+
+        if (RegistyAutoRunHelper.Exists(AppConfig.LegacyPackName))
+        {
+            RegistyAutoRunHelper.Enable(AppConfig.PackName, launchCommand);
+            RegistyAutoRunHelper.Disable(AppConfig.LegacyPackName);
+        }
+
+        return RegistyAutoRunHelper.IsEnabled(AppConfig.PackName, launchCommand);
     }
 
     public static void RemoveAutorunShortcut()
     {
-        RegistyAutoRunHelper.Disable("Emerde");
+        RegistyAutoRunHelper.Disable(AppConfig.PackName);
         RegistyAutoRunHelper.Disable(AppConfig.LegacyPackName);
     }
 
     public static void CreateAutorunShortcut()
     {
         RegistyAutoRunHelper.Disable(AppConfig.LegacyPackName);
-        RegistyAutoRunHelper.Enable("Emerde", $"\"{Process.GetCurrentProcess().MainModule?.FileName!}\" /autorun");
+        RegistyAutoRunHelper.Enable(AppConfig.PackName, GetLaunchCommand());
+    }
+
+    internal static string GetLaunchCommand()
+    {
+        return $"\"{Process.GetCurrentProcess().MainModule?.FileName!}\" /autorun";
     }
 }
 
-file static class RegistyAutoRunHelper
+internal static class RegistyAutoRunHelper
 {
     private const string RunLocation = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
 
@@ -51,6 +63,18 @@ file static class RegistyAutoRunHelper
         }
 
         return value == launchCommand;
+    }
+
+    public static bool Exists(string keyName)
+    {
+        using RegistryKey? key = Registry.CurrentUser.OpenSubKey(RunLocation);
+
+        if (key == null)
+        {
+            return false;
+        }
+
+        return key.GetValue(keyName) != null;
     }
 
     public static void Disable(string keyName, string launchCommand = null!)
