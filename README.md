@@ -1,11 +1,11 @@
-[English](README.md) | [简体中文](README.zh-Hans.md)
+﻿[English](README.md) | [绠€浣撲腑鏂嘳(README.zh-Hans.md)
 
 <img src="branding/logo.png" />
 
-# Tiktok Live Rec
+# Emerde
 
-[![GitHub license](https://img.shields.io/github/license/emako/TiktokLiveRec)](https://github.com/emako/TiktokLiveRec/blob/master/LICENSE) [![Actions](https://github.com/emako/TiktokLiveRec/actions/workflows/build.yml/badge.svg)](https://github.com/emako/TiktokLiveRec/actions/workflows/library.nuget.yml) [![Platform](https://img.shields.io/badge/platform-Windows-blue?logo=windowsxp&color=1E9BFA)](https://dotnet.microsoft.com/en-us/download/dotnet/latest/runtime) [![GitHub downloads](https://img.shields.io/github/downloads/emako/TiktokLiveRec/total)](https://github.com/emako/TiktokLiveRec/releases)
-[![GitHub downloads](https://img.shields.io/github/downloads/emako/TiktokLiveRec/latest/total)](https://github.com/emako/TiktokLiveRec/releases)
+[![GitHub license](https://img.shields.io/github/license/qzj1472/Emerde)](https://github.com/qzj1472/Emerde/blob/main/LICENSE) [![Actions](https://github.com/qzj1472/Emerde/actions/workflows/build.yml/badge.svg)](https://github.com/qzj1472/Emerde/actions/workflows/build.yml) [![Platform](https://img.shields.io/badge/platform-Windows-blue?logo=windowsxp&color=1E9BFA)](https://dotnet.microsoft.com/en-us/download/dotnet/latest/runtime) [![GitHub downloads](https://img.shields.io/github/downloads/qzj1472/Emerde/total)](https://github.com/qzj1472/Emerde/releases)
+[![GitHub downloads](https://img.shields.io/github/downloads/qzj1472/Emerde/latest/total)](https://github.com/qzj1472/Emerde/releases)
 
 With a graphical UI, unattended operation, and live streaming recording capabilities.
 
@@ -25,7 +25,7 @@ Support following live site.
 
 | Site          | Status    |
 | ------------- | --------- |
-| Douyin (抖音) | Available |
+| Douyin (鎶栭煶) | Available |
 | Tiktok        | Available |
 
 How to add live room:
@@ -51,7 +51,7 @@ This project only supports Windows.
 
 | Path | Purpose |
 | ---- | ------- |
-| `src/TiktokLiveRec` | Windows WPF application |
+| `src/Emerde` | Windows WPF application |
 | `build` | Windows packaging assets and scripts |
 | `doc` | Cookie setup guides |
 | `assets` | README images |

@@ -1,11 +1,11 @@
-name: build
+﻿name: build
 
 on:
   release:
     types: [created]
   push:
     branches:
-      - master
+      - main
 
 jobs:
   build:
@@ -20,7 +20,7 @@ jobs:
           dotnet-version: 9.0.x
 
       - name: Install dependencies
-        run: cd src\TiktokLiveRec && dotnet restore TiktokLiveRec.csproj -p:Platform=x64
+        run: cd src\Emerde && dotnet restore Emerde.csproj -p:Platform=x64
 
       - name: Build
-        run: cd src\TiktokLiveRec && dotnet build TiktokLiveRec.csproj --configuration Release -p:Platform=x64 --no-restore
+        run: cd src\Emerde && dotnet build Emerde.csproj --configuration Release -p:Platform=x64 --no-restore

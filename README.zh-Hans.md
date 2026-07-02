@@ -1,11 +1,11 @@
-[English](README.md) | [简体中文](README.zh-Hans.md)
+﻿[English](README.md) | [简体中文](README.zh-Hans.md)
 
 <img src="branding/logo.png" />
 
-# 抖音直播录制
+# Emerde
 
-[![GitHub license](https://img.shields.io/github/license/emako/TiktokLiveRec)](https://github.com/emako/TiktokLiveRec/blob/master/LICENSE) [![Actions](https://github.com/emako/TiktokLiveRec/actions/workflows/build.yml/badge.svg)](https://github.com/emako/TiktokLiveRec/actions/workflows/library.nuget.yml) [![Platform](https://img.shields.io/badge/platform-Windows-blue?logo=windowsxp&color=1E9BFA)](https://dotnet.microsoft.com/en-us/download/dotnet/latest/runtime) [![GitHub downloads](https://img.shields.io/github/downloads/emako/TiktokLiveRec/total)](https://github.com/emako/TiktokLiveRec/releases)
-[![GitHub downloads](https://img.shields.io/github/downloads/emako/TiktokLiveRec/latest/total)](https://github.com/emako/TiktokLiveRec/releases)
+[![GitHub license](https://img.shields.io/github/license/qzj1472/Emerde)](https://github.com/qzj1472/Emerde/blob/main/LICENSE) [![Actions](https://github.com/qzj1472/Emerde/actions/workflows/build.yml/badge.svg)](https://github.com/qzj1472/Emerde/actions/workflows/build.yml) [![Platform](https://img.shields.io/badge/platform-Windows-blue?logo=windowsxp&color=1E9BFA)](https://dotnet.microsoft.com/en-us/download/dotnet/latest/runtime) [![GitHub downloads](https://img.shields.io/github/downloads/qzj1472/Emerde/total)](https://github.com/qzj1472/Emerde/releases)
+[![GitHub downloads](https://img.shields.io/github/downloads/qzj1472/Emerde/latest/total)](https://github.com/qzj1472/Emerde/releases)
 
 具有用户界面、无人值守操作和直播流录制功能。
 
@@ -51,7 +51,7 @@ https://www.tiktok.com/@XXX/live
 
 | 路径 | 用途 |
 | ---- | ---- |
-| `src/TiktokLiveRec` | Windows WPF 应用 |
+| `src/Emerde` | Windows WPF 应用 |
 | `build` | Windows 打包资源和脚本 |
 | `doc` | Cookie 配置文档 |
 | `assets` | README 图片 |
