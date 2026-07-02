@@ -413,7 +413,7 @@
     <value>國區 Cookie</value>
   </data>
   <data name="UseCookieEnterHint" xml:space="preserve">
-    <value>留白則使用內置 Cookie</value>
+    <value>留白則不發送 Cookie</value>
   </data>
   <data name="HowToGet" xml:space="preserve">
     <value>如何獲取？</value>

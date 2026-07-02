@@ -413,7 +413,7 @@
     <value>Douyin Cookie</value>
   </data>
   <data name="UseCookieEnterHint" xml:space="preserve">
-    <value>Leave blank to use built-in cookies</value>
+    <value>Leave blank to send no cookies</value>
   </data>
   <data name="HowToGet" xml:space="preserve">
     <value>How to get it?</value>

@@ -1222,7 +1222,7 @@ namespace Emerde.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Leave blank to use built-in cookies.
+        ///   Looks up a localized string similar to Leave blank to send no cookies.
         /// </summary>
         public static string UseCookieEnterHint {
             get {

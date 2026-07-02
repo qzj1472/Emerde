@@ -419,7 +419,7 @@
     <value>Tiktok Cookie</value>
   </data>
   <data name="UseCookieEnterHint" xml:space="preserve">
-    <value>空白の場合は内蔵 Cookie を使用</value>
+    <value>空白の場合は Cookie を送信しません</value>
   </data>
   <data name="HowToGet" xml:space="preserve">
     <value>いかに獲得？</value>
