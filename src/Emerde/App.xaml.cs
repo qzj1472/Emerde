@@ -20,6 +20,7 @@ public partial class App : Application
         Directory.SetCurrentDirectory(AppContext.BaseDirectory);
         _ = DpiAware.SetProcessDpiAwareness();
         ConfigurationManager.ConfigurationSerializer = new YamlConfigurationSerializer();
+        ConfigurationMigrationHelper.MigrateLegacyConfiguration();
         ConfigurationManager.Setup(ConfigurationSpecialPath.GetPath("config.yaml", AppConfig.PackName));
         Locale.Culture = string.IsNullOrWhiteSpace(Configurations.Language.Get()) ? CultureInfo.CurrentUICulture : new CultureInfo(Configurations.Language.Get());
     }

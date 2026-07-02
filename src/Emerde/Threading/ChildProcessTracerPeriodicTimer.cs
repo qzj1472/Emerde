@@ -19,7 +19,7 @@ public partial class ChildProcessTracerPeriodicTimer(TimeSpan period) : IDisposa
     {
         TokenSource = tokenSource ?? new CancellationTokenSource();
 
-        _ = Task.Factory.StartNew(async () => await StartAsync(TokenSource.Token), TaskCreationOptions.LongRunning);
+        _ = Task.Run(() => StartAsync(TokenSource.Token));
     }
 
     private async Task StartAsync(CancellationToken cancellationToken = default)

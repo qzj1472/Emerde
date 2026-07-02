@@ -36,8 +36,7 @@ public sealed class Recorder
 
         RecordStatus = RecordStatus.Recording;
 
-        // Start a recording task that does not use the default ThreadPool.
-        return Task.Factory.StartNew(async () =>
+        return Task.Run(async () =>
         {
             try
             {
@@ -73,28 +72,12 @@ public sealed class Recorder
                 if (!string.IsNullOrWhiteSpace(startInfo.HlsUrl))
                 {
                     Url = startInfo.HlsUrl;
-
-                    if (isToSegment)
-                    {
-                        FileName = Path.Combine(saveFolder, $"{startInfo.NickName.SanitizeFileName()}_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}_%03d.ts");
-                    }
-                    else
-                    {
-                        FileName = Path.Combine(saveFolder, $"{startInfo.NickName.SanitizeFileName()}_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.ts");
-                    }
+                    FileName = BuildOutputFileName(saveFolder, startInfo.NickName, DateTime.Now, isToSegment, isHls: true);
                 }
                 else
                 {
                     Url = startInfo.FlvUrl;
-
-                    if (isToSegment)
-                    {
-                        FileName = Path.Combine(saveFolder, $"{startInfo.NickName.SanitizeFileName()}_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}_%03d.ts");
-                    }
-                    else
-                    {
-                        FileName = Path.Combine(saveFolder, $"{startInfo.NickName.SanitizeFileName()}_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}_%03d.flv");
-                    }
+                    FileName = BuildOutputFileName(saveFolder, startInfo.NickName, DateTime.Now, isToSegment, isHls: false);
                 }
 
                 if (string.IsNullOrWhiteSpace(userAgent))
@@ -163,8 +146,8 @@ public sealed class Recorder
                     .WithArguments(Parameters)
                     .WithEnvironmentVariable(
                     [
-                        (isUseProxy ? "http_proxy" : "__TIKTOKLIVEREC_IGNORE_HTTP_PROXY__", "http://" + httpProxy),
-                        (isUseProxy ? "https_proxy" : "__TIKTOKLIVEREC_IGNORE_HTTPS_PROXY__", "http://" + httpProxy),
+                        (isUseProxy ? "http_proxy" : "__EMERDE_IGNORE_HTTP_PROXY__", "http://" + httpProxy),
+                        (isUseProxy ? "https_proxy" : "__EMERDE_IGNORE_HTTPS_PROXY__", "http://" + httpProxy),
                     ])
                     .WithStandardErrorPipe(PipeTarget.ToDelegate(OnStandardErrorReceived, Encoding.UTF8))
                     .WithStandardOutputPipe(PipeTarget.ToDelegate(OnStandardOutputReceived, Encoding.UTF8))
@@ -216,7 +199,7 @@ public sealed class Recorder
 
             EndTime = DateTime.Now;
             RecordStatus = RecordStatus.NotRecording;
-        }, TaskCreationOptions.LongRunning);
+        });
     }
 
     public void Stop()
@@ -246,6 +229,14 @@ public sealed class Recorder
             Data = data,
         });
         return Task.CompletedTask;
+    }
+
+    internal static string BuildOutputFileName(string saveFolder, string nickName, DateTime timestamp, bool isToSegment, bool isHls)
+    {
+        string safeNickName = nickName.SanitizeFileName();
+        string suffix = isToSegment ? "_%03d.ts" : isHls ? ".ts" : ".flv";
+
+        return Path.Combine(saveFolder, $"{safeNickName}_{timestamp:yyyy-MM-dd_HH-mm-ss}{suffix}");
     }
 }
 

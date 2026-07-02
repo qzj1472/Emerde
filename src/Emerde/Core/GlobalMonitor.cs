@@ -72,7 +72,7 @@ internal static class GlobalMonitor
     {
         TokenSource = tokenSource ?? new CancellationTokenSource();
 
-        _ = Task.Factory.StartNew(async () => await StartAsync(TokenSource.Token), TaskCreationOptions.LongRunning);
+        _ = Task.Run(() => StartAsync(TokenSource.Token));
     }
 
     public static void Stop()

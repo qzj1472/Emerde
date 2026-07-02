@@ -7,16 +7,19 @@ internal static class AutoStartupHelper
 {
     public static bool IsAutorun()
     {
+        RegistyAutoRunHelper.Disable(AppConfig.LegacyPackName);
         return RegistyAutoRunHelper.IsEnabled("Emerde", $"\"{Process.GetCurrentProcess().MainModule?.FileName!}\" /autorun");
     }
 
     public static void RemoveAutorunShortcut()
     {
         RegistyAutoRunHelper.Disable("Emerde");
+        RegistyAutoRunHelper.Disable(AppConfig.LegacyPackName);
     }
 
     public static void CreateAutorunShortcut()
     {
+        RegistyAutoRunHelper.Disable(AppConfig.LegacyPackName);
         RegistyAutoRunHelper.Enable("Emerde", $"\"{Process.GetCurrentProcess().MainModule?.FileName!}\" /autorun");
     }
 }
