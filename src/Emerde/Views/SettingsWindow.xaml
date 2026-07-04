@@ -583,11 +583,11 @@
                                Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                Text="{I18N NetworkSettings}" />
                     <ui:Card>
-                        <ui:Grid MinHeight="35">
-                            <ui:Grid.ColumnDefinitions>
+                        <Grid MinHeight="35">
+                            <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
-                            </ui:Grid.ColumnDefinitions>
+                            </Grid.ColumnDefinitions>
                             <Grid Grid.Column="0" Margin="0,0,12,0">
                                 <TextBlock MinWidth="26"
                                            Margin="4,0,0,0"
@@ -599,16 +599,16 @@
                             </Grid>
                             <ui:StackPanel Grid.Column="1" Spacing="8">
                                 <TextBlock FontWeight="SemiBold" Text="Platform Access" />
-                                <ui:Grid>
-                                    <ui:Grid.ColumnDefinitions>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="120" />
                                         <ColumnDefinition Width="*" />
-                                    </ui:Grid.ColumnDefinitions>
-                                    <ui:Grid.RowDefinitions>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
-                                    </ui:Grid.RowDefinitions>
+                                    </Grid.RowDefinitions>
                                     <TextBlock Grid.Row="0"
                                                Grid.Column="0"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
@@ -637,13 +637,13 @@
                                                Margin="0,5,0,0"
                                                Text="{Binding DirectStreamPlatformsText}"
                                                TextWrapping="Wrap" />
-                                </ui:Grid>
+                                </Grid>
                                 <TextBlock FontSize="11"
                                            Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
                                            Text="Proxy applies to platform requests and preview playback when enabled."
                                            TextWrapping="Wrap" />
                             </ui:StackPanel>
-                        </ui:Grid>
+                        </Grid>
                     </ui:Card>
                     <ui:CardExpander>
                         <ui:CardExpander.Header>
