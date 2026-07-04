@@ -70,6 +70,9 @@ Recording is powered by FFmpeg. Live preview is powered by LibVLCSharp.
 | SOOP | Supported |
 | FlexTV | Supported |
 | PopkonTV | Supported |
+| Look | Supported |
+| Taobao | Supported |
+| LiveMe | Supported |
 | Xiaohongshu | Supported |
 | Kugou | Supported |
 | Yingke | Supported |
@@ -119,6 +122,9 @@ https://www.huajiao.com/l/345096174
 https://play.sooplive.co.kr/sw7love
 https://www.flextv.co.kr/channels/593127/live
 https://www.popkontv.com/live/view?castId=wjfal007&partnerCode=P-00117
+https://look.163.com/live?id=65108820
+https://tbzb.taobao.com/live?liveId=532359023188
+https://www.liveme.com/zh/v/17141543493018047815/index.html
 https://www.tiktok.com/@example/live
 https://example.com/live/index.m3u8
 ```
