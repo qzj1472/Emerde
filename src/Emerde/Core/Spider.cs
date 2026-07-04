@@ -8,6 +8,7 @@ internal static class Spider
         TiktokSpider.Instance.Value,
         BilibiliSpider.Instance.Value,
         KuaishouSpider.Instance.Value,
+        BigoSpider.Instance.Value,
         DirectStreamSpider.Instance.Value,
     ]);
 

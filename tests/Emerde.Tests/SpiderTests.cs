@@ -46,6 +46,16 @@ public sealed class SpiderTests
     }
 
     [Theory]
+    [InlineData("https://www.bigo.tv/cn/123456?from=test", "https://www.bigo.tv/123456")]
+    [InlineData("https://www.bigo.tv/live?h=987654&source=test", "https://www.bigo.tv/987654")]
+    public void ParseUrl_WithBigoLiveUrl_NormalizesRoomUrl(string input, string expected)
+    {
+        string? result = Spider.ParseUrl(input);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
     [InlineData("https://example.test/live.m3u8?token=abc", "https://example.test/live.m3u8?token=abc")]
     [InlineData("https://example.test/live.flv", "https://example.test/live.flv")]
     public void ParseUrl_WithDirectStreamUrl_PreservesStreamUrl(string input, string expected)
@@ -60,6 +70,7 @@ public sealed class SpiderTests
     [InlineData("https://www.tiktok.com/@someone/live", "TikTok")]
     [InlineData("https://live.bilibili.com/123456", "Bilibili")]
     [InlineData("https://live.kuaishou.com/u/example", "Kuaishou")]
+    [InlineData("https://www.bigo.tv/cn/123456", "Bigo")]
     [InlineData("https://example.test/live.m3u8", "Direct")]
     [InlineData("https://example.test/page", "")]
     public void GetPlatformName_DetectsSupportedPlatform(string input, string expected)
@@ -74,6 +85,7 @@ public sealed class SpiderTests
         Assert.Contains("TikTok", Spider.SupportedPlatformNames);
         Assert.Contains("Bilibili", Spider.SupportedPlatformNames);
         Assert.Contains("Kuaishou", Spider.SupportedPlatformNames);
+        Assert.Contains("Bigo", Spider.SupportedPlatformNames);
         Assert.Contains("Direct", Spider.SupportedPlatformNames);
     }
 
@@ -147,5 +159,34 @@ public sealed class SpiderTests
         Assert.True(result.IsLiveStreaming);
         Assert.Equal("anchor", result.Nickname);
         Assert.Equal("https://example.test/high.flv", result.FlvUrl);
+    }
+
+    [Fact]
+    public void BigoExtractStudioInfo_MapsLiveHlsData()
+    {
+        BigoSpiderResult result = new()
+        {
+            RoomUrl = "https://www.bigo.tv/123456",
+            PlatformName = "Bigo",
+        };
+
+        BigoSpider.ExtractStudioInfo(
+            """
+            {
+              "code": 0,
+              "data": {
+                "nick_name": "anchor",
+                "avatar": "https://example.test/avatar.png",
+                "alive": 1,
+                "hls_src": "https://example.test/live.m3u8"
+              }
+            }
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
+        Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
     }
 }
