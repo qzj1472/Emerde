@@ -8,6 +8,7 @@ internal static class Spider
         TiktokSpider.Instance.Value,
         BilibiliSpider.Instance.Value,
         KuaishouSpider.Instance.Value,
+        HuyaSpider.Instance.Value,
         BigoSpider.Instance.Value,
         XiaohongshuSpider.Instance.Value,
         KugouSpider.Instance.Value,

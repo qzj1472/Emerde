@@ -38,6 +38,7 @@ Recording is powered by FFmpeg. Live preview is powered by LibVLCSharp.
 | TikTok | Supported |
 | Bilibili | Supported |
 | Kuaishou | Supported |
+| Huya | Supported |
 | Bigo | Supported |
 | Xiaohongshu | Supported |
 | Kugou | Supported |
@@ -57,6 +58,7 @@ Add the live room URL from a supported platform, or paste a direct `.m3u8` / `.f
 https://live.douyin.com/123456
 https://live.bilibili.com/123456
 https://live.kuaishou.com/u/example
+https://www.huya.com/52333
 https://www.tiktok.com/@example/live
 https://example.com/live/index.m3u8
 ```

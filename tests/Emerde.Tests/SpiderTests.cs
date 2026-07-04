@@ -46,6 +46,16 @@ public sealed class SpiderTests
     }
 
     [Theory]
+    [InlineData("https://www.huya.com/52333?from=test", "https://www.huya.com/52333")]
+    [InlineData("https://huya.com/example_room?from=test", "https://www.huya.com/example_room")]
+    public void ParseUrl_WithHuyaLiveUrl_NormalizesRoomUrl(string input, string expected)
+    {
+        string? result = Spider.ParseUrl(input);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
     [InlineData("https://www.bigo.tv/cn/123456?from=test", "https://www.bigo.tv/123456")]
     [InlineData("https://www.bigo.tv/live?h=987654&source=test", "https://www.bigo.tv/987654")]
     public void ParseUrl_WithBigoLiveUrl_NormalizesRoomUrl(string input, string expected)
@@ -148,6 +158,7 @@ public sealed class SpiderTests
     [InlineData("https://www.tiktok.com/@someone/live", "TikTok")]
     [InlineData("https://live.bilibili.com/123456", "Bilibili")]
     [InlineData("https://live.kuaishou.com/u/example", "Kuaishou")]
+    [InlineData("https://www.huya.com/52333", "Huya")]
     [InlineData("https://www.bigo.tv/cn/123456", "Bigo")]
     [InlineData("https://www.xiaohongshu.com/user/profile/abc123", "Xiaohongshu")]
     [InlineData("https://fanxing.kugou.com/123456", "Kugou")]
@@ -171,6 +182,7 @@ public sealed class SpiderTests
         Assert.Contains("TikTok", Spider.SupportedPlatformNames);
         Assert.Contains("Bilibili", Spider.SupportedPlatformNames);
         Assert.Contains("Kuaishou", Spider.SupportedPlatformNames);
+        Assert.Contains("Huya", Spider.SupportedPlatformNames);
         Assert.Contains("Bigo", Spider.SupportedPlatformNames);
         Assert.Contains("Xiaohongshu", Spider.SupportedPlatformNames);
         Assert.Contains("Kugou", Spider.SupportedPlatformNames);
@@ -282,6 +294,61 @@ public sealed class SpiderTests
         Assert.Equal("anchor", result.Nickname);
         Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
         Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
+    }
+
+    [Fact]
+    public void HuyaExtractors_MapProfileRoomAndStreamData()
+    {
+        HuyaSpiderResult result = new()
+        {
+            RoomUrl = "https://www.huya.com/52333",
+            PlatformName = "Huya",
+        };
+
+        string? roomId = HuyaSpider.ExtractProfileRoomId("""window.HNF_GLOBAL_INIT = {"ProfileRoom":52333,"sPrivateHost":"host"};""");
+        HuyaSpider.ExtractProfileRoom(
+            """
+            {
+              "data": {
+                "profileInfo": {
+                  "nick": "anchor",
+                  "avatar180": "https://example.test/avatar.png"
+                },
+                "realLiveStatus": "ON",
+                "liveData": {
+                  "introduction": "Live title"
+                },
+                "stream": {
+                  "baseSteamInfoList": [
+                    {
+                      "sCdnType": "AL",
+                      "sStreamName": "room-low",
+                      "sFlvUrl": "http://example.test/live",
+                      "sFlvAntiCode": "wsSecret=low&ctype=tars_mp&fs=bhct",
+                      "sHlsUrl": "http://example.test/hls",
+                      "sHlsAntiCode": "wsSecret=low"
+                    },
+                    {
+                      "sCdnType": "TX",
+                      "sStreamName": "room-high",
+                      "sFlvUrl": "http://example.test/live",
+                      "sFlvAntiCode": "wsSecret=high&ctype=tars_mp&fs=bhct",
+                      "sHlsUrl": "http://example.test/hls",
+                      "sHlsAntiCode": "wsSecret=high"
+                    }
+                  ]
+                }
+              }
+            }
+            """,
+            result);
+
+        Assert.Equal("52333", roomId);
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
+        Assert.Equal("https://example.test/live/room-high.flv?wsSecret=high&ctype=huya_webh5&fs=bgct", result.FlvUrl);
+        Assert.Equal("https://example.test/hls/room-high.m3u8?wsSecret=high", result.HlsUrl);
     }
 
     [Fact]
