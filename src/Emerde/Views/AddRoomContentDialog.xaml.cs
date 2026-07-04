@@ -64,6 +64,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
             }
             else
             {
+                e.Cancel = true;
                 Toast.Error("ErrorRoomUrl".Tr());
             }
         }

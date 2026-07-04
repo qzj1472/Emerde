@@ -469,12 +469,13 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             if (!string.IsNullOrWhiteSpace(dialog.NickName))
             {
                 List<Room> rooms = [.. Configurations.Rooms.Get()];
+                string roomUrl = dialog.RoomUrl!;
 
-                rooms.RemoveAll(room => room.RoomUrl == dialog.Url);
+                rooms.RemoveAll(room => room.RoomUrl == roomUrl);
                 rooms.Add(new Room()
                 {
                     NickName = dialog.NickName,
-                    RoomUrl = dialog.RoomUrl!,
+                    RoomUrl = roomUrl,
                 });
                 Configurations.Rooms.Set([.. rooms]);
                 ConfigurationManager.Save();
@@ -482,8 +483,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 RoomStatuses.Add(new RoomStatusReactive()
                 {
                     NickName = dialog.NickName,
-                    RoomUrl = dialog.RoomUrl!,
-                    PlatformName = Spider.GetPlatformName(dialog.RoomUrl!),
+                    RoomUrl = roomUrl,
+                    PlatformName = Spider.GetPlatformName(roomUrl),
                 });
                 RoomStatusesView.Refresh();
                 OnPropertyChanged(nameof(PlatformSummaryText));
@@ -566,8 +567,16 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return;
         }
 
-        // SelectedItem's properties is mapped from CollectionView, so we need to find the original item
-        RoomStatuses.MoveUp(RoomStatuses.Where(roomStatus => roomStatus.RoomUrl == SelectedItem.RoomUrl).FirstOrDefault()!);
+        RoomStatusReactive? roomStatusReactive = RoomStatuses.FirstOrDefault(roomStatus => roomStatus.RoomUrl == SelectedItem.RoomUrl);
+
+        if (roomStatusReactive == null)
+        {
+            return;
+        }
+
+        RoomStatuses.MoveUp(roomStatusReactive);
+        SaveRoomOrder();
+        RoomStatusesView.Refresh();
     }
 
     [RelayCommand]
@@ -578,8 +587,48 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return;
         }
 
-        // SelectedItem's properties is mapped from CollectionView, so we need to find the original item
-        RoomStatuses.MoveDown(RoomStatuses.Where(roomStatus => roomStatus.RoomUrl == SelectedItem.RoomUrl).FirstOrDefault()!);
+        RoomStatusReactive? roomStatusReactive = RoomStatuses.FirstOrDefault(roomStatus => roomStatus.RoomUrl == SelectedItem.RoomUrl);
+
+        if (roomStatusReactive == null)
+        {
+            return;
+        }
+
+        RoomStatuses.MoveDown(roomStatusReactive);
+        SaveRoomOrder();
+        RoomStatusesView.Refresh();
+    }
+
+    private void SaveRoomOrder()
+    {
+        Dictionary<string, Room> roomsByUrl = [];
+
+        foreach (Room room in Configurations.Rooms.Get().Where(room => !string.IsNullOrWhiteSpace(room.RoomUrl)))
+        {
+            roomsByUrl[room.RoomUrl] = room;
+        }
+
+        Room[] rooms = RoomStatuses
+            .Where(roomStatus => !string.IsNullOrWhiteSpace(roomStatus.RoomUrl))
+            .Select(roomStatus =>
+            {
+                if (roomsByUrl.TryGetValue(roomStatus.RoomUrl, out Room? room))
+                {
+                    return room;
+                }
+
+                return new Room()
+                {
+                    NickName = roomStatus.NickName,
+                    RoomUrl = roomStatus.RoomUrl,
+                    IsToNotify = roomStatus.IsToNotify,
+                    IsToRecord = roomStatus.IsToRecord,
+                };
+            })
+            .ToArray();
+
+        Configurations.Rooms.Set(rooms);
+        ConfigurationManager.Save();
     }
 
     [RelayCommand]
@@ -590,19 +639,19 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return;
         }
 
-        MessageBoxResult result = await MessageBox.QuestionAsync("SureRemoveRoom".Tr(SelectedItem.NickName));
+        string roomUrl = SelectedItem.RoomUrl;
+        string nickName = SelectedItem.NickName;
+        MessageBoxResult result = await MessageBox.QuestionAsync("SureRemoveRoom".Tr(nickName));
 
         if (result == MessageBoxResult.Yes)
         {
-            // Stop and remove from Global status
-            if (GlobalMonitor.RoomStatus.TryGetValue(SelectedItem.RoomUrl, out RoomStatus? roomStatus))
+            if (GlobalMonitor.RoomStatus.TryGetValue(roomUrl, out RoomStatus? roomStatus))
             {
                 roomStatus.Recorder.Stop();
-                _ = GlobalMonitor.RoomStatus.TryRemove(SelectedItem.RoomUrl, out _);
+                _ = GlobalMonitor.RoomStatus.TryRemove(roomUrl, out _);
             }
 
-            // Remove from Reactive UI
-            RoomStatusReactive? roomStatusReactive = RoomStatuses.Where(room => room.RoomUrl == roomStatus?.RoomUrl).FirstOrDefault();
+            RoomStatusReactive? roomStatusReactive = RoomStatuses.FirstOrDefault(room => room.RoomUrl == roomUrl);
             if (roomStatusReactive != null)
             {
                 RoomStatuses.Remove(roomStatusReactive);
@@ -610,12 +659,12 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             RoomStatusesView.Refresh();
             OnPropertyChanged(nameof(PlatformSummaryText));
 
-            // Remove from Configuration
             List<Room> rooms = [.. Configurations.Rooms.Get()];
 
-            rooms.Remove(rooms.Where(room => room.RoomUrl == SelectedItem.RoomUrl).FirstOrDefault()!);
+            rooms.RemoveAll(room => room.RoomUrl == roomUrl);
             Configurations.Rooms.Set([.. rooms]);
             ConfigurationManager.Save();
+            _ = SelectedItem.MapFrom(new RoomStatusReactive());
 
             Toast.Success("SuccOp".Tr());
         }

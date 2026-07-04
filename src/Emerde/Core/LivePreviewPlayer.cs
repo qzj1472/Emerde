@@ -42,7 +42,7 @@ public sealed class LivePreviewPlayer : IDisposable
 
     public void Stop()
     {
-        if (MediaPlayer.IsPlaying)
+        if (MediaPlayer.State is not VLCState.Stopped and not VLCState.NothingSpecial)
         {
             MediaPlayer.Stop();
         }

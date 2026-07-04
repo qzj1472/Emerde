@@ -100,11 +100,11 @@ internal static class GlobalMonitor
                 {
                     if (TryGetRoomStatus(room) is RoomStatus roomStatus)
                     {
-                        // Check Room Settings
-                        bool isRoomToNotify = room.IsToNotify;
-                        bool isRoomToRecord = room.IsToRecord;
+                        bool shouldNotify = isGlobalToNotify && room.IsToNotify;
+                        bool shouldRecord = isGlobalToRecord && room.IsToRecord;
+                        bool shouldMonitor = shouldNotify || shouldRecord;
 
-                        if ((isGlobalToNotify || isGlobalToRecord) && (isRoomToNotify || isRoomToRecord))
+                        if (shouldMonitor)
                         {
                             // Spider Room Status
                             ISpiderResult? spiderResult = Spider.GetResult(room.RoomUrl);
@@ -151,7 +151,7 @@ internal static class GlobalMonitor
                             }
 
                             // Start Streaming Recording
-                            if (isRoomToRecord && isGlobalToRecord)
+                            if (shouldRecord)
                             {
                                 if (spiderResult.IsLiveStreaming ?? false)
                                 {
@@ -172,7 +172,7 @@ internal static class GlobalMonitor
                             }
 
                             // Start Broadcast Notification
-                            if (isRoomToNotify && isGlobalToNotify)
+                            if (shouldNotify)
                             {
                                 // Only to notify when first detected
                                 if (prevStreamStatus != StreamStatus.Streaming)
@@ -183,12 +183,7 @@ internal static class GlobalMonitor
                                     }
                                 }
                             }
-                            else
-                            {
-                                roomStatus.StreamStatus = StreamStatus.Disabled;
-                            }
-
-                            if (isRoomToRecord && roomStatus.RecordStatus == RecordStatus.Disabled)
+                            if (shouldRecord && roomStatus.RecordStatus == RecordStatus.Disabled)
                             {
                                 // Restore to initialized
                                 roomStatus.RecordStatus = RecordStatus.Initialized;
