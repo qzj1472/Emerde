@@ -42,6 +42,7 @@ Recording is powered by FFmpeg. Live preview is powered by LibVLCSharp.
 | Baidu Live | Supported |
 | Bigo | Supported |
 | 17Live | Supported |
+| CHZZK | Supported |
 | Xiaohongshu | Supported |
 | Kugou | Supported |
 | Yingke | Supported |
@@ -63,6 +64,7 @@ https://live.kuaishou.com/u/example
 https://www.huya.com/52333
 https://live.baidu.com/m/media/pclive/pchome/live.html?room_id=9175031377
 https://17.live/en/live/6302408
+https://chzzk.naver.com/live/458f6ec20b034f49e0fc6d03921646d2
 https://www.tiktok.com/@example/live
 https://example.com/live/index.m3u8
 ```

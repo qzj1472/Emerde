@@ -84,6 +84,16 @@ public sealed class SpiderTests
     }
 
     [Theory]
+    [InlineData("https://chzzk.naver.com/live/458f6ec20b034f49e0fc6d03921646d2?from=test", "https://chzzk.naver.com/live/458f6ec20b034f49e0fc6d03921646d2")]
+    [InlineData("https://m.chzzk.naver.com/live/458f6ec20b034f49e0fc6d03921646d2", "https://chzzk.naver.com/live/458f6ec20b034f49e0fc6d03921646d2")]
+    public void ParseUrl_WithChzzkLiveUrl_NormalizesRoomUrl(string input, string expected)
+    {
+        string? result = Spider.ParseUrl(input);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
     [InlineData("https://www.xiaohongshu.com/user/profile/abc123?xsec_token=test", "https://www.xiaohongshu.com/user/profile/abc123")]
     [InlineData("https://www.xiaohongshu.com/live?host_id=host123&source=test", "https://www.xiaohongshu.com/user/profile/host123")]
     public void ParseUrl_WithXiaohongshuLiveUrl_NormalizesRoomUrl(string input, string expected)
@@ -180,6 +190,7 @@ public sealed class SpiderTests
     [InlineData("https://live.baidu.com/m/media/pclive/pchome/live.html?room_id=9175031377", "Baidu")]
     [InlineData("https://www.bigo.tv/cn/123456", "Bigo")]
     [InlineData("https://17.live/en/live/6302408", "17Live")]
+    [InlineData("https://chzzk.naver.com/live/458f6ec20b034f49e0fc6d03921646d2", "CHZZK")]
     [InlineData("https://www.xiaohongshu.com/user/profile/abc123", "Xiaohongshu")]
     [InlineData("https://fanxing.kugou.com/123456", "Kugou")]
     [InlineData("https://www.inke.cn/liveroom.html?uid=user456&id=live123", "Yingke")]
@@ -206,6 +217,7 @@ public sealed class SpiderTests
         Assert.Contains("Baidu", Spider.SupportedPlatformNames);
         Assert.Contains("Bigo", Spider.SupportedPlatformNames);
         Assert.Contains("17Live", Spider.SupportedPlatformNames);
+        Assert.Contains("CHZZK", Spider.SupportedPlatformNames);
         Assert.Contains("Xiaohongshu", Spider.SupportedPlatformNames);
         Assert.Contains("Kugou", Spider.SupportedPlatformNames);
         Assert.Contains("Yingke", Spider.SupportedPlatformNames);
@@ -457,6 +469,36 @@ public sealed class SpiderTests
         Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
         Assert.Equal("rtmp://example.test/live/high", result.FlvUrl);
         Assert.Equal("https://example.test/live/high.m3u8", result.HlsUrl);
+    }
+
+    [Fact]
+    public void ChzzkExtractors_MapLiveDetailAndPlaybackData()
+    {
+        ChzzkSpiderResult result = new()
+        {
+            RoomUrl = "https://chzzk.naver.com/live/458f6ec20b034f49e0fc6d03921646d2",
+            PlatformName = "CHZZK",
+        };
+
+        ChzzkSpider.ExtractLiveDetail(
+            """
+            {
+              "content": {
+                "channel": {
+                  "channelName": "anchor",
+                  "channelImageUrl": "https://example.test/avatar.png"
+                },
+                "status": "OPEN",
+                "livePlaybackJson": "{\"media\":[{\"path\":\"https://example.test/live/master.m3u8\"}]}"
+              }
+            }
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
+        Assert.Equal("https://example.test/live/master.m3u8", result.HlsUrl);
     }
 
     [Fact]
