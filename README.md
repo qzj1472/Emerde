@@ -58,6 +58,13 @@ Recording is powered by FFmpeg. Live preview is powered by LibVLCSharp.
 | CatShow | Supported |
 | Laixiu | Supported |
 | JD | Supported |
+| PandaTV | Supported |
+| WinkTV | Supported |
+| Twitch | Supported |
+| YouTube | Supported |
+| Shopee | Supported |
+| TwitCasting | Supported |
+| Faceit | Supported |
 | Xiaohongshu | Supported |
 | Kugou | Supported |
 | Yingke | Supported |
@@ -95,6 +102,13 @@ https://m.pp.weimipopo.com/live/preview.html?anchorUid=91625862
 https://h.catshow168.com/live/preview.html?anchorUid=18895331
 https://www.imkktv.com/h5/share/video.html?roomId=1710496
 https://3.cn/28MLBy-E
+https://www.pandalive.co.kr/live/play/bara0109
+https://www.winktv.co.kr/live/play/anjer1004
+https://www.twitch.tv/example
+https://www.youtube.com/watch?v=example
+https://live.shopee.sg/share?from=live&session=802458
+https://twitcasting.tv/example
+https://www.faceit.com/zh/players/qpjzz/stream
 https://www.tiktok.com/@example/live
 https://example.com/live/index.m3u8
 ```

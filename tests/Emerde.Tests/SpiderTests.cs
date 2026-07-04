@@ -217,6 +217,67 @@ public sealed class SpiderTests
         Assert.Equal(expected, result);
     }
 
+    [Fact]
+    public void ParseUrl_WithPandaLiveUrl_NormalizesRoomUrl()
+    {
+        string? result = Spider.ParseUrl("https://www.pandalive.co.kr/live/play/bara0109?pwd=1234&from=test");
+
+        Assert.Equal("https://www.pandalive.co.kr/live/play/bara0109?pwd=1234", result);
+    }
+
+    [Fact]
+    public void ParseUrl_WithWinkTvLiveUrl_NormalizesRoomUrl()
+    {
+        string? result = Spider.ParseUrl("https://www.winktv.co.kr/live/play/anjer1004?pwd=1234&from=test");
+
+        Assert.Equal("https://www.winktv.co.kr/live/play/anjer1004?pwd=1234", result);
+    }
+
+    [Fact]
+    public void ParseUrl_WithTwitchLiveUrl_NormalizesRoomUrl()
+    {
+        string? result = Spider.ParseUrl("https://twitch.tv/example?from=test");
+
+        Assert.Equal("https://www.twitch.tv/example", result);
+    }
+
+    [Theory]
+    [InlineData("https://www.youtube.com/watch?v=abc123&feature=share", "https://www.youtube.com/watch?v=abc123")]
+    [InlineData("https://youtu.be/abc123?si=test", "https://youtu.be/abc123")]
+    [InlineData("https://www.youtube.com/live/abc123?feature=share", "https://www.youtube.com/live/abc123")]
+    public void ParseUrl_WithYouTubeLiveUrl_NormalizesRoomUrl(string input, string expected)
+    {
+        string? result = Spider.ParseUrl(input);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData("https://live.shopee.sg/share?from=live&session=802458&share_user_id=", "https://live.shopee.sg/share?from=live&session=802458&share_user_id=")]
+    [InlineData("https://shp.ee/abc123?from=test", "https://shp.ee/abc123?from=test")]
+    public void ParseUrl_WithShopeeLiveUrl_NormalizesRoomUrl(string input, string expected)
+    {
+        string? result = Spider.ParseUrl(input);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void ParseUrl_WithTwitCastingLiveUrl_NormalizesRoomUrl()
+    {
+        string? result = Spider.ParseUrl("https://twitcasting.tv/example/show?from=test");
+
+        Assert.Equal("https://twitcasting.tv/example", result);
+    }
+
+    [Fact]
+    public void ParseUrl_WithFaceitLiveUrl_NormalizesRoomUrl()
+    {
+        string? result = Spider.ParseUrl("https://www.faceit.com/zh/players/qpjzz/stream?from=test");
+
+        Assert.Equal("https://www.faceit.com/players/qpjzz/stream", result);
+    }
+
     [Theory]
     [InlineData("https://www.xiaohongshu.com/user/profile/abc123?xsec_token=test", "https://www.xiaohongshu.com/user/profile/abc123")]
     [InlineData("https://www.xiaohongshu.com/live?host_id=host123&source=test", "https://www.xiaohongshu.com/user/profile/host123")]
@@ -330,6 +391,13 @@ public sealed class SpiderTests
     [InlineData("https://h.catshow168.com/live/preview.html?anchorUid=18895331", "CatShow")]
     [InlineData("https://www.imkktv.com/h5/share/video.html?roomId=1710496", "Laixiu")]
     [InlineData("https://3.cn/28MLBy-E", "JD")]
+    [InlineData("https://www.pandalive.co.kr/live/play/bara0109", "PandaTV")]
+    [InlineData("https://www.winktv.co.kr/live/play/anjer1004", "WinkTV")]
+    [InlineData("https://www.twitch.tv/example", "Twitch")]
+    [InlineData("https://www.youtube.com/watch?v=abc123", "YouTube")]
+    [InlineData("https://live.shopee.sg/share?from=live&session=802458", "Shopee")]
+    [InlineData("https://twitcasting.tv/example", "TwitCasting")]
+    [InlineData("https://www.faceit.com/zh/players/qpjzz/stream", "Faceit")]
     [InlineData("https://www.xiaohongshu.com/user/profile/abc123", "Xiaohongshu")]
     [InlineData("https://fanxing.kugou.com/123456", "Kugou")]
     [InlineData("https://www.inke.cn/liveroom.html?uid=user456&id=live123", "Yingke")]
@@ -372,6 +440,13 @@ public sealed class SpiderTests
         Assert.Contains("CatShow", Spider.SupportedPlatformNames);
         Assert.Contains("Laixiu", Spider.SupportedPlatformNames);
         Assert.Contains("JD", Spider.SupportedPlatformNames);
+        Assert.Contains("PandaTV", Spider.SupportedPlatformNames);
+        Assert.Contains("WinkTV", Spider.SupportedPlatformNames);
+        Assert.Contains("Twitch", Spider.SupportedPlatformNames);
+        Assert.Contains("YouTube", Spider.SupportedPlatformNames);
+        Assert.Contains("Shopee", Spider.SupportedPlatformNames);
+        Assert.Contains("TwitCasting", Spider.SupportedPlatformNames);
+        Assert.Contains("Faceit", Spider.SupportedPlatformNames);
         Assert.Contains("Xiaohongshu", Spider.SupportedPlatformNames);
         Assert.Contains("Kugou", Spider.SupportedPlatformNames);
         Assert.Contains("Yingke", Spider.SupportedPlatformNames);
@@ -1146,6 +1221,255 @@ public sealed class SpiderTests
         Assert.Equal("anchor", result.Nickname);
         Assert.Equal("https://example.test/live.flv", result.FlvUrl);
         Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
+    }
+
+    [Fact]
+    public void PandaLiveExtractors_MapBjAndHlsData()
+    {
+        PandaLiveSpiderResult result = new()
+        {
+            RoomUrl = "https://www.pandalive.co.kr/live/play/bara0109",
+            PlatformName = "PandaTV",
+        };
+
+        PandaLiveSpider.ExtractBjInfo(
+            """
+            {
+              "bjInfo": {
+                "id": "bara0109",
+                "nick": "anchor",
+                "profileImg": "https://example.test/avatar.png"
+              },
+              "media": {}
+            }
+            """,
+            result);
+        PandaLiveSpider.ExtractPlayInfo(
+            """
+            {
+              "PlayList": {
+                "hls": [
+                  { "url": "https://example.test/live.m3u8" }
+                ]
+              }
+            }
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor-bara0109", result.Nickname);
+        Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
+        Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
+    }
+
+    [Fact]
+    public void WinkTvExtractors_MapBjAndHlsData()
+    {
+        WinkTvSpiderResult result = new()
+        {
+            RoomUrl = "https://www.winktv.co.kr/live/play/anjer1004",
+            PlatformName = "WinkTV",
+        };
+
+        WinkTvSpider.ExtractBjInfo(
+            """
+            {
+              "bjInfo": {
+                "id": "anjer1004",
+                "nick": "anchor",
+                "profileImg": "https://example.test/avatar.png"
+              },
+              "media": {}
+            }
+            """,
+            result);
+        WinkTvSpider.ExtractPlayInfo(
+            """
+            {
+              "PlayList": {
+                "hls": [
+                  { "url": "https://example.test/live.m3u8" }
+                ]
+              }
+            }
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor-anjer1004", result.Nickname);
+        Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
+        Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
+    }
+
+    [Fact]
+    public void TwitchExtractors_MapTokenRoomAndHlsData()
+    {
+        TwitchSpiderResult result = new()
+        {
+            RoomUrl = "https://www.twitch.tv/example",
+            PlatformName = "Twitch",
+        };
+
+        TwitchAccessToken? token = TwitchSpider.ExtractPlaybackAccessToken(
+            """
+            {
+              "data": {
+                "streamPlaybackAccessToken": {
+                  "value": "{\"channel\":\"example\"}",
+                  "signature": "sig123"
+                }
+              }
+            }
+            """);
+        TwitchSpider.ExtractRoomInfo(
+            """
+            [
+              {
+                "data": {
+                  "userOrError": {
+                    "login": "example",
+                    "displayName": "Anchor",
+                    "profileImageURL": "https://example.test/avatar.png",
+                    "stream": {}
+                  }
+                }
+              }
+            ]
+            """,
+            result);
+
+        Assert.NotNull(token);
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("Anchor-example", result.Nickname);
+        Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
+        Assert.Contains("https://usher.ttvnw.net/api/channel/hls/example.m3u8", TwitchSpider.BuildHlsUrl("example", token));
+    }
+
+    [Fact]
+    public void YouTubeExtractInitialPlayerResponse_MapsHlsData()
+    {
+        YouTubeSpiderResult result = new()
+        {
+            RoomUrl = "https://www.youtube.com/watch?v=abc123",
+            PlatformName = "YouTube",
+        };
+
+        YouTubeSpider.ExtractInitialPlayerResponse(
+            """
+            <script>
+            var ytInitialPlayerResponse = {
+              "videoDetails": {
+                "author": "anchor",
+                "isLive": true
+              },
+              "streamingData": {
+                "hlsManifestUrl": "https://example.test/live.m3u8"
+              }
+            };var meta = document.createElement
+            </script>
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
+    }
+
+    [Fact]
+    public void ShopeeExtractors_MapOngoingSessionAndFlvData()
+    {
+        ShopeeSpiderResult result = new()
+        {
+            RoomUrl = "https://live.shopee.sg/share?from=live&session=802458",
+            PlatformName = "Shopee",
+        };
+
+        string? sessionId = ShopeeSpider.ExtractOngoingSessionId("""{"data":{"ongoing_live":{"session_id":"802458"}}}""");
+        ShopeeSpider.ExtractSession(
+            """
+            {
+              "data": {
+                "session": {
+                  "nickname": "anchor",
+                  "status": 1,
+                  "play_url": "https://example.test/live.flv"
+                }
+              }
+            }
+            """,
+            true,
+            result);
+
+        Assert.Equal("802458", sessionId);
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/live.flv", result.FlvUrl);
+    }
+
+    [Fact]
+    public void TwitCastingExtractors_MapPageAndHlsData()
+    {
+        TwitCastingSpiderResult result = new()
+        {
+            RoomUrl = "https://twitcasting.tv/example",
+            PlatformName = "TwitCasting",
+        };
+
+        TwitCastingSpider.ExtractPageData(
+            """
+            <title>Anchor (@example)  live - TwitCasting</title>
+            <meta name="twitter:title" content="Live title">
+            <div data-is-onlive="true"
+                 data-view-mode="normal"
+                 data-movie-id="movie123" data-audience-id="audience"></div>
+            """,
+            result);
+        TwitCastingSpider.ExtractStreamServer(
+            """
+            {
+              "tc-hls": {
+                "streams": {
+                  "medium": "https://example.test/medium.m3u8",
+                  "high": "https://example.test/high.m3u8"
+                }
+              }
+            }
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("Anchor-example-movie123", result.Nickname);
+        Assert.Equal("https://example.test/high.m3u8", result.HlsUrl);
+    }
+
+    [Fact]
+    public void FaceitExtractors_MapUserAndStreamingData()
+    {
+        FaceitSpiderResult result = new()
+        {
+            RoomUrl = "https://www.faceit.com/players/qpjzz/stream",
+            PlatformName = "Faceit",
+        };
+
+        string? userId = FaceitSpider.ExtractUserId("""{"payload":{"id":"user123"}}""");
+        FaceitSpider.ExtractStreaming(
+            """
+            {
+              "payload": [
+                {
+                  "userNickname": "anchor",
+                  "platformId": "twitch_anchor",
+                  "platform": "twitch"
+                }
+              ]
+            }
+            """,
+            result);
+
+        Assert.Equal("user123", userId);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("twitch_anchor", result.PlatformId);
+        Assert.Equal("twitch", result.Platform);
     }
 
     [Fact]

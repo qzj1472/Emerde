@@ -25,7 +25,7 @@ public partial class SettingsViewModel : ReactiveObject
 {
     public string ChinaCookiePlatformsText => "Douyin / Bilibili / Kuaishou / Huya / Baidu / MaoerFM / Lianjie / 6Rooms / VVXqiu / Blued / Liuxing / Changliao / Yinbo / Zhihu / PPLive / CatShow / Laixiu / JD / Xiaohongshu / Kugou / Yingke / AcFun / YY / NeteaseCC / QianduRebo";
 
-    public string OverseaCookiePlatformsText => "TikTok / Bigo / ShowRoom / 17Live / CHZZK / Picarto / LangLive";
+    public string OverseaCookiePlatformsText => "TikTok / Bigo / ShowRoom / 17Live / CHZZK / Picarto / LangLive / PandaTV / WinkTV / Twitch / YouTube / Shopee / TwitCasting / Faceit";
 
     public string DirectStreamPlatformsText => "Direct stream";
 
