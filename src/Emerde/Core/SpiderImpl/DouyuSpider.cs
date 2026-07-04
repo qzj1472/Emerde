@@ -208,6 +208,22 @@ public sealed partial class DouyuSpider : ISpider
 
             string? rtmpUrl = data["rtmp_url"]?.ToString();
             string? rtmpLive = data["rtmp_live"]?.ToString();
+            string? streamUrl = data["url"]?.ToString();
+
+            if (!string.IsNullOrWhiteSpace(streamUrl))
+            {
+                if (streamUrl.Contains(".m3u8", StringComparison.OrdinalIgnoreCase))
+                {
+                    result.HlsUrl = streamUrl;
+                }
+                else
+                {
+                    result.FlvUrl = streamUrl;
+                }
+
+                result.IsLiveStreaming = true;
+                return;
+            }
 
             if (string.IsNullOrWhiteSpace(rtmpUrl) || string.IsNullOrWhiteSpace(rtmpLive))
             {
@@ -343,11 +359,43 @@ public sealed partial class DouyuSpider : ISpider
             ["rate"] = "0",
         };
 
+        string? json = SpiderRequest.PostForm(
+            "https://m.douyu.com/hgapi/livenc/room/getStreamUrl",
+            form,
+            MobileHeaders(),
+            cookie);
+
+        if (HasStreamUrl(json))
+        {
+            return json;
+        }
+
         return SpiderRequest.PostForm(
             $"https://www.douyu.com/lapi/live/getH5Play/{roomId}",
             form,
             MobileHeaders(),
             cookie);
+    }
+
+    private static bool HasStreamUrl(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return false;
+        }
+
+        try
+        {
+            JObject root = JObject.Parse(json);
+
+            return !string.IsNullOrWhiteSpace(root["data"]?["url"]?.ToString())
+                || (!string.IsNullOrWhiteSpace(root["data"]?["rtmp_url"]?.ToString())
+                 && !string.IsNullOrWhiteSpace(root["data"]?["rtmp_live"]?.ToString()));
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static Engine CreateEngine()

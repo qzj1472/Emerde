@@ -766,8 +766,7 @@ public sealed class SpiderTests
             """
             {
               "data": {
-                "rtmp_url": "https://example.test/live",
-                "rtmp_live": "stream.flv?token=abc"
+                "url": "https://example.test/live/stream.m3u8?token=abc"
               }
             }
             """,
@@ -785,6 +784,30 @@ public sealed class SpiderTests
         Assert.Equal("did123", signData.Did);
         Assert.Equal("1719411639", signData.Timestamp);
         Assert.Equal(DouyuSpider.Md5("3125893did1231719411639123"), signData.Sign);
+        Assert.Equal("https://example.test/live/stream.m3u8?token=abc", result.HlsUrl);
+    }
+
+    [Fact]
+    public void DouyuExtractStreamData_MapsLegacyRtmpData()
+    {
+        DouyuSpiderResult result = new()
+        {
+            RoomUrl = "https://www.douyu.com/3125893",
+            PlatformName = "Douyu",
+        };
+
+        DouyuSpider.ExtractStreamData(
+            """
+            {
+              "data": {
+                "rtmp_url": "https://example.test/live",
+                "rtmp_live": "stream.flv?token=abc"
+              }
+            }
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
         Assert.Equal("https://example.test/live/stream.flv?token=abc", result.FlvUrl);
     }
 
