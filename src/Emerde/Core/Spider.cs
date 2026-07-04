@@ -12,6 +12,7 @@ internal static class Spider
         XiaohongshuSpider.Instance.Value,
         KugouSpider.Instance.Value,
         YingkeSpider.Instance.Value,
+        ShowRoomSpider.Instance.Value,
         DirectStreamSpider.Instance.Value,
     ]);
 

@@ -84,6 +84,16 @@ public sealed class SpiderTests
     }
 
     [Theory]
+    [InlineData("https://www.showroom-live.com/room/profile?room_id=123456&from=test", "https://www.showroom-live.com/room/profile?room_id=123456")]
+    [InlineData("https://www.showroom-live.com/example_room?source=test", "https://www.showroom-live.com/example_room")]
+    public void ParseUrl_WithShowRoomLiveUrl_NormalizesRoomUrl(string input, string expected)
+    {
+        string? result = Spider.ParseUrl(input);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
     [InlineData("https://example.test/live.m3u8?token=abc", "https://example.test/live.m3u8?token=abc")]
     [InlineData("https://example.test/live.flv", "https://example.test/live.flv")]
     public void ParseUrl_WithDirectStreamUrl_PreservesStreamUrl(string input, string expected)
@@ -102,6 +112,7 @@ public sealed class SpiderTests
     [InlineData("https://www.xiaohongshu.com/user/profile/abc123", "Xiaohongshu")]
     [InlineData("https://fanxing.kugou.com/123456", "Kugou")]
     [InlineData("https://www.inke.cn/liveroom.html?uid=user456&id=live123", "Yingke")]
+    [InlineData("https://www.showroom-live.com/example_room", "ShowRoom")]
     [InlineData("https://example.test/live.m3u8", "Direct")]
     [InlineData("https://example.test/page", "")]
     public void GetPlatformName_DetectsSupportedPlatform(string input, string expected)
@@ -120,6 +131,7 @@ public sealed class SpiderTests
         Assert.Contains("Xiaohongshu", Spider.SupportedPlatformNames);
         Assert.Contains("Kugou", Spider.SupportedPlatformNames);
         Assert.Contains("Yingke", Spider.SupportedPlatformNames);
+        Assert.Contains("ShowRoom", Spider.SupportedPlatformNames);
         Assert.Contains("Direct", Spider.SupportedPlatformNames);
     }
 
@@ -323,5 +335,40 @@ public sealed class SpiderTests
         Assert.Equal("anchor", result.Nickname);
         Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
         Assert.Equal("https://example.test/live.flv", result.FlvUrl);
+    }
+
+    [Fact]
+    public void ShowRoomExtractors_MapRoomAndHlsData()
+    {
+        ShowRoomSpiderResult result = new()
+        {
+            RoomUrl = "https://www.showroom-live.com/room/profile?room_id=123456",
+            PlatformName = "ShowRoom",
+        };
+
+        string? roomId = ShowRoomSpider.ExtractRoomIdFromHtml("""<a href="/room/profile?room_id=123456">profile</a>""");
+        ShowRoomSpider.ExtractLiveInfo(
+            """
+            {
+              "room_name": "anchor",
+              "live_status": 2
+            }
+            """,
+            result);
+        ShowRoomSpider.ExtractStreamingUrl(
+            """
+            {
+              "streaming_url_list": [
+                { "type": "hls", "url": "https://example.test/low.m3u8" },
+                { "type": "hls_all", "url": "https://example.test/all.m3u8" }
+              ]
+            }
+            """,
+            result);
+
+        Assert.Equal("123456", roomId);
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/all.m3u8", result.HlsUrl);
     }
 }
