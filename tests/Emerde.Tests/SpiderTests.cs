@@ -114,6 +114,16 @@ public sealed class SpiderTests
     }
 
     [Theory]
+    [InlineData("https://cc.163.com/123456?from=test", "https://cc.163.com/123456")]
+    [InlineData("https://cc.163.com/123456/7890?from=test", "https://cc.163.com/123456/7890")]
+    public void ParseUrl_WithNeteaseCcLiveUrl_NormalizesRoomUrl(string input, string expected)
+    {
+        string? result = Spider.ParseUrl(input);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
     [InlineData("https://example.test/live.m3u8?token=abc", "https://example.test/live.m3u8?token=abc")]
     [InlineData("https://example.test/live.flv", "https://example.test/live.flv")]
     public void ParseUrl_WithDirectStreamUrl_PreservesStreamUrl(string input, string expected)
@@ -135,6 +145,7 @@ public sealed class SpiderTests
     [InlineData("https://www.showroom-live.com/example_room", "ShowRoom")]
     [InlineData("https://live.acfun.cn/live/17912421", "AcFun")]
     [InlineData("https://www.yy.com/123456", "YY")]
+    [InlineData("https://cc.163.com/123456", "NeteaseCC")]
     [InlineData("https://example.test/live.m3u8", "Direct")]
     [InlineData("https://example.test/page", "")]
     public void GetPlatformName_DetectsSupportedPlatform(string input, string expected)
@@ -156,6 +167,7 @@ public sealed class SpiderTests
         Assert.Contains("ShowRoom", Spider.SupportedPlatformNames);
         Assert.Contains("AcFun", Spider.SupportedPlatformNames);
         Assert.Contains("YY", Spider.SupportedPlatformNames);
+        Assert.Contains("NeteaseCC", Spider.SupportedPlatformNames);
         Assert.Contains("Direct", Spider.SupportedPlatformNames);
     }
 
@@ -463,5 +475,53 @@ public sealed class SpiderTests
         Assert.Equal("anchor", result.Nickname);
         Assert.Equal("channel123", result.ChannelId);
         Assert.Equal("https://example.test/live.flv", result.FlvUrl);
+    }
+
+    [Fact]
+    public void NeteaseCcExtractNextData_MapsLiveStreamData()
+    {
+        NeteaseCcSpiderResult result = new()
+        {
+            RoomUrl = "https://cc.163.com/123456",
+            PlatformName = "NeteaseCC",
+        };
+
+        NeteaseCcSpider.ExtractNextData(
+            """
+            {
+              "props": {
+                "pageProps": {
+                  "roomInfoInitData": {
+                    "nickname": "fallback",
+                    "live": {
+                      "nickname": "anchor",
+                      "status": 1,
+                      "sharefile": "https://example.test/live.m3u8",
+                      "quickplay": {
+                        "resolution": {
+                          "high": {
+                            "cdn": {
+                              "main": "https://example.test/high.flv"
+                            }
+                          },
+                          "standard": {
+                            "cdn": {
+                              "main": "https://example.test/standard.flv"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
+        Assert.Equal("https://example.test/high.flv", result.FlvUrl);
     }
 }
