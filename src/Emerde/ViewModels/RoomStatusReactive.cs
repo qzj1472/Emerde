@@ -21,9 +21,15 @@ public partial class RoomStatusReactive : ReactiveObject
     private string roomUrl = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PreviewUrl))]
+    [NotifyPropertyChangedFor(nameof(CanPreview))]
+    [NotifyPropertyChangedFor(nameof(PreviewSourceText))]
     private string flvUrl = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PreviewUrl))]
+    [NotifyPropertyChangedFor(nameof(CanPreview))]
+    [NotifyPropertyChangedFor(nameof(PreviewSourceText))]
     private string hlsUrl = string.Empty;
 
     [ObservableProperty]
@@ -34,6 +40,7 @@ public partial class RoomStatusReactive : ReactiveObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StreamStatusText))]
+    [NotifyPropertyChangedFor(nameof(CanPreview))]
     private StreamStatus streamStatus = default;
 
     public string StreamStatusText => StreamStatus switch
@@ -60,6 +67,28 @@ public partial class RoomStatusReactive : ReactiveObject
 #pragma warning restore CS0618 // Type or member is obsolete
         _ => "RecordStatusOfUnknown".Tr(),
     };
+
+    public string PreviewUrl => !string.IsNullOrWhiteSpace(HlsUrl) ? HlsUrl : FlvUrl;
+
+    public bool CanPreview => StreamStatus == StreamStatus.Streaming && !string.IsNullOrWhiteSpace(PreviewUrl);
+
+    public string PreviewSourceText
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(HlsUrl))
+            {
+                return "HLS";
+            }
+
+            if (!string.IsNullOrWhiteSpace(FlvUrl))
+            {
+                return "FLV";
+            }
+
+            return "-";
+        }
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Duration))]

@@ -253,6 +253,27 @@
   <data name="StopRecord" xml:space="preserve">
     <value>Stop Recording</value>
   </data>
+  <data name="LivePreview" xml:space="preserve">
+    <value>Live Preview</value>
+  </data>
+  <data name="PreviewLiveRoom" xml:space="preserve">
+    <value>Preview</value>
+  </data>
+  <data name="LivePreviewIdle" xml:space="preserve">
+    <value>Select a live room to preview</value>
+  </data>
+  <data name="LivePreviewReady" xml:space="preserve">
+    <value>Ready to preview</value>
+  </data>
+  <data name="LivePreviewPlaying" xml:space="preserve">
+    <value>Previewing</value>
+  </data>
+  <data name="LivePreviewUnavailable" xml:space="preserve">
+    <value>No preview stream available</value>
+  </data>
+  <data name="LivePreviewError" xml:space="preserve">
+    <value>Preview failed</value>
+  </data>
   <data name="RecordLog" xml:space="preserve">
     <value>Recording Log</value>
   </data>

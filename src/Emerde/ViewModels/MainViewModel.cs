@@ -26,13 +26,17 @@ using Windows.System;
 using Wpf.Ui.Violeta.Controls;
 using Wpf.Ui.Violeta.Threading;
 using CheckBox = System.Windows.Controls.CheckBox;
+using MediaPlayer = LibVLCSharp.Shared.MediaPlayer;
 
 namespace Emerde.ViewModels;
 
 [ObservableObject]
-public partial class MainViewModel : ReactiveObject
+public partial class MainViewModel : ReactiveObject, IDisposable
 {
     protected internal ForeverDispatcherTimer DispatcherTimer { get; }
+
+    private readonly LivePreviewPlayer livePreviewPlayer = new();
+    private LivePreviewWindow? livePreviewWindow;
 
     [ObservableProperty]
     private ReactiveCollection<RoomStatusReactive> roomStatuses = [];
@@ -40,8 +44,47 @@ public partial class MainViewModel : ReactiveObject
     [ObservableProperty]
     private RoomStatusReactive selectedItem = new();
 
+    partial void OnSelectedItemChanged(RoomStatusReactive value)
+    {
+        OnPropertyChanged(nameof(CanPreviewSelectedRoom));
+    }
+
     [ObservableProperty]
     private bool isRecording = false;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPreviewIdle))]
+    [NotifyPropertyChangedFor(nameof(IsPreviewPlaying))]
+    private bool isPreviewing = false;
+
+    [ObservableProperty]
+    private bool isPreviewMuted = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPreviewPlaying))]
+    private bool isPreviewPaused = false;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LivePreviewStatusText))]
+    private LivePreviewStatus livePreviewStatus = LivePreviewStatus.Idle;
+
+    public MediaPlayer LivePreviewMediaPlayer => livePreviewPlayer.MediaPlayer;
+
+    public bool IsPreviewIdle => !IsPreviewing;
+
+    public bool IsPreviewPlaying => IsPreviewing && !IsPreviewPaused;
+
+    public bool CanPreviewSelectedRoom => SelectedItem?.CanPreview ?? false;
+
+    public string LivePreviewStatusText => LivePreviewStatus switch
+    {
+        LivePreviewStatus.Idle => "LivePreviewIdle".Tr(),
+        LivePreviewStatus.Ready => "LivePreviewReady".Tr(),
+        LivePreviewStatus.Playing => "LivePreviewPlaying".Tr(),
+        LivePreviewStatus.Unavailable => "LivePreviewUnavailable".Tr(),
+        LivePreviewStatus.Error => "LivePreviewError".Tr(),
+        _ => "LivePreviewIdle".Tr(),
+    };
 
     partial void OnIsRecordingChanged(bool value)
     {
@@ -167,6 +210,7 @@ public partial class MainViewModel : ReactiveObject
         StatusOfAutoShutdownTime = Configurations.AutoShutdownTime.Get();
         StatusOfRecordFormat = Configurations.RecordFormat.Get();
         StatusOfRoutineInterval = Configurations.RoutineInterval.Get();
+        OnPropertyChanged(nameof(CanPreviewSelectedRoom));
 
         if (StatusOfIsUseAutoShutdown && TimeSpan.TryParse(StatusOfAutoShutdownTime, out TimeSpan targetTime))
         {
@@ -214,6 +258,113 @@ public partial class MainViewModel : ReactiveObject
                 }
             }
         }
+    }
+
+    [RelayCommand]
+    private void PreviewLiveRoom(RoomStatusReactive? roomStatus = null)
+    {
+        if (roomStatus != null)
+        {
+            SelectedItem = roomStatus;
+        }
+
+        if (SelectedItem == null || !SelectedItem.CanPreview)
+        {
+            LivePreviewStatus = LivePreviewStatus.Unavailable;
+            Toast.Warning("LivePreviewUnavailable".Tr());
+            return;
+        }
+
+        try
+        {
+            string proxyUrl = Configurations.IsUseProxy.Get() ? Configurations.ProxyUrl.Get() : string.Empty;
+
+            ShowLivePreviewWindow();
+            livePreviewPlayer.Play(SelectedItem.PreviewUrl, Configurations.UserAgent.Get(), proxyUrl);
+            livePreviewPlayer.SetMuted(IsPreviewMuted);
+            IsPreviewing = true;
+            IsPreviewPaused = false;
+            LivePreviewStatus = LivePreviewStatus.Playing;
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e);
+            IsPreviewing = false;
+            IsPreviewPaused = false;
+            LivePreviewStatus = LivePreviewStatus.Error;
+            Toast.Error("LivePreviewError".Tr());
+        }
+    }
+
+    [RelayCommand]
+    private void StopPreview()
+    {
+        livePreviewPlayer.Stop();
+        IsPreviewing = false;
+        IsPreviewPaused = false;
+        LivePreviewStatus = CanPreviewSelectedRoom ? LivePreviewStatus.Ready : LivePreviewStatus.Idle;
+    }
+
+    [RelayCommand]
+    private void TogglePreviewPlayback()
+    {
+        if (IsPreviewing)
+        {
+            StopPreview();
+            return;
+        }
+
+        PreviewLiveRoom();
+    }
+
+    [RelayCommand]
+    private void TogglePreviewPause()
+    {
+        if (!IsPreviewing)
+        {
+            PreviewLiveRoom();
+            return;
+        }
+
+        IsPreviewPaused = !IsPreviewPaused;
+        livePreviewPlayer.SetPaused(IsPreviewPaused);
+        LivePreviewStatus = IsPreviewPaused ? LivePreviewStatus.Ready : LivePreviewStatus.Playing;
+    }
+
+    private void ShowLivePreviewWindow()
+    {
+        if (livePreviewWindow == null)
+        {
+            livePreviewWindow = new()
+            {
+                Owner = Application.Current.MainWindow,
+                DataContext = this,
+            };
+            livePreviewWindow.Closed += (_, _) =>
+            {
+                livePreviewWindow = null;
+                StopPreview();
+            };
+        }
+
+        if (!livePreviewWindow.IsVisible)
+        {
+            livePreviewWindow.Show();
+        }
+
+        if (livePreviewWindow.WindowState == WindowState.Minimized)
+        {
+            livePreviewWindow.WindowState = WindowState.Normal;
+        }
+
+        livePreviewWindow.Activate();
+    }
+
+    [RelayCommand]
+    private void TogglePreviewMute()
+    {
+        IsPreviewMuted = !IsPreviewMuted;
+        livePreviewPlayer.SetMuted(IsPreviewMuted);
     }
 
     [RelayCommand]
@@ -569,5 +720,10 @@ public partial class MainViewModel : ReactiveObject
                 return element as DataGridRow;
             }
         }
+    }
+
+    public void Dispose()
+    {
+        livePreviewPlayer.Dispose();
     }
 }

@@ -256,6 +256,27 @@
   <data name="PlayRecord" xml:space="preserve">
     <value>録画を再生</value>
   </data>
+  <data name="LivePreview" xml:space="preserve">
+    <value>ライブプレビュー</value>
+  </data>
+  <data name="PreviewLiveRoom" xml:space="preserve">
+    <value>プレビュー</value>
+  </data>
+  <data name="LivePreviewIdle" xml:space="preserve">
+    <value>ライブを選択してプレビュー</value>
+  </data>
+  <data name="LivePreviewReady" xml:space="preserve">
+    <value>プレビューできます</value>
+  </data>
+  <data name="LivePreviewPlaying" xml:space="preserve">
+    <value>プレビュー中</value>
+  </data>
+  <data name="LivePreviewUnavailable" xml:space="preserve">
+    <value>プレビュー可能なストリームがありません</value>
+  </data>
+  <data name="LivePreviewError" xml:space="preserve">
+    <value>プレビューに失敗しました</value>
+  </data>
   <data name="RecordLog" xml:space="preserve">
     <value>録画ログ</value>
   </data>

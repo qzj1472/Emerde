@@ -253,6 +253,27 @@
   <data name="StopRecord" xml:space="preserve">
     <value>停止錄製</value>
   </data>
+  <data name="LivePreview" xml:space="preserve">
+    <value>直播預覽</value>
+  </data>
+  <data name="PreviewLiveRoom" xml:space="preserve">
+    <value>預覽</value>
+  </data>
+  <data name="LivePreviewIdle" xml:space="preserve">
+    <value>選擇直播間後預覽</value>
+  </data>
+  <data name="LivePreviewReady" xml:space="preserve">
+    <value>可以預覽</value>
+  </data>
+  <data name="LivePreviewPlaying" xml:space="preserve">
+    <value>正在預覽</value>
+  </data>
+  <data name="LivePreviewUnavailable" xml:space="preserve">
+    <value>暫無可預覽直播流</value>
+  </data>
+  <data name="LivePreviewError" xml:space="preserve">
+    <value>預覽失敗</value>
+  </data>
   <data name="RecordLog" xml:space="preserve">
     <value>錄製日誌</value>
   </data>

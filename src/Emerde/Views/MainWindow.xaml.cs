@@ -62,6 +62,8 @@ public partial class MainWindow : FluentWindow
                 // Stop keep awake
                 _ = Kernel32.SetThreadExecutionState(Kernel32.EXECUTION_STATE.ES_CONTINUOUS);
             }
+
+            ViewModel.Dispose();
         }
     }
 }

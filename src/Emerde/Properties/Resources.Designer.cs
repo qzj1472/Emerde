@@ -484,6 +484,60 @@ namespace Emerde.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Live Preview.
+        /// </summary>
+        public static string LivePreview {
+            get {
+                return ResourceManager.GetString("LivePreview", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Preview error.
+        /// </summary>
+        public static string LivePreviewError {
+            get {
+                return ResourceManager.GetString("LivePreviewError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Select a live room to preview.
+        /// </summary>
+        public static string LivePreviewIdle {
+            get {
+                return ResourceManager.GetString("LivePreviewIdle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Previewing.
+        /// </summary>
+        public static string LivePreviewPlaying {
+            get {
+                return ResourceManager.GetString("LivePreviewPlaying", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Ready to preview.
+        /// </summary>
+        public static string LivePreviewReady {
+            get {
+                return ResourceManager.GetString("LivePreviewReady", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No live preview stream available.
+        /// </summary>
+        public static string LivePreviewUnavailable {
+            get {
+                return ResourceManager.GetString("LivePreviewUnavailable", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Live Room.
         /// </summary>
         public static string LiveRoom {
@@ -651,6 +705,15 @@ namespace Emerde.Properties {
         public static string PlayRecordHint {
             get {
                 return ResourceManager.GetString("PlayRecordHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Preview.
+        /// </summary>
+        public static string PreviewLiveRoom {
+            get {
+                return ResourceManager.GetString("PreviewLiveRoom", resourceCulture);
             }
         }
         

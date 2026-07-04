@@ -10,7 +10,7 @@
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:vio="http://schemas.lepo.co/wpfui/2022/xaml/violeta"
                  Title="Emerde"
-                 Width="860"
+                 Width="960"
                  Height="600"
                  d:Background="#FF101010"
                  ExtendsContentIntoTitleBar="True"
@@ -92,11 +92,22 @@
                       IsReadOnly="True"
                       ItemsSource="{Binding RoomStatuses}"
                       RowHeight="40"
+                      SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
                       SelectionMode="Single"
                       SelectionUnit="FullRow">
                 <DataGrid.ContextMenu>
                     <ContextMenu Loaded="{c:EventBinding ContextMenuLoadedCommand}">
                         <MenuItem Header="{Binding SelectedItem.NickName}" IsEnabled="False" />
+                        <MenuItem Command="{Binding PreviewLiveRoomCommand}"
+                                  Header="{I18N PreviewLiveRoom}"
+                                  IsEnabled="{Binding SelectedItem.CanPreview}">
+                            <MenuItem.Icon>
+                                <ui:FontIcon Margin="2,0,2,0"
+                                             FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                             FontSize="16"
+                                             Glyph="{x:Static ui:FontSymbols.Video}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
                         <MenuItem Command="{Binding GotoRoomUrlCommand}" Header="{I18N GotoLiveRoom}">
                             <MenuItem.Icon>
                                 <ui:FontIcon Margin="2,0,2,0"
@@ -229,6 +240,17 @@
                                             <ui:StackPanel HorizontalAlignment="Center"
                                                            Orientation="Horizontal"
                                                            Spacing="8">
+                                                <Button Command="{Binding DataContext.PreviewLiveRoomCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                                        CommandParameter="{Binding}"
+                                                        IsEnabled="{Binding CanPreview}"
+                                                        ToolTip="{I18N PreviewLiveRoom}">
+                                                    <Button.Content>
+                                                        <ui:StackPanel Orientation="Horizontal" Spacing="4">
+                                                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Video}" />
+                                                            <TextBlock Text="{I18N PreviewLiveRoom}" />
+                                                        </ui:StackPanel>
+                                                    </Button.Content>
+                                                </Button>
                                                 <Button Command="{Binding PlayRecordCommand}"
                                                         Tag="{Binding}"
                                                         ToolTip="{I18N PlayRecord}">
