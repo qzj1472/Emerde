@@ -6,6 +6,7 @@ internal static class Spider
     [
         DouyinSpider.Instance.Value,
         TiktokSpider.Instance.Value,
+        BilibiliSpider.Instance.Value,
         DirectStreamSpider.Instance.Value,
     ]);
 
