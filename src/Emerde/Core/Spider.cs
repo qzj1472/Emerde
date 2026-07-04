@@ -16,6 +16,7 @@ internal static class Spider
         AcFunSpider.Instance.Value,
         YySpider.Instance.Value,
         NeteaseCcSpider.Instance.Value,
+        QianduReboSpider.Instance.Value,
         DirectStreamSpider.Instance.Value,
     ]);
 

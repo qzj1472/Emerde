@@ -124,6 +124,16 @@ public sealed class SpiderTests
     }
 
     [Theory]
+    [InlineData("https://qiandurebo.com/123456?from=test", "https://qiandurebo.com/123456")]
+    [InlineData("https://www.qiandurebo.com/web/123456?from=test", "https://qiandurebo.com/web/123456")]
+    public void ParseUrl_WithQianduReboLiveUrl_NormalizesRoomUrl(string input, string expected)
+    {
+        string? result = Spider.ParseUrl(input);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
     [InlineData("https://example.test/live.m3u8?token=abc", "https://example.test/live.m3u8?token=abc")]
     [InlineData("https://example.test/live.flv", "https://example.test/live.flv")]
     public void ParseUrl_WithDirectStreamUrl_PreservesStreamUrl(string input, string expected)
@@ -146,6 +156,7 @@ public sealed class SpiderTests
     [InlineData("https://live.acfun.cn/live/17912421", "AcFun")]
     [InlineData("https://www.yy.com/123456", "YY")]
     [InlineData("https://cc.163.com/123456", "NeteaseCC")]
+    [InlineData("https://qiandurebo.com/123456", "QianduRebo")]
     [InlineData("https://example.test/live.m3u8", "Direct")]
     [InlineData("https://example.test/page", "")]
     public void GetPlatformName_DetectsSupportedPlatform(string input, string expected)
@@ -168,6 +179,7 @@ public sealed class SpiderTests
         Assert.Contains("AcFun", Spider.SupportedPlatformNames);
         Assert.Contains("YY", Spider.SupportedPlatformNames);
         Assert.Contains("NeteaseCC", Spider.SupportedPlatformNames);
+        Assert.Contains("QianduRebo", Spider.SupportedPlatformNames);
         Assert.Contains("Direct", Spider.SupportedPlatformNames);
     }
 
@@ -523,5 +535,31 @@ public sealed class SpiderTests
         Assert.Equal("anchor", result.Nickname);
         Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
         Assert.Equal("https://example.test/high.flv", result.FlvUrl);
+    }
+
+    [Fact]
+    public void QianduReboExtractData_MapsNicknameAndFlvUrl()
+    {
+        QianduReboSpiderResult result = new()
+        {
+            RoomUrl = "https://qiandurebo.com/123456",
+            PlatformName = "QianduRebo",
+        };
+
+        QianduReboSpider.ExtractData(
+            """
+            <script>
+            var user = {
+              "zb_nickname": "anchor",
+              "play_url": "https:\/\/example.test\/live.flv",
+            }
+                user.play_url = user.play_url
+            </script>
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/live.flv", result.FlvUrl);
     }
 }
