@@ -431,13 +431,13 @@
     <value>Cookie</value>
   </data>
   <data name="UseCookieHint" xml:space="preserve">
-    <value>Douyinの録画には Cookie が必要</value>
+    <value>一部のプラットフォームでは Cookie が必要です</value>
   </data>
   <data name="UseCookieOfDouyin" xml:space="preserve">
-    <value>Douyin Cookie</value>
+    <value>中国向け Cookie</value>
   </data>
   <data name="UseCookieOfOversea" xml:space="preserve">
-    <value>Tiktok Cookie</value>
+    <value>海外向け Cookie</value>
   </data>
   <data name="UseCookieEnterHint" xml:space="preserve">
     <value>空白の場合は Cookie を送信しません</value>
@@ -458,7 +458,7 @@
     <value>設定</value>
   </data>
   <data name="Title" xml:space="preserve">
-    <value>Emerde - ライブストリーミングレコーダー</value>
+    <value>Emerde</value>
   </data>
   <data name="EmptyRoomHint" xml:space="preserve">
     <value>ライブルームたちが空です~</value>

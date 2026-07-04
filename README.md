@@ -7,45 +7,69 @@
 [![GitHub license](https://img.shields.io/github/license/qzj1472/Emerde)](https://github.com/qzj1472/Emerde/blob/main/LICENSE) [![Actions](https://github.com/qzj1472/Emerde/actions/workflows/build.yml/badge.svg)](https://github.com/qzj1472/Emerde/actions/workflows/build.yml) [![Platform](https://img.shields.io/badge/platform-Windows-blue?logo=windowsxp&color=1E9BFA)](https://dotnet.microsoft.com/en-us/download/dotnet/latest/runtime) [![GitHub downloads](https://img.shields.io/github/downloads/qzj1472/Emerde/total)](https://github.com/qzj1472/Emerde/releases)
 [![GitHub downloads](https://img.shields.io/github/downloads/qzj1472/Emerde/latest/total)](https://github.com/qzj1472/Emerde/releases)
 
-With a graphical UI, unattended operation, and live streaming recording capabilities.
+Emerde is a Windows desktop tool for multi-platform live stream monitoring, recording, notifications, and preview playback.
 
-Based on FFmpeg and FFplay.
+Recording is powered by FFmpeg. Live preview is powered by LibVLCSharp.
 
-## Screen Shot
+## Features
 
-<img src="assets/image-20241113165355466.png" alt="image-20241113165355466" style="transform:scale(0.5);" />
+| Feature | Description |
+| ------- | ----------- |
+| Live monitoring | Periodically checks whether saved live rooms are streaming |
+| Recording | Records supported live streams to local files through FFmpeg |
+| Live preview | Opens an embedded preview window before or during recording |
+| Notifications | Sends Windows notifications and optional reminder sounds |
+| Platform detection | Detects the platform while adding a room URL |
+| Platform filter | Filters the room list by platform |
+| Segmented output | Supports time-based recording segments |
+| Cookie and proxy settings | Supports platform cookies and optional HTTP proxy |
 
-## Dependencies Runtime
+## Runtime
 
-[.NET Desktop Runtime 9.0 for Windows](https://dotnet.microsoft.com/en-us/download/dotnet/9.0)
+- [.NET Desktop Runtime 9.0 for Windows](https://dotnet.microsoft.com/en-us/download/dotnet/9.0)
+- FFmpeg is required for recording.
+- LibVLC is bundled through the Windows package for live preview.
 
-## Live Streaming
+## Supported Sources
 
-Support following live site.
+| Source | Status |
+| ------ | ------ |
+| Douyin | Supported |
+| TikTok | Supported |
+| Bilibili | Supported |
+| Kuaishou | Supported |
+| Bigo | Supported |
+| Xiaohongshu | Supported |
+| Kugou | Supported |
+| Yingke | Supported |
+| ShowRoom | Supported |
+| AcFun | Supported |
+| YY | Supported |
+| Netease CC | Supported |
+| Qiandu Rebo | Supported |
+| Direct `.m3u8` / `.flv` streams | Supported |
 
-| Site            | Status    |
-| --------------- | --------- |
-| Douyin (抖音)   | Available |
-| Tiktok          | Available |
+## Room URLs
 
-How to add live room:
+Add the live room URL from a supported platform, or paste a direct `.m3u8` / `.flv` stream URL.
 
-```bash
-# Douyin room URL like following:
-https://live.douyin.com/XXX
-https://www.douyin.com/root/live/XXX
-
-# Tiktok room URL like following:
-https://www.tiktok.com/@XXX/live
+```text
+https://live.douyin.com/123456
+https://live.bilibili.com/123456
+https://live.kuaishou.com/u/example
+https://www.tiktok.com/@example/live
+https://example.com/live/index.m3u8
 ```
 
-## Support OS
+Some platforms may require cookies, a proxy, or a specific regional network route. Platform APIs can change over time, so resolver behavior may need updates when a site changes its web interface.
 
-This project only supports Windows.
+## Windows Only
 
-| OS      | Framework | Status    |
-| ------- | --------- | --------- |
-| Windows | WPF       | Available |
+Emerde is a Windows-only WPF application.
+
+| OS | Framework | Status |
+| -- | --------- | ------ |
+| Windows | WPF | Supported |
 
 ## Project Structure
 
@@ -54,12 +78,12 @@ This project only supports Windows.
 | `src/Emerde` | Windows WPF application |
 | `build` | Windows packaging assets and scripts |
 | `doc` | Cookie setup guides |
-| `assets` | README images |
 | `branding` | Product icons and branding assets |
+| `tests/Emerde.Tests` | Automated tests |
 
-## Your Cookie Can
+## Cookies
 
-Check it from [GETCOOKIE_DOUYIN.md](doc/GETCOOKIE_DOUYIN.md) or [GETCOOKIE_TIKTOK.md](doc/GETCOOKIE_TIKTOK.md).
+Some platforms require cookies or regional network access. See [GETCOOKIE_DOUYIN.md](doc/GETCOOKIE_DOUYIN.md) and [GETCOOKIE_TIKTOK.md](doc/GETCOOKIE_TIKTOK.md) for the existing cookie setup examples.
 
 ## Privacy Policy
 

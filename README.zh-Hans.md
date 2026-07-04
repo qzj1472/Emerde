@@ -1,4 +1,4 @@
-﻿[English](README.md) | [简体中文](README.zh-Hans.md)
+[English](README.md) | [简体中文](README.zh-Hans.md)
 
 <img src="branding/logo.png" />
 
@@ -7,45 +7,69 @@
 [![GitHub license](https://img.shields.io/github/license/qzj1472/Emerde)](https://github.com/qzj1472/Emerde/blob/main/LICENSE) [![Actions](https://github.com/qzj1472/Emerde/actions/workflows/build.yml/badge.svg)](https://github.com/qzj1472/Emerde/actions/workflows/build.yml) [![Platform](https://img.shields.io/badge/platform-Windows-blue?logo=windowsxp&color=1E9BFA)](https://dotnet.microsoft.com/en-us/download/dotnet/latest/runtime) [![GitHub downloads](https://img.shields.io/github/downloads/qzj1472/Emerde/total)](https://github.com/qzj1472/Emerde/releases)
 [![GitHub downloads](https://img.shields.io/github/downloads/qzj1472/Emerde/latest/total)](https://github.com/qzj1472/Emerde/releases)
 
-具有用户界面、无人值守操作和直播流录制功能。
+Emerde 是一个 Windows 桌面端多平台直播监控、录制、通知和预览工具。
 
-实现基于 FFmpeg 以及 FFplay。
+录制由 FFmpeg 提供支持，直播预览由 LibVLCSharp 提供支持。
 
-## 截图
+## 功能
 
-<img src="assets/image-20241113165448238.png" alt="image-20241113165448238" style="transform:scale(0.5);" />
+| 功能 | 说明 |
+| ---- | ---- |
+| 直播监控 | 定时检测已添加直播间是否开播 |
+| 直播录制 | 通过 FFmpeg 将支持的直播流录制到本地 |
+| 直播预览 | 支持在录制前或录制中打开内嵌预览窗口 |
+| 开播通知 | 支持 Windows 通知和可选提示音 |
+| 平台识别 | 添加直播间时自动识别平台 |
+| 平台筛选 | 支持按平台筛选直播间列表 |
+| 分段输出 | 支持按时间分段录制 |
+| Cookie 和代理 | 支持平台 Cookie 与可选 HTTP 代理 |
 
 ## 依赖运行时
 
-[Windows .NET Desktop Runtime 9.0](https://dotnet.microsoft.com/en-us/download/dotnet/9.0)
+- [Windows .NET Desktop Runtime 9.0](https://dotnet.microsoft.com/en-us/download/dotnet/9.0)
+- 录制需要 FFmpeg。
+- 直播预览通过 Windows 包内的 LibVLC 支持。
 
-## 直播录制
+## 支持来源
 
-支持以下直播平台
+| 来源 | 状态 |
+| ---- | ---- |
+| 抖音 | 支持 |
+| TikTok | 支持 |
+| 哔哩哔哩 | 支持 |
+| 快手 | 支持 |
+| Bigo | 支持 |
+| 小红书 | 支持 |
+| 酷狗 | 支持 |
+| 映客 | 支持 |
+| ShowRoom | 支持 |
+| AcFun | 支持 |
+| YY | 支持 |
+| 网易 CC | 支持 |
+| 千度热播 | 支持 |
+| 直链 `.m3u8` / `.flv` 直播流 | 支持 |
 
-| 平台              | 状态 |
-| ----------------- | ---- |
-| Douyin (中国抖音) | 支持 |
-| Tiktok (海外抖音) | 支持 |
+## 直播间链接
 
-怎么添加直播间：
+添加受支持平台的直播间链接，或者直接粘贴 `.m3u8` / `.flv` 直播流地址。
 
-```bash
-# 国内抖音直播间链接类似如下：
-https://live.douyin.com/XXX
-https://www.douyin.com/root/live/XXX
-
-# 海外抖音直播间链接类似如下：
-https://www.tiktok.com/@XXX/live
+```text
+https://live.douyin.com/123456
+https://live.bilibili.com/123456
+https://live.kuaishou.com/u/example
+https://www.tiktok.com/@example/live
+https://example.com/live/index.m3u8
 ```
 
-## 支持系统
+部分平台可能需要 Cookie、代理或对应地区网络环境。平台网页和接口可能变化，站点调整后解析逻辑也可能需要同步更新。
 
-本项目只支持 Windows。
+## 仅支持 Windows
+
+Emerde 是 Windows-only WPF 应用。
 
 | 操作系统 | 开发框架 | 状态 |
 | -------- | -------- | ---- |
-| Windows  | WPF      | 支持 |
+| Windows | WPF | 支持 |
 
 ## 项目结构
 
@@ -54,12 +78,12 @@ https://www.tiktok.com/@XXX/live
 | `src/Emerde` | Windows WPF 应用 |
 | `build` | Windows 打包资源和脚本 |
 | `doc` | Cookie 配置文档 |
-| `assets` | README 图片 |
 | `branding` | 产品图标和品牌资源 |
+| `tests/Emerde.Tests` | 自动化测试 |
 
-## 自有Cookie
+## Cookie
 
-来看看 [GETCOOKIE_DOUYIN.md](doc/GETCOOKIE_DOUYIN.md) 或 [GETCOOKIE_TIKTOK.md](doc/GETCOOKIE_TIKTOK.md)。
+部分平台需要 Cookie 或对应地区网络环境。现有 Cookie 获取示例见 [GETCOOKIE_DOUYIN.md](doc/GETCOOKIE_DOUYIN.md) 和 [GETCOOKIE_TIKTOK.md](doc/GETCOOKIE_TIKTOK.md)。
 
 ## 隐私政策
 

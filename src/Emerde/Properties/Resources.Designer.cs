@@ -1195,7 +1195,7 @@ namespace Emerde.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Emerde - Live Streaming Recorder.
+        ///   Looks up a localized string similar to Emerde.
         /// </summary>
         public static string Title {
             get {
@@ -1294,7 +1294,7 @@ namespace Emerde.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Recording Douyin requires cookies.
+        ///   Looks up a localized string similar to Some platforms require cookies.
         /// </summary>
         public static string UseCookieHint {
             get {
@@ -1303,7 +1303,7 @@ namespace Emerde.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Douyin Cookie.
+        ///   Looks up a localized string similar to China Cookie.
         /// </summary>
         public static string UseCookieOfDouyin {
             get {
@@ -1312,7 +1312,7 @@ namespace Emerde.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Tiktok Cookie.
+        ///   Looks up a localized string similar to Overseas Cookie.
         /// </summary>
         public static string UseCookieOfOversea {
             get {
