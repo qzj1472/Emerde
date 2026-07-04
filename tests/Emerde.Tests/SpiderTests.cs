@@ -37,6 +37,14 @@ public sealed class SpiderTests
         Assert.Equal("https://live.bilibili.com/123456", result);
     }
 
+    [Fact]
+    public void ParseUrl_WithKuaishouLiveUrl_NormalizesRoomUrl()
+    {
+        string? result = Spider.ParseUrl("https://live.kuaishou.com/u/example?fid=test");
+
+        Assert.Equal("https://live.kuaishou.com/u/example", result);
+    }
+
     [Theory]
     [InlineData("https://example.test/live.m3u8?token=abc", "https://example.test/live.m3u8?token=abc")]
     [InlineData("https://example.test/live.flv", "https://example.test/live.flv")]
@@ -51,6 +59,7 @@ public sealed class SpiderTests
     [InlineData("https://live.douyin.com/123456", "Douyin")]
     [InlineData("https://www.tiktok.com/@someone/live", "TikTok")]
     [InlineData("https://live.bilibili.com/123456", "Bilibili")]
+    [InlineData("https://live.kuaishou.com/u/example", "Kuaishou")]
     [InlineData("https://example.test/live.m3u8", "Direct")]
     [InlineData("https://example.test/page", "")]
     public void GetPlatformName_DetectsSupportedPlatform(string input, string expected)
@@ -90,5 +99,43 @@ public sealed class SpiderTests
         Assert.Equal("anchor", result.Nickname);
         Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
         Assert.Equal("https://example.test/live.flv", result.FlvUrl);
+    }
+
+    [Fact]
+    public void KuaishouExtractInitialState_UsesHighestBitrateFlv()
+    {
+        KuaishouSpiderResult result = new()
+        {
+            RoomUrl = "https://live.kuaishou.com/u/example",
+            PlatformName = "Kuaishou",
+        };
+
+        KuaishouSpider.ExtractInitialState(
+            """
+            {
+              "route": {
+                "payload": {
+                  "author": { "name": "anchor" },
+                  "liveStream": {
+                    "playUrls": {
+                      "h264": {
+                        "adaptationSet": {
+                          "representation": [
+                            { "url": "https://example.test/low.flv", "bitrate": 600 },
+                            { "url": "https://example.test/high.flv", "bitrate": 2000 }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/high.flv", result.FlvUrl);
     }
 }
