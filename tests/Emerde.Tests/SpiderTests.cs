@@ -104,6 +104,16 @@ public sealed class SpiderTests
     }
 
     [Theory]
+    [InlineData("https://www.yy.com/123456?from=test", "https://www.yy.com/123456")]
+    [InlineData("https://www.yy.com/123456/7890?from=test", "https://www.yy.com/123456/7890")]
+    public void ParseUrl_WithYyLiveUrl_NormalizesRoomUrl(string input, string expected)
+    {
+        string? result = Spider.ParseUrl(input);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
     [InlineData("https://example.test/live.m3u8?token=abc", "https://example.test/live.m3u8?token=abc")]
     [InlineData("https://example.test/live.flv", "https://example.test/live.flv")]
     public void ParseUrl_WithDirectStreamUrl_PreservesStreamUrl(string input, string expected)
@@ -124,6 +134,7 @@ public sealed class SpiderTests
     [InlineData("https://www.inke.cn/liveroom.html?uid=user456&id=live123", "Yingke")]
     [InlineData("https://www.showroom-live.com/example_room", "ShowRoom")]
     [InlineData("https://live.acfun.cn/live/17912421", "AcFun")]
+    [InlineData("https://www.yy.com/123456", "YY")]
     [InlineData("https://example.test/live.m3u8", "Direct")]
     [InlineData("https://example.test/page", "")]
     public void GetPlatformName_DetectsSupportedPlatform(string input, string expected)
@@ -144,6 +155,7 @@ public sealed class SpiderTests
         Assert.Contains("Yingke", Spider.SupportedPlatformNames);
         Assert.Contains("ShowRoom", Spider.SupportedPlatformNames);
         Assert.Contains("AcFun", Spider.SupportedPlatformNames);
+        Assert.Contains("YY", Spider.SupportedPlatformNames);
         Assert.Contains("Direct", Spider.SupportedPlatformNames);
     }
 
@@ -412,5 +424,44 @@ public sealed class SpiderTests
         Assert.Equal("web_test", sign.Did);
         Assert.Equal("token", sign.VisitorSt);
         Assert.Equal("https://example.test/high.flv", result.FlvUrl);
+    }
+
+    [Fact]
+    public void YyExtractors_MapPageAndStreamData()
+    {
+        YySpiderResult result = new()
+        {
+            RoomUrl = "https://www.yy.com/123456",
+            PlatformName = "YY",
+        };
+
+        YySpider.ExtractPageData(
+            """
+            nick: "anchor",
+                logo
+            sid : "channel123",
+                ssid
+            """,
+            result);
+        YySpider.ExtractStreamInfo(
+            """
+            {
+              "avp_info_res": {
+                "stream_line_addr": {
+                  "line1": {
+                    "cdn_info": {
+                      "url": "https://example.test/live.flv"
+                    }
+                  }
+                }
+              }
+            }
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("channel123", result.ChannelId);
+        Assert.Equal("https://example.test/live.flv", result.FlvUrl);
     }
 }

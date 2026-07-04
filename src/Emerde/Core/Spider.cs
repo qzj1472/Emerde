@@ -14,6 +14,7 @@ internal static class Spider
         YingkeSpider.Instance.Value,
         ShowRoomSpider.Instance.Value,
         AcFunSpider.Instance.Value,
+        YySpider.Instance.Value,
         DirectStreamSpider.Instance.Value,
     ]);
 
