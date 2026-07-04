@@ -55,6 +55,14 @@ public sealed class SpiderTests
         Assert.Equal(expected, result);
     }
 
+    [Fact]
+    public void ParseUrl_WithBaiduLiveUrl_NormalizesRoomUrl()
+    {
+        string? result = Spider.ParseUrl("https://live.baidu.com/m/media/pclive/pchome/live.html?room_id=9175031377&tab_category=test");
+
+        Assert.Equal("https://live.baidu.com/m/media/pclive/pchome/live.html?room_id=9175031377", result);
+    }
+
     [Theory]
     [InlineData("https://www.bigo.tv/cn/123456?from=test", "https://www.bigo.tv/123456")]
     [InlineData("https://www.bigo.tv/live?h=987654&source=test", "https://www.bigo.tv/987654")]
@@ -169,6 +177,7 @@ public sealed class SpiderTests
     [InlineData("https://live.bilibili.com/123456", "Bilibili")]
     [InlineData("https://live.kuaishou.com/u/example", "Kuaishou")]
     [InlineData("https://www.huya.com/52333", "Huya")]
+    [InlineData("https://live.baidu.com/m/media/pclive/pchome/live.html?room_id=9175031377", "Baidu")]
     [InlineData("https://www.bigo.tv/cn/123456", "Bigo")]
     [InlineData("https://17.live/en/live/6302408", "17Live")]
     [InlineData("https://www.xiaohongshu.com/user/profile/abc123", "Xiaohongshu")]
@@ -194,6 +203,7 @@ public sealed class SpiderTests
         Assert.Contains("Bilibili", Spider.SupportedPlatformNames);
         Assert.Contains("Kuaishou", Spider.SupportedPlatformNames);
         Assert.Contains("Huya", Spider.SupportedPlatformNames);
+        Assert.Contains("Baidu", Spider.SupportedPlatformNames);
         Assert.Contains("Bigo", Spider.SupportedPlatformNames);
         Assert.Contains("17Live", Spider.SupportedPlatformNames);
         Assert.Contains("Xiaohongshu", Spider.SupportedPlatformNames);
@@ -361,6 +371,48 @@ public sealed class SpiderTests
         Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
         Assert.Equal("https://example.test/live/room-high.flv?wsSecret=high&ctype=huya_webh5&fs=bgct", result.FlvUrl);
         Assert.Equal("https://example.test/hls/room-high.m3u8?wsSecret=high", result.HlsUrl);
+    }
+
+    [Fact]
+    public void BaiduExtractRoomInfo_MapsHostStatusAndStreamData()
+    {
+        BaiduSpiderResult result = new()
+        {
+            RoomUrl = "https://live.baidu.com/m/media/pclive/pchome/live.html?room_id=9175031377",
+            PlatformName = "Baidu",
+        };
+
+        BaiduSpider.ExtractRoomInfo(
+            """
+            {
+              "data": {
+                "9175031377": {
+                  "host": {
+                    "name": "anchor",
+                    "avatar": "https://example.test/avatar.png"
+                  },
+                  "status": "0",
+                  "video": {
+                    "title": "Live title",
+                    "url_clarity_list": [
+                      {
+                        "urls": {
+                          "flv": "https://example.test/live/stream123.flv?token=abc"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
+        Assert.Equal("https://example.test/live/stream123.flv?token=abc", result.FlvUrl);
+        Assert.Equal("https://hls.liveshow.bdstatic.com/live/stream123.m3u8", result.HlsUrl);
     }
 
     [Fact]
