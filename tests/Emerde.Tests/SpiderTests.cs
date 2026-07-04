@@ -55,6 +55,17 @@ public sealed class SpiderTests
         Assert.Equal(expected, result);
     }
 
+    [Theory]
+    [InlineData("https://www.douyu.com/3125893?from=test", "https://www.douyu.com/3125893")]
+    [InlineData("https://m.douyu.com/3125893?rid=3125893&dyshid=test", "https://www.douyu.com/3125893")]
+    [InlineData("https://www.douyu.com/topic/wzDBLS6?rid=4921614&dyshid=test", "https://www.douyu.com/4921614")]
+    public void ParseUrl_WithDouyuLiveUrl_NormalizesRoomUrl(string input, string expected)
+    {
+        string? result = Spider.ParseUrl(input);
+
+        Assert.Equal(expected, result);
+    }
+
     [Fact]
     public void ParseUrl_WithBaiduLiveUrl_NormalizesRoomUrl()
     {
@@ -446,6 +457,7 @@ public sealed class SpiderTests
     [InlineData("https://live.bilibili.com/123456", "Bilibili")]
     [InlineData("https://live.kuaishou.com/u/example", "Kuaishou")]
     [InlineData("https://www.huya.com/52333", "Huya")]
+    [InlineData("https://www.douyu.com/3125893", "Douyu")]
     [InlineData("https://live.baidu.com/m/media/pclive/pchome/live.html?room_id=9175031377", "Baidu")]
     [InlineData("https://www.bigo.tv/cn/123456", "Bigo")]
     [InlineData("https://17.live/en/live/6302408", "17Live")]
@@ -503,6 +515,7 @@ public sealed class SpiderTests
         Assert.Contains("Bilibili", Spider.SupportedPlatformNames);
         Assert.Contains("Kuaishou", Spider.SupportedPlatformNames);
         Assert.Contains("Huya", Spider.SupportedPlatformNames);
+        Assert.Contains("Douyu", Spider.SupportedPlatformNames);
         Assert.Contains("Baidu", Spider.SupportedPlatformNames);
         Assert.Contains("Bigo", Spider.SupportedPlatformNames);
         Assert.Contains("17Live", Spider.SupportedPlatformNames);
@@ -702,6 +715,77 @@ public sealed class SpiderTests
         Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
         Assert.Equal("https://example.test/live/room-high.flv?wsSecret=high&ctype=huya_webh5&fs=bgct", result.FlvUrl);
         Assert.Equal("https://example.test/hls/room-high.m3u8?wsSecret=high", result.HlsUrl);
+    }
+
+    [Fact]
+    public void DouyuExtractors_MapMobileBetardSignAndStreamData()
+    {
+        DouyuSpiderResult result = new()
+        {
+            RoomUrl = "https://www.douyu.com/3125893",
+            PlatformName = "Douyu",
+        };
+
+        string? roomId = DouyuSpider.ExtractMobileRoomId(
+            """
+            <script id="vike_pageContext" type="application/json">
+            {"pageProps":{"room":{"roomInfo":{"roomInfo":{"rid":"3125893"}}}}}
+            </script>
+            """);
+        string? crpText = DouyuSpider.ExtractCrpText(
+            """
+            <script id="vike_pageContext" type="application/json">{"crptext":"var vdwdae325w_64we = 1;"}</script>
+            """);
+        DouyuSpider.ExtractBetardRoomInfo(
+            """
+            {
+              "room": {
+                "nickname": "anchor",
+                "avatar_mid": "https://example.test/avatar.png",
+                "room_name": "Live&nbsp;title",
+                "room_id": 3125893,
+                "videoLoop": 0,
+                "show_status": 1
+              }
+            }
+            """,
+            result);
+        DouyuSignData? signData = DouyuSpider.CreateSignData(
+            """
+            var vdwdae325w_64we = 1;
+            function ub98484234(){
+              var strc='(func'+'tion (rid,did,tt){var cb=rid+did+tt+"123";var rt="v=123&did="+did+"&tt="+tt+"&sign="+CryptoJS.MD5(cb).toString();return rt;});';
+              return eval(strc);
+            }
+            function next(){}
+            """,
+            "3125893",
+            "did123",
+            1719411639);
+        DouyuSpider.ExtractStreamData(
+            """
+            {
+              "data": {
+                "rtmp_url": "https://example.test/live",
+                "rtmp_live": "stream.flv?token=abc"
+              }
+            }
+            """,
+            result);
+
+        Assert.Equal("3125893", roomId);
+        Assert.Equal("var vdwdae325w_64we = 1;", crpText);
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
+        Assert.Equal("Livetitle", result.Title);
+        Assert.Equal("3125893", result.RoomId);
+        Assert.NotNull(signData);
+        Assert.Equal("123", signData.V);
+        Assert.Equal("did123", signData.Did);
+        Assert.Equal("1719411639", signData.Timestamp);
+        Assert.Equal(DouyuSpider.Md5("3125893did1231719411639123"), signData.Sign);
+        Assert.Equal("https://example.test/live/stream.flv?token=abc", result.FlvUrl);
     }
 
     [Fact]

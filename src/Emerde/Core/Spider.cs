@@ -9,6 +9,7 @@ internal static class Spider
         BilibiliSpider.Instance.Value,
         KuaishouSpider.Instance.Value,
         HuyaSpider.Instance.Value,
+        DouyuSpider.Instance.Value,
         BaiduSpider.Instance.Value,
         BigoSpider.Instance.Value,
         SeventeenLiveSpider.Instance.Value,

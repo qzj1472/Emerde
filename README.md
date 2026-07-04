@@ -39,6 +39,7 @@ Recording is powered by FFmpeg. Live preview is powered by LibVLCSharp.
 | Bilibili | Supported |
 | Kuaishou | Supported |
 | Huya | Supported |
+| Douyu | Supported |
 | Baidu Live | Supported |
 | Bigo | Supported |
 | 17Live | Supported |
