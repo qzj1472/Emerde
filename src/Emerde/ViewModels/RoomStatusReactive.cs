@@ -21,6 +21,9 @@ public partial class RoomStatusReactive : ReactiveObject
     private string roomUrl = string.Empty;
 
     [ObservableProperty]
+    private string platformName = string.Empty;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PreviewUrl))]
     [NotifyPropertyChangedFor(nameof(CanPreview))]
     [NotifyPropertyChangedFor(nameof(PreviewSourceText))]

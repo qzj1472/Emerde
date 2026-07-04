@@ -122,6 +122,7 @@ internal static class GlobalMonitor
                             {
                                 roomStatus.AvatarThumbUrl = spiderResult.AvatarThumbUrl!;
                             }
+                            roomStatus.PlatformName = spiderResult.PlatformName ?? Spider.GetPlatformName(room.RoomUrl);
                             roomStatus.FlvUrl = spiderResult.FlvUrl!;
                             roomStatus.HlsUrl = spiderResult.HlsUrl!;
 
@@ -223,6 +224,7 @@ internal static class GlobalMonitor
             {
                 NickName = room.NickName,
                 RoomUrl = room.RoomUrl,
+                PlatformName = Spider.GetPlatformName(room.RoomUrl),
                 FlvUrl = null!,
                 HlsUrl = null!,
                 StreamStatus = StreamStatus.Initialized,

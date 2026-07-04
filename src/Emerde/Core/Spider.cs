@@ -2,17 +2,23 @@ namespace Emerde.Core;
 
 internal static class Spider
 {
+    private static readonly Lazy<ISpider[]> Spiders = new(() =>
+    [
+        DouyinSpider.Instance.Value,
+        TiktokSpider.Instance.Value,
+        DirectStreamSpider.Instance.Value,
+    ]);
+
     public static string? ParseUrl(string url)
     {
-        // Only support following spider now.
+        foreach (ISpider spider in Spiders.Value)
+        {
+            string? roomUrl = spider.ParseUrl(url);
 
-        if (url.Contains("douyin"))
-        {
-            return DouyinSpider.Instance.Value.ParseUrl(url);
-        }
-        else if (url.Contains("tiktok"))
-        {
-            return TiktokSpider.Instance.Value.ParseUrl(url);
+            if (!string.IsNullOrWhiteSpace(roomUrl))
+            {
+                return roomUrl;
+            }
         }
 
         return null;
@@ -20,29 +26,45 @@ internal static class Spider
 
     public static ISpiderResult? GetResult(string url)
     {
-        // Only support following spider now.
-
-        if (url.Contains("douyin"))
+        foreach (ISpider spider in Spiders.Value)
         {
-            return DouyinSpider.Instance.Value.GetResult(url);
-        }
-        else if (url.Contains("tiktok"))
-        {
-            return TiktokSpider.Instance.Value.GetResult(url);
+            if (!string.IsNullOrWhiteSpace(spider.ParseUrl(url)))
+            {
+                return spider.GetResult(url);
+            }
         }
 
         return null;
+    }
+
+    public static string GetPlatformName(string url)
+    {
+        foreach (ISpider spider in Spiders.Value)
+        {
+            if (!string.IsNullOrWhiteSpace(spider.ParseUrl(url)))
+            {
+                return spider.PlatformName;
+            }
+        }
+
+        return string.Empty;
     }
 }
 
 public interface ISpider
 {
+    public string PlatformName { get; }
+
+    public string? ParseUrl(string url);
+
     public ISpiderResult GetResult(string url);
 }
 
 public interface ISpiderResult
 {
     public string? RoomUrl { get; set; }
+
+    public string? PlatformName { get; set; }
 
     public bool? IsLiveStreaming { get; set; }
 

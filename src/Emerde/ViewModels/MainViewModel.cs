@@ -148,6 +148,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         {
             NickName = room.NickName,
             RoomUrl = room.RoomUrl,
+            PlatformName = Spider.GetPlatformName(room.RoomUrl),
             IsToNotify = room.IsToNotify,
             IsToRecord = room.IsToRecord,
         }));
@@ -190,6 +191,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             if (roomStatusReactive != null)
             {
                 roomStatusReactive.AvatarThumbUrl = roomStatus.AvatarThumbUrl;
+                roomStatusReactive.PlatformName = roomStatus.PlatformName;
                 roomStatusReactive.StreamStatus = roomStatus.StreamStatus;
                 roomStatusReactive.RecordStatus = roomStatus.RecordStatus;
                 roomStatusReactive.FlvUrl = roomStatus.FlvUrl;
@@ -444,6 +446,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 {
                     NickName = dialog.NickName,
                     RoomUrl = dialog.RoomUrl!,
+                    PlatformName = Spider.GetPlatformName(dialog.RoomUrl!),
                 });
             }
         }

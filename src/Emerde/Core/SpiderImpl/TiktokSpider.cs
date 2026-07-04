@@ -10,6 +10,8 @@ public sealed partial class TiktokSpider : ISpider
 {
     public static Lazy<TiktokSpider> Instance { get; } = new(() => new TiktokSpider());
 
+    public string PlatformName => "TikTok";
+
     public ISpiderResult GetResult(string url)
     {
         string? roomUrl = ParseUrl(url);
@@ -17,6 +19,7 @@ public sealed partial class TiktokSpider : ISpider
         TiktokSpiderResult result = ExtractData(htmlStr);
 
         result.RoomUrl = roomUrl;
+        result.PlatformName = PlatformName;
         return result;
     }
 
@@ -164,6 +167,8 @@ public sealed partial class TiktokSpider : ISpider
 public sealed class TiktokSpiderResult : ISpiderResult
 {
     public string? RoomUrl { get; set; }
+
+    public string? PlatformName { get; set; }
 
     public bool? IsLiveStreaming { get; set; }
 

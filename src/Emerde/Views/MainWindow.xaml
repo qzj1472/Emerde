@@ -281,6 +281,14 @@
                                         Header="{I18N LiveRoom}"
                                         IsReadOnly="True"
                                         SortMemberPath="LiveRoom" />
+                    <DataGridTextColumn Width="0.8*"
+                                        Binding="{Binding PlatformName}"
+                                        CellStyle="{StaticResource CenteredDataGridTextColumnCellStyle}"
+                                        EditingElementStyle="{StaticResource CenteredDataGridTextColumnEditingElementStyle}"
+                                        ElementStyle="{StaticResource CenteredDataGridTextColumnElementStyle}"
+                                        Header="Platform"
+                                        IsReadOnly="True"
+                                        SortMemberPath="PlatformName" />
                     <DataGridTextColumn Width="*"
                                         Binding="{Binding StreamStatusText}"
                                         CellStyle="{StaticResource CenteredDataGridTextColumnCellStyle}"

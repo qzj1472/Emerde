@@ -10,6 +10,8 @@ public sealed partial class DouyinSpider : ISpider
 {
     public static Lazy<DouyinSpider> Instance { get; } = new(() => new DouyinSpider());
 
+    public string PlatformName => "Douyin";
+
     public ISpiderResult GetResult(string url)
     {
         string? roomUrl = ParseUrl(url);
@@ -17,6 +19,7 @@ public sealed partial class DouyinSpider : ISpider
         DouyinSpiderResult result = ExtractData(htmlStr);
 
         result.RoomUrl = roomUrl;
+        result.PlatformName = PlatformName;
         return result;
     }
 
@@ -157,6 +160,8 @@ public sealed partial class DouyinSpider : ISpider
 public sealed class DouyinSpiderResult : ISpiderResult
 {
     public string? RoomUrl { get; set; }
+
+    public string? PlatformName { get; set; }
 
     /// <summary>
     /// \"status_str\":\"2\" -> true
