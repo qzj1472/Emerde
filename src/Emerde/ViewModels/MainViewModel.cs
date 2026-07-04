@@ -368,6 +368,58 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     }
 
     [RelayCommand]
+    private void ToggleStatusNotify()
+    {
+        StatusOfIsToNotify = !StatusOfIsToNotify;
+        Configurations.IsToNotify.Set(StatusOfIsToNotify);
+        ConfigurationManager.Save();
+        TrayIconManager.GetInstance().UpdateTrayIcon();
+    }
+
+    [RelayCommand]
+    private void ToggleStatusRecord()
+    {
+        StatusOfIsToRecord = !StatusOfIsToRecord;
+        Configurations.IsToRecord.Set(StatusOfIsToRecord);
+        ConfigurationManager.Save();
+        TrayIconManager.GetInstance().UpdateTrayIcon();
+    }
+
+    [RelayCommand]
+    private void ToggleStatusProxy()
+    {
+        StatusOfIsUseProxy = !StatusOfIsUseProxy;
+        Configurations.IsUseProxy.Set(StatusOfIsUseProxy);
+        ConfigurationManager.Save();
+    }
+
+    [RelayCommand]
+    private void ToggleStatusKeepAwake()
+    {
+        StatusOfIsUseKeepAwake = !StatusOfIsUseKeepAwake;
+
+        if (StatusOfIsUseKeepAwake)
+        {
+            _ = Kernel32.SetThreadExecutionState(Kernel32.EXECUTION_STATE.ES_CONTINUOUS | Kernel32.EXECUTION_STATE.ES_SYSTEM_REQUIRED | Kernel32.EXECUTION_STATE.ES_AWAYMODE_REQUIRED);
+        }
+        else
+        {
+            _ = Kernel32.SetThreadExecutionState(Kernel32.EXECUTION_STATE.ES_CONTINUOUS);
+        }
+
+        Configurations.IsUseKeepAwake.Set(StatusOfIsUseKeepAwake);
+        ConfigurationManager.Save();
+    }
+
+    [RelayCommand]
+    private void ToggleStatusAutoShutdown()
+    {
+        StatusOfIsUseAutoShutdown = !StatusOfIsUseAutoShutdown;
+        Configurations.IsUseAutoShutdown.Set(StatusOfIsUseAutoShutdown);
+        ConfigurationManager.Save();
+    }
+
+    [RelayCommand]
     private async Task AddRoomAsync()
     {
         AddRoomContentDialog dialog = new();
