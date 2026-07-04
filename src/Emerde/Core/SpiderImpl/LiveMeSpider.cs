@@ -53,7 +53,8 @@ public sealed partial class LiveMeSpider : ISpider
             return result;
         }
 
-        string videoId = roomUrl.Split('/').Reverse().Skip(1).First();
+        string[] segments = roomUrl.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        string videoId = segments[^2];
         LiveMeSignData signData = CreateSignData(videoId);
         string api = "https://live.liveme.com/live/queryinfosimple?alias=liveme&tongdun_black_box=&os=web";
         string? json = PostSignedForm(api, signData, Configurations.CookieOversea.Get());
@@ -223,4 +224,3 @@ public sealed class LiveMeSpiderResult : ISpiderResult
 
     public string? HlsUrl { get; set; }
 }
-

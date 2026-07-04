@@ -143,7 +143,8 @@ public sealed partial class LookLiveSpider : ISpider
 
     private static string RsaEncrypt(string text)
     {
-        byte[] bytes = Encoding.UTF8.GetBytes(text).Reverse().ToArray();
+        byte[] bytes = Encoding.UTF8.GetBytes(text);
+        Array.Reverse(bytes);
         string hex = Convert.ToHexString(bytes).ToLowerInvariant();
         BigInteger value = BigInteger.Parse("0" + hex, NumberStyles.HexNumber);
         BigInteger exponent = BigInteger.Parse("010001", NumberStyles.HexNumber);
