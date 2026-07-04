@@ -274,6 +274,21 @@
   <data name="LivePreviewError" xml:space="preserve">
     <value>预览失败</value>
   </data>
+  <data name="Platform" xml:space="preserve">
+    <value>平台</value>
+  </data>
+  <data name="Supported" xml:space="preserve">
+    <value>已支持</value>
+  </data>
+  <data name="PlatformAccess" xml:space="preserve">
+    <value>平台访问</value>
+  </data>
+  <data name="NoCookie" xml:space="preserve">
+    <value>无需 Cookie</value>
+  </data>
+  <data name="ProxyAppliesToPlatformRequests" xml:space="preserve">
+    <value>启用后，代理会用于平台请求和直播预览播放。</value>
+  </data>
   <data name="RecordLog" xml:space="preserve">
     <value>录制日志</value>
   </data>

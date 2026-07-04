@@ -536,6 +536,51 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("LivePreviewUnavailable", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No Cookie.
+        /// </summary>
+        public static string NoCookie {
+            get {
+                return ResourceManager.GetString("NoCookie", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Platform.
+        /// </summary>
+        public static string Platform {
+            get {
+                return ResourceManager.GetString("Platform", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Platform Access.
+        /// </summary>
+        public static string PlatformAccess {
+            get {
+                return ResourceManager.GetString("PlatformAccess", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Proxy applies to platform requests and preview playback when enabled..
+        /// </summary>
+        public static string ProxyAppliesToPlatformRequests {
+            get {
+                return ResourceManager.GetString("ProxyAppliesToPlatformRequests", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Supported.
+        /// </summary>
+        public static string Supported {
+            get {
+                return ResourceManager.GetString("Supported", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Live Room.

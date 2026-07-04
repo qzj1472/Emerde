@@ -277,6 +277,21 @@
   <data name="LivePreviewError" xml:space="preserve">
     <value>プレビューに失敗しました</value>
   </data>
+  <data name="Platform" xml:space="preserve">
+    <value>プラットフォーム</value>
+  </data>
+  <data name="Supported" xml:space="preserve">
+    <value>対応済み</value>
+  </data>
+  <data name="PlatformAccess" xml:space="preserve">
+    <value>プラットフォームアクセス</value>
+  </data>
+  <data name="NoCookie" xml:space="preserve">
+    <value>Cookie 不要</value>
+  </data>
+  <data name="ProxyAppliesToPlatformRequests" xml:space="preserve">
+    <value>有効にすると、プロキシはプラットフォーム要求とライブプレビュー再生に使用されます。</value>
+  </data>
   <data name="RecordLog" xml:space="preserve">
     <value>録画ログ</value>
   </data>

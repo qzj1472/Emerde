@@ -38,7 +38,7 @@
                                Grid.Column="0"
                                Margin="0,0,12,4"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                               Text="Platform" />
+                               Text="{I18N Platform}" />
                     <TextBlock Grid.Row="0"
                                Grid.Column="1"
                                Margin="0,0,0,4"
@@ -48,7 +48,7 @@
                                Grid.Column="0"
                                Margin="0,0,12,0"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                               Text="Supported" />
+                               Text="{I18N Supported}" />
                     <TextBlock Grid.Row="1"
                                Grid.Column="1"
                                Text="{Binding SupportedPlatformsText}"

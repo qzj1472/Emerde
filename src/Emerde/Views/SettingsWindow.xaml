@@ -598,7 +598,7 @@
                                            Text="{x:Static ui:FontSymbols.Globe}" />
                             </Grid>
                             <ui:StackPanel Grid.Column="1" Spacing="8">
-                                <TextBlock FontWeight="SemiBold" Text="Platform Access" />
+                                <TextBlock FontWeight="SemiBold" Text="{I18N PlatformAccess}" />
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="120" />
@@ -612,7 +612,7 @@
                                     <TextBlock Grid.Row="0"
                                                Grid.Column="0"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                               Text="China Cookie" />
+                                               Text="{I18N UseCookieOfDouyin}" />
                                     <TextBlock Grid.Row="0"
                                                Grid.Column="1"
                                                Text="{Binding ChinaCookiePlatformsText}"
@@ -621,7 +621,7 @@
                                                Grid.Column="0"
                                                Margin="0,5,0,0"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                               Text="Oversea Cookie" />
+                                               Text="{I18N UseCookieOfOversea}" />
                                     <TextBlock Grid.Row="1"
                                                Grid.Column="1"
                                                Margin="0,5,0,0"
@@ -631,7 +631,7 @@
                                                Grid.Column="0"
                                                Margin="0,5,0,0"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                               Text="No Cookie" />
+                                               Text="{I18N NoCookie}" />
                                     <TextBlock Grid.Row="2"
                                                Grid.Column="1"
                                                Margin="0,5,0,0"
@@ -640,7 +640,7 @@
                                 </Grid>
                                 <TextBlock FontSize="11"
                                            Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
-                                           Text="Proxy applies to platform requests and preview playback when enabled."
+                                           Text="{I18N ProxyAppliesToPlatformRequests}"
                                            TextWrapping="Wrap" />
                             </ui:StackPanel>
                         </Grid>

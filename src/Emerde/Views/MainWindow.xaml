@@ -302,7 +302,7 @@
                                         CellStyle="{StaticResource CenteredDataGridTextColumnCellStyle}"
                                         EditingElementStyle="{StaticResource CenteredDataGridTextColumnEditingElementStyle}"
                                         ElementStyle="{StaticResource CenteredDataGridTextColumnElementStyle}"
-                                        Header="Platform"
+                                        Header="{I18N Platform}"
                                         IsReadOnly="True"
                                         SortMemberPath="PlatformName" />
                     <DataGridTextColumn Width="*"
@@ -495,7 +495,7 @@
             </ui:Grid>
         </ui:Grid>
         <Grid>
-            <ui:TitleBar Title="{I18N Title}" ShowMaximize="False">
+            <ui:TitleBar Title="{I18N Title}" ShowMaximize="True">
                 <ui:TitleBar.Icon>
                     <ui:ImageIcon Source="pack://application:,,,/Assets/Favicon.png" />
                 </ui:TitleBar.Icon>
