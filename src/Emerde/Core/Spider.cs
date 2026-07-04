@@ -10,6 +10,7 @@ internal static class Spider
         KuaishouSpider.Instance.Value,
         HuyaSpider.Instance.Value,
         BigoSpider.Instance.Value,
+        SeventeenLiveSpider.Instance.Value,
         XiaohongshuSpider.Instance.Value,
         KugouSpider.Instance.Value,
         YingkeSpider.Instance.Value,
