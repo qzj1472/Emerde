@@ -66,6 +66,16 @@ public sealed class SpiderTests
     }
 
     [Theory]
+    [InlineData("https://fanxing.kugou.com/123456?from=test", "https://fanxing.kugou.com/123456")]
+    [InlineData("https://fanxing2.kugou.com/index.html?roomId=987654&source=test", "https://fanxing.kugou.com/987654")]
+    public void ParseUrl_WithKugouLiveUrl_NormalizesRoomUrl(string input, string expected)
+    {
+        string? result = Spider.ParseUrl(input);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
     [InlineData("https://example.test/live.m3u8?token=abc", "https://example.test/live.m3u8?token=abc")]
     [InlineData("https://example.test/live.flv", "https://example.test/live.flv")]
     public void ParseUrl_WithDirectStreamUrl_PreservesStreamUrl(string input, string expected)
@@ -82,6 +92,7 @@ public sealed class SpiderTests
     [InlineData("https://live.kuaishou.com/u/example", "Kuaishou")]
     [InlineData("https://www.bigo.tv/cn/123456", "Bigo")]
     [InlineData("https://www.xiaohongshu.com/user/profile/abc123", "Xiaohongshu")]
+    [InlineData("https://fanxing.kugou.com/123456", "Kugou")]
     [InlineData("https://example.test/live.m3u8", "Direct")]
     [InlineData("https://example.test/page", "")]
     public void GetPlatformName_DetectsSupportedPlatform(string input, string expected)
@@ -98,6 +109,7 @@ public sealed class SpiderTests
         Assert.Contains("Kuaishou", Spider.SupportedPlatformNames);
         Assert.Contains("Bigo", Spider.SupportedPlatformNames);
         Assert.Contains("Xiaohongshu", Spider.SupportedPlatformNames);
+        Assert.Contains("Kugou", Spider.SupportedPlatformNames);
         Assert.Contains("Direct", Spider.SupportedPlatformNames);
     }
 
@@ -231,5 +243,43 @@ public sealed class SpiderTests
         Assert.Equal("anchor", result.Nickname);
         Assert.Equal("http://live-source-play.xhscdn.com/live/room123.flv", result.FlvUrl);
         Assert.Equal("http://live-source-play.xhscdn.com/live/room123.m3u8", result.HlsUrl);
+    }
+
+    [Fact]
+    public void KugouExtractors_MapRoomInfoAndStreamUrl()
+    {
+        KugouSpiderResult result = new()
+        {
+            RoomUrl = "https://fanxing.kugou.com/123456",
+            PlatformName = "Kugou",
+        };
+
+        KugouSpider.ExtractRoomInfo(
+            """
+            {
+              "data": {
+                "normalRoomInfo": { "nickName": "anchor" },
+                "liveType": 1
+              }
+            }
+            """,
+            result);
+
+        KugouSpider.ExtractStreamUrl(
+            """
+            {
+              "data": {
+                "lines": [
+                  { "streamProfiles": [ { "httpsFlv": [ "https://example.test/low.flv" ] } ] },
+                  { "streamProfiles": [ { "httpsFlv": [ "https://example.test/high.flv" ] } ] }
+                ]
+              }
+            }
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/high.flv", result.FlvUrl);
     }
 }
