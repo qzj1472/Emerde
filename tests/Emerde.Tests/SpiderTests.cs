@@ -75,6 +75,14 @@ public sealed class SpiderTests
         Assert.Equal(expected, result);
     }
 
+    [Fact]
+    public void ParseUrl_WithYingkeLiveUrl_NormalizesRoomUrl()
+    {
+        string? result = Spider.ParseUrl("https://www.inke.cn/liveroom.html?id=live123&uid=user456&from=test");
+
+        Assert.Equal("https://www.inke.cn/liveroom.html?uid=user456&id=live123", result);
+    }
+
     [Theory]
     [InlineData("https://example.test/live.m3u8?token=abc", "https://example.test/live.m3u8?token=abc")]
     [InlineData("https://example.test/live.flv", "https://example.test/live.flv")]
@@ -93,6 +101,7 @@ public sealed class SpiderTests
     [InlineData("https://www.bigo.tv/cn/123456", "Bigo")]
     [InlineData("https://www.xiaohongshu.com/user/profile/abc123", "Xiaohongshu")]
     [InlineData("https://fanxing.kugou.com/123456", "Kugou")]
+    [InlineData("https://www.inke.cn/liveroom.html?uid=user456&id=live123", "Yingke")]
     [InlineData("https://example.test/live.m3u8", "Direct")]
     [InlineData("https://example.test/page", "")]
     public void GetPlatformName_DetectsSupportedPlatform(string input, string expected)
@@ -110,6 +119,7 @@ public sealed class SpiderTests
         Assert.Contains("Bigo", Spider.SupportedPlatformNames);
         Assert.Contains("Xiaohongshu", Spider.SupportedPlatformNames);
         Assert.Contains("Kugou", Spider.SupportedPlatformNames);
+        Assert.Contains("Yingke", Spider.SupportedPlatformNames);
         Assert.Contains("Direct", Spider.SupportedPlatformNames);
     }
 
@@ -281,5 +291,37 @@ public sealed class SpiderTests
         Assert.True(result.IsLiveStreaming);
         Assert.Equal("anchor", result.Nickname);
         Assert.Equal("https://example.test/high.flv", result.FlvUrl);
+    }
+
+    [Fact]
+    public void YingkeExtractShareData_MapsLiveStreamUrls()
+    {
+        YingkeSpiderResult result = new()
+        {
+            RoomUrl = "https://www.inke.cn/liveroom.html?uid=user456&id=live123",
+            PlatformName = "Yingke",
+        };
+
+        YingkeSpider.ExtractShareData(
+            """
+            {
+              "data": {
+                "media_info": { "nick": "anchor" },
+                "status": 1,
+                "live_addr": [
+                  {
+                    "hls_stream_addr": "https://example.test/live.m3u8",
+                    "stream_addr": "https://example.test/live.flv"
+                  }
+                ]
+              }
+            }
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
+        Assert.Equal("https://example.test/live.flv", result.FlvUrl);
     }
 }
