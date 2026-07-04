@@ -56,6 +56,16 @@ public sealed class SpiderTests
     }
 
     [Theory]
+    [InlineData("https://www.xiaohongshu.com/user/profile/abc123?xsec_token=test", "https://www.xiaohongshu.com/user/profile/abc123")]
+    [InlineData("https://www.xiaohongshu.com/live?host_id=host123&source=test", "https://www.xiaohongshu.com/user/profile/host123")]
+    public void ParseUrl_WithXiaohongshuLiveUrl_NormalizesRoomUrl(string input, string expected)
+    {
+        string? result = Spider.ParseUrl(input);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
     [InlineData("https://example.test/live.m3u8?token=abc", "https://example.test/live.m3u8?token=abc")]
     [InlineData("https://example.test/live.flv", "https://example.test/live.flv")]
     public void ParseUrl_WithDirectStreamUrl_PreservesStreamUrl(string input, string expected)
@@ -71,6 +81,7 @@ public sealed class SpiderTests
     [InlineData("https://live.bilibili.com/123456", "Bilibili")]
     [InlineData("https://live.kuaishou.com/u/example", "Kuaishou")]
     [InlineData("https://www.bigo.tv/cn/123456", "Bigo")]
+    [InlineData("https://www.xiaohongshu.com/user/profile/abc123", "Xiaohongshu")]
     [InlineData("https://example.test/live.m3u8", "Direct")]
     [InlineData("https://example.test/page", "")]
     public void GetPlatformName_DetectsSupportedPlatform(string input, string expected)
@@ -86,6 +97,7 @@ public sealed class SpiderTests
         Assert.Contains("Bilibili", Spider.SupportedPlatformNames);
         Assert.Contains("Kuaishou", Spider.SupportedPlatformNames);
         Assert.Contains("Bigo", Spider.SupportedPlatformNames);
+        Assert.Contains("Xiaohongshu", Spider.SupportedPlatformNames);
         Assert.Contains("Direct", Spider.SupportedPlatformNames);
     }
 
@@ -188,5 +200,36 @@ public sealed class SpiderTests
         Assert.Equal("anchor", result.Nickname);
         Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
         Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
+    }
+
+    [Fact]
+    public void XiaohongshuExtractInitialState_MapsLiveStreamData()
+    {
+        XiaohongshuSpiderResult result = new()
+        {
+            RoomUrl = "https://www.xiaohongshu.com/user/profile/abc123",
+            PlatformName = "Xiaohongshu",
+        };
+
+        XiaohongshuSpider.ExtractInitialState(
+            """
+            {
+              "liveStream": {
+                "liveStatus": "success",
+                "roomData": {
+                  "roomInfo": {
+                    "roomTitle": "Live title",
+                    "deeplink": "xhsdiscover://live?host_nickname=anchor&flvUrl=http%3A%2F%2Flive-source-play.xhscdn.com%2Flive%2Froom123.flv"
+                  }
+                }
+              }
+            }
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("http://live-source-play.xhscdn.com/live/room123.flv", result.FlvUrl);
+        Assert.Equal("http://live-source-play.xhscdn.com/live/room123.m3u8", result.HlsUrl);
     }
 }
