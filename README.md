@@ -1,4 +1,4 @@
-﻿[English](README.md) | [绠€浣撲腑鏂嘳(README.zh-Hans.md)
+[English](README.md) | [简体中文](README.zh-Hans.md)
 
 <img src="branding/logo.png" />
 
@@ -23,10 +23,10 @@ Based on FFmpeg and FFplay.
 
 Support following live site.
 
-| Site          | Status    |
-| ------------- | --------- |
-| Douyin (鎶栭煶) | Available |
-| Tiktok        | Available |
+| Site            | Status    |
+| --------------- | --------- |
+| Douyin (抖音)   | Available |
+| Tiktok          | Available |
 
 How to add live room:
 
