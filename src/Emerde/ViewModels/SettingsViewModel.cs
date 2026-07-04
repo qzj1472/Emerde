@@ -23,9 +23,9 @@ namespace Emerde.ViewModels;
 [ObservableObject]
 public partial class SettingsViewModel : ReactiveObject
 {
-    public string ChinaCookiePlatformsText => "Douyin / Bilibili / Kuaishou / Huya / Baidu / Xiaohongshu / Kugou / Yingke / AcFun / YY / NeteaseCC / QianduRebo";
+    public string ChinaCookiePlatformsText => "Douyin / Bilibili / Kuaishou / Huya / Baidu / MaoerFM / Lianjie / 6Rooms / VVXqiu / Xiaohongshu / Kugou / Yingke / AcFun / YY / NeteaseCC / QianduRebo";
 
-    public string OverseaCookiePlatformsText => "TikTok / Bigo / ShowRoom / 17Live / CHZZK";
+    public string OverseaCookiePlatformsText => "TikTok / Bigo / ShowRoom / 17Live / CHZZK / Picarto / LangLive";
 
     public string DirectStreamPlatformsText => "Direct stream";
 

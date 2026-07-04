@@ -43,6 +43,12 @@ Recording is powered by FFmpeg. Live preview is powered by LibVLCSharp.
 | Bigo | Supported |
 | 17Live | Supported |
 | CHZZK | Supported |
+| MaoerFM | Supported |
+| Picarto | Supported |
+| Lianjie | Supported |
+| LangLive | Supported |
+| 6Rooms | Supported |
+| VVXqiu | Supported |
 | Xiaohongshu | Supported |
 | Kugou | Supported |
 | Yingke | Supported |
@@ -65,6 +71,12 @@ https://www.huya.com/52333
 https://live.baidu.com/m/media/pclive/pchome/live.html?room_id=9175031377
 https://17.live/en/live/6302408
 https://chzzk.naver.com/live/458f6ec20b034f49e0fc6d03921646d2
+https://fm.missevan.com/live/868895007
+https://www.picarto.tv/cuteavalanche
+https://show.lailianjie.com/10000258
+https://www.lang.live/en-US/room/3349463
+https://v.6.cn/634435
+https://h5webcdn-pro.vvxqiu.com/activity/videoShare/videoShare.html?roomId=LP115924473
 https://www.tiktok.com/@example/live
 https://example.com/live/index.m3u8
 ```
