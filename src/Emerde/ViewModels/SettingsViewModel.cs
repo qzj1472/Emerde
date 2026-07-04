@@ -38,6 +38,13 @@ public partial class SettingsViewModel : ReactiveObject
         Japanese,
     }
 
+    private enum ThemeIndexEnum
+    {
+        Auto,
+        Dark,
+        Light,
+    }
+
     [ObservableProperty]
     private int languageIndex = Configurations.Language.Get() switch
     {
@@ -72,15 +79,22 @@ public partial class SettingsViewModel : ReactiveObject
     [ObservableProperty]
     private int themeIndex = Configurations.Theme.Get() switch
     {
-        nameof(ApplicationTheme.Light) => (int)ApplicationTheme.Light,
-        nameof(ApplicationTheme.Dark) => (int)ApplicationTheme.Dark,
-        _ => (int)ApplicationTheme.Unknown,
+        nameof(ApplicationTheme.Light) => (int)ThemeIndexEnum.Light,
+        nameof(ApplicationTheme.Dark) => (int)ThemeIndexEnum.Dark,
+        _ => (int)ThemeIndexEnum.Auto,
     };
 
     partial void OnThemeIndexChanged(int value)
     {
-        ThemeManager.Apply((ApplicationTheme)value);
-        Configurations.Theme.Set((ApplicationTheme)value switch
+        ApplicationTheme theme = value switch
+        {
+            (int)ThemeIndexEnum.Light => ApplicationTheme.Light,
+            (int)ThemeIndexEnum.Dark => ApplicationTheme.Dark,
+            _ => ApplicationTheme.Unknown,
+        };
+
+        ThemeManager.Apply(theme);
+        Configurations.Theme.Set(theme switch
         {
             ApplicationTheme.Light => nameof(ApplicationTheme.Light),
             ApplicationTheme.Dark => nameof(ApplicationTheme.Dark),
@@ -404,47 +418,15 @@ public partial class SettingsViewModel : ReactiveObject
     [RelayCommand]
     private async Task CheckProxyUrlAsync()
     {
-        if (string.IsNullOrWhiteSpace(ProxyUrl))
+        if (!TryCreateProxyUri(ProxyUrl, out Uri? proxyUri, out string errorKey))
         {
-            Toast.Error("ProxyErrorOfEmptyUrl".Tr());
-            return;
-        }
-
-        if (!ProxyUrl.Contains(':'))
-        {
-            Toast.Error("ProxyErrorOfMissHostOrPort".Tr());
-            return;
-        }
-
-        string[] proxy = ProxyUrl.Split(':');
-
-        if (proxy.Length < 2)
-        {
-            Toast.Error("ProxyErrorOfFormat".Tr());
-            return;
-        }
-
-        if (!IPAddress.TryParse(proxy[0], out IPAddress? address))
-        {
-            Toast.Error("ProxyErrorOfHostFormatError".Tr());
-            return;
-        }
-
-        if (!int.TryParse(proxy[1], out int port))
-        {
-            Toast.Error("ProxyErrorOfPortFormatError".Tr());
-            return;
-        }
-
-        if (port <= 0 || port > short.MaxValue)
-        {
-            Toast.Error("ProxyErrorOfPortOutOfRange".Tr());
+            Toast.Error(errorKey.Tr());
             return;
         }
 
         HttpClientHandler httpClientHandler = new()
         {
-            Proxy = new WebProxy(address.ToString(), port),
+            Proxy = new WebProxy(proxyUri),
             UseProxy = true
         };
 
@@ -461,6 +443,60 @@ public partial class SettingsViewModel : ReactiveObject
         {
             Toast.Error("ProxyErrorOfExceptionMessage".Tr(e.Message));
         }
+    }
+
+    internal static bool TryCreateProxyUri(string? value, [NotNullWhen(true)] out Uri? proxyUri, out string errorKey)
+    {
+        proxyUri = null;
+        errorKey = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            errorKey = "ProxyErrorOfEmptyUrl";
+            return false;
+        }
+
+        string input = value.Trim();
+        string url = input.Contains("://", StringComparison.Ordinal) ? input : $"http://{input}";
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) || string.IsNullOrWhiteSpace(uri.Host))
+        {
+            errorKey = "ProxyErrorOfFormat";
+            return false;
+        }
+
+        if (!HasExplicitPort(uri))
+        {
+            errorKey = "ProxyErrorOfMissHostOrPort";
+            return false;
+        }
+
+        if (uri.Port <= 0 || uri.Port > 65535)
+        {
+            errorKey = "ProxyErrorOfPortOutOfRange";
+            return false;
+        }
+
+        proxyUri = new UriBuilder(uri.Scheme, uri.Host, uri.Port).Uri;
+        return true;
+    }
+
+    private static bool HasExplicitPort(Uri uri)
+    {
+        string authority = uri.Authority;
+        int userInfoIndex = authority.LastIndexOf('@');
+
+        if (userInfoIndex >= 0)
+        {
+            authority = authority[(userInfoIndex + 1)..];
+        }
+
+        if (authority.StartsWith("[", StringComparison.Ordinal))
+        {
+            return authority.Contains("]:", StringComparison.Ordinal);
+        }
+
+        return authority.Count(character => character == ':') == 1;
     }
 
     [ObservableProperty]
