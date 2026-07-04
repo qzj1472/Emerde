@@ -71,4 +71,4 @@ https://www.tiktok.com/@XXX/live
 
 ## 鸣谢
 
-为了节约后续维护成本，直接参考了部分来自 [DouyinLiveRecorder](https://github.com/ihmily/DouyinLiveRecorder) 的字符串数据比如正则表达式。
+Emerde 的多平台直播流解析设计参考了 [DouyinLiveRecorder](https://github.com/ihmily/DouyinLiveRecorder) 的思路和平台行为。详见 [Third Party Notices](THIRD_PARTY_NOTICES.md)。

@@ -71,4 +71,4 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Thanks
 
-To save maintenance costs, refer to the specific string data form [DouyinLiveRecorder](https://github.com/ihmily/DouyinLiveRecorder), just like regex and so on.
+Emerde's multi-platform live stream resolver design references ideas and platform behavior from [DouyinLiveRecorder](https://github.com/ihmily/DouyinLiveRecorder). See [Third Party Notices](THIRD_PARTY_NOTICES.md).
