@@ -49,6 +49,15 @@ Recording is powered by FFmpeg. Live preview is powered by LibVLCSharp.
 | LangLive | Supported |
 | 6Rooms | Supported |
 | VVXqiu | Supported |
+| Blued | Supported |
+| Liuxing | Supported |
+| Changliao | Supported |
+| Yinbo | Supported |
+| Zhihu | Supported |
+| PPLive | Supported |
+| CatShow | Supported |
+| Laixiu | Supported |
+| JD | Supported |
 | Xiaohongshu | Supported |
 | Kugou | Supported |
 | Yingke | Supported |
@@ -77,6 +86,15 @@ https://show.lailianjie.com/10000258
 https://www.lang.live/en-US/room/3349463
 https://v.6.cn/634435
 https://h5webcdn-pro.vvxqiu.com/activity/videoShare/videoShare.html?roomId=LP115924473
+https://app.blued.cn/live?id=Mp6G2R
+https://www.7u66.com/100960
+https://live.tlclw.com/106188
+https://live.ybw1666.com/800002949
+https://www.zhihu.com/people/ac3a467005c5d20381a82230101308e9
+https://m.pp.weimipopo.com/live/preview.html?anchorUid=91625862
+https://h.catshow168.com/live/preview.html?anchorUid=18895331
+https://www.imkktv.com/h5/share/video.html?roomId=1710496
+https://3.cn/28MLBy-E
 https://www.tiktok.com/@example/live
 https://example.com/live/index.m3u8
 ```

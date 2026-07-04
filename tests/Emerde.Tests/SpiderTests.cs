@@ -141,6 +141,82 @@ public sealed class SpiderTests
         Assert.Equal("https://h5webcdn-pro.vvxqiu.com/activity/videoShare/videoShare.html?roomId=LP115924473", result);
     }
 
+    [Fact]
+    public void ParseUrl_WithBluedLiveUrl_NormalizesRoomUrl()
+    {
+        string? result = Spider.ParseUrl("https://app.blued.cn/live?id=Mp6G2R&from=test");
+
+        Assert.Equal("https://app.blued.cn/live?id=Mp6G2R", result);
+    }
+
+    [Fact]
+    public void ParseUrl_WithLiuxingLiveUrl_NormalizesRoomUrl()
+    {
+        string? result = Spider.ParseUrl("https://wap.7u66.com/100960?promoters=0");
+
+        Assert.Equal("https://www.7u66.com/100960", result);
+    }
+
+    [Fact]
+    public void ParseUrl_WithChangliaoLiveUrl_NormalizesRoomUrl()
+    {
+        string? result = Spider.ParseUrl("https://www.tlclw.com/106188?from=test");
+
+        Assert.Equal("https://live.tlclw.com/106188", result);
+    }
+
+    [Fact]
+    public void ParseUrl_WithYinboLiveUrl_NormalizesRoomUrl()
+    {
+        string? result = Spider.ParseUrl("https://wap.ybw1666.com/800002949?from=test");
+
+        Assert.Equal("https://live.ybw1666.com/800002949", result);
+    }
+
+    [Theory]
+    [InlineData("https://www.zhihu.com/people/ac3a467005c5d20381a82230101308e9?from=test", "https://www.zhihu.com/people/ac3a467005c5d20381a82230101308e9")]
+    [InlineData("https://www.zhihu.com/theater/123456?from=test", "https://www.zhihu.com/theater/123456")]
+    public void ParseUrl_WithZhihuLiveUrl_NormalizesRoomUrl(string input, string expected)
+    {
+        string? result = Spider.ParseUrl(input);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void ParseUrl_WithPpLiveLiveUrl_NormalizesRoomUrl()
+    {
+        string? result = Spider.ParseUrl("https://m.pp.weimipopo.com/live/preview.html?uid=91648673&anchorUid=91625862&app=plpl");
+
+        Assert.Equal("https://m.pp.weimipopo.com/live/preview.html?anchorUid=91625862", result);
+    }
+
+    [Fact]
+    public void ParseUrl_WithCatShowLiveUrl_NormalizesRoomUrl()
+    {
+        string? result = Spider.ParseUrl("https://h.catshow168.com/live/preview.html?uid=19066357&anchorUid=18895331");
+
+        Assert.Equal("https://h.catshow168.com/live/preview.html?anchorUid=18895331", result);
+    }
+
+    [Fact]
+    public void ParseUrl_WithLaixiuLiveUrl_NormalizesRoomUrl()
+    {
+        string? result = Spider.ParseUrl("https://www.imkktv.com/h5/share/video.html?uid=1845195&roomId=1710496");
+
+        Assert.Equal("https://www.imkktv.com/h5/share/video.html?roomId=1710496", result);
+    }
+
+    [Theory]
+    [InlineData("https://3.cn/28MLBy-E?from=test", "https://3.cn/28MLBy-E")]
+    [InlineData("https://m.jd.com/live/123456?authorId=789", "https://m.jd.com/live/123456?authorId=789")]
+    public void ParseUrl_WithJdLiveUrl_NormalizesRoomUrl(string input, string expected)
+    {
+        string? result = Spider.ParseUrl(input);
+
+        Assert.Equal(expected, result);
+    }
+
     [Theory]
     [InlineData("https://www.xiaohongshu.com/user/profile/abc123?xsec_token=test", "https://www.xiaohongshu.com/user/profile/abc123")]
     [InlineData("https://www.xiaohongshu.com/live?host_id=host123&source=test", "https://www.xiaohongshu.com/user/profile/host123")]
@@ -245,6 +321,15 @@ public sealed class SpiderTests
     [InlineData("https://www.lang.live/en-US/room/3349463", "LangLive")]
     [InlineData("https://v.6.cn/634435", "6Rooms")]
     [InlineData("https://h5webcdn-pro.vvxqiu.com/activity/videoShare/videoShare.html?roomId=LP115924473", "VVXqiu")]
+    [InlineData("https://app.blued.cn/live?id=Mp6G2R", "Blued")]
+    [InlineData("https://www.7u66.com/100960", "Liuxing")]
+    [InlineData("https://live.tlclw.com/106188", "Changliao")]
+    [InlineData("https://live.ybw1666.com/800002949", "Yinbo")]
+    [InlineData("https://www.zhihu.com/people/ac3a467005c5d20381a82230101308e9", "Zhihu")]
+    [InlineData("https://m.pp.weimipopo.com/live/preview.html?anchorUid=91625862", "PPLive")]
+    [InlineData("https://h.catshow168.com/live/preview.html?anchorUid=18895331", "CatShow")]
+    [InlineData("https://www.imkktv.com/h5/share/video.html?roomId=1710496", "Laixiu")]
+    [InlineData("https://3.cn/28MLBy-E", "JD")]
     [InlineData("https://www.xiaohongshu.com/user/profile/abc123", "Xiaohongshu")]
     [InlineData("https://fanxing.kugou.com/123456", "Kugou")]
     [InlineData("https://www.inke.cn/liveroom.html?uid=user456&id=live123", "Yingke")]
@@ -278,6 +363,15 @@ public sealed class SpiderTests
         Assert.Contains("LangLive", Spider.SupportedPlatformNames);
         Assert.Contains("6Rooms", Spider.SupportedPlatformNames);
         Assert.Contains("VVXqiu", Spider.SupportedPlatformNames);
+        Assert.Contains("Blued", Spider.SupportedPlatformNames);
+        Assert.Contains("Liuxing", Spider.SupportedPlatformNames);
+        Assert.Contains("Changliao", Spider.SupportedPlatformNames);
+        Assert.Contains("Yinbo", Spider.SupportedPlatformNames);
+        Assert.Contains("Zhihu", Spider.SupportedPlatformNames);
+        Assert.Contains("PPLive", Spider.SupportedPlatformNames);
+        Assert.Contains("CatShow", Spider.SupportedPlatformNames);
+        Assert.Contains("Laixiu", Spider.SupportedPlatformNames);
+        Assert.Contains("JD", Spider.SupportedPlatformNames);
         Assert.Contains("Xiaohongshu", Spider.SupportedPlatformNames);
         Assert.Contains("Kugou", Spider.SupportedPlatformNames);
         Assert.Contains("Yingke", Spider.SupportedPlatformNames);
@@ -743,6 +837,315 @@ public sealed class SpiderTests
 
         Assert.Equal("anchor", result.Nickname);
         Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
+    }
+
+    [Fact]
+    public void BluedExtractPageData_MapsLiveHlsData()
+    {
+        BluedSpiderResult result = new()
+        {
+            RoomUrl = "https://app.blued.cn/live?id=Mp6G2R",
+            PlatformName = "Blued",
+        };
+
+        string encoded = Uri.EscapeDataString(
+            """
+            {
+              "userInfo": {
+                "name": "anchor",
+                "avatar": "https://example.test/avatar.png",
+                "onLive": true
+              },
+              "liveInfo": {
+                "liveUrl": "https://example.test/live.m3u8"
+              }
+            }
+            """);
+
+        BluedSpider.ExtractPageData($"decodeURIComponent(\"{encoded}\")),window.Promise", result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
+        Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
+    }
+
+    [Fact]
+    public void LiuxingExtractRoomInfo_MapsFlvData()
+    {
+        LiuxingSpiderResult result = new()
+        {
+            RoomUrl = "https://www.7u66.com/100960",
+            PlatformName = "Liuxing",
+        };
+
+        LiuxingSpider.ExtractRoomInfo(
+            """
+            {
+              "data": {
+                "roomInfo": {
+                  "nickname": "anchor",
+                  "live_stat": 1,
+                  "idx": "123",
+                  "liveId1": "456"
+                }
+              }
+            }
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://txpull1.5see.com/live/123/456.flv", result.FlvUrl);
+    }
+
+    [Fact]
+    public void ChangliaoExtractors_MapLiveStreamData()
+    {
+        ChangliaoSpiderResult result = new()
+        {
+            RoomUrl = "https://live.tlclw.com/106188",
+            PlatformName = "Changliao",
+        };
+
+        ChangliaoSpider.ExtractRoomInfo(
+            """
+            {
+              "data": {
+                "roomInfo": {
+                  "nickname": "anchor",
+                  "live_stat": 1,
+                  "liveID": "live123"
+                }
+              }
+            }
+            """,
+            result);
+        (string? flvDomain, string? hlsDomain) = ChangliaoSpider.ExtractLiveDomain(
+            """
+            var config = {
+              "domainpullstream_flv": "https://flv.example.test/live",
+              "domainpullstream_hls": "https://hls.example.test/live"
+            };
+            config.webskins
+            """);
+        ChangliaoSpider.ApplyLiveDomain(result, flvDomain, hlsDomain);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://flv.example.test/live/live123.flv", result.FlvUrl);
+        Assert.Equal("https://hls.example.test/live/live123.m3u8", result.HlsUrl);
+    }
+
+    [Fact]
+    public void YinboExtractors_MapLiveStreamData()
+    {
+        YinboSpiderResult result = new()
+        {
+            RoomUrl = "https://live.ybw1666.com/800002949",
+            PlatformName = "Yinbo",
+        };
+
+        YinboSpider.ExtractRoomInfo(
+            """
+            {
+              "data": {
+                "roomInfo": {
+                  "nickname": "anchor",
+                  "live_stat": 1,
+                  "liveID": "live123"
+                }
+              }
+            }
+            """,
+            result);
+        (string? flvDomain, string? hlsDomain) = YinboSpider.ExtractLiveDomain(
+            """
+            var config = {
+              "domainpullstream_flv": "https://flv.example.test/live",
+              "domainpullstream_hls": "https://hls.example.test/live"
+            };
+            config.webskins
+            """);
+        YinboSpider.ApplyLiveDomain(result, flvDomain, hlsDomain);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://flv.example.test/live/live123.flv", result.FlvUrl);
+        Assert.Equal("https://hls.example.test/live/live123.m3u8", result.HlsUrl);
+    }
+
+    [Fact]
+    public void ZhihuExtractors_MapProfileAndLiveStreamData()
+    {
+        ZhihuSpiderResult result = new()
+        {
+            RoomUrl = "https://www.zhihu.com/theater/web123",
+            PlatformName = "Zhihu",
+        };
+
+        string? livePageUrl = ZhihuSpider.ExtractLivePageUrl("""{"drama":{"living_theater":{"theater_url":"https://www.zhihu.com/theater/web123"}}}""");
+        ZhihuSpider.ExtractInitialData(
+            """
+            <script id="js-initialData" type="text/json">
+            {
+              "initialState": {
+                "theater": {
+                  "theaters": {
+                    "web123": {
+                      "actor": {
+                        "name": "anchor",
+                        "avatarUrl": "https://example.test/avatar.png"
+                      },
+                      "drama": {
+                        "status": 1,
+                        "playInfo": {
+                          "hlsUrl": "https://example.test/live.m3u8",
+                          "playUrl": "https://example.test/live.flv"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            </script>
+            """,
+            "web123",
+            result);
+
+        Assert.Equal("https://www.zhihu.com/theater/web123", livePageUrl);
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
+        Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
+        Assert.Equal("https://example.test/live.flv", result.FlvUrl);
+    }
+
+    [Fact]
+    public void PpLiveExtractPreview_MapsHlsData()
+    {
+        PpLiveSpiderResult result = new()
+        {
+            RoomUrl = "https://m.pp.weimipopo.com/live/preview.html?anchorUid=91625862",
+            PlatformName = "PPLive",
+        };
+
+        PpLiveSpider.ExtractPreview(
+            """
+            {
+              "data": {
+                "name": "anchor",
+                "avatar": "https://example.test/avatar.png",
+                "living": true,
+                "pullUrl": "https://example.test/live.m3u8"
+              }
+            }
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
+        Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
+    }
+
+    [Fact]
+    public void CatShowExtractPreview_MapsHlsData()
+    {
+        CatShowSpiderResult result = new()
+        {
+            RoomUrl = "https://h.catshow168.com/live/preview.html?anchorUid=18895331",
+            PlatformName = "CatShow",
+        };
+
+        CatShowSpider.ExtractPreview(
+            """
+            {
+              "data": {
+                "name": "anchor",
+                "avatar": "https://example.test/avatar.png",
+                "living": true,
+                "pullUrl": "https://example.test/live.m3u8"
+              }
+            }
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
+        Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
+    }
+
+    [Fact]
+    public void LaixiuExtractShareLiveVideo_MapsFlvData()
+    {
+        LaixiuSpiderResult result = new()
+        {
+            RoomUrl = "https://www.imkktv.com/h5/share/video.html?roomId=1710496",
+            PlatformName = "Laixiu",
+        };
+
+        LaixiuSpider.ExtractShareLiveVideo(
+            """
+            {
+              "data": {
+                "nickname": "anchor",
+                "avatar": "https://example.test/avatar.png",
+                "playStatus": 0,
+                "playUrl": "https://example.test/live.flv"
+              }
+            }
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
+        Assert.Equal("https://example.test/live.flv", result.FlvUrl);
+    }
+
+    [Fact]
+    public void JdExtractors_MapTalentAndPlayData()
+    {
+        JdSpiderResult result = new()
+        {
+            RoomUrl = "https://3.cn/28MLBy-E",
+            PlatformName = "JD",
+        };
+
+        string? liveId = JdSpider.ExtractTalentInfo(
+            """
+            {
+              "result": {
+                "talentName": "anchor",
+                "livingRoomJump": {
+                  "params": {
+                    "id": "live123"
+                  }
+                }
+              }
+            }
+            """,
+            result);
+        JdSpider.ExtractPlayInfo(
+            """
+            {
+              "data": {
+                "status": 1,
+                "videoUrl": "https://example.test/live.flv",
+                "h5VideoUrl": "https://example.test/live.m3u8"
+              }
+            }
+            """,
+            result);
+
+        Assert.Equal("live123", liveId);
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/live.flv", result.FlvUrl);
+        Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
     }
 
     [Fact]
