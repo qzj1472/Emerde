@@ -582,6 +582,69 @@
                                FontSize="14"
                                Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                Text="{I18N NetworkSettings}" />
+                    <ui:Card>
+                        <ui:Grid MinHeight="35">
+                            <ui:Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </ui:Grid.ColumnDefinitions>
+                            <Grid Grid.Column="0" Margin="0,0,12,0">
+                                <TextBlock MinWidth="26"
+                                           Margin="4,0,0,0"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Top"
+                                           FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                           FontSize="18"
+                                           Text="{x:Static ui:FontSymbols.Globe}" />
+                            </Grid>
+                            <ui:StackPanel Grid.Column="1" Spacing="8">
+                                <TextBlock FontWeight="SemiBold" Text="Platform Access" />
+                                <ui:Grid>
+                                    <ui:Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" />
+                                    </ui:Grid.ColumnDefinitions>
+                                    <ui:Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </ui:Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0"
+                                               Grid.Column="0"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               Text="China Cookie" />
+                                    <TextBlock Grid.Row="0"
+                                               Grid.Column="1"
+                                               Text="{Binding ChinaCookiePlatformsText}"
+                                               TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="1"
+                                               Grid.Column="0"
+                                               Margin="0,5,0,0"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               Text="Oversea Cookie" />
+                                    <TextBlock Grid.Row="1"
+                                               Grid.Column="1"
+                                               Margin="0,5,0,0"
+                                               Text="{Binding OverseaCookiePlatformsText}"
+                                               TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="2"
+                                               Grid.Column="0"
+                                               Margin="0,5,0,0"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               Text="No Cookie" />
+                                    <TextBlock Grid.Row="2"
+                                               Grid.Column="1"
+                                               Margin="0,5,0,0"
+                                               Text="{Binding DirectStreamPlatformsText}"
+                                               TextWrapping="Wrap" />
+                                </ui:Grid>
+                                <TextBlock FontSize="11"
+                                           Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
+                                           Text="Proxy applies to platform requests and preview playback when enabled."
+                                           TextWrapping="Wrap" />
+                            </ui:StackPanel>
+                        </ui:Grid>
+                    </ui:Card>
                     <ui:CardExpander>
                         <ui:CardExpander.Header>
                             <ui:Grid ColumnDefinitions="Auto,*,Auto">
