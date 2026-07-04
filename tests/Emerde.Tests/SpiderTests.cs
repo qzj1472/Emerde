@@ -68,6 +68,16 @@ public sealed class SpiderTests
     }
 
     [Fact]
+    public void SupportedPlatformNames_IncludesRegisteredSpiders()
+    {
+        Assert.Contains("Douyin", Spider.SupportedPlatformNames);
+        Assert.Contains("TikTok", Spider.SupportedPlatformNames);
+        Assert.Contains("Bilibili", Spider.SupportedPlatformNames);
+        Assert.Contains("Kuaishou", Spider.SupportedPlatformNames);
+        Assert.Contains("Direct", Spider.SupportedPlatformNames);
+    }
+
+    [Fact]
     public void GetResult_WithDirectHlsUrl_ReturnsStreamingResult()
     {
         ISpiderResult? result = Spider.GetResult("https://example.test/live/index.m3u8?token=abc");

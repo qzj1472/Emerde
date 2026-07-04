@@ -11,6 +11,8 @@ internal static class Spider
         DirectStreamSpider.Instance.Value,
     ]);
 
+    public static IReadOnlyList<string> SupportedPlatformNames => Spiders.Value.Select(spider => spider.PlatformName).ToArray();
+
     public static string? ParseUrl(string url)
     {
         foreach (ISpider spider in Spiders.Value)

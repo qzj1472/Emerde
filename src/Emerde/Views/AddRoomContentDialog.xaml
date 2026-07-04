@@ -17,9 +17,44 @@
                    Style="{StaticResource DefaultVioletaContentDialogStyle}"
                    mc:Ignorable="d">
     <ui:Grid>
-        <ui:StackPanel MinWidth="350" Spacing="8">
+        <ui:StackPanel MinWidth="420" Spacing="10">
             <TextBlock Text="{I18N EnterRoomUrl}" />
-            <ui:TextBox PlaceholderText="https://live.douyin.com/xxx" Text="{Binding Url, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            <ui:TextBox PlaceholderText="https://live.douyin.com/xxx / https://live.bilibili.com/xxx" Text="{Binding Url, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            <Border Padding="10,8"
+                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="7">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="0"
+                               Margin="0,0,12,4"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Text="Platform" />
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="1"
+                               Margin="0,0,0,4"
+                               FontWeight="SemiBold"
+                               Text="{Binding DetectedPlatformName}" />
+                    <TextBlock Grid.Row="1"
+                               Grid.Column="0"
+                               Margin="0,0,12,0"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Text="Supported" />
+                    <TextBlock Grid.Row="1"
+                               Grid.Column="1"
+                               Text="{Binding SupportedPlatformsText}"
+                               TextWrapping="Wrap" />
+                </Grid>
+            </Border>
             <CheckBox Content="{I18N AddRoomForce}" IsChecked="{Binding IsForcedAdd, Mode=TwoWay}" />
         </ui:StackPanel>
     </ui:Grid>

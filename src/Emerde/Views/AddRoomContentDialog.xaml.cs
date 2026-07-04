@@ -10,11 +10,22 @@ public sealed partial class AddRoomContentDialog : ContentDialog
     [ObservableProperty]
     private string? url = null;
 
+    partial void OnUrlChanged(string? value)
+    {
+        string platformName = string.IsNullOrWhiteSpace(value) ? string.Empty : Spider.GetPlatformName(value);
+        DetectedPlatformName = string.IsNullOrWhiteSpace(platformName) ? "Unsupported" : platformName;
+    }
+
     [ObservableProperty]
     private bool isForcedAdd = false;
 
     [ObservableProperty]
     private string? nickName = null;
+
+    [ObservableProperty]
+    private string detectedPlatformName = "Unsupported";
+
+    public string SupportedPlatformsText => string.Join(" / ", Spider.SupportedPlatformNames);
 
     public string? RoomUrl = null;
 
