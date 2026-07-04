@@ -65,6 +65,11 @@ Recording is powered by FFmpeg. Live preview is powered by LibVLCSharp.
 | Shopee | Supported |
 | TwitCasting | Supported |
 | Faceit | Supported |
+| Weibo | Supported |
+| Huajiao | Supported |
+| SOOP | Supported |
+| FlexTV | Supported |
+| PopkonTV | Supported |
 | Xiaohongshu | Supported |
 | Kugou | Supported |
 | Yingke | Supported |
@@ -109,6 +114,11 @@ https://www.youtube.com/watch?v=example
 https://live.shopee.sg/share?from=live&session=802458
 https://twitcasting.tv/example
 https://www.faceit.com/zh/players/qpjzz/stream
+https://weibo.com/l/wblive/p/show/1022:2321325026370190442592
+https://www.huajiao.com/l/345096174
+https://play.sooplive.co.kr/sw7love
+https://www.flextv.co.kr/channels/593127/live
+https://www.popkontv.com/live/view?castId=wjfal007&partnerCode=P-00117
 https://www.tiktok.com/@example/live
 https://example.com/live/index.m3u8
 ```

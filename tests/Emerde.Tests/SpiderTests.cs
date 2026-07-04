@@ -279,6 +279,54 @@ public sealed class SpiderTests
     }
 
     [Theory]
+    [InlineData("https://weibo.com/l/wblive/p/show/1022:2321325026370190442592?from=test", "https://weibo.com/l/wblive/p/show/1022:2321325026370190442592")]
+    [InlineData("https://weibo.com/u/5885340893?from=test", "https://weibo.com/u/5885340893")]
+    public void ParseUrl_WithWeiboLiveUrl_NormalizesRoomUrl(string input, string expected)
+    {
+        string? result = Spider.ParseUrl(input);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData("https://www.huajiao.com/l/345096174?from=test", "https://www.huajiao.com/l/345096174")]
+    [InlineData("https://www.huajiao.com/user/123456?from=test", "https://www.huajiao.com/user/123456")]
+    public void ParseUrl_WithHuajiaoLiveUrl_NormalizesRoomUrl(string input, string expected)
+    {
+        string? result = Spider.ParseUrl(input);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData("https://play.sooplive.co.kr/sw7love?from=test", "https://play.sooplive.co.kr/sw7love")]
+    [InlineData("https://www.sooplive.com/sw7love?from=test", "https://www.sooplive.com/sw7love")]
+    public void ParseUrl_WithSoopLiveUrl_NormalizesRoomUrl(string input, string expected)
+    {
+        string? result = Spider.ParseUrl(input);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void ParseUrl_WithFlexTvLiveUrl_NormalizesRoomUrl()
+    {
+        string? result = Spider.ParseUrl("https://www.ttinglive.com/channels/593127/live?from=test");
+
+        Assert.Equal("https://www.flextv.co.kr/channels/593127/live", result);
+    }
+
+    [Theory]
+    [InlineData("https://www.popkontv.com/live/view?castId=wjfal007&partnerCode=P-00117", "https://www.popkontv.com/live/view?castId=wjfal007&partnerCode=P-00117")]
+    [InlineData("https://www.popkontv.com/channel/notices?mcid=wjfal007&mcPartnerCode=P-00117", "https://www.popkontv.com/live/view?castId=wjfal007&partnerCode=P-00117")]
+    public void ParseUrl_WithPopkonTvLiveUrl_NormalizesRoomUrl(string input, string expected)
+    {
+        string? result = Spider.ParseUrl(input);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
     [InlineData("https://www.xiaohongshu.com/user/profile/abc123?xsec_token=test", "https://www.xiaohongshu.com/user/profile/abc123")]
     [InlineData("https://www.xiaohongshu.com/live?host_id=host123&source=test", "https://www.xiaohongshu.com/user/profile/host123")]
     public void ParseUrl_WithXiaohongshuLiveUrl_NormalizesRoomUrl(string input, string expected)
@@ -398,6 +446,11 @@ public sealed class SpiderTests
     [InlineData("https://live.shopee.sg/share?from=live&session=802458", "Shopee")]
     [InlineData("https://twitcasting.tv/example", "TwitCasting")]
     [InlineData("https://www.faceit.com/zh/players/qpjzz/stream", "Faceit")]
+    [InlineData("https://weibo.com/l/wblive/p/show/1022:2321325026370190442592", "Weibo")]
+    [InlineData("https://www.huajiao.com/l/345096174", "Huajiao")]
+    [InlineData("https://play.sooplive.co.kr/sw7love", "SOOP")]
+    [InlineData("https://www.flextv.co.kr/channels/593127/live", "FlexTV")]
+    [InlineData("https://www.popkontv.com/live/view?castId=wjfal007&partnerCode=P-00117", "PopkonTV")]
     [InlineData("https://www.xiaohongshu.com/user/profile/abc123", "Xiaohongshu")]
     [InlineData("https://fanxing.kugou.com/123456", "Kugou")]
     [InlineData("https://www.inke.cn/liveroom.html?uid=user456&id=live123", "Yingke")]
@@ -447,6 +500,11 @@ public sealed class SpiderTests
         Assert.Contains("Shopee", Spider.SupportedPlatformNames);
         Assert.Contains("TwitCasting", Spider.SupportedPlatformNames);
         Assert.Contains("Faceit", Spider.SupportedPlatformNames);
+        Assert.Contains("Weibo", Spider.SupportedPlatformNames);
+        Assert.Contains("Huajiao", Spider.SupportedPlatformNames);
+        Assert.Contains("SOOP", Spider.SupportedPlatformNames);
+        Assert.Contains("FlexTV", Spider.SupportedPlatformNames);
+        Assert.Contains("PopkonTV", Spider.SupportedPlatformNames);
         Assert.Contains("Xiaohongshu", Spider.SupportedPlatformNames);
         Assert.Contains("Kugou", Spider.SupportedPlatformNames);
         Assert.Contains("Yingke", Spider.SupportedPlatformNames);
@@ -1470,6 +1528,198 @@ public sealed class SpiderTests
         Assert.Equal("anchor", result.Nickname);
         Assert.Equal("twitch_anchor", result.PlatformId);
         Assert.Equal("twitch", result.Platform);
+    }
+
+    [Fact]
+    public void WeiboExtractors_MapTimelineAndLiveDetail()
+    {
+        WeiboSpiderResult result = new()
+        {
+            RoomUrl = "https://weibo.com/l/wblive/p/show/1022:2321325026370190442592",
+            PlatformName = "Weibo",
+        };
+
+        string? roomId = WeiboSpider.ExtractLiveRoomId(
+            """
+            {
+              "data": {
+                "list": [
+                  {
+                    "page_info": {
+                      "object_type": "live",
+                      "object_id": "live123"
+                    }
+                  }
+                ]
+              }
+            }
+            """);
+        WeiboSpider.ExtractLiveDetail(
+            """
+            {
+              "data": {
+                "user_info": { "name": "anchor" },
+                "item": {
+                  "status": 1,
+                  "stream_info": {
+                    "pull": {
+                      "live_origin_hls_url": "https://example.test/live.m3u8",
+                      "live_origin_flv_url": "https://example.test/live.flv"
+                    }
+                  }
+                }
+              }
+            }
+            """,
+            result);
+
+        Assert.Equal("live123", roomId);
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
+        Assert.Equal("https://example.test/live.flv", result.FlvUrl);
+    }
+
+    [Fact]
+    public void HuajiaoExtractors_MapFeedAndSubstreamData()
+    {
+        HuajiaoSpiderResult result = new()
+        {
+            RoomUrl = "https://www.huajiao.com/l/345096174",
+            PlatformName = "Huajiao",
+        };
+
+        HuajiaoSpider.ExtractFeedInfo(
+            """
+            {
+              "errmsg": "",
+              "data": {
+                "creatime": 123,
+                "author": {
+                  "nickname": "anchor",
+                  "avatar": "https://example.test/avatar.png",
+                  "uid": "uid123"
+                },
+                "feed": {
+                  "sn": "sn123",
+                  "relateid": "live123"
+                }
+              }
+            }
+            """,
+            result);
+        HuajiaoSpider.ExtractSubstream("""{"data":{"h264_url":"https://example.test/live.flv"}}""", result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
+        Assert.Equal("sn123", result.Sn);
+        Assert.Equal("live123", result.LiveId);
+        Assert.Equal("uid123", result.Uid);
+        Assert.Equal("https://example.test/live.flv", result.FlvUrl);
+    }
+
+    [Fact]
+    public void SoopExtractors_MapWatchAndCdnData()
+    {
+        SoopSpiderResult result = new()
+        {
+            RoomUrl = "https://play.sooplive.co.kr/sw7love",
+            PlatformName = "SOOP",
+        };
+
+        SoopSpider.ExtractWatchInfo(
+            """
+            {
+              "result": 1,
+              "data": {
+                "user_nick": "anchor",
+                "bj_id": "sw7love",
+                "broad_no": "123456",
+                "hls_authentication_key": "aid123"
+              }
+            }
+            """,
+            result);
+        SoopSpider.ApplyCdnInfo("""{"view_url":"https://example.test/master.m3u8"}""", result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor-sw7love", result.Nickname);
+        Assert.Equal("123456", result.BroadNo);
+        Assert.Equal("https://example.test/master.m3u8?aid=aid123", result.HlsUrl);
+    }
+
+    [Fact]
+    public void FlexTvExtractors_MapNextDataAndStreamInfo()
+    {
+        FlexTvSpiderResult result = new()
+        {
+            RoomUrl = "https://www.flextv.co.kr/channels/593127/live",
+            PlatformName = "FlexTV",
+        };
+
+        FlexTvSpider.ExtractNextData(
+            """
+            <script id="__NEXT_DATA__" type="application/json">
+            {
+              "props": {
+                "pageProps": {
+                  "channel": {
+                    "owner": {
+                      "nickname": "anchor",
+                      "loginId": "login123"
+                    }
+                  }
+                }
+              }
+            }
+            </script>
+            """,
+            result);
+        FlexTvSpider.ExtractStreamInfo("""{"sources":[{"url":"https://example.test/live.m3u8"}]}""", result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor-login123", result.Nickname);
+        Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
+    }
+
+    [Fact]
+    public void PopkonTvExtractors_MapNextDataAndWatchInfo()
+    {
+        PopkonTvSpiderResult result = new()
+        {
+            RoomUrl = "https://www.popkontv.com/live/view?castId=wjfal007&partnerCode=P-00117",
+            PlatformName = "PopkonTV",
+        };
+
+        PopkonTvSpider.ExtractNextData(
+            """
+            <script id="__NEXT_DATA__" type="application/json">
+            {
+              "props": {
+                "pageProps": {
+                  "mcData": {
+                    "data": {
+                      "mc_nickName": "anchor",
+                      "mc_castStartDate": "20260704120000",
+                      "mc_signId": "wjfal007",
+                      "castType": "0",
+                      "mc_isPrivate": "0"
+                    }
+                  }
+                }
+              }
+            }
+            </script>
+            """,
+            result);
+        PopkonTvSpider.ExtractWatchInfo("""{"statusCd":"L0000","data":{"castHlsUrl":"https://example.test/live.m3u8"}}""", result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("20260704120000", result.CastStartDate);
+        Assert.Equal("wjfal007", result.CastSignId);
+        Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
     }
 
     [Fact]
