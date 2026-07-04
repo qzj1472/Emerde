@@ -6,6 +6,7 @@ using Fischless.Configuration;
 using Flucli;
 using Microsoft.Toolkit.Uwp.Notifications;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -13,6 +14,7 @@ using System.Web;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using Emerde.Core;
@@ -33,6 +35,8 @@ namespace Emerde.ViewModels;
 [ObservableObject]
 public partial class MainViewModel : ReactiveObject, IDisposable
 {
+    private const string AllPlatformFilter = "All";
+
     protected internal ForeverDispatcherTimer DispatcherTimer { get; }
 
     private readonly LivePreviewPlayer livePreviewPlayer = new();
@@ -40,6 +44,35 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     [ObservableProperty]
     private ReactiveCollection<RoomStatusReactive> roomStatuses = [];
+
+    public ICollectionView RoomStatusesView { get; }
+
+    public IReadOnlyList<string> PlatformFilterOptions { get; } = [AllPlatformFilter, .. Spider.SupportedPlatformNames];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PlatformSummaryText))]
+    private string selectedPlatformFilter = AllPlatformFilter;
+
+    partial void OnSelectedPlatformFilterChanged(string value)
+    {
+        RoomStatusesView.Refresh();
+    }
+
+    public string PlatformSummaryText
+    {
+        get
+        {
+            int totalCount = RoomStatuses.Count;
+            int streamingCount = RoomStatuses.Count(room => room.StreamStatus == StreamStatus.Streaming);
+            int platformCount = RoomStatuses
+                .Select(room => room.PlatformName)
+                .Where(platform => !string.IsNullOrWhiteSpace(platform))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+
+            return $"{totalCount} rooms / {streamingCount} live / {platformCount} platforms";
+        }
+    }
 
     [ObservableProperty]
     private RoomStatusReactive selectedItem = new();
@@ -152,6 +185,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             IsToNotify = room.IsToNotify,
             IsToRecord = room.IsToRecord,
         }));
+        RoomStatusesView = CollectionViewSource.GetDefaultView(RoomStatuses);
+        RoomStatusesView.Filter = FilterRoomStatus;
 
         Locale.CultureChanged += (_, _) =>
         {
@@ -201,6 +236,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 roomStatusReactive.RefreshDuration();
             }
         }
+        RoomStatusesView.Refresh();
+        OnPropertyChanged(nameof(PlatformSummaryText));
 
         IsRecording = RoomStatuses.Any(roomStatusReactive => roomStatusReactive.RecordStatus == RecordStatus.Recording);
 
@@ -448,6 +485,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                     RoomUrl = dialog.RoomUrl!,
                     PlatformName = Spider.GetPlatformName(dialog.RoomUrl!),
                 });
+                RoomStatusesView.Refresh();
+                OnPropertyChanged(nameof(PlatformSummaryText));
             }
         }
     }
@@ -568,6 +607,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             {
                 RoomStatuses.Remove(roomStatusReactive);
             }
+            RoomStatusesView.Refresh();
+            OnPropertyChanged(nameof(PlatformSummaryText));
 
             // Remove from Configuration
             List<Room> rooms = [.. Configurations.Rooms.Get()];
@@ -775,6 +816,16 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 return element as DataGridRow;
             }
         }
+    }
+
+    private bool FilterRoomStatus(object item)
+    {
+        if (item is not RoomStatusReactive room)
+        {
+            return false;
+        }
+
+        return SelectedPlatformFilter == AllPlatformFilter || room.PlatformName == SelectedPlatformFilter;
     }
 
     public void Dispose()
