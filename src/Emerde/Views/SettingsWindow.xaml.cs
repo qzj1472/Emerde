@@ -10,6 +10,7 @@ public partial class SettingsWindow : FluentWindow
     public SettingsWindow()
     {
         DataContext = ViewModel = new();
+        Core.WindowSizing.UseRelativeMainWindowSize(this, 700d, 560d);
         InitializeComponent();
     }
 }
