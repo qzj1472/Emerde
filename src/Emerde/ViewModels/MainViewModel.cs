@@ -41,6 +41,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     private readonly LivePreviewPlayer livePreviewPlayer = new();
     private LivePreviewWindow? livePreviewWindow;
+    private ScreenRecordListWindow? screenRecordListWindow;
 
     [ObservableProperty]
     private ReactiveCollection<RoomStatusReactive> roomStatuses = [];
@@ -76,6 +77,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     [ObservableProperty]
     private RoomStatusReactive selectedItem = new();
+
+    [ObservableProperty]
+    private bool isCardEditMode = false;
 
     partial void OnSelectedItemChanged(RoomStatusReactive value)
     {
@@ -123,6 +127,12 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     {
         TrayIconManager.GetInstance().UpdateTrayIcon();
     }
+
+    [ObservableProperty]
+    private bool statusOfIsMonitorRunning = Configurations.IsMonitorRunning.Get();
+
+    [ObservableProperty]
+    private bool statusOfIsToMonitor = Configurations.IsToMonitor.Get();
 
     [ObservableProperty]
     private bool statusOfIsToNotify = Configurations.IsToNotify.Get();
@@ -177,13 +187,16 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     {
         DispatcherTimer = new(TimeSpan.FromSeconds(3), ReloadRoomStatus);
 
-        RoomStatuses.Reset(Configurations.Rooms.Get().Select(room => new RoomStatusReactive()
+        RoomStatuses.Reset(Configurations.Rooms.Get().Select((room, index) => new RoomStatusReactive()
         {
             NickName = room.NickName,
             RoomUrl = room.RoomUrl,
             PlatformName = Spider.GetPlatformName(room.RoomUrl),
             IsToNotify = room.IsToNotify,
             IsToRecord = room.IsToRecord,
+            IsToMonitor = room.IsToMonitor,
+            IsFollowGlobalSettings = room.IsFollowGlobalSettings,
+            AddedOrder = index,
         }));
         RoomStatusesView = CollectionViewSource.GetDefaultView(RoomStatuses);
         RoomStatusesView.Filter = FilterRoomStatus;
@@ -211,7 +224,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             }
         });
 
-        GlobalMonitor.Start();
+        if (Configurations.IsMonitorRunning.Get())
+        {
+            GlobalMonitor.Start();
+        }
         ChildProcessTracerPeriodicTimer.Default.WhiteList = ["ffmpeg", "ffplay"];
         ChildProcessTracerPeriodicTimer.Default.Start();
         DispatcherTimer.Start();
@@ -241,7 +257,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         IsRecording = RoomStatuses.Any(roomStatusReactive => roomStatusReactive.RecordStatus == RecordStatus.Recording);
 
+        StatusOfIsMonitorRunning = Configurations.IsMonitorRunning.Get();
         StatusOfIsToNotify = Configurations.IsToNotify.Get();
+        StatusOfIsToMonitor = Configurations.IsToMonitor.Get();
         StatusOfIsToRecord = Configurations.IsToRecord.Get();
         StatusOfIsUseProxy = Configurations.IsUseProxy.Get();
         StatusOfIsUseKeepAwake = Configurations.IsUseKeepAwake.Get();
@@ -407,12 +425,42 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     }
 
     [RelayCommand]
+    private void ToggleMonitor()
+    {
+        bool isMonitorRunning = !Configurations.IsMonitorRunning.Get();
+        Configurations.IsMonitorRunning.Set(isMonitorRunning);
+        ConfigurationManager.Save();
+        StatusOfIsMonitorRunning = isMonitorRunning;
+
+        if (isMonitorRunning)
+        {
+            GlobalMonitor.Start();
+            Toast.Success("SuccOp".Tr());
+        }
+        else
+        {
+            GlobalMonitor.Stop();
+            Toast.Success("SuccOp".Tr());
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleStatusMonitor()
+    {
+        StatusOfIsToMonitor = !StatusOfIsToMonitor;
+        Configurations.IsToMonitor.Set(StatusOfIsToMonitor);
+        ConfigurationManager.Save();
+        RefreshRoomEffectiveStates();
+    }
+
+    [RelayCommand]
     private void ToggleStatusNotify()
     {
         StatusOfIsToNotify = !StatusOfIsToNotify;
         Configurations.IsToNotify.Set(StatusOfIsToNotify);
         ConfigurationManager.Save();
         TrayIconManager.GetInstance().UpdateTrayIcon();
+        RefreshRoomEffectiveStates();
     }
 
     [RelayCommand]
@@ -422,6 +470,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         Configurations.IsToRecord.Set(StatusOfIsToRecord);
         ConfigurationManager.Save();
         TrayIconManager.GetInstance().UpdateTrayIcon();
+        RefreshRoomEffectiveStates();
     }
 
     [RelayCommand]
@@ -476,6 +525,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 {
                     NickName = dialog.NickName,
                     RoomUrl = roomUrl,
+                    IsToMonitor = Configurations.IsToMonitor.Get(),
+                    IsToRecord = Configurations.IsToRecord.Get(),
+                    IsFollowGlobalSettings = true,
                 });
                 Configurations.Rooms.Set([.. rooms]);
                 ConfigurationManager.Save();
@@ -485,6 +537,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                     NickName = dialog.NickName,
                     RoomUrl = roomUrl,
                     PlatformName = Spider.GetPlatformName(roomUrl),
+                    IsToMonitor = Configurations.IsToMonitor.Get(),
+                    IsToRecord = Configurations.IsToRecord.Get(),
+                    IsFollowGlobalSettings = true,
+                    AddedOrder = RoomStatuses.Count == 0 ? 0 : RoomStatuses.Max(room => room.AddedOrder) + 1,
                 });
                 RoomStatusesView.Refresh();
                 OnPropertyChanged(nameof(PlatformSummaryText));
@@ -504,6 +560,23 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         {
             Owner = Application.Current.MainWindow,
         }.ShowDialog();
+    }
+
+    [RelayCommand]
+    private void OpenScreenRecordList()
+    {
+        if (screenRecordListWindow is { IsLoaded: true })
+        {
+            screenRecordListWindow.Activate();
+            return;
+        }
+
+        screenRecordListWindow = new ScreenRecordListWindow()
+        {
+            Owner = Application.Current.MainWindow,
+        };
+        screenRecordListWindow.Closed += (_, _) => screenRecordListWindow = null;
+        screenRecordListWindow.Show();
     }
 
     [RelayCommand]
@@ -538,6 +611,150 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     {
         AboutContentDialog dialog = new();
         _ = await dialog.ShowAsync();
+    }
+
+    [RelayCommand]
+    private void CopySelectedRoomUrl()
+    {
+        CopyTextToClipboard(SelectedItem?.RoomUrl);
+    }
+
+    [RelayCommand]
+    private void CopySelectedPreviewUrl()
+    {
+        CopyTextToClipboard(SelectedItem?.PreviewUrl);
+    }
+
+    [RelayCommand]
+    private void SortRoomsByName()
+    {
+        RoomStatusReactive? selected = SelectedItem;
+        RoomStatuses.Reset(RoomStatuses
+            .OrderBy(room => room.NickName, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(room => room.RoomUrl, StringComparer.OrdinalIgnoreCase)
+            .ToArray());
+        RestoreSelectedRoom(selected);
+        SaveRoomOrder();
+        RoomStatusesView.Refresh();
+        OnPropertyChanged(nameof(PlatformSummaryText));
+    }
+
+    [RelayCommand]
+    private void SortRoomsByAddedAt()
+    {
+        RoomStatusReactive? selected = SelectedItem;
+        RoomStatuses.Reset(RoomStatuses
+            .OrderBy(room => room.AddedOrder)
+            .ThenBy(room => room.RoomUrl, StringComparer.OrdinalIgnoreCase)
+            .ToArray());
+        RestoreSelectedRoom(selected);
+        SaveRoomOrder();
+        RoomStatusesView.Refresh();
+        OnPropertyChanged(nameof(PlatformSummaryText));
+    }
+
+    [RelayCommand]
+    private void RefreshRoomCards()
+    {
+        ReloadRoomStatus();
+        Toast.Success("SuccOp".Tr());
+    }
+
+    [RelayCommand]
+    private void ToggleCardEditMode()
+    {
+        IsCardEditMode = !IsCardEditMode;
+        Toast.Success("SuccOp".Tr());
+    }
+
+    public void MoveRoom(RoomStatusReactive source, int newVisibleIndex)
+    {
+        if (!RoomStatuses.Contains(source))
+        {
+            return;
+        }
+
+        List<RoomStatusReactive> visibleRooms = RoomStatusesView.Cast<RoomStatusReactive>().ToList();
+        int oldVisibleIndex = visibleRooms.IndexOf(source);
+
+        if (oldVisibleIndex < 0)
+        {
+            return;
+        }
+
+        newVisibleIndex = Math.Clamp(newVisibleIndex, 0, visibleRooms.Count);
+        if (oldVisibleIndex < newVisibleIndex)
+        {
+            newVisibleIndex--;
+        }
+
+        if (oldVisibleIndex == newVisibleIndex)
+        {
+            return;
+        }
+
+        RoomStatusReactive? target = visibleRooms
+            .Where(room => !ReferenceEquals(room, source))
+            .ElementAtOrDefault(newVisibleIndex);
+
+        int oldIndex = RoomStatuses.IndexOf(source);
+        int newIndex;
+
+        if (target == null)
+        {
+            newIndex = RoomStatuses.Count - 1;
+        }
+        else
+        {
+            newIndex = RoomStatuses.IndexOf(target);
+            if (oldIndex < newIndex)
+            {
+                newIndex--;
+            }
+        }
+
+        newIndex = Math.Clamp(newIndex, 0, Math.Max(0, RoomStatuses.Count - 1));
+        if (oldIndex == newIndex)
+        {
+            return;
+        }
+
+        RoomStatuses.Move(oldIndex, newIndex);
+        SelectedItem = source;
+        SaveRoomOrder();
+        RoomStatusesView.Refresh();
+    }
+
+    private void RestoreSelectedRoom(RoomStatusReactive? selected)
+    {
+        if (selected == null || string.IsNullOrWhiteSpace(selected.RoomUrl))
+        {
+            SelectedItem = RoomStatuses.FirstOrDefault() ?? new RoomStatusReactive();
+            return;
+        }
+
+        SelectedItem = RoomStatuses.FirstOrDefault(room => room.RoomUrl == selected.RoomUrl)
+            ?? RoomStatuses.FirstOrDefault()
+            ?? new RoomStatusReactive();
+    }
+
+    private static void CopyTextToClipboard(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            Toast.Warning("FailOp".Tr());
+            return;
+        }
+
+        try
+        {
+            System.Windows.Clipboard.SetText(text);
+            Toast.Success("SuccOp".Tr());
+        }
+        catch (ExternalException)
+        {
+            Toast.Warning("FailOp".Tr());
+        }
     }
 
     [RelayCommand]
@@ -623,12 +840,101 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                     RoomUrl = roomStatus.RoomUrl,
                     IsToNotify = roomStatus.IsToNotify,
                     IsToRecord = roomStatus.IsToRecord,
+                    IsToMonitor = roomStatus.IsToMonitor,
+                    IsFollowGlobalSettings = roomStatus.IsFollowGlobalSettings,
                 };
             })
             .ToArray();
 
         Configurations.Rooms.Set(rooms);
         ConfigurationManager.Save();
+    }
+
+    [RelayCommand]
+    private void ToggleSelectedRoomMonitor()
+    {
+        if (SelectedItem == null || string.IsNullOrWhiteSpace(SelectedItem.RoomUrl))
+        {
+            return;
+        }
+
+        if (SelectedItem.IsFollowGlobalSettings)
+        {
+            SelectedItem.IsFollowGlobalSettings = false;
+            SelectedItem.IsToMonitor = !Configurations.IsToMonitor.Get();
+        }
+        else
+        {
+            SelectedItem.IsToMonitor = !SelectedItem.IsToMonitor;
+        }
+
+        SaveSelectedRoomSettings();
+        RefreshRoomEffectiveStates();
+    }
+
+    [RelayCommand]
+    private void ToggleSelectedRoomRecord()
+    {
+        if (SelectedItem == null || string.IsNullOrWhiteSpace(SelectedItem.RoomUrl))
+        {
+            return;
+        }
+
+        if (SelectedItem.IsFollowGlobalSettings)
+        {
+            SelectedItem.IsFollowGlobalSettings = false;
+            SelectedItem.IsToRecord = !Configurations.IsToRecord.Get();
+        }
+        else
+        {
+            SelectedItem.IsToRecord = !SelectedItem.IsToRecord;
+        }
+
+        SaveSelectedRoomSettings();
+        RefreshRoomEffectiveStates();
+    }
+
+    [RelayCommand]
+    private void IsFollowGlobalSettings()
+    {
+        if (SelectedItem == null || string.IsNullOrWhiteSpace(SelectedItem.RoomUrl))
+        {
+            return;
+        }
+
+        SaveSelectedRoomSettings();
+        RefreshRoomEffectiveStates();
+    }
+
+    [RelayCommand]
+    private async Task OpenLocalSettingsAsync()
+    {
+        if (SelectedItem == null || string.IsNullOrWhiteSpace(SelectedItem.RoomUrl))
+        {
+            return;
+        }
+
+        LocalSettingsContentDialog dialog = new(SelectedItem);
+        _ = await dialog.ShowAsync();
+
+        if (!dialog.IsSaved)
+        {
+            return;
+        }
+
+        SelectedItem.IsFollowGlobalSettings = dialog.IsFollowGlobalSettings;
+        SelectedItem.IsToNotify = dialog.IsToNotify;
+        SelectedItem.IsToMonitor = dialog.IsToMonitor;
+        SelectedItem.IsToRecord = dialog.IsToRecord;
+        SaveSelectedRoomSettings();
+        RefreshRoomEffectiveStates();
+        Toast.Success("SuccOp".Tr());
+    }
+
+    [RelayCommand]
+    private void ExitApplication()
+    {
+        TrayIconManager.GetInstance().ShutdownApplication();
     }
 
     [RelayCommand]
@@ -784,6 +1090,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
         Configurations.Rooms.Set(rooms);
         ConfigurationManager.Save();
+        RefreshRoomEffectiveStates();
     }
 
     [RelayCommand]
@@ -810,6 +1117,42 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
         Configurations.Rooms.Set(rooms);
         ConfigurationManager.Save();
+        RefreshRoomEffectiveStates();
+    }
+
+    private void SaveSelectedRoomSettings()
+    {
+        RoomStatusReactive? roomStatusReactive = RoomStatuses.Where(room => room.RoomUrl == SelectedItem.RoomUrl).FirstOrDefault();
+
+        if (roomStatusReactive != null)
+        {
+            roomStatusReactive.IsToNotify = SelectedItem.IsToNotify;
+            roomStatusReactive.IsToRecord = SelectedItem.IsToRecord;
+            roomStatusReactive.IsToMonitor = SelectedItem.IsToMonitor;
+            roomStatusReactive.IsFollowGlobalSettings = SelectedItem.IsFollowGlobalSettings;
+        }
+
+        Room[] rooms = Configurations.Rooms.Get();
+        Room? room = rooms.Where(room => room.RoomUrl == SelectedItem.RoomUrl).FirstOrDefault();
+
+        if (room != null)
+        {
+            room.IsToNotify = SelectedItem.IsToNotify;
+            room.IsToRecord = SelectedItem.IsToRecord;
+            room.IsToMonitor = SelectedItem.IsToMonitor;
+            room.IsFollowGlobalSettings = SelectedItem.IsFollowGlobalSettings;
+        }
+
+        Configurations.Rooms.Set(rooms);
+        ConfigurationManager.Save();
+    }
+
+    private void RefreshRoomEffectiveStates()
+    {
+        foreach (RoomStatusReactive room in RoomStatuses)
+        {
+            room.RefreshStatus();
+        }
     }
 
     [RelayCommand]

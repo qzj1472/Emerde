@@ -18,28 +18,57 @@ public partial class RoomStatusReactive : ReactiveObject
     private string avatarThumbUrl = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RoomCodeText))]
     private string roomUrl = string.Empty;
 
     [ObservableProperty]
     private string platformName = string.Empty;
 
     [ObservableProperty]
+    private int addedOrder = 0;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PreviewUrl))]
     [NotifyPropertyChangedFor(nameof(CanPreview))]
     [NotifyPropertyChangedFor(nameof(PreviewSourceText))]
+    [NotifyPropertyChangedFor(nameof(LiveStreamText))]
+    [NotifyPropertyChangedFor(nameof(PreviewSupportText))]
     private string flvUrl = string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PreviewUrl))]
     [NotifyPropertyChangedFor(nameof(CanPreview))]
     [NotifyPropertyChangedFor(nameof(PreviewSourceText))]
+    [NotifyPropertyChangedFor(nameof(LiveStreamText))]
+    [NotifyPropertyChangedFor(nameof(PreviewSupportText))]
     private string hlsUrl = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveIsToNotify))]
     private bool isToNotify = true;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveIsToRecord))]
     private bool isToRecord = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveIsToMonitor))]
+    private bool isToMonitor = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveIsToNotify))]
+    [NotifyPropertyChangedFor(nameof(EffectiveIsToRecord))]
+    [NotifyPropertyChangedFor(nameof(EffectiveIsToMonitor))]
+    [NotifyPropertyChangedFor(nameof(CanEditRoomSettings))]
+    private bool isFollowGlobalSettings = true;
+
+    public bool EffectiveIsToNotify => Configurations.IsToNotify.Get() && IsToNotify;
+
+    public bool EffectiveIsToRecord => IsFollowGlobalSettings ? Configurations.IsToRecord.Get() : IsToRecord;
+
+    public bool EffectiveIsToMonitor => IsFollowGlobalSettings ? Configurations.IsToMonitor.Get() : IsToMonitor;
+
+    public bool CanEditRoomSettings => !IsFollowGlobalSettings;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StreamStatusText))]
@@ -74,6 +103,44 @@ public partial class RoomStatusReactive : ReactiveObject
     public string PreviewUrl => !string.IsNullOrWhiteSpace(HlsUrl) ? HlsUrl : FlvUrl;
 
     public bool CanPreview => StreamStatus == StreamStatus.Streaming && !string.IsNullOrWhiteSpace(PreviewUrl);
+
+    public string RoomCodeText
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(RoomUrl))
+            {
+                return "-";
+            }
+
+            if (Uri.TryCreate(RoomUrl, UriKind.Absolute, out Uri? uri))
+            {
+                string lastSegment = uri.Segments
+                    .Select(segment => segment.Trim('/'))
+                    .LastOrDefault(segment => !string.IsNullOrWhiteSpace(segment)) ?? string.Empty;
+
+                return string.IsNullOrWhiteSpace(lastSegment) ? uri.Host : lastSegment;
+            }
+
+            string trimmed = RoomUrl.Trim().TrimEnd('/');
+            int splitIndex = trimmed.LastIndexOf('/');
+            return splitIndex >= 0 && splitIndex < trimmed.Length - 1 ? trimmed[(splitIndex + 1)..] : trimmed;
+        }
+    }
+
+    public string LiveStreamText => string.IsNullOrWhiteSpace(PreviewUrl) ? "-" : PreviewUrl;
+
+    public string DanmakuSupportText => "-";
+
+    public string LiveTitleText => "-";
+
+    public string QualityText => "原画";
+
+    public string ResolutionText => "-";
+
+    public string BitrateText => "-";
+
+    public string PreviewSupportText => PreviewSourceText == "-" ? "HLS / FLV" : PreviewSourceText;
 
     public string PreviewSourceText
     {
@@ -121,6 +188,10 @@ public partial class RoomStatusReactive : ReactiveObject
     {
         OnPropertyChanged(nameof(StreamStatusText));
         OnPropertyChanged(nameof(RecordStatusText));
+        OnPropertyChanged(nameof(EffectiveIsToNotify));
+        OnPropertyChanged(nameof(EffectiveIsToRecord));
+        OnPropertyChanged(nameof(EffectiveIsToMonitor));
+        OnPropertyChanged(nameof(CanEditRoomSettings));
     }
 
     public void RefreshDuration()

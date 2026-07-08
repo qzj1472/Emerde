@@ -1,0 +1,70 @@
+﻿<vio:ContentDialog x:Class="Emerde.Views.LocalSettingsContentDialog"
+                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                   xmlns:vio="http://schemas.lepo.co/wpfui/2022/xaml/violeta"
+                   Title="局部设置"
+                   CloseButtonText="{I18N ButtonOfCancel}"
+                   DefaultButton="Primary"
+                   FontSize="14"
+                   PrimaryButtonClick="OnPrimaryButtonClick"
+                   PrimaryButtonText="保存"
+                   Style="{StaticResource DefaultVioletaContentDialogStyle}"
+                   mc:Ignorable="d">
+    <ui:Grid MinWidth="420">
+        <ui:StackPanel Spacing="12">
+            <ui:Grid ColumnDefinitions="Auto,*">
+                <ui:FontIcon Grid.Column="0"
+                             Margin="0,0,12,0"
+                             VerticalAlignment="Center"
+                             FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                             FontSize="20"
+                             Glyph="{x:Static ui:FontSymbols.Settings}" />
+                <ui:StackPanel Grid.Column="1" Spacing="2">
+                    <TextBlock FontWeight="SemiBold" Text="{Binding NickName}" />
+                    <TextBlock FontSize="12"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Text="{Binding RoomUrl}"
+                               TextTrimming="CharacterEllipsis" />
+                </ui:StackPanel>
+            </ui:Grid>
+
+            <Border Height="1"
+                    Margin="0,2"
+                    Background="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    Opacity="0.65" />
+
+            <CheckBox Content="跟随全局设置"
+                      IsChecked="{Binding IsFollowGlobalSettings, Mode=TwoWay}" />
+
+            <UniformGrid Columns="3">
+                <UniformGrid.Style>
+                    <Style TargetType="{x:Type UniformGrid}">
+                        <Setter Property="IsEnabled" Value="True" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsFollowGlobalSettings}" Value="True">
+                                <Setter Property="IsEnabled" Value="False" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </UniformGrid.Style>
+                <ToggleButton Margin="0,0,6,0"
+                              Content="{I18N LiveNotification}"
+                              IsChecked="{Binding IsToNotify, Mode=TwoWay}" />
+                <ToggleButton Margin="6,0"
+                              Content="自动监控"
+                              IsChecked="{Binding IsToMonitor, Mode=TwoWay}" />
+                <ToggleButton Margin="6,0,0,0"
+                              Content="{I18N EnableRecord}"
+                              IsChecked="{Binding IsToRecord, Mode=TwoWay}" />
+            </UniformGrid>
+
+            <TextBlock FontSize="12"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                       Text="关闭跟随全局设置后，此房间会使用这里的监控、通知、录制开关。"
+                       TextWrapping="Wrap" />
+        </ui:StackPanel>
+    </ui:Grid>
+</vio:ContentDialog>
