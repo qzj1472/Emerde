@@ -104,22 +104,7 @@ internal class TrayIconManager
                 {
                     Header = "TrayMenuExit".Tr(),
                     Tag = "TrayMenuExit",
-                    Command = new RelayCommand(() =>
-                    {
-                        if (GlobalMonitor.RoomStatus.Values.ToArray().Any(roomStatus => roomStatus.RecordStatus == RecordStatus.Recording))
-                        {
-                            if (MessageBox.Question("SureOnRecording".Tr()) == MessageBoxResult.Yes)
-                            {
-                                IsShutdownTriggered = true;
-                                Application.Current.Shutdown();
-                            }
-                        }
-                        else
-                        {
-                            IsShutdownTriggered = true;
-                            Application.Current.Shutdown();
-                        }
-                    }),
+                    Command = new RelayCommand(ShutdownApplication),
                 },
             ],
         };
@@ -173,6 +158,20 @@ internal class TrayIconManager
     public static void Start()
     {
         _ = GetInstance();
+    }
+
+    public void ShutdownApplication()
+    {
+        if (GlobalMonitor.RoomStatus.Values.ToArray().Any(roomStatus => roomStatus.RecordStatus == RecordStatus.Recording))
+        {
+            if (MessageBox.Question("SureOnRecording".Tr()) != MessageBoxResult.Yes)
+            {
+                return;
+            }
+        }
+
+        IsShutdownTriggered = true;
+        Application.Current.Shutdown();
     }
 
     public void UpdateTrayIcon()

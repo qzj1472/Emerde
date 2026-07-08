@@ -51,11 +51,7 @@ public sealed class Recorder
 
                 string saveFolder = SaveFolderHelper.GetSaveFolder(Configurations.SaveFolder.Get());
 
-                saveFolder = Path.Combine(saveFolder,
-                    Configurations.SaveFolderDistinguishedByAuthors.Get()
-                        ? startInfo.NickName.SanitizeFileName().ReplaceTrailingDotsWithUnderscores()
-                        : string.Empty
-                );
+                saveFolder = BuildSaveFolder(saveFolder, startInfo.NickName, DateTime.Now);
                 if (!Directory.Exists(saveFolder))
                 {
                     Directory.CreateDirectory(saveFolder);
@@ -65,7 +61,9 @@ public sealed class Recorder
                 string httpProxy = Configurations.ProxyUrl.Get();
                 bool isUseProxy = Configurations.IsUseProxy.Get() && !string.IsNullOrWhiteSpace(httpProxy);
                 int segmentTime = Configurations.SegmentTime.Get();
+                int segmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(Configurations.SegmentTimeUnit.Get());
                 bool isToSegment = Configurations.IsToSegment.Get() && segmentTime > 0;
+                bool isToSegmentBySize = isToSegment && SegmentTimeUnitHelper.IsSizeUnit(segmentTimeUnit);
 
                 IsToSegment = isToSegment;
 
@@ -129,10 +127,19 @@ public sealed class Recorder
                     "-map", "0",                      // Set input stream mapping.
                 }
                 .AddIf(isUseProxy, "-http_proxy", httpProxy)
-                .AddIf(isToSegment,
+                .AddIf(isToSegment && !isToSegmentBySize,
                     "-f", "segment",
-                    "-segment_time", segmentTime.ToString(), // in secs
-                    "-segment_format", "mpegts",
+                    "-segment_time", SegmentTimeUnitHelper.ToSegmentArgument(segmentTime, segmentTimeUnit),
+                    "-segment_time_delta", "0.05",
+                    "-segment_atclocktime", "0",
+                    "-segment_format", "mpegts"
+                )
+                .AddIf(isToSegmentBySize,
+                    "-f", "segment",
+                    "-segment_size", segmentTime.ToString(),
+                    "-segment_format", "mpegts"
+                )
+                .AddIf(isToSegment,
                     "-reset_timestamps", "1"
                 )
                 .AddIf(true, FileName) // _%03d
@@ -230,12 +237,49 @@ public sealed class Recorder
         }
     }
 
+    private static string BuildSaveFolder(string saveFolder, string nickName, DateTime timestamp)
+    {
+        if (!Configurations.SaveFolderDistinguishedByAuthors.Get())
+        {
+            return saveFolder;
+        }
+
+        string safeNickName = nickName.SanitizeFileName().ReplaceTrailingDotsWithUnderscores();
+
+        return Math.Clamp(Configurations.SaveFolderPathLevel.Get(), 0, 3) switch
+        {
+            2 => Path.Combine(saveFolder, safeNickName, timestamp.ToString("yyyy-MM")),
+            3 => Path.Combine(saveFolder, safeNickName, timestamp.ToString("yyyy-MM"), timestamp.ToString("dd")),
+            1 or _ => Path.Combine(saveFolder, safeNickName),
+        };
+    }
+
     internal static string BuildOutputFileName(string saveFolder, string nickName, DateTime timestamp, bool isToSegment, bool isHls)
     {
-        string safeNickName = nickName.SanitizeFileName();
         string suffix = isToSegment ? "_%03d.ts" : isHls ? ".ts" : ".flv";
+        string fileName = BuildBaseFileName(nickName, timestamp).SanitizeFileName();
 
-        return Path.Combine(saveFolder, $"{safeNickName}_{timestamp:yyyy-MM-dd_HH-mm-ss}{suffix}");
+        return Path.Combine(saveFolder, $"{fileName}{suffix}");
+    }
+
+    private static string BuildBaseFileName(string nickName, DateTime timestamp)
+    {
+        string defaultRule = "{主播名}_{录制时间}";
+        string rule = Math.Clamp(Configurations.SaveFileNameRule.Get(), 0, 4) switch
+        {
+            1 => "{录制时间}_{主播名}",
+            2 => "{主播名}",
+            3 => "{平台}_{主播名}_{录制时间}",
+            4 => string.IsNullOrWhiteSpace(Configurations.SaveFileNameCustomRule.Get()) ? defaultRule : Configurations.SaveFileNameCustomRule.Get(),
+            0 or _ => defaultRule,
+        };
+
+        return rule
+            .Replace("{主播名}", nickName, StringComparison.Ordinal)
+            .Replace("{录制时间}", timestamp.ToString("yyyy-MM-dd_HH-mm-ss"), StringComparison.Ordinal)
+            .Replace("{日期}", timestamp.ToString("yyyy-MM-dd"), StringComparison.Ordinal)
+            .Replace("{时间}", timestamp.ToString("HH-mm-ss"), StringComparison.Ordinal)
+            .Replace("{平台}", "Emerde", StringComparison.Ordinal);
     }
 }
 

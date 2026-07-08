@@ -25,6 +25,10 @@ internal static class GlobalMonitor
 
     public static CancellationTokenSource? TokenSource { get; private set; } = null;
 
+    private static readonly object MonitorLock = new();
+
+    private static Task? MonitorTask = null;
+
     private sealed class GlobalMonitorRecipient : ObservableRecipient
     {
         public static GlobalMonitorRecipient Instance { get; } = new();
@@ -70,14 +74,31 @@ internal static class GlobalMonitor
 
     public static void Start(CancellationTokenSource? tokenSource = null)
     {
-        TokenSource = tokenSource ?? new CancellationTokenSource();
+        lock (MonitorLock)
+        {
+            if (TokenSource != null && !TokenSource.IsCancellationRequested && MonitorTask is { IsCompleted: false })
+            {
+                return;
+            }
 
-        _ = Task.Run(() => StartAsync(TokenSource.Token));
+            CancellationTokenSource source = tokenSource ?? new CancellationTokenSource();
+            TokenSource = source;
+            RoutinePeriodicWait = new PeriodicWait(TimeSpan.FromMilliseconds(int.Max(Configurations.RoutineInterval.Get(), 500)), TimeSpan.Zero);
+            MonitorTask = Task.Factory.StartNew(
+                () => StartAsync(source.Token),
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default
+            ).Unwrap();
+        }
     }
 
     public static void Stop()
     {
-        TokenSource?.Cancel();
+        lock (MonitorLock)
+        {
+            TokenSource?.Cancel();
+        }
     }
 
     public static async Task StartAsync(CancellationToken token = default)
@@ -93,6 +114,7 @@ internal static class GlobalMonitor
                 Room[] rooms = Configurations.Rooms.Get();
 
                 // Check Global Settings
+                bool isGlobalToMonitor = Configurations.IsToMonitor.Get() && IsRoutineScheduleActive(DateTime.Now);
                 bool isGlobalToNotify = Configurations.IsToNotify.Get();
                 bool isGlobalToRecord = Configurations.IsToRecord.Get();
 
@@ -101,8 +123,8 @@ internal static class GlobalMonitor
                     if (TryGetRoomStatus(room) is RoomStatus roomStatus)
                     {
                         bool shouldNotify = isGlobalToNotify && room.IsToNotify;
-                        bool shouldRecord = isGlobalToRecord && room.IsToRecord;
-                        bool shouldMonitor = shouldNotify || shouldRecord;
+                        bool shouldRecord = room.IsFollowGlobalSettings ? isGlobalToRecord : room.IsToRecord;
+                        bool shouldMonitor = room.IsFollowGlobalSettings ? isGlobalToMonitor : room.IsToMonitor;
 
                         if (shouldMonitor)
                         {
@@ -205,6 +227,44 @@ internal static class GlobalMonitor
                 Debug.WriteLine(e);
             }
         }
+    }
+
+    private static bool IsRoutineScheduleActive(DateTime now)
+    {
+        switch (Math.Clamp(Configurations.RoutineScheduleMode.Get(), 0, 4))
+        {
+            case 0:
+                return true;
+            case 1:
+                return now.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday;
+            case 2:
+                return now.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+            case 3:
+                return now.TimeOfDay >= TimeSpan.FromHours(18) || now.TimeOfDay <= TimeSpan.FromHours(8);
+        }
+
+        HashSet<string> enabledDays = Configurations.RoutineScheduleDays.Get()
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (!enabledDays.Contains(now.DayOfWeek.ToString()))
+        {
+            return false;
+        }
+
+        TimeSpan start = new(
+            Math.Clamp(Configurations.RoutineScheduleStartHour.Get(), 0, 23),
+            Math.Clamp(Configurations.RoutineScheduleStartMinute.Get(), 0, 59),
+            0);
+        TimeSpan end = new(
+            Math.Clamp(Configurations.RoutineScheduleEndHour.Get(), 0, 23),
+            Math.Clamp(Configurations.RoutineScheduleEndMinute.Get(), 0, 59),
+            0);
+        TimeSpan current = now.TimeOfDay;
+
+        return start <= end
+            ? current >= start && current <= end
+            : current >= start || current <= end;
     }
 
     /// <summary>

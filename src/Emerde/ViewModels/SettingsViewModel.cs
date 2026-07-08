@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ComputedConverters;
 using Fischless.Configuration;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
@@ -23,6 +24,26 @@ namespace Emerde.ViewModels;
 [ObservableObject]
 public partial class SettingsViewModel : ReactiveObject
 {
+    public sealed record UnitOption(int Value, string DisplayName);
+
+    public IReadOnlyList<UnitOption> TimeUnitOptions { get; } =
+    [
+        new((int)TimeUnitIndexEnum.Milliseconds, "毫秒"),
+        new((int)TimeUnitIndexEnum.Seconds, "秒"),
+        new((int)TimeUnitIndexEnum.Minutes, "分钟"),
+        new((int)TimeUnitIndexEnum.Hours, "小时"),
+    ];
+
+    public IReadOnlyList<UnitOption> SegmentUnitOptions { get; } =
+    [
+        new(SegmentTimeUnitHelper.Milliseconds, "毫秒"),
+        new(SegmentTimeUnitHelper.Seconds, "秒"),
+        new(SegmentTimeUnitHelper.Minutes, "分钟"),
+        new(SegmentTimeUnitHelper.Hours, "小时"),
+        new(SegmentTimeUnitHelper.Megabytes, "MB"),
+        new(SegmentTimeUnitHelper.Gigabytes, "GB"),
+    ];
+
     public string ChinaCookiePlatformsText => "Douyin / Bilibili / Kuaishou / Huya / Douyu / Baidu / MaoerFM / Lianjie / 6Rooms / VVXqiu / Blued / Liuxing / Changliao / Yinbo / Zhihu / PPLive / CatShow / Laixiu / JD / Weibo / Huajiao / Look / Taobao / Xiaohongshu / Kugou / Yingke / AcFun / YY / NeteaseCC / QianduRebo";
 
     public string OverseaCookiePlatformsText => "TikTok / Bigo / ShowRoom / 17Live / CHZZK / Picarto / LangLive / PandaTV / WinkTV / Twitch / YouTube / Shopee / TwitCasting / Faceit / SOOP / FlexTV / PopkonTV / LiveMe";
@@ -44,6 +65,69 @@ public partial class SettingsViewModel : ReactiveObject
         Dark,
         Light,
     }
+
+    private enum TimeUnitIndexEnum
+    {
+        Milliseconds,
+        Seconds,
+        Minutes,
+        Hours,
+    }
+
+    [ObservableProperty]
+    private int displayScale = Math.Clamp(Configurations.DisplayScale.Get(), 80, 200);
+
+    partial void OnDisplayScaleChanged(int value)
+    {
+        int next = Math.Clamp(value, 80, 200);
+        if (next != value)
+        {
+            DisplayScale = next;
+            return;
+        }
+
+        Configurations.DisplayScale.Set(next);
+        ConfigurationManager.Save();
+    }
+
+    [ObservableProperty]
+    private int updateChannelIndex = Math.Clamp(Configurations.UpdateChannel.Get(), 0, 2);
+
+    partial void OnUpdateChannelIndexChanged(int value)
+    {
+        int next = Math.Clamp(value, 0, 2);
+        if (next != value)
+        {
+            UpdateChannelIndex = next;
+            return;
+        }
+
+        Configurations.UpdateChannel.Set(next);
+        ConfigurationManager.Save();
+    }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SessionLogStatus))]
+    private bool isSessionLogEnabled = Configurations.IsSessionLogEnabled.Get();
+
+    partial void OnIsSessionLogEnabledChanged(bool value)
+    {
+        Configurations.IsSessionLogEnabled.Set(value);
+        ConfigurationManager.Save();
+
+        if (value)
+        {
+            AppSessionLogger.StartNow("session logging enabled");
+        }
+        else
+        {
+            AppSessionLogger.Stop("session logging disabled");
+        }
+    }
+
+    public string SessionLogStatus => IsSessionLogEnabled
+        ? "保存本地运行日志，可导出最近或全部日志。"
+        : "已关闭运行日志，仅能导出已存在的历史日志。";
 
     [ObservableProperty]
     private int languageIndex = Configurations.Language.Get() switch
@@ -217,6 +301,15 @@ public partial class SettingsViewModel : ReactiveObject
     }
 
     [ObservableProperty]
+    private bool isToMonitor = Configurations.IsToMonitor.Get();
+
+    partial void OnIsToMonitorChanged(bool value)
+    {
+        Configurations.IsToMonitor.Set(value);
+        ConfigurationManager.Save();
+    }
+
+    [ObservableProperty]
     private bool isToRecord = Configurations.IsToRecord.Get();
 
     partial void OnIsToRecordChanged(bool value)
@@ -226,14 +319,128 @@ public partial class SettingsViewModel : ReactiveObject
     }
 
     [ObservableProperty]
-    private int routineInterval = Configurations.RoutineInterval.Get();
+    private double routineInterval = ConvertMillisecondsToTimeUnit(
+        Configurations.RoutineInterval.Get(),
+        Math.Clamp(Configurations.RoutineIntervalUnit.Get(), (int)TimeUnitIndexEnum.Milliseconds, (int)TimeUnitIndexEnum.Hours));
 
-    partial void OnRoutineIntervalChanged(int value)
+    private bool isUpdatingRoutineInterval;
+
+    partial void OnRoutineIntervalChanged(double value)
     {
-        GlobalMonitor.RoutinePeriodicWait.Period = TimeSpan.FromMilliseconds(int.Max(value, 500));
-        Configurations.RoutineInterval.Set(value);
+        if (isUpdatingRoutineInterval)
+        {
+            return;
+        }
+
+        SaveRoutineInterval(value, RoutineIntervalUnitIndex);
+    }
+
+    [ObservableProperty]
+    private int routineIntervalUnitIndex = Math.Clamp(
+        Configurations.RoutineIntervalUnit.Get(),
+        (int)TimeUnitIndexEnum.Milliseconds,
+        (int)TimeUnitIndexEnum.Hours);
+
+    partial void OnRoutineIntervalUnitIndexChanged(int value)
+    {
+        int next = Math.Clamp(value, (int)TimeUnitIndexEnum.Milliseconds, (int)TimeUnitIndexEnum.Hours);
+        if (next != value)
+        {
+            RoutineIntervalUnitIndex = next;
+            return;
+        }
+
+        isUpdatingRoutineInterval = true;
+        try
+        {
+            RoutineInterval = ConvertMillisecondsToTimeUnit(Configurations.RoutineInterval.Get(), next);
+        }
+        finally
+        {
+            isUpdatingRoutineInterval = false;
+        }
+
+        Configurations.RoutineIntervalUnit.Set(next);
         ConfigurationManager.Save();
     }
+
+    private void SaveRoutineInterval(double value, int unitIndex)
+    {
+        int milliseconds = ConvertTimeUnitToMilliseconds(value, unitIndex);
+        milliseconds = Math.Max(500, milliseconds);
+        GlobalMonitor.RoutinePeriodicWait.Period = TimeSpan.FromMilliseconds(milliseconds);
+        Configurations.RoutineInterval.Set(milliseconds);
+        Configurations.RoutineIntervalUnit.Set(unitIndex);
+        ConfigurationManager.Save();
+    }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsRoutineScheduleCustom))]
+    [NotifyPropertyChangedFor(nameof(IsRoutineSchedulePreset))]
+    private int routineScheduleModeIndex = Math.Clamp(Configurations.RoutineScheduleMode.Get(), 0, 4);
+
+    public bool IsRoutineScheduleCustom => RoutineScheduleModeIndex == 4;
+
+    public bool IsRoutineSchedulePreset => !IsRoutineScheduleCustom;
+
+    partial void OnRoutineScheduleModeIndexChanged(int value)
+    {
+        int next = Math.Clamp(value, 0, 4);
+        if (next != value)
+        {
+            RoutineScheduleModeIndex = next;
+            return;
+        }
+
+        Configurations.RoutineScheduleMode.Set(next);
+        ConfigurationManager.Save();
+    }
+
+    [ObservableProperty]
+    private bool routineScheduleMonday = IsRoutineScheduleDayEnabled(DayOfWeek.Monday);
+
+    [ObservableProperty]
+    private bool routineScheduleTuesday = IsRoutineScheduleDayEnabled(DayOfWeek.Tuesday);
+
+    [ObservableProperty]
+    private bool routineScheduleWednesday = IsRoutineScheduleDayEnabled(DayOfWeek.Wednesday);
+
+    [ObservableProperty]
+    private bool routineScheduleThursday = IsRoutineScheduleDayEnabled(DayOfWeek.Thursday);
+
+    [ObservableProperty]
+    private bool routineScheduleFriday = IsRoutineScheduleDayEnabled(DayOfWeek.Friday);
+
+    [ObservableProperty]
+    private bool routineScheduleSaturday = IsRoutineScheduleDayEnabled(DayOfWeek.Saturday);
+
+    [ObservableProperty]
+    private bool routineScheduleSunday = IsRoutineScheduleDayEnabled(DayOfWeek.Sunday);
+
+    partial void OnRoutineScheduleMondayChanged(bool value) => SaveRoutineScheduleDays();
+    partial void OnRoutineScheduleTuesdayChanged(bool value) => SaveRoutineScheduleDays();
+    partial void OnRoutineScheduleWednesdayChanged(bool value) => SaveRoutineScheduleDays();
+    partial void OnRoutineScheduleThursdayChanged(bool value) => SaveRoutineScheduleDays();
+    partial void OnRoutineScheduleFridayChanged(bool value) => SaveRoutineScheduleDays();
+    partial void OnRoutineScheduleSaturdayChanged(bool value) => SaveRoutineScheduleDays();
+    partial void OnRoutineScheduleSundayChanged(bool value) => SaveRoutineScheduleDays();
+
+    [ObservableProperty]
+    private int routineScheduleStartHour = Math.Clamp(Configurations.RoutineScheduleStartHour.Get(), 0, 23);
+
+    [ObservableProperty]
+    private int routineScheduleStartMinute = Math.Clamp(Configurations.RoutineScheduleStartMinute.Get(), 0, 59);
+
+    [ObservableProperty]
+    private int routineScheduleEndHour = Math.Clamp(Configurations.RoutineScheduleEndHour.Get(), 0, 23);
+
+    [ObservableProperty]
+    private int routineScheduleEndMinute = Math.Clamp(Configurations.RoutineScheduleEndMinute.Get(), 0, 59);
+
+    partial void OnRoutineScheduleStartHourChanged(int value) => SaveRoutineScheduleTime(value, RoutineScheduleStartMinute, isStart: true);
+    partial void OnRoutineScheduleStartMinuteChanged(int value) => SaveRoutineScheduleTime(RoutineScheduleStartHour, value, isStart: true);
+    partial void OnRoutineScheduleEndHourChanged(int value) => SaveRoutineScheduleTime(value, RoutineScheduleEndMinute, isStart: false);
+    partial void OnRoutineScheduleEndMinuteChanged(int value) => SaveRoutineScheduleTime(RoutineScheduleEndHour, value, isStart: false);
 
     [ObservableProperty]
     private int recordFormatIndex = Configurations.RecordFormat.Get() switch
@@ -273,11 +480,68 @@ public partial class SettingsViewModel : ReactiveObject
     }
 
     [ObservableProperty]
-    private int segmentTime = Configurations.SegmentTime.Get();
+    [NotifyPropertyChangedFor(nameof(SegmentTimeValueLabel))]
+    private double segmentTimeValue = SegmentTimeUnitHelper.ToDisplayValue(Configurations.SegmentTime.Get(), GetInitialSegmentTimeUnitIndex());
 
-    partial void OnSegmentTimeChanged(int value)
+    private bool isUpdatingSegmentTime;
+
+    partial void OnSegmentTimeValueChanged(double value)
     {
-        Configurations.SegmentTime.Set(value);
+        if (isUpdatingSegmentTime)
+        {
+            return;
+        }
+
+        ApplySegmentValue(value, SegmentTimeUnitIndex);
+    }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SegmentTimeValueLabel))]
+    private int segmentTimeUnitIndex = GetInitialSegmentTimeUnitIndex();
+
+    public string SegmentTimeValueLabel => SegmentTimeUnitHelper.IsSizeUnit(SegmentTimeUnitIndex) ? "分段大小" : "分段时长";
+
+    partial void OnSegmentTimeUnitIndexChanged(int value)
+    {
+        int next = SegmentTimeUnitHelper.NormalizeUnit(value);
+        if (next != value)
+        {
+            SegmentTimeUnitIndex = next;
+            return;
+        }
+
+        int previous = SegmentTimeUnitHelper.NormalizeUnit(Configurations.SegmentTimeUnit.Get());
+        bool canConvert = SegmentTimeUnitHelper.IsTimeUnit(previous) == SegmentTimeUnitHelper.IsTimeUnit(next);
+        double displayValue = canConvert
+            ? SegmentTimeUnitHelper.ConvertDisplayValue(Configurations.SegmentTime.Get(), previous, next)
+            : SegmentTimeValue;
+
+        isUpdatingSegmentTime = true;
+        try
+        {
+            SegmentTimeValue = displayValue;
+        }
+        finally
+        {
+            isUpdatingSegmentTime = false;
+        }
+
+        ApplySegmentValue(displayValue, next);
+    }
+
+    private static int GetInitialSegmentTimeUnitIndex()
+    {
+        int configuredUnit = SegmentTimeUnitHelper.NormalizeUnit(Configurations.SegmentTimeUnit.Get());
+        return configuredUnit == SegmentTimeUnitHelper.Milliseconds
+            ? SegmentTimeUnitHelper.Seconds
+            : configuredUnit;
+    }
+
+    private static void ApplySegmentValue(double value, int unitIndex)
+    {
+        int normalizedUnit = SegmentTimeUnitHelper.NormalizeUnit(unitIndex);
+        Configurations.SegmentTime.Set(SegmentTimeUnitHelper.ToConfigValue(value, normalizedUnit));
+        Configurations.SegmentTimeUnit.Set(normalizedUnit);
         ConfigurationManager.Save();
     }
 
@@ -297,6 +561,71 @@ public partial class SettingsViewModel : ReactiveObject
     {
         Configurations.SaveFolderDistinguishedByAuthors.Set(value);
         ConfigurationManager.Save();
+    }
+
+    [ObservableProperty]
+    private int saveFolderPathLevelIndex = Math.Clamp(Configurations.SaveFolderPathLevel.Get(), 0, 3);
+
+    partial void OnSaveFolderPathLevelIndexChanged(int value)
+    {
+        int next = Math.Clamp(value, 0, 3);
+        if (next != value)
+        {
+            SaveFolderPathLevelIndex = next;
+            return;
+        }
+
+        Configurations.SaveFolderPathLevel.Set(next);
+        ConfigurationManager.Save();
+    }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSaveFileNameRuleCustom))]
+    private int saveFileNameRuleIndex = Math.Clamp(Configurations.SaveFileNameRule.Get(), 0, 4);
+
+    public bool IsSaveFileNameRuleCustom => SaveFileNameRuleIndex == 4;
+
+    partial void OnSaveFileNameRuleIndexChanged(int value)
+    {
+        int next = Math.Clamp(value, 0, 4);
+        if (next != value)
+        {
+            SaveFileNameRuleIndex = next;
+            return;
+        }
+
+        Configurations.SaveFileNameRule.Set(next);
+        ConfigurationManager.Save();
+    }
+
+    [ObservableProperty]
+    private string saveFileNameCustomRule = string.IsNullOrWhiteSpace(Configurations.SaveFileNameCustomRule.Get())
+        ? "{主播名}_{录制时间}"
+        : Configurations.SaveFileNameCustomRule.Get();
+
+    partial void OnSaveFileNameCustomRuleChanged(string value)
+    {
+        Configurations.SaveFileNameCustomRule.Set(string.IsNullOrWhiteSpace(value) ? "{主播名}_{录制时间}" : value);
+        ConfigurationManager.Save();
+    }
+
+    [RelayCommand]
+    private void AppendSaveFileNameToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return;
+        }
+
+        SaveFileNameCustomRule = string.IsNullOrWhiteSpace(SaveFileNameCustomRule)
+            ? token
+            : SaveFileNameCustomRule.TrimEnd('_') + "_" + token;
+    }
+
+    [RelayCommand]
+    private void ResetSaveFileNameRule()
+    {
+        SaveFileNameCustomRule = "{主播名}_{录制时间}";
     }
 
     [RelayCommand]
@@ -548,6 +877,232 @@ public partial class SettingsViewModel : ReactiveObject
     {
         Configurations.UserAgent.Set(value);
         ConfigurationManager.Save();
+    }
+
+    [RelayCommand]
+    private void OpenLogFolder()
+    {
+        Directory.CreateDirectory(AppPaths.LogsDirectory);
+        Process.Start(new ProcessStartInfo()
+        {
+            FileName = AppPaths.LogsDirectory,
+            UseShellExecute = true,
+        });
+    }
+
+    [RelayCommand]
+    private void ExportRecentLogs()
+    {
+        ExportLogs(latest: true);
+    }
+
+    [RelayCommand]
+    private void ExportAllLogs()
+    {
+        ExportLogs(latest: false);
+    }
+
+    private static void ExportLogs(bool latest)
+    {
+        using CommonOpenFileDialog dialog = new()
+        {
+            IsFolderPicker = true,
+            EnsurePathExists = true,
+            Title = "选择日志导出目录",
+        };
+
+        if (dialog.ShowDialog() != CommonFileDialogResult.Ok)
+        {
+            return;
+        }
+
+        try
+        {
+            string exportPath = latest
+                ? LogExporter.ExportLatest(dialog.FileName)
+                : LogExporter.ExportAll(dialog.FileName);
+            AppSessionLogger.Write($"logs exported to {exportPath}");
+            Toast.Success($"日志已导出：{exportPath}");
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(e);
+            Toast.Error($"日志导出失败：{e.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task ImportConfigAsync()
+    {
+        using CommonOpenFileDialog dialog = new()
+        {
+            EnsureFileExists = true,
+            IsFolderPicker = false,
+            Title = "导入配置",
+        };
+
+        dialog.Filters.Add(new CommonFileDialogFilter("YAML", "*.yaml;*.yml"));
+
+        if (dialog.ShowDialog() != CommonFileDialogResult.Ok)
+        {
+            return;
+        }
+
+        try
+        {
+            string backupPath = ConfigFileManager.Import(dialog.FileName);
+            AppSessionLogger.Write($"config imported from {dialog.FileName}; backup={backupPath}");
+            Toast.Success("配置已导入");
+            _ = await MessageBox.InformationAsync($"配置已导入，重启后生效。当前配置备份：{Environment.NewLine}{backupPath}");
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            AppSessionLogger.WriteException(e);
+            Toast.Error($"配置导入失败：{e.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private void ExportConfig()
+    {
+        using CommonSaveFileDialog dialog = new()
+        {
+            DefaultExtension = "yaml",
+            DefaultFileName = $"config-{DateTime.Now:yyyyMMddHHmmss}.yaml",
+            Title = "导出配置",
+        };
+
+        dialog.Filters.Add(new CommonFileDialogFilter("YAML", "*.yaml;*.yml"));
+
+        if (dialog.ShowDialog() != CommonFileDialogResult.Ok)
+        {
+            return;
+        }
+
+        try
+        {
+            string exportPath = ConfigFileManager.Export(dialog.FileName);
+            AppSessionLogger.Write($"config exported to {exportPath}");
+            Toast.Success("配置已导出");
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(e);
+            Toast.Error($"配置导出失败：{e.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task ResetConfigAsync()
+    {
+        if (MessageBox.Question("确定要重置配置文件吗？当前配置会先备份，重启后生效。") != System.Windows.MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            string[] backupPaths = ConfigFileManager.Reset();
+            string backupText = backupPaths.Length == 0 ? "没有找到需要备份的配置文件。" : string.Join(Environment.NewLine, backupPaths);
+            AppSessionLogger.Write($"config reset; backups={string.Join("|", backupPaths)}");
+            Toast.Success("配置已重置");
+            _ = await MessageBox.InformationAsync($"配置已重置，重启后生效。配置备份：{Environment.NewLine}{backupText}");
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(e);
+            Toast.Error($"配置重置失败：{e.Message}");
+        }
+    }
+
+    private static bool IsRoutineScheduleDayEnabled(DayOfWeek day)
+    {
+        return Configurations.RoutineScheduleDays.Get()
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Contains(day.ToString(), StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void SaveRoutineScheduleDays()
+    {
+        List<string> days = [];
+
+        if (RoutineScheduleMonday) days.Add(DayOfWeek.Monday.ToString());
+        if (RoutineScheduleTuesday) days.Add(DayOfWeek.Tuesday.ToString());
+        if (RoutineScheduleWednesday) days.Add(DayOfWeek.Wednesday.ToString());
+        if (RoutineScheduleThursday) days.Add(DayOfWeek.Thursday.ToString());
+        if (RoutineScheduleFriday) days.Add(DayOfWeek.Friday.ToString());
+        if (RoutineScheduleSaturday) days.Add(DayOfWeek.Saturday.ToString());
+        if (RoutineScheduleSunday) days.Add(DayOfWeek.Sunday.ToString());
+
+        Configurations.RoutineScheduleDays.Set(string.Join(",", days));
+        ConfigurationManager.Save();
+    }
+
+    private void SaveRoutineScheduleTime(int hour, int minute, bool isStart)
+    {
+        int normalizedHour = Math.Clamp(hour, 0, 23);
+        int normalizedMinute = Math.Clamp(minute, 0, 59);
+
+        if (isStart)
+        {
+            if (RoutineScheduleStartHour != normalizedHour)
+            {
+                RoutineScheduleStartHour = normalizedHour;
+                return;
+            }
+
+            if (RoutineScheduleStartMinute != normalizedMinute)
+            {
+                RoutineScheduleStartMinute = normalizedMinute;
+                return;
+            }
+
+            Configurations.RoutineScheduleStartHour.Set(normalizedHour);
+            Configurations.RoutineScheduleStartMinute.Set(normalizedMinute);
+        }
+        else
+        {
+            if (RoutineScheduleEndHour != normalizedHour)
+            {
+                RoutineScheduleEndHour = normalizedHour;
+                return;
+            }
+
+            if (RoutineScheduleEndMinute != normalizedMinute)
+            {
+                RoutineScheduleEndMinute = normalizedMinute;
+                return;
+            }
+
+            Configurations.RoutineScheduleEndHour.Set(normalizedHour);
+            Configurations.RoutineScheduleEndMinute.Set(normalizedMinute);
+        }
+
+        ConfigurationManager.Save();
+    }
+
+    private static int ConvertTimeUnitToMilliseconds(double value, int unitIndex)
+    {
+        double multiplier = unitIndex switch
+        {
+            (int)TimeUnitIndexEnum.Hours => 3600000d,
+            (int)TimeUnitIndexEnum.Minutes => 60000d,
+            (int)TimeUnitIndexEnum.Seconds => 1000d,
+            (int)TimeUnitIndexEnum.Milliseconds or _ => 1d,
+        };
+
+        return (int)Math.Clamp(Math.Round(value * multiplier, MidpointRounding.AwayFromZero), 1, int.MaxValue);
+    }
+
+    private static double ConvertMillisecondsToTimeUnit(int milliseconds, int unitIndex)
+    {
+        return unitIndex switch
+        {
+            (int)TimeUnitIndexEnum.Hours => milliseconds / 3600000d,
+            (int)TimeUnitIndexEnum.Minutes => milliseconds / 60000d,
+            (int)TimeUnitIndexEnum.Seconds => milliseconds / 1000d,
+            (int)TimeUnitIndexEnum.Milliseconds or _ => milliseconds,
+        };
     }
 }
 

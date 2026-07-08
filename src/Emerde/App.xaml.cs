@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Threading;
+using Emerde.Core;
 using Emerde.Extensions;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Violeta.Appearance;
@@ -32,6 +33,7 @@ public partial class App : Application
         DispatcherUnhandledException += (object s, DispatcherUnhandledExceptionEventArgs e) =>
         {
             e.Handled = true;
+            AppSessionLogger.WriteException(e.Exception);
             ExceptionReport.Show(e.Exception);
         };
 
@@ -53,6 +55,7 @@ public partial class App : Application
         base.OnStartup(e);
 
         RuntimeHelper.CheckSingleInstance(AppConfig.PackName + (Debugger.IsAttached ? "_DEBUG" : string.Empty));
+        AppSessionLogger.Start();
         TrayIconManager.Start();
     }
 
@@ -61,6 +64,7 @@ public partial class App : Application
     /// </summary>
     protected override void OnExit(ExitEventArgs e)
     {
+        AppSessionLogger.Stop();
         base.OnExit(e);
     }
 }
