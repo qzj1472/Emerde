@@ -183,8 +183,8 @@ public partial class MainWindow : FluentWindow
     private const double RoomCardMediumSizeScale = 1d;
     private const double RoomCardSmallSizeScale = 0.5d;
     private const double RoomCardMinimumAvatarSize = 30d;
-    private const double RoomCardHorizontalGap = 6d;
-    private const double RoomCardVerticalGap = 6d;
+    private const double RoomCardHorizontalGap = 12d;
+    private const double RoomCardVerticalGap = 12d;
     private const double RoomCardScrollContentPadding = 6d;
     private const double RoomCardScrollBarReservedWidth = 17d;
     private const int RoomCardDragDelayMilliseconds = 260;
@@ -211,13 +211,12 @@ public partial class MainWindow : FluentWindow
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
         DataContext = ViewModel = new();
-        WindowSizing.UseRelativeScreenSize(this, 1290d, 900d);
+        WindowSizing.UseMainWindowAspectSize(this);
         InitializeComponent();
         AppSessionLogger.Write($"perf MainWindow initialized in {stopwatch.ElapsedMilliseconds} ms");
         Loaded += (_, _) =>
         {
             AppSessionLogger.Write($"perf MainWindow loaded in {stopwatch.ElapsedMilliseconds} ms");
-            ViewModel.QueueSettingsWindowPreload();
         };
 
         if (Configurations.IsUseKeepAwake.Get())
@@ -236,6 +235,16 @@ public partial class MainWindow : FluentWindow
     private void RoomCardListSizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdateRoomCardMetrics(e.NewSize.Width);
+    }
+
+    private void RoundedPanelContentSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (sender is not FrameworkElement element || element.ActualWidth <= 0d || element.ActualHeight <= 0d)
+        {
+            return;
+        }
+
+        element.Clip = new RectangleGeometry(new Rect(0d, 0d, element.ActualWidth, element.ActualHeight), 8d, 8d);
     }
 
     private void RoomCardListLoaded(object sender, RoutedEventArgs e)

@@ -45,12 +45,12 @@ internal sealed class DialogBlurScope : IDisposable
     private readonly DispatcherTimer? ownerEnableTimer;
     private readonly DispatcherTimer? dialogMaskClearTimer;
 
-    public DialogBlurScope(Window? owner = null, double radius = 8d, object? lightDismissDialog = null)
+    public DialogBlurScope(Window? owner = null, double radius = 8d, object? dialog = null, bool isLightDismissEnabled = false)
     {
         WpfBrush backdropBrush = CreateBackdropBrush();
-        ApplyBuiltInSmoke(lightDismissDialog, backdropBrush);
-        AttachLightDismissToDialog(lightDismissDialog, backdropBrush);
-        dialogMaskClearTimer = lightDismissDialog is FrameworkElement dialogElement
+        ApplyBuiltInSmoke(dialog, backdropBrush);
+        AttachDialogMask(dialog, backdropBrush, isLightDismissEnabled);
+        dialogMaskClearTimer = dialog is FrameworkElement dialogElement
             ? StartDialogMaskClearPump(dialogElement)
             : null;
 
@@ -84,9 +84,9 @@ internal sealed class DialogBlurScope : IDisposable
                 if (ReferenceEquals(e.OriginalSource, backdrop))
                 {
                     e.Handled = true;
-                    if (lightDismissDialog != null)
+                    if (isLightDismissEnabled && dialog != null)
                     {
-                        HideDialog(lightDismissDialog);
+                        HideDialog(dialog);
                     }
                 }
             };
@@ -97,7 +97,7 @@ internal sealed class DialogBlurScope : IDisposable
 
     public static DialogBlurScope ForLightDismiss(Window? owner, object dialog, double radius = 8d)
     {
-        return new DialogBlurScope(owner, radius, dialog);
+        return new DialogBlurScope(owner, radius, dialog, true);
     }
 
     public static DialogBlurScope ForDialog(Window? owner, object dialog, double radius = 8d)
@@ -154,7 +154,7 @@ internal sealed class DialogBlurScope : IDisposable
         PropertyInfo? smokeLayerBackground = dialog.GetType().GetProperty("SmokeLayerBackground", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         if (smokeLayerBackground?.CanWrite == true && smokeLayerBackground.PropertyType.IsAssignableFrom(typeof(WpfBrush)))
         {
-            smokeLayerBackground.SetValue(dialog, backdropBrush ?? CreateBackdropBrush());
+            smokeLayerBackground.SetValue(dialog, System.Windows.Media.Brushes.Transparent);
         }
     }
 
@@ -394,7 +394,7 @@ internal sealed class DialogBlurScope : IDisposable
         return effectiveOpacity > 0d && effectiveOpacity <= 0.72d;
     }
 
-    private static void AttachLightDismissToDialog(object? dialog, WpfBrush backdropBrush)
+    private static void AttachDialogMask(object? dialog, WpfBrush backdropBrush, bool isLightDismissEnabled)
     {
         if (dialog is not UIElement dialogElement)
         {
@@ -427,7 +427,10 @@ internal sealed class DialogBlurScope : IDisposable
                         }
 
                         e.Handled = true;
-                        HideDialog(dialog);
+                        if (isLightDismissEnabled)
+                        {
+                            HideDialog(dialog);
+                        }
                     };
                 }
             }));
@@ -557,6 +560,15 @@ internal sealed class DialogBlurScope : IDisposable
         if (configuredTheme.Equals("Dark", StringComparison.OrdinalIgnoreCase))
         {
             return false;
+        }
+
+        object? appsUseLightTheme = Microsoft.Win32.Registry.GetValue(
+            @"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+            "AppsUseLightTheme",
+            null);
+        if (appsUseLightTheme is int intValue)
+        {
+            return intValue != 0;
         }
 
         if (Application.Current?.TryFindResource("SolidBackgroundFillColorBaseBrush") is SolidColorBrush backgroundBrush)

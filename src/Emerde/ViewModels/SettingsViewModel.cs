@@ -365,10 +365,15 @@ public partial class SettingsViewModel : ReactiveObject
             _ => string.Empty,
         });
         ConfigurationManager.Save();
+        AppThemeBrushes.Apply();
         DialogBlurScope.RefreshActiveBackdropBrushes();
         System.Windows.Application.Current.Dispatcher.BeginInvoke(
             DispatcherPriority.ContextIdle,
-            DialogBlurScope.RefreshActiveBackdropBrushes);
+            new Action(() =>
+            {
+                AppThemeBrushes.Apply();
+                DialogBlurScope.RefreshActiveBackdropBrushes();
+            }));
     }
 
     [ObservableProperty]
@@ -1129,9 +1134,7 @@ public partial class SettingsViewModel : ReactiveObject
         };
 
         using DialogBlurScope blurScope = DialogBlurScope.ForDialog(OwnerWindow, dialog);
-        ContentDialogResult result = OwnerWindow is { IsLoaded: true }
-            ? await dialog.ShowAsync(OwnerWindow)
-            : await dialog.ShowAsync();
+        ContentDialogResult result = await WindowSizing.ShowContentDialogAsync(dialog, OwnerWindow);
         if (result == ContentDialogResult.Primary)
         {
             ExportLogsToFolder(latest: false);
@@ -1289,9 +1292,7 @@ public partial class SettingsViewModel : ReactiveObject
         };
 
         using DialogBlurScope blurScope = DialogBlurScope.ForDialog(OwnerWindow, dialog);
-        ContentDialogResult result = OwnerWindow is { IsLoaded: true }
-            ? await dialog.ShowAsync(OwnerWindow)
-            : await dialog.ShowAsync();
+        ContentDialogResult result = await WindowSizing.ShowContentDialogAsync(dialog, OwnerWindow);
 
         if (result == ContentDialogResult.Primary)
         {

@@ -45,6 +45,8 @@ public partial class App : Application
         {
             ThemeManager.Apply(ApplicationTheme.Unknown);
         }
+
+        AppThemeBrushes.Apply();
     }
 
     /// <summary>

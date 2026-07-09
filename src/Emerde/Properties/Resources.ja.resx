@@ -634,4 +634,28 @@
   <data name="PlatformSummaryFormat" xml:space="preserve">
     <value>{0} 配信ルーム / {1} 配信中 / {2} プラットフォーム</value>
   </data>
+  <data name="NetworkCapacityIdle" xml:space="preserve">
+    <value>速度テスト</value>
+  </data>
+  <data name="NetworkCapacityHint" xml:space="preserve">
+    <value>現在の配信ストリームから同時録画可能数を測定します</value>
+  </data>
+  <data name="NetworkCapacityTesting" xml:space="preserve">
+    <value>測定中...</value>
+  </data>
+  <data name="NetworkCapacityNoStream" xml:space="preserve">
+    <value>測定できる配信中のルームがありません</value>
+  </data>
+  <data name="NetworkCapacityNoStreamShort" xml:space="preserve">
+    <value>配信なし</value>
+  </data>
+  <data name="NetworkCapacityResultShort" xml:space="preserve">
+    <value>{0} 本録画可能</value>
+  </data>
+  <data name="NetworkCapacityResultHint" xml:space="preserve">
+    <value>測定 {0:0.##} Mbps、1本あたり推定 {1:0.##} Mbps、{3} 件の配信サンプルから同時録画は約 {2} 本です</value>
+  </data>
+  <data name="NetworkCapacityFailed" xml:space="preserve">
+    <value>速度テストに失敗しました</value>
+  </data>
 </root>

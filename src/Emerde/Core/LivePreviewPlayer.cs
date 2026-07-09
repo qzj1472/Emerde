@@ -11,7 +11,7 @@ public sealed class LivePreviewPlayer : IDisposable
     public LivePreviewPlayer()
     {
         LibVLCSharp.Shared.Core.Initialize();
-        libVlc = new LibVLC("--network-caching=1000", "--live-caching=1000", "--clock-jitter=0", "--drop-late-frames", "--skip-frames");
+        libVlc = new LibVLC("--network-caching=1500", "--live-caching=1500", "--clock-jitter=0");
         MediaPlayer = new MediaPlayer(libVlc)
         {
             Mute = true,

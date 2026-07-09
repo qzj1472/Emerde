@@ -631,4 +631,28 @@
   <data name="PlatformSummaryFormat" xml:space="preserve">
     <value>{0} rooms / {1} live / {2} platforms</value>
   </data>
+  <data name="NetworkCapacityIdle" xml:space="preserve">
+    <value>Network test</value>
+  </data>
+  <data name="NetworkCapacityHint" xml:space="preserve">
+    <value>Test recording capacity based on the current live stream</value>
+  </data>
+  <data name="NetworkCapacityTesting" xml:space="preserve">
+    <value>Testing...</value>
+  </data>
+  <data name="NetworkCapacityNoStream" xml:space="preserve">
+    <value>No live stream is available for testing</value>
+  </data>
+  <data name="NetworkCapacityNoStreamShort" xml:space="preserve">
+    <value>No stream</value>
+  </data>
+  <data name="NetworkCapacityResultShort" xml:space="preserve">
+    <value>{0} streams</value>
+  </data>
+  <data name="NetworkCapacityResultHint" xml:space="preserve">
+    <value>Measured {0:0.##} Mbps, estimated {1:0.##} Mbps per stream, can record about {2} streams at once from {3} live samples</value>
+  </data>
+  <data name="NetworkCapacityFailed" xml:space="preserve">
+    <value>Network test failed</value>
+  </data>
 </root>

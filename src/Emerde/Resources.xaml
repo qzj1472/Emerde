@@ -25,17 +25,40 @@
     <CornerRadius x:Key="MenuFlyoutItemCornerRadius">8</CornerRadius>
     <CornerRadius x:Key="ToggleSwitchCornerRadius">8</CornerRadius>
     <CornerRadius x:Key="CheckBoxCornerRadius">10</CornerRadius>
+    <SolidColorBrush x:Key="EmerdeShellBackgroundBrush" Color="#F3F3F3" />
+    <SolidColorBrush x:Key="EmerdeSurfaceBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="EmerdePanelBrush" Color="#F8F8F8" />
+    <SolidColorBrush x:Key="EmerdeCardBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="ControlElevationBorderBrush" Color="#24000000" />
+    <SolidColorBrush x:Key="CircleElevationBorderBrush" Color="#24000000" />
+    <SolidColorBrush x:Key="AccentControlElevationBorderBrush" Color="Transparent" />
     <SolidColorBrush x:Key="DialogMaskLightBrush" Color="#33FFFFFF" />
     <SolidColorBrush x:Key="DialogMaskDarkBrush" Color="#33000000" />
     <StaticResource x:Key="DialogMaskBrush" ResourceKey="DialogMaskLightBrush" />
     <StaticResource x:Key="ContentDialogSmokeFill" ResourceKey="DialogMaskBrush" />
     <StaticResource x:Key="ContentDialogLightDismissOverlayBackground" ResourceKey="DialogMaskBrush" />
+    <LinearGradientBrush x:Key="VerticalEdgeFadeMask" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Offset="0" Color="#00FFFFFF" />
+        <GradientStop Offset="0.025" Color="#FFFFFFFF" />
+        <GradientStop Offset="0.975" Color="#FFFFFFFF" />
+        <GradientStop Offset="1" Color="#00FFFFFF" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="TopEdgeFadeOpacityMask" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Offset="0" Color="#FFFFFFFF" />
+        <GradientStop Offset="1" Color="#00FFFFFF" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="BottomEdgeFadeOpacityMask" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Offset="0" Color="#00FFFFFF" />
+        <GradientStop Offset="1" Color="#FFFFFFFF" />
+    </LinearGradientBrush>
 
     <Style TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="MinHeight" Value="34" />
     </Style>
 
     <Style TargetType="{x:Type ToggleButton}" BasedOn="{StaticResource {x:Type ToggleButton}}">
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="MinHeight" Value="34" />
     </Style>
 
@@ -111,14 +134,53 @@
         <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
     </Style>
 
+    <Style TargetType="{x:Type TextBox}" BasedOn="{StaticResource {x:Type TextBox}}">
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Effect" Value="{x:Null}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                <Setter Property="Effect" Value="{x:Null}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="{x:Type ui:TextBox}" BasedOn="{StaticResource {x:Type ui:TextBox}}">
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Effect" Value="{x:Null}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                <Setter Property="Effect" Value="{x:Null}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="{x:Type ComboBox}" BasedOn="{StaticResource {x:Type ComboBox}}">
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Effect" Value="{x:Null}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                <Setter Property="Effect" Value="{x:Null}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <Style TargetType="{x:Type ui:CardControl}" BasedOn="{StaticResource {x:Type ui:CardControl}}">
         <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
     </Style>
 
     <Style TargetType="{x:Type ui:CardExpander}" BasedOn="{StaticResource {x:Type ui:CardExpander}}">
-        <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Background" Value="{DynamicResource EmerdePanelBrush}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
         <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
         <Setter Property="Padding" Value="14,12" />
         <Setter Property="ContentPadding" Value="0,10,0,12" />

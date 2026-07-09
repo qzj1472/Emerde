@@ -1,20 +1,20 @@
-using Emerde.ViewModels;
 using Emerde.Controls;
 using Emerde.Core;
+using Emerde.ViewModels;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
-using System.Windows.Controls.Primitives;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using System.Windows.Threading;
-using WpfPoint = System.Windows.Point;
 using Wpf.Ui.Controls;
+using WpfPoint = System.Windows.Point;
 
 namespace Emerde.Views;
 
-public partial class SettingsWindow : FluentWindow
+public partial class SettingsWindow : System.Windows.Controls.UserControl
 {
     private const int InitialSettingsElementCount = 4;
 
@@ -23,6 +23,7 @@ public partial class SettingsWindow : FluentWindow
     private readonly Stopwatch startupRestoreStopwatch = new();
     private long maxStartupRestoreBatchMilliseconds;
     private int startupRestoreBatchCount;
+    private bool startupSectionsQueued;
 
     public SettingsViewModel ViewModel { get; }
 
@@ -31,19 +32,37 @@ public partial class SettingsWindow : FluentWindow
         Stopwatch stopwatch = Stopwatch.StartNew();
         DataContext = ViewModel = new();
         long viewModelElapsed = stopwatch.ElapsedMilliseconds;
-        ViewModel.OwnerWindow = this;
-        Core.WindowSizing.UseRelativeMainWindowSize(this, 700d, 560d);
+        ViewModel.OwnerWindow = Application.Current.MainWindow;
         InitializeComponent();
         long initializeElapsed = stopwatch.ElapsedMilliseconds;
         int deferredCount = DeferCollapsedCardExpanderContent(SettingsContentRoot);
         int deferredSectionCount = DeferStartupSections();
-        ContentRendered += SettingsWindowContentRendered;
+        Loaded += SettingsDialogLoaded;
+        IsVisibleChanged += SettingsDialogIsVisibleChanged;
+        Unloaded += SettingsDialogUnloaded;
         AppSessionLogger.Write(
-            $"perf SettingsWindow ctor vm={viewModelElapsed} ms init={initializeElapsed - viewModelElapsed} ms defer={stopwatch.ElapsedMilliseconds - initializeElapsed} ms deferredCards={deferredCount} deferredSections={deferredSectionCount} total={stopwatch.ElapsedMilliseconds} ms");
+            $"perf SettingsDialog ctor vm={viewModelElapsed} ms init={initializeElapsed - viewModelElapsed} ms defer={stopwatch.ElapsedMilliseconds - initializeElapsed} ms deferredCards={deferredCount} deferredSections={deferredSectionCount} total={stopwatch.ElapsedMilliseconds} ms");
     }
 
-    protected override void OnClosed(EventArgs e)
+    private void SettingsDialogLoaded(object sender, RoutedEventArgs e)
     {
+        QueueStartupSectionRestore();
+    }
+
+    private void SettingsDialogIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (IsVisible)
+        {
+            QueueStartupSectionRestore();
+        }
+    }
+
+    private void SettingsDialogUnloaded(object sender, RoutedEventArgs e)
+    {
+        Loaded -= SettingsDialogLoaded;
+        IsVisibleChanged -= SettingsDialogIsVisibleChanged;
+        Unloaded -= SettingsDialogUnloaded;
+
         foreach (CardExpander expander in deferredCardExpanderContents.Keys.ToArray())
         {
             DependencyPropertyDescriptor
@@ -53,7 +72,6 @@ public partial class SettingsWindow : FluentWindow
 
         deferredCardExpanderContents.Clear();
         deferredStartupSections.Clear();
-        base.OnClosed(e);
     }
 
     protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
@@ -160,14 +178,14 @@ public partial class SettingsWindow : FluentWindow
         return sections.Count;
     }
 
-    private void SettingsWindowContentRendered(object? sender, EventArgs e)
+    private void QueueStartupSectionRestore()
     {
-        ContentRendered -= SettingsWindowContentRendered;
-        if (deferredStartupSections.Count == 0)
+        if (startupSectionsQueued || deferredStartupSections.Count == 0)
         {
             return;
         }
 
+        startupSectionsQueued = true;
         startupRestoreStopwatch.Restart();
         maxStartupRestoreBatchMilliseconds = 0;
         startupRestoreBatchCount = 0;
@@ -178,6 +196,7 @@ public partial class SettingsWindow : FluentWindow
     {
         if (!IsVisible)
         {
+            startupSectionsQueued = false;
             return;
         }
 
@@ -201,7 +220,7 @@ public partial class SettingsWindow : FluentWindow
         }
 
         AppSessionLogger.Write(
-            $"perf SettingsWindow deferred sections restored in {startupRestoreStopwatch.ElapsedMilliseconds} ms batches={startupRestoreBatchCount} maxBatch={maxStartupRestoreBatchMilliseconds} ms");
+            $"perf SettingsDialog deferred sections restored in {startupRestoreStopwatch.ElapsedMilliseconds} ms batches={startupRestoreBatchCount} maxBatch={maxStartupRestoreBatchMilliseconds} ms");
     }
 
     private int DeferCollapsedCardExpanderContent(DependencyObject root)

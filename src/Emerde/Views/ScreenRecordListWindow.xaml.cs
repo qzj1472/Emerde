@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Emerde.Core;
 using Emerde.Extensions;
@@ -8,23 +8,22 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
+using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using Windows.System;
 using WindowsAPICodePack.Dialogs;
-using Wpf.Ui.Controls;
 using Wpf.Ui.Violeta.Controls;
 
 namespace Emerde.Views;
 
-public partial class ScreenRecordListWindow : FluentWindow
+public partial class ScreenRecordListWindow : System.Windows.Controls.UserControl
 {
     public ScreenRecordListViewModel ViewModel { get; } = new();
 
     public ScreenRecordListWindow()
     {
         DataContext = ViewModel;
-        WindowSizing.UseRelativeMainWindowSize(this, 1032d, 720d);
         InitializeComponent();
         VideoListModalOverlay.IsVisibleChanged += (_, _) => DialogBlurScope.ApplyBackdropBrush(VideoListModalOverlay);
         Loaded += async (_, _) =>
@@ -126,6 +125,18 @@ public partial class ScreenRecordListViewModel : ObservableObject
         {
             await LoadVideosFromFolderAsync(dialog.FileName, replace: false);
         }
+    }
+
+    [RelayCommand]
+    private async Task OpenSaveFolderAsync()
+    {
+        string root = SaveFolderHelper.GetSaveFolder(Configurations.SaveFolder.Get());
+        if (!Directory.Exists(root))
+        {
+            Directory.CreateDirectory(root);
+        }
+
+        await Launcher.LaunchFolderPathAsync(root);
     }
 
     [RelayCommand]
@@ -502,7 +513,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
             NickName = nickName,
             Resolution = resolution,
             Bitrate = bitrate,
-            Title = $"{fileInfo.LastWriteTime:yyyy-MM-dd HH:mm:ss}  ·  {FormatFileSize(fileInfo.Length)}  ·  {fileInfo.DirectoryName}",
+            Title = $"{fileInfo.LastWriteTime:yyyy-MM-dd HH:mm:ss}  路  {FormatFileSize(fileInfo.Length)}  路  {fileInfo.DirectoryName}",
             CreatedAt = fileInfo.LastWriteTime,
             CanTranscode = fileInfo.Extension.Equals(".ts", StringComparison.OrdinalIgnoreCase)
                 || fileInfo.Extension.Equals(".flv", StringComparison.OrdinalIgnoreCase),

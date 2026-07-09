@@ -17,17 +17,27 @@
                  WindowBackdropType="Mica"
                  WindowStartupLocation="Manual"
                  mc:Ignorable="d">
-    <Grid>
+    <Grid Background="{DynamicResource EmerdeShellBackgroundBrush}">
         <Grid.Resources>
             <c:ValueConverterGroup x:Key="NotZeroIntToToVisibilityConverter">
                 <c:IntToBoolConverter TrueValue="0" />
                 <c:BoolToVisibilityConverter />
             </c:ValueConverterGroup>
 
+            <LinearGradientBrush x:Key="TopEdgeFadeOpacityMask" StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Offset="0" Color="#FFFFFFFF" />
+                <GradientStop Offset="1" Color="#00FFFFFF" />
+            </LinearGradientBrush>
+
+            <LinearGradientBrush x:Key="BottomEdgeFadeOpacityMask" StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Offset="0" Color="#00FFFFFF" />
+                <GradientStop Offset="1" Color="#FFFFFFFF" />
+            </LinearGradientBrush>
+
             <Style x:Key="StatusTrayButtonStyle" TargetType="{x:Type Button}">
-                <Setter Property="Width" Value="16" />
-                <Setter Property="Height" Value="16" />
-                <Setter Property="MinWidth" Value="16" />
+                <Setter Property="Width" Value="24" />
+                <Setter Property="Height" Value="24" />
+                <Setter Property="MinWidth" Value="24" />
                 <Setter Property="Padding" Value="0" />
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Background" Value="Transparent" />
@@ -60,7 +70,7 @@
 
             <Style x:Key="StatusTrayChipButtonStyle" TargetType="{x:Type Button}">
                 <Setter Property="MinWidth" Value="0" />
-                <Setter Property="Height" Value="18" />
+                <Setter Property="Height" Value="24" />
                 <Setter Property="Padding" Value="4,0" />
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Background" Value="Transparent" />
@@ -87,6 +97,128 @@
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
                                     <Setter TargetName="ButtonChrome" Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="StatusTrayCapacityButtonStyle" TargetType="{x:Type Button}">
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="Height" Value="24" />
+                <Setter Property="Padding" Value="4,0" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type Button}">
+                            <Border x:Name="ButtonChrome"
+                                    MinWidth="{TemplateBinding MinWidth}"
+                                    Height="{TemplateBinding Height}"
+                                    Padding="{TemplateBinding Padding}"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                  RecognizesAccessKey="True" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="ButtonChrome" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="ButtonChrome" Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="ButtonChrome" Property="Opacity" Value="0.55" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="StatusTrayCapacityRefreshButtonStyle" TargetType="{x:Type Button}">
+                <Setter Property="Width" Value="24" />
+                <Setter Property="Height" Value="24" />
+                <Setter Property="MinWidth" Value="24" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type Button}">
+                            <Border x:Name="ButtonChrome"
+                                    Width="{TemplateBinding Width}"
+                                    Height="{TemplateBinding Height}"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  RecognizesAccessKey="True" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="ButtonChrome" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="ButtonChrome" Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="ShellNavButtonStyle" TargetType="{x:Type ToggleButton}">
+                <Setter Property="Width" Value="64" />
+                <Setter Property="Height" Value="58" />
+                <Setter Property="Margin" Value="4,0,4,6" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type ToggleButton}">
+                            <Grid>
+                                <Border x:Name="Chrome"
+                                        Background="{TemplateBinding Background}"
+                                        CornerRadius="{StaticResource Win11ControlCornerRadius}" />
+                                <Border x:Name="Indicator"
+                                        Width="3"
+                                        Height="28"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center"
+                                        Background="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                        CornerRadius="2"
+                                        Opacity="0" />
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  RecognizesAccessKey="True" />
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                    <Setter TargetName="Indicator" Property="Opacity" Value="1" />
+                                    <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -280,20 +412,106 @@
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="{x:Type ListBox}">
-                            <ScrollViewer x:Name="RoomCardScrollViewer"
-                                          Focusable="False"
-                                          Padding="9"
-                                          HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
-                                          VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}">
-                                <ItemsPresenter />
-                            </ScrollViewer>
+                            <Grid ClipToBounds="True">
+                                <ScrollViewer x:Name="RoomCardScrollViewer"
+                                              Focusable="False"
+                                              Padding="9"
+                                              HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
+                                              VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}">
+                                    <ItemsPresenter />
+                                </ScrollViewer>
+                                <Border Height="6"
+                                        Margin="9,9,22,0"
+                                        VerticalAlignment="Top"
+                                        Panel.ZIndex="20"
+                                        Background="{DynamicResource EmerdePanelBrush}"
+                                        IsHitTestVisible="False"
+                                        OpacityMask="{StaticResource TopEdgeFadeOpacityMask}" />
+                                <Border Height="6"
+                                        Margin="9,0,22,9"
+                                        VerticalAlignment="Bottom"
+                                        Panel.ZIndex="20"
+                                        Background="{DynamicResource EmerdePanelBrush}"
+                                        IsHitTestVisible="False"
+                                        OpacityMask="{StaticResource BottomEdgeFadeOpacityMask}" />
+                            </Grid>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
             </Style>
         </Grid.Resources>
 
-        <ui:Grid x:Name="MainContentRoot" Margin="8,42,8,8" RowDefinitions="Auto,*,Auto">
+        <ui:Grid x:Name="MainContentRoot" Margin="10,42,10,10" ColumnDefinitions="74,12,*">
+            <Border Grid.Column="0"
+                    Background="{DynamicResource EmerdeSurfaceBrush}"
+                    BorderThickness="0"
+                    CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                <ui:StackPanel Margin="0,12,0,0"
+                               HorizontalAlignment="Center"
+                               Orientation="Vertical">
+                    <ToggleButton Command="{Binding ShowHomePageCommand}"
+                                  IsChecked="{Binding IsHomePageSelected, Mode=OneWay}"
+                                  Style="{StaticResource ShellNavButtonStyle}">
+                        <ui:StackPanel HorizontalAlignment="Center" Spacing="4">
+                            <ui:FontIcon HorizontalAlignment="Center"
+                                         FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                         FontSize="20"
+                                         Glyph="{x:Static ui:FontSymbols.Home}" />
+                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="首页" />
+                        </ui:StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Command="{Binding OpenScreenRecordListCommand}"
+                                  IsChecked="{Binding IsVideoListPageSelected, Mode=OneWay}"
+                                  Style="{StaticResource ShellNavButtonStyle}">
+                        <ui:StackPanel HorizontalAlignment="Center" Spacing="4">
+                            <ui:FontIcon HorizontalAlignment="Center"
+                                         FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                         FontSize="20"
+                                         Glyph="{x:Static ui:FontSymbols.Video}" />
+                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="视频列表" />
+                        </ui:StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Command="{Binding OpenSettingsDialogCommand}"
+                                  IsChecked="{Binding IsSettingsPageSelected, Mode=OneWay}"
+                                  Style="{StaticResource ShellNavButtonStyle}">
+                        <ui:StackPanel HorizontalAlignment="Center" Spacing="4">
+                            <ui:FontIcon HorizontalAlignment="Center"
+                                         FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                         FontSize="20"
+                                         Glyph="{x:Static ui:FontSymbols.Settings}" />
+                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="设置" />
+                        </ui:StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Command="{Binding OpenAboutCommand}"
+                                  IsChecked="{Binding IsAboutPageSelected, Mode=OneWay}"
+                                  Style="{StaticResource ShellNavButtonStyle}">
+                        <ui:StackPanel HorizontalAlignment="Center" Spacing="4">
+                            <ui:FontIcon HorizontalAlignment="Center"
+                                         FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                         FontSize="20"
+                                         Glyph="{x:Static ui:FontSymbols.Info}" />
+                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="关于" />
+                        </ui:StackPanel>
+                    </ToggleButton>
+                </ui:StackPanel>
+            </Border>
+            <Border Grid.Column="2"
+                    Background="{DynamicResource EmerdeSurfaceBrush}"
+                    BorderThickness="0"
+                    CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                    Padding="10">
+            <Grid x:Name="ShellPageHost">
+                <ui:Grid x:Name="HomePageRoot" RowDefinitions="Auto,*,Auto">
+                    <ui:Grid.Style>
+                        <Style TargetType="{x:Type ui:Grid}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsHomePageSelected}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ui:Grid.Style>
             <ui:Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
                 <ui:StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
                     <Button MinWidth="72" Command="{Binding AddRoomCommand}">
@@ -342,30 +560,6 @@
                             </ui:StackPanel>
                         </Button.Content>
                     </Button>
-                    <Button MinWidth="72" Command="{Binding OpenSettingsDialogCommand}">
-                        <Button.Content>
-                            <ui:StackPanel Orientation="Horizontal" Spacing="8">
-                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Settings}" />
-                                <TextBlock Text="{I18N ButtonOfSettings}" />
-                            </ui:StackPanel>
-                        </Button.Content>
-                    </Button>
-                    <Button MinWidth="72" Command="{Binding OpenScreenRecordListCommand}">
-                        <Button.Content>
-                            <ui:StackPanel Orientation="Horizontal" Spacing="8">
-                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Video}" />
-                                <TextBlock Text="视频列表" />
-                            </ui:StackPanel>
-                        </Button.Content>
-                    </Button>
-                    <Button MinWidth="72" Command="{Binding OpenAboutCommand}">
-                        <Button.Content>
-                            <ui:StackPanel Orientation="Horizontal" Spacing="8">
-                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Info}" />
-                                <TextBlock Text="{I18N About}" />
-                            </ui:StackPanel>
-                        </Button.Content>
-                    </Button>
                     <Button MinWidth="72" Command="{Binding ExitApplicationCommand}">
                         <Button.Content>
                             <ui:StackPanel Orientation="Horizontal" Spacing="8">
@@ -376,19 +570,7 @@
                     </Button>
                 </ui:StackPanel>
 
-                <ui:StackPanel Grid.Column="2"
-                               HorizontalAlignment="Right"
-                               Orientation="Horizontal"
-                               Spacing="8">
-                    <Button MinWidth="80" Command="{Binding OpenSaveFolderCommand}">
-                        <Button.Content>
-                            <ui:StackPanel Orientation="Horizontal" Spacing="8">
-                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.FolderOpen}" />
-                                <TextBlock Text="{I18N SaveFolder}" />
-                            </ui:StackPanel>
-                        </Button.Content>
-                    </Button>
-                </ui:StackPanel>
+                <FrameworkElement Grid.Column="2" />
             </ui:Grid>
 
             <ui:Grid Grid.Row="1"
@@ -397,11 +579,11 @@
                 <Border Grid.Column="0"
                         x:Name="RoomCardPanel"
                         Padding="0"
-                        Background="#0E000000"
-                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                        BorderThickness="1"
+                        Background="{DynamicResource EmerdePanelBrush}"
+                        BorderBrush="Transparent"
+                        BorderThickness="0"
                         CornerRadius="{StaticResource Win11ControlCornerRadius}"
-                        ClipToBounds="False"
+                        ClipToBounds="True"
                         MouseLeftButtonDown="RoomCardPanelMouseLeftButtonDown"
                         PreviewMouseLeftButtonDown="RoomCardListPreviewMouseLeftButtonDown"
                         PreviewMouseLeftButtonUp="RoomCardListPreviewMouseLeftButtonUp"
@@ -423,11 +605,13 @@
                             <MenuItem Header="编辑模式" Command="{Binding ToggleCardEditModeCommand}" />
                         </ContextMenu>
                     </Border.ContextMenu>
-                    <Grid ClipToBounds="False">
+                    <Grid x:Name="RoomCardPanelContent"
+                          ClipToBounds="True"
+                          SizeChanged="RoundedPanelContentSizeChanged">
                         <ListBox x:Name="RoomCardList"
                                  Background="Transparent"
                                  BorderThickness="0"
-                                 ClipToBounds="False"
+                                 ClipToBounds="True"
                                  ItemsSource="{Binding RoomStatusesView}"
                                  Loaded="RoomCardListLoaded"
                                  LostMouseCapture="RoomCardListLostMouseCapture"
@@ -477,9 +661,9 @@
                                             Height="{Binding RoomCardHeight, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
                                             Margin="{Binding RoomCardMargin, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
                                             Padding="{Binding RoomCardPadding, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                            Background="#12000000"
-                                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                                            BorderThickness="1"
+                                            Background="{DynamicResource EmerdeCardBrush}"
+                                            BorderBrush="Transparent"
+                                            BorderThickness="0"
                                             CornerRadius="{StaticResource Win11ControlCornerRadius}"
                                             RenderTransformOrigin="0.5,0.5"
                                             SnapsToDevicePixels="True"
@@ -555,7 +739,7 @@
                                                              Height="{Binding RoomCardAvatarSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
                                                              HorizontalAlignment="Center"
                                                              VerticalAlignment="Center"
-                                                             Fill="#18000000" />
+                                                             Fill="{DynamicResource ControlFillColorDefaultBrush}" />
                                                     <Ellipse x:Name="RoomCardAvatarImage"
                                                              Width="{Binding RoomCardAvatarSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
                                                              Height="{Binding RoomCardAvatarSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
@@ -644,11 +828,11 @@
                                             <DataTrigger.EnterActions>
                                                 <BeginStoryboard>
                                                     <Storyboard>
-                                                        <ColorAnimation Storyboard.TargetName="RoomCardShell"
-                                                                        Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
-                                                                        From="#90FFFFFF"
-                                                                        To="#12000000"
-                                                                        Duration="0:0:0.34" />
+                                                        <DoubleAnimation Storyboard.TargetName="RoomCardShell"
+                                                                         Storyboard.TargetProperty="Opacity"
+                                                                         From="0.55"
+                                                                         To="1"
+                                                                         Duration="0:0:0.34" />
                                                     </Storyboard>
                                                 </BeginStoryboard>
                                             </DataTrigger.EnterActions>
@@ -689,17 +873,32 @@
                                          Glyph="{x:Static ui:CustomFontSymbols.Empty}" />
                             <TextBlock Text="{I18N EmptyRoomHint}" />
                         </ui:StackPanel>
+                        <Border Height="6"
+                                VerticalAlignment="Top"
+                                Panel.ZIndex="20"
+                                Background="{DynamicResource EmerdePanelBrush}"
+                                IsHitTestVisible="False"
+                                OpacityMask="{StaticResource TopEdgeFadeOpacityMask}" />
+                        <Border Height="6"
+                                VerticalAlignment="Bottom"
+                                Panel.ZIndex="20"
+                                Background="{DynamicResource EmerdePanelBrush}"
+                                IsHitTestVisible="False"
+                                OpacityMask="{StaticResource BottomEdgeFadeOpacityMask}" />
                     </Grid>
                 </Border>
 
                 <Border Grid.Column="1"
                         Margin="8,0,0,0"
                         Padding="0"
-                        Background="#0E000000"
-                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                        BorderThickness="1"
+                        Background="{DynamicResource EmerdePanelBrush}"
+                        BorderBrush="Transparent"
+                        BorderThickness="0"
                         CornerRadius="{StaticResource Win11ControlCornerRadius}"
                         ClipToBounds="True">
+                    <Grid x:Name="RoomDetailPanelContent"
+                          ClipToBounds="True"
+                          SizeChanged="RoundedPanelContentSizeChanged">
                     <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                                   Padding="10"
                                   VerticalScrollBarVisibility="Visible">
@@ -923,22 +1122,100 @@
                             </UniformGrid>
                         </StackPanel>
                     </ScrollViewer>
+                    <Border Height="6"
+                            VerticalAlignment="Top"
+                            Panel.ZIndex="20"
+                            Background="{DynamicResource EmerdePanelBrush}"
+                            IsHitTestVisible="False"
+                            OpacityMask="{StaticResource TopEdgeFadeOpacityMask}" />
+                    <Border Height="6"
+                            VerticalAlignment="Bottom"
+                            Panel.ZIndex="20"
+                            Background="{DynamicResource EmerdePanelBrush}"
+                            IsHitTestVisible="False"
+                            OpacityMask="{StaticResource BottomEdgeFadeOpacityMask}" />
+                    </Grid>
                 </Border>
             </ui:Grid>
 
-            <ui:Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto">
+            <ui:Grid Grid.Row="2"
+                     Height="24"
+                     Margin="0,4,0,0"
+                     VerticalAlignment="Center"
+                     ColumnDefinitions="Auto,*,Auto">
                 <ui:StackPanel Grid.Column="0"
-                               Margin="4,2,0,0"
+                               Height="24"
+                               Margin="4,0,0,0"
                                VerticalAlignment="Center"
                                Orientation="Horizontal"
                                Spacing="8">
                     <TextBlock VerticalAlignment="Center"
+                               Height="24"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               LineHeight="24"
                                Text="{Binding PlatformSummaryText}" />
+                    <ui:StackPanel VerticalAlignment="Center"
+                                   Orientation="Horizontal"
+                                   Spacing="2">
+                        <Button Command="{Binding TestNetworkCapacityCommand}"
+                                Style="{StaticResource StatusTrayCapacityButtonStyle}"
+                                ToolTip="{Binding NetworkCapacityToolTip}">
+                            <ui:StackPanel VerticalAlignment="Center"
+                                           Orientation="Horizontal"
+                                           Spacing="5">
+                                <ui:FontIcon VerticalAlignment="Center"
+                                             FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             FontSize="13"
+                                             Glyph="{x:Static ui:FontSymbols.Globe}" />
+                                <TextBlock VerticalAlignment="Center"
+                                           Height="24"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           LineHeight="24"
+                                           Text="{Binding NetworkCapacityDisplayText}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </ui:StackPanel>
+                        </Button>
+                        <Button Command="{Binding TestNetworkCapacityCommand}"
+                                Style="{StaticResource StatusTrayCapacityRefreshButtonStyle}"
+                                ToolTip="{Binding NetworkCapacityToolTip}">
+                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                         Glyph="{x:Static ui:FontSymbols.Sync}"
+                                         RenderTransformOrigin="0.5,0.5">
+                                <ui:FontIcon.RenderTransform>
+                                    <RotateTransform Angle="0" />
+                                </ui:FontIcon.RenderTransform>
+                                <ui:FontIcon.Style>
+                                    <Style TargetType="{x:Type ui:FontIcon}">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsNetworkCapacityTesting}" Value="True">
+                                                <DataTrigger.EnterActions>
+                                                    <BeginStoryboard x:Name="NetworkCapacityRefreshStoryboard">
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                             From="0"
+                                                                             To="360"
+                                                                             Duration="0:0:0.75" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.EnterActions>
+                                                <DataTrigger.ExitActions>
+                                                    <StopStoryboard BeginStoryboardName="NetworkCapacityRefreshStoryboard" />
+                                                </DataTrigger.ExitActions>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:FontIcon.Style>
+                            </ui:FontIcon>
+                        </Button>
+                    </ui:StackPanel>
                 </ui:StackPanel>
-                <ui:StackPanel Margin="0,2,0,0"
-                               Grid.Column="2"
+                <ui:StackPanel Grid.Column="2"
+                               Height="24"
+                               Margin="0,0,0,0"
                                HorizontalAlignment="Right"
+                               VerticalAlignment="Center"
                                Opacity="0.9"
                                Orientation="Horizontal"
                                Spacing="8">
@@ -1039,24 +1316,78 @@
                             </c:If>
                         </Button>
                         <TextBlock FontSize="12"
+                                   Height="24"
                                    VerticalAlignment="Center"
                                    Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                   LineHeight="24"
                                    Text="{Binding StatusOfAutoShutdownTime}"
                                    ToolTip="{I18N AutoShutdown}"
                                    Visibility="{Binding StatusOfIsUseAutoShutdown, Converter={x:Static c:BoolToVisibilityConverter.Instance}}" />
-                        <Separator />
+                        <Border Width="1"
+                                Height="14"
+                                VerticalAlignment="Center"
+                                Background="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                Opacity="0.55" />
                         <Button Command="{Binding OpenSettingsDialogCommand}"
                                 Content="{Binding StatusOfRoutineIntervalWithUnit}"
                                 Style="{StaticResource StatusTrayChipButtonStyle}"
                                 ToolTip="{I18N RoutineInterval}" />
-                        <Separator />
+                        <Border Width="1"
+                                Height="14"
+                                VerticalAlignment="Center"
+                                Background="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                Opacity="0.55" />
                         <TextBlock VerticalAlignment="Center"
+                                   Height="24"
                                    FontSize="12"
+                                   LineHeight="24"
                                    Opacity="0.6"
                                    Text="{Binding StatusOfRecordFormat}"
                                    ToolTip="{I18N RecordFormat}" />
                 </ui:StackPanel>
             </ui:Grid>
+                </ui:Grid>
+
+                <views:ScreenRecordListWindow>
+                    <views:ScreenRecordListWindow.Style>
+                        <Style TargetType="{x:Type views:ScreenRecordListWindow}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DataContext.IsVideoListPageSelected, ElementName=ShellPageHost}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </views:ScreenRecordListWindow.Style>
+                </views:ScreenRecordListWindow>
+
+                <views:SettingsWindow>
+                    <views:SettingsWindow.Style>
+                        <Style TargetType="{x:Type views:SettingsWindow}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DataContext.IsSettingsPageSelected, ElementName=ShellPageHost}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </views:SettingsWindow.Style>
+                </views:SettingsWindow>
+
+                <views:AboutContentDialog>
+                    <views:AboutContentDialog.Style>
+                        <Style TargetType="{x:Type views:AboutContentDialog}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DataContext.IsAboutPageSelected, ElementName=ShellPageHost}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </views:AboutContentDialog.Style>
+                </views:AboutContentDialog>
+            </Grid>
+            </Border>
         </ui:Grid>
 
         <Grid x:Name="MainDialogOverlay"

@@ -54,25 +54,13 @@ internal class TrayIconManager
                     Tag = "TrayMenuOpenSettings",
                     Command = new RelayCommand(() =>
                     {
-                        if (Application.Current.Windows.OfType<SettingsWindow>().FirstOrDefault(window => window.IsVisible) is SettingsWindow existing)
+                        if (Application.Current.MainWindow is MainWindow mainWindow)
                         {
-                            if (existing.WindowState == WindowState.Minimized)
-                            {
-                                existing.WindowState = WindowState.Normal;
-                            }
-
-                            existing.Activate();
-                            return;
+                            mainWindow.Show();
+                            mainWindow.Activate();
+                            Interop.RestoreWindow(new WindowInteropHelper(mainWindow).Handle);
+                            mainWindow.ViewModel.OpenSettingsDialogCommand.Execute(null);
                         }
-
-                        SettingsWindow window = new()
-                        {
-                            Owner = Application.Current.MainWindow,
-                            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                            ShowInTaskbar = false,
-                        };
-                        window.Show();
-                        window.Activate();
                     }),
                 },
                 _itemAutoRun = new TrayMenuItem()

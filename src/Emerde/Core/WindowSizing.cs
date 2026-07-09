@@ -7,12 +7,20 @@ namespace Emerde.Core;
 internal static class WindowSizing
 {
     private const double ScreenRatio = 0.85d;
-    private const double MainBaseWidth = 1290d;
-    private const double MainBaseHeight = 900d;
+    private const double MainWindowWidthRatio = 0.70d;
+    private const double MainWindowAspectRatio = 14d / 9d;
+    private const double MainBaseWidth = 1440d;
+    private const double MainBaseHeight = 926d;
+    private const double DialogMarginShortSideRatio = 0.10d;
 
     public static void UseRelativeScreenSize(Window window, double baseWidth, double baseHeight)
     {
         window.SourceInitialized += (_, _) => ApplyScreenRelative(window, baseWidth, baseHeight);
+    }
+
+    public static void UseMainWindowAspectSize(Window window)
+    {
+        window.SourceInitialized += (_, _) => ApplyMainWindowAspect(window);
     }
 
     public static void UseRelativeMainWindowSize(Window window, double baseWidth, double baseHeight)
@@ -22,6 +30,97 @@ internal static class WindowSizing
             ApplyMainWindowRelative(window, baseWidth, baseHeight);
             TrackMainWindowRelativePlacement(window, baseWidth, baseHeight);
         };
+    }
+
+    public static async Task<ContentDialogResult> ShowContentDialogAsync(ContentDialog dialog, Window? owner = null)
+    {
+        ApplyContentDialogSizeLimit(dialog, owner);
+        RoutedEventHandler? loadedHandler = null;
+        loadedHandler = (_, _) =>
+        {
+            dialog.Loaded -= loadedHandler;
+            ApplyContentDialogSizeLimit(dialog, owner);
+        };
+        dialog.Loaded += loadedHandler;
+
+        try
+        {
+            return owner is { IsLoaded: true }
+                ? await dialog.ShowAsync(owner)
+                : await dialog.ShowAsync();
+        }
+        finally
+        {
+            dialog.Loaded -= loadedHandler;
+        }
+    }
+
+    public static void ApplyContentDialogSizeLimit(ContentDialog dialog, Window? owner = null)
+    {
+        if (dialog.GetType().Name == "LocalSettingsContentDialog")
+        {
+            return;
+        }
+
+        Window? reference = owner ?? Application.Current?.MainWindow;
+        if (reference == null)
+        {
+            return;
+        }
+
+        double referenceWidth = GetWindowActualWidth(reference);
+        double referenceHeight = GetWindowActualHeight(reference);
+        if (referenceWidth <= 1d || referenceHeight <= 1d)
+        {
+            return;
+        }
+
+        double margin = Math.Min(referenceWidth, referenceHeight) * DialogMarginShortSideRatio;
+        double maxWidth = Math.Max(320d, Math.Floor(referenceWidth - margin * 2d));
+        double maxHeight = Math.Max(240d, Math.Floor(referenceHeight - margin * 2d));
+
+        dialog.MaxWidth = maxWidth;
+        dialog.MaxHeight = maxHeight;
+        if (!double.IsNaN(dialog.Width) && dialog.Width > maxWidth)
+        {
+            dialog.Width = maxWidth;
+        }
+        if (!double.IsNaN(dialog.Height) && dialog.Height > maxHeight)
+        {
+            dialog.Height = maxHeight;
+        }
+        if (dialog.MinWidth > maxWidth)
+        {
+            dialog.MinWidth = 0d;
+        }
+        if (dialog.MinHeight > maxHeight)
+        {
+            dialog.MinHeight = 0d;
+        }
+
+        if (dialog.Content is FrameworkElement content)
+        {
+            double contentMaxWidth = Math.Max(1d, maxWidth - 40d);
+            double contentMaxHeight = Math.Max(1d, maxHeight - 132d);
+            content.MaxWidth = contentMaxWidth;
+            content.MaxHeight = contentMaxHeight;
+            if (content.MinWidth > contentMaxWidth)
+            {
+                content.MinWidth = 0d;
+            }
+            if (content.MinHeight > contentMaxHeight)
+            {
+                content.MinHeight = 0d;
+            }
+            if (!double.IsNaN(content.Width) && content.Width > contentMaxWidth)
+            {
+                content.Width = contentMaxWidth;
+            }
+            if (!double.IsNaN(content.Height) && content.Height > contentMaxHeight)
+            {
+                content.Height = contentMaxHeight;
+            }
+        }
     }
 
     private static void ApplyScreenRelative(Window window, double baseWidth, double baseHeight)
@@ -45,6 +144,26 @@ internal static class WindowSizing
         double userScale = GetUserDisplayScale();
         double width = Math.Max(1d, Math.Floor(baseWidth * scale * userScale));
         double height = Math.Max(1d, Math.Floor(baseHeight * scale * userScale));
+        window.Width = width;
+        window.Height = height;
+        window.Left = screen.WorkingArea.Left / dpi.DpiScaleX + (screen.WorkingArea.Width / dpi.DpiScaleX - width) / 2d;
+        window.Top = screen.WorkingArea.Top / dpi.DpiScaleY + (screen.WorkingArea.Height / dpi.DpiScaleY - height) / 2d;
+    }
+
+    private static void ApplyMainWindowAspect(Window window)
+    {
+        System.Windows.Forms.Screen screen = GetTargetScreen(window);
+        DpiScale dpi = VisualTreeHelper.GetDpi(window);
+        double width = Math.Max(1d, Math.Floor(screen.WorkingArea.Width * MainWindowWidthRatio / dpi.DpiScaleX));
+        double height = Math.Max(1d, Math.Floor(width / MainWindowAspectRatio));
+        double maxHeight = Math.Max(1d, screen.WorkingArea.Height / dpi.DpiScaleY);
+
+        if (height > maxHeight)
+        {
+            height = Math.Floor(maxHeight);
+            width = Math.Floor(height * MainWindowAspectRatio);
+        }
+
         window.Width = width;
         window.Height = height;
         window.Left = screen.WorkingArea.Left / dpi.DpiScaleX + (screen.WorkingArea.Width / dpi.DpiScaleX - width) / 2d;
@@ -139,6 +258,26 @@ internal static class WindowSizing
         }
 
         return reference.ActualHeight > 1d ? reference.ActualHeight : reference.Height;
+    }
+
+    private static double GetWindowActualWidth(Window window)
+    {
+        if (window.ActualWidth > 1d)
+        {
+            return window.ActualWidth;
+        }
+
+        return !double.IsNaN(window.Width) && window.Width > 1d ? window.Width : 0d;
+    }
+
+    private static double GetWindowActualHeight(Window window)
+    {
+        if (window.ActualHeight > 1d)
+        {
+            return window.ActualHeight;
+        }
+
+        return !double.IsNaN(window.Height) && window.Height > 1d ? window.Height : 0d;
     }
 
     private static void CenterWindow(Window window, Window? reference, System.Windows.Forms.Screen screen, DpiScale dpi, double width, double height)

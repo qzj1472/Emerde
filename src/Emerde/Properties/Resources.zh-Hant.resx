@@ -631,4 +631,28 @@
   <data name="PlatformSummaryFormat" xml:space="preserve">
     <value>{0} 個直播間 / {1} 個開播 / {2} 個平台</value>
   </data>
+  <data name="NetworkCapacityIdle" xml:space="preserve">
+    <value>測速</value>
+  </data>
+  <data name="NetworkCapacityHint" xml:space="preserve">
+    <value>根據目前直播流測試錄製承載數量</value>
+  </data>
+  <data name="NetworkCapacityTesting" xml:space="preserve">
+    <value>測速中...</value>
+  </data>
+  <data name="NetworkCapacityNoStream" xml:space="preserve">
+    <value>沒有可用於測速的開播直播間</value>
+  </data>
+  <data name="NetworkCapacityNoStreamShort" xml:space="preserve">
+    <value>無直播流</value>
+  </data>
+  <data name="NetworkCapacityResultShort" xml:space="preserve">
+    <value>可錄 {0} 路</value>
+  </data>
+  <data name="NetworkCapacityResultHint" xml:space="preserve">
+    <value>實測 {0:0.##} Mbps，單路估算 {1:0.##} Mbps，基於 {3} 個開播樣本預計可同時錄製 {2} 路</value>
+  </data>
+  <data name="NetworkCapacityFailed" xml:space="preserve">
+    <value>測速失敗</value>
+  </data>
 </root>

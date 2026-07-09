@@ -1,11 +1,12 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using System.Windows.Controls;
 using Windows.System;
 
 namespace Emerde.Views;
 
 [ObservableObject]
-public partial class AboutContentDialog : ContentDialog
+public partial class AboutContentDialog : System.Windows.Controls.UserControl
 {
     public AboutContentDialog()
     {

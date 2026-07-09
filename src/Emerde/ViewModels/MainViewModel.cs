@@ -8,6 +8,9 @@ using Microsoft.Toolkit.Uwp.Notifications;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
+using System.Net;
+using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Web;
@@ -37,15 +40,40 @@ namespace Emerde.ViewModels;
 public partial class MainViewModel : ReactiveObject, IDisposable
 {
     private const string AllPlatformFilter = "All";
+    private static readonly string[] NetworkThroughputTestUrls =
+    [
+        "https://speed.cloudflare.com/__down?bytes=50000000",
+        "https://cachefly.cachefly.net/10mb.test",
+        "https://proof.ovh.net/files/10Mb.dat",
+    ];
 
     protected internal ForeverDispatcherTimer DispatcherTimer { get; }
 
     private readonly LivePreviewPlayer livePreviewPlayer = new();
     private LivePreviewWindow? livePreviewWindow;
-    private ScreenRecordListWindow? screenRecordListWindow;
-    private SettingsWindow? settingsWindow;
-    private SettingsWindow? prewarmedSettingsWindow;
-    private bool isPrewarmingSettingsWindow;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsHomePageSelected))]
+    [NotifyPropertyChangedFor(nameof(IsVideoListPageSelected))]
+    [NotifyPropertyChangedFor(nameof(IsSettingsPageSelected))]
+    [NotifyPropertyChangedFor(nameof(IsAboutPageSelected))]
+    private int selectedMainPageIndex;
+
+    public bool IsHomePageSelected => SelectedMainPageIndex == 0;
+
+    public bool IsVideoListPageSelected => SelectedMainPageIndex == 1;
+
+    public bool IsSettingsPageSelected => SelectedMainPageIndex == 2;
+
+    public bool IsAboutPageSelected => SelectedMainPageIndex == 3;
+
+    partial void OnSelectedMainPageIndexChanged(int value)
+    {
+        if (value < 0 || value > 3)
+        {
+            SelectedMainPageIndex = 0;
+        }
+    }
 
     [ObservableProperty]
     private ReactiveCollection<RoomStatusReactive> roomStatuses = [];
@@ -233,6 +261,18 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     }
 
     [ObservableProperty]
+    private bool isNetworkCapacityTesting;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NetworkCapacityDisplayText))]
+    private string networkCapacityText = "NetworkCapacityIdle".Tr();
+
+    [ObservableProperty]
+    private string networkCapacityToolTip = "NetworkCapacityHint".Tr();
+
+    public string NetworkCapacityDisplayText => string.IsNullOrWhiteSpace(NetworkCapacityText) || NetworkCapacityText == "NetworkCapacityIdle" ? "测速" : NetworkCapacityText;
+
+    [ObservableProperty]
     private bool isReadyToShutdown = false;
 
     public CancellationTokenSource? ShutdownCancellationTokenSource { get; private set; } = null;
@@ -264,6 +304,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 roomStatusReactive.RefreshStatus();
             }
             OnPropertyChanged(nameof(PlatformSummaryText));
+            if (!IsNetworkCapacityTesting && NetworkCapacityText == "NetworkCapacityIdle".Tr())
+            {
+                NetworkCapacityText = "NetworkCapacityIdle".Tr();
+                NetworkCapacityToolTip = "NetworkCapacityHint".Tr();
+            }
         };
 
         WeakReferenceMessenger.Default.Register<ToastNotificationActivatedMessage>(this, (_, msg) =>
@@ -302,6 +347,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 roomStatusReactive.AvatarThumbUrl = roomStatus.AvatarThumbUrl;
                 roomStatusReactive.PlatformName = roomStatus.PlatformName;
                 roomStatusReactive.LiveTitle = roomStatus.LiveTitle;
+                roomStatusReactive.Quality = roomStatus.Quality;
+                roomStatusReactive.Resolution = roomStatus.Resolution;
+                roomStatusReactive.Bitrate = roomStatus.Bitrate;
                 roomStatusReactive.StreamStatus = roomStatus.StreamStatus;
                 roomStatusReactive.RecordStatus = roomStatus.RecordStatus;
                 roomStatusReactive.FlvUrl = roomStatus.FlvUrl;
@@ -461,7 +509,6 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             {
                 livePreviewWindow = null;
                 StopPreview();
-                RestoreMainWindowActivation();
             };
         }
 
@@ -476,40 +523,6 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
 
         livePreviewWindow.Activate();
-    }
-
-    private static void RestoreMainWindowActivation()
-    {
-        Window? mainWindow = Application.Current?.MainWindow;
-        if (mainWindow == null)
-        {
-            return;
-        }
-
-        mainWindow.Dispatcher.BeginInvoke(() =>
-        {
-            ActivateMainWindow(mainWindow);
-            mainWindow.Dispatcher.BeginInvoke(() => ActivateMainWindow(mainWindow), DispatcherPriority.ContextIdle);
-        }, DispatcherPriority.ApplicationIdle);
-    }
-
-    private static void ActivateMainWindow(Window mainWindow)
-    {
-        if (!mainWindow.IsVisible)
-        {
-            return;
-        }
-
-        if (mainWindow.WindowState == WindowState.Minimized)
-        {
-            mainWindow.WindowState = WindowState.Normal;
-        }
-
-        bool originalTopmost = mainWindow.Topmost;
-        mainWindow.Topmost = true;
-        mainWindow.Activate();
-        mainWindow.Focus();
-        mainWindow.Topmost = originalTopmost;
     }
 
     [RelayCommand]
@@ -607,7 +620,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     {
         AddRoomContentDialog dialog = new();
         using DialogBlurScope blurScope = DialogBlurScope.ForLightDismiss(Application.Current.MainWindow, dialog);
-        ContentDialogResult result = await dialog.ShowAsync();
+        ContentDialogResult result = await ShowMainContentDialogAsync(dialog);
 
         if (result != ContentDialogResult.Primary ||
             string.IsNullOrWhiteSpace(dialog.NickName) ||
@@ -617,6 +630,12 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
 
         AddConfirmedRoom(dialog.NickName, dialog.RoomUrl, dialog.SpiderResult);
+    }
+
+    private static Task<ContentDialogResult> ShowMainContentDialogAsync(ContentDialog dialog)
+    {
+        Window? owner = Application.Current?.MainWindow;
+        return WindowSizing.ShowContentDialogAsync(dialog, owner);
     }
 
     private void AddConfirmedRoom(string nickName, string roomUrl, ISpiderResult? spiderResult)
@@ -657,141 +676,21 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     }
 
     [RelayCommand]
-    private void OpenSettingsDialog()
+    private void ShowHomePage()
     {
-        if (settingsWindow is { IsVisible: true })
-        {
-            ActivateSettingsWindow(settingsWindow);
-            return;
-        }
-
-        foreach (Window win in Application.Current.Windows.OfType<SettingsWindow>().Where(window => window.IsVisible))
-        {
-            ActivateSettingsWindow((SettingsWindow)win);
-            return;
-        }
-
-        Stopwatch stopwatch = Stopwatch.StartNew();
-        SettingsWindow window = TakePrewarmedSettingsWindow() ?? new SettingsWindow();
-        settingsWindow = window;
-        window.Owner = Application.Current.MainWindow;
-        window.WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        window.ShowInTaskbar = false;
-        window.Closed += SettingsWindowClosed;
-        window.Show();
-        ActivateSettingsWindow(window);
-        AppSessionLogger.Write($"perf SettingsWindow shown in {stopwatch.ElapsedMilliseconds} ms");
-    }
-
-    private void SettingsWindowClosed(object? sender, EventArgs e)
-    {
-        if (sender is SettingsWindow window)
-        {
-            window.Closed -= SettingsWindowClosed;
-        }
-
-        if (ReferenceEquals(settingsWindow, sender))
-        {
-            settingsWindow = null;
-        }
-
-        QueueSettingsWindowPreload();
-    }
-
-    private static void ActivateSettingsWindow(SettingsWindow window)
-    {
-        if (window.WindowState == WindowState.Minimized)
-        {
-            window.WindowState = WindowState.Normal;
-        }
-
-        window.Activate();
-        window.Focus();
-    }
-
-    public void QueueSettingsWindowPreload()
-    {
-        _ = Application.Current.Dispatcher.BeginInvoke(
-            DispatcherPriority.ApplicationIdle,
-            new Action(PrewarmSettingsWindow));
-    }
-
-    private void PrewarmSettingsWindow()
-    {
-        if (isPrewarmingSettingsWindow ||
-            prewarmedSettingsWindow != null ||
-            Application.Current?.MainWindow == null ||
-            Application.Current.Windows.OfType<SettingsWindow>().Any(window => window.IsVisible))
-        {
-            return;
-        }
-
-        isPrewarmingSettingsWindow = true;
-        Stopwatch stopwatch = Stopwatch.StartNew();
-
-        try
-        {
-            SettingsWindow window = new()
-            {
-                Owner = Application.Current.MainWindow,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                ShowInTaskbar = false,
-            };
-            window.Closed += PrewarmedSettingsWindowClosed;
-            prewarmedSettingsWindow = window;
-            AppSessionLogger.Write($"perf SettingsWindow prewarmed in {stopwatch.ElapsedMilliseconds} ms");
-        }
-        catch (Exception e)
-        {
-            AppSessionLogger.WriteException(e);
-        }
-        finally
-        {
-            isPrewarmingSettingsWindow = false;
-        }
-    }
-
-    private SettingsWindow? TakePrewarmedSettingsWindow()
-    {
-        SettingsWindow? window = prewarmedSettingsWindow;
-        if (window == null)
-        {
-            return null;
-        }
-
-        prewarmedSettingsWindow = null;
-        window.Closed -= PrewarmedSettingsWindowClosed;
-        return window;
-    }
-
-    private void PrewarmedSettingsWindowClosed(object? sender, EventArgs e)
-    {
-        if (sender is SettingsWindow window)
-        {
-            window.Closed -= PrewarmedSettingsWindowClosed;
-        }
-
-        if (ReferenceEquals(prewarmedSettingsWindow, sender))
-        {
-            prewarmedSettingsWindow = null;
-        }
+        SelectedMainPageIndex = 0;
     }
 
     [RelayCommand]
     private void OpenScreenRecordList()
     {
-        if (screenRecordListWindow is { IsLoaded: true })
-        {
-            screenRecordListWindow.Activate();
-            return;
-        }
+        SelectedMainPageIndex = 1;
+    }
 
-        screenRecordListWindow = new ScreenRecordListWindow()
-        {
-            Owner = Application.Current.MainWindow,
-        };
-        screenRecordListWindow.Closed += (_, _) => screenRecordListWindow = null;
-        screenRecordListWindow.Show();
+    [RelayCommand]
+    private void OpenSettingsDialog()
+    {
+        SelectedMainPageIndex = 2;
     }
 
     [RelayCommand]
@@ -822,11 +721,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     }
 
     [RelayCommand]
-    private async Task OpenAboutAsync()
+    private void OpenAbout()
     {
-        AboutContentDialog dialog = new();
-        using DialogBlurScope blurScope = DialogBlurScope.ForLightDismiss(Application.Current.MainWindow, dialog);
-        _ = await dialog.ShowAsync();
+        SelectedMainPageIndex = 3;
     }
 
     [RelayCommand]
@@ -943,6 +840,332 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
     }
 
+    [RelayCommand]
+    private async Task TestNetworkCapacityAsync()
+    {
+        if (IsNetworkCapacityTesting)
+        {
+            return;
+        }
+
+        RoomStatusReactive[] estimateRooms = GetNetworkCapacityEstimateRooms();
+        if (estimateRooms.Length == 0)
+        {
+            NetworkCapacityText = "NetworkCapacityNoStreamShort".Tr();
+            NetworkCapacityToolTip = "NetworkCapacityNoStream".Tr();
+            Toast.Warning(NetworkCapacityToolTip);
+            return;
+        }
+
+        IsNetworkCapacityTesting = true;
+        NetworkCapacityText = "NetworkCapacityTesting".Tr();
+        NetworkCapacityToolTip = "NetworkCapacityTesting".Tr();
+        AppSessionLogger.Write($"network capacity test started, samples={estimateRooms.Length}");
+
+        try
+        {
+            RoomStatusReactive[] testRooms = estimateRooms
+                .Where(room => !string.IsNullOrWhiteSpace(GetPreferredNetworkTestUrl(room)))
+                .ToArray();
+            double perRoomMbps = estimateRooms.Select(EstimateRequiredMbps).DefaultIfEmpty(10d).Average();
+            bool measuredBroadband = true;
+            double measuredMbps;
+            try
+            {
+                measuredMbps = await MeasureBestNetworkThroughputMbpsAsync();
+            }
+            catch
+            {
+                measuredBroadband = false;
+                measuredMbps = testRooms.Length == 0
+                    ? estimateRooms.Sum(EstimateRequiredMbps) * 1.25d
+                    : await MeasureNetworkThroughputMbpsAsync(GetPreferredNetworkTestUrl(testRooms[0]));
+            }
+            int capacity = Math.Max(1, (int)Math.Floor(measuredMbps * 0.7d / Math.Max(1d, perRoomMbps)));
+
+            NetworkCapacityText = FormatNetworkCapacityResultShort(capacity);
+            NetworkCapacityToolTip = "NetworkCapacityResultHint".Tr(measuredMbps, perRoomMbps, capacity, estimateRooms.Length);
+            AppSessionLogger.Write($"network capacity test completed, measuredMbps={measuredMbps:0.##}, perRoomMbps={perRoomMbps:0.##}, capacity={capacity}, source={(measuredBroadband ? "broadband" : "stream")}");
+            Toast.Success(NetworkCapacityToolTip);
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e);
+            AppSessionLogger.WriteException(e);
+            double perRoomMbps = estimateRooms.Select(EstimateRequiredMbps).DefaultIfEmpty(10d).Average();
+            double estimatedMbps = estimateRooms.Sum(EstimateRequiredMbps) * 1.25d;
+            int capacity = Math.Max(1, (int)Math.Floor(estimatedMbps * 0.7d / Math.Max(1d, perRoomMbps)));
+            NetworkCapacityText = FormatNetworkCapacityResultShort(capacity);
+            NetworkCapacityToolTip = "NetworkCapacityResultHint".Tr(estimatedMbps, perRoomMbps, capacity, estimateRooms.Length);
+            Toast.Warning(NetworkCapacityToolTip);
+        }
+        finally
+        {
+            IsNetworkCapacityTesting = false;
+        }
+    }
+
+    private RoomStatusReactive[] GetNetworkCapacityEstimateRooms()
+    {
+        RoomStatusReactive[] activeRooms = RoomStatuses
+            .Where(room => room.StreamStatus == StreamStatus.Streaming || room.RecordStatus == RecordStatus.Recording || room.CanPreview)
+            .ToArray();
+
+        if (SelectedItem != null &&
+            !string.IsNullOrWhiteSpace(SelectedItem.RoomUrl) &&
+            (SelectedItem.StreamStatus == StreamStatus.Streaming || SelectedItem.RecordStatus == RecordStatus.Recording || SelectedItem.CanPreview))
+        {
+            return [SelectedItem, .. activeRooms.Where(room => !ReferenceEquals(room, SelectedItem))];
+        }
+
+        return activeRooms;
+    }
+
+    private static string FormatNetworkCapacityResultShort(int capacity)
+    {
+        string text = "NetworkCapacityResultShort".Tr(capacity);
+        return string.IsNullOrWhiteSpace(text) || text == "NetworkCapacityResultShort" ? $"可录 {capacity} 路" : text;
+    }
+
+    private static string GetPreferredNetworkTestUrl(RoomStatusReactive room)
+    {
+        if (!string.IsNullOrWhiteSpace(room.FlvUrl))
+        {
+            return room.FlvUrl;
+        }
+
+        return room.PreviewUrl;
+    }
+
+    private async Task<double> MeasureNetworkThroughputMbpsAsync(string url)
+    {
+        using CancellationTokenSource cancellationTokenSource = new(TimeSpan.FromSeconds(10));
+        using HttpClientHandler handler = new()
+        {
+            AllowAutoRedirect = true,
+            AutomaticDecompression = DecompressionMethods.All,
+        };
+
+        string configuredProxy = Configurations.ProxyUrl.Get();
+        if (Configurations.IsUseProxy.Get() && !string.IsNullOrWhiteSpace(configuredProxy))
+        {
+            string proxyUrl = configuredProxy.Contains("://", StringComparison.Ordinal) ? configuredProxy : $"http://{configuredProxy}";
+            handler.Proxy = new WebProxy(proxyUrl);
+            handler.UseProxy = true;
+        }
+
+        using HttpClient client = new(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(10),
+        };
+
+        string testUrl = await ResolveNetworkTestUrlAsync(client, url, cancellationTokenSource.Token);
+        using HttpRequestMessage request = new(HttpMethod.Get, testUrl);
+        string userAgent = Configurations.UserAgent.Get();
+        if (!string.IsNullOrWhiteSpace(userAgent))
+        {
+            request.Headers.TryAddWithoutValidation("User-Agent", userAgent);
+        }
+
+        using HttpResponseMessage response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationTokenSource.Token);
+        response.EnsureSuccessStatusCode();
+        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationTokenSource.Token);
+
+        byte[] buffer = new byte[128 * 1024];
+        long totalBytes = 0;
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        TimeSpan sampleDuration = TimeSpan.FromSeconds(4);
+        long maxBytes = 20L * 1024L * 1024L;
+
+        while (stopwatch.Elapsed < sampleDuration && totalBytes < maxBytes)
+        {
+            int read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationTokenSource.Token);
+            if (read == 0)
+            {
+                break;
+            }
+
+            totalBytes += read;
+        }
+
+        stopwatch.Stop();
+        if (totalBytes < 64 * 1024 || stopwatch.Elapsed.TotalSeconds <= 0.25d)
+        {
+            throw new InvalidOperationException("Network sample is too small.");
+        }
+
+        return totalBytes * 8d / stopwatch.Elapsed.TotalSeconds / 1_000_000d;
+    }
+
+    private async Task<double> MeasureBestNetworkThroughputMbpsAsync()
+    {
+        List<double> samples = [];
+
+        foreach (string url in NetworkThroughputTestUrls)
+        {
+            try
+            {
+                double sample = await MeasureNetworkThroughputMbpsAsync(url);
+                samples.Add(sample);
+            }
+            catch (Exception e)
+            {
+                Debug.WriteLine(e);
+                AppSessionLogger.Write($"network capacity endpoint failed, url={url}, error={e.Message}");
+            }
+        }
+
+        if (samples.Count == 0)
+        {
+            throw new InvalidOperationException("No network capacity endpoint returned a valid sample.");
+        }
+
+        return samples.Max();
+    }
+
+    private async Task<string> ResolveNetworkTestUrlAsync(HttpClient client, string url, CancellationToken cancellationToken)
+    {
+        string currentUrl = url;
+
+        for (int depth = 0; depth < 2; depth++)
+        {
+            if (!currentUrl.Contains(".m3u8", StringComparison.OrdinalIgnoreCase))
+            {
+                return currentUrl;
+            }
+
+            using HttpRequestMessage request = new(HttpMethod.Get, currentUrl);
+            string userAgent = Configurations.UserAgent.Get();
+            if (!string.IsNullOrWhiteSpace(userAgent))
+            {
+                request.Headers.TryAddWithoutValidation("User-Agent", userAgent);
+            }
+
+            using HttpResponseMessage response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            string playlist = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            string? entry = playlist
+                .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .FirstOrDefault(line => !line.StartsWith('#') && !string.IsNullOrWhiteSpace(line));
+
+            if (string.IsNullOrWhiteSpace(entry) ||
+                !Uri.TryCreate(currentUrl, UriKind.Absolute, out Uri? baseUri) ||
+                !Uri.TryCreate(baseUri, entry, out Uri? resolved))
+            {
+                return currentUrl;
+            }
+
+            currentUrl = resolved.ToString();
+        }
+
+        return currentUrl;
+    }
+
+    private static double EstimateRequiredMbps(RoomStatusReactive room)
+    {
+        double? parsedBitrate = ParseBitrateMbps(room.Bitrate);
+        if (parsedBitrate is > 0)
+        {
+            return parsedBitrate.Value;
+        }
+
+        double? urlBitrate = ParseStreamUrlBitrateMbps(room.FlvUrl, room.HlsUrl, room.PreviewUrl);
+        if (urlBitrate is > 0)
+        {
+            return urlBitrate.Value;
+        }
+
+        string resolution = room.ResolutionText;
+        if (resolution.Contains("2160", StringComparison.OrdinalIgnoreCase) || resolution.Contains("4k", StringComparison.OrdinalIgnoreCase))
+        {
+            return 18d;
+        }
+
+        if (resolution.Contains("1440", StringComparison.OrdinalIgnoreCase))
+        {
+            return 12d;
+        }
+
+        if (resolution.Contains("1080", StringComparison.OrdinalIgnoreCase))
+        {
+            return 8d;
+        }
+
+        if (resolution.Contains("720", StringComparison.OrdinalIgnoreCase))
+        {
+            return 4d;
+        }
+
+        return 10d;
+    }
+
+    private static double? ParseStreamUrlBitrateMbps(params string[] urls)
+    {
+        string[] keys = ["origin_bitrate", "bitrate", "bandwidth"];
+
+        foreach (string url in urls.Where(url => !string.IsNullOrWhiteSpace(url)))
+        {
+            if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri))
+            {
+                continue;
+            }
+
+            NameValueCollection query = HttpUtility.ParseQueryString(uri.Query);
+            foreach (string key in keys)
+            {
+                double? value = ParseBitrateMbps(query[key]);
+                if (value is > 0)
+                {
+                    return value;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static double? ParseBitrateMbps(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        string normalized = text.Trim().ToLowerInvariant();
+        string numberText = new(normalized
+            .SkipWhile(character => !char.IsDigit(character))
+            .TakeWhile(character => char.IsDigit(character) || character == '.' || character == ',')
+            .ToArray());
+
+        if (!double.TryParse(numberText.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out double value) || value <= 0)
+        {
+            return null;
+        }
+
+        if (normalized.Contains("kb", StringComparison.OrdinalIgnoreCase) || normalized.Contains("kbit", StringComparison.OrdinalIgnoreCase))
+        {
+            return value / 1000d;
+        }
+
+        if (normalized.Contains("mb", StringComparison.OrdinalIgnoreCase) || normalized.Contains("m", StringComparison.OrdinalIgnoreCase))
+        {
+            return value;
+        }
+
+        if (value >= 100_000d)
+        {
+            return value / 1_000_000d;
+        }
+
+        if (value >= 1000d)
+        {
+            return value / 1000d;
+        }
+
+        return value;
+    }
+
     private static void ApplyRoomInfoResult(RoomStatusReactive room, ISpiderResult result)
     {
         string oldRoomUrl = room.RoomUrl;
@@ -1028,6 +1251,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         status.AvatarThumbUrl = room.AvatarThumbUrl;
         status.PlatformName = room.PlatformName;
         status.LiveTitle = room.LiveTitle;
+        status.Quality = room.Quality;
+        status.Resolution = room.Resolution;
+        status.Bitrate = room.Bitrate;
         status.FlvUrl = room.FlvUrl;
         status.HlsUrl = room.HlsUrl;
         status.StreamStatus = room.StreamStatus;
@@ -1304,8 +1530,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
 
         LocalSettingsContentDialog dialog = new(SelectedItem);
+        dialog.ApplyDialogVisualSize();
         using DialogBlurScope blurScope = DialogBlurScope.ForLightDismiss(Application.Current.MainWindow, dialog);
-        _ = await dialog.ShowAsync();
+        _ = await ShowMainContentDialogAsync(dialog);
 
         if (!dialog.IsSaved)
         {
@@ -1316,7 +1543,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         SelectedItem.IsToNotify = dialog.IsToNotify;
         SelectedItem.IsToMonitor = dialog.IsToMonitor;
         SelectedItem.IsToRecord = dialog.IsToRecord;
-        SaveSelectedRoomSettings();
+        SaveSelectedRoomSettings(dialog.GetRecordingOptions());
         RefreshRoomEffectiveStates();
         Toast.Success("SuccOp".Tr());
     }
@@ -1375,6 +1602,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return;
         }
 
+        livePreviewWindow?.PrepareExternalNavigation();
+
         // TODO: Implement for other platforms
         await Launcher.LaunchUriAsync(new Uri(SelectedItem.RoomUrl));
     }
@@ -1427,7 +1656,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 };
 
                 using DialogBlurScope blurScope = DialogBlurScope.ForDialog(Application.Current.MainWindow, dialog);
-                ContentDialogResult result = await dialog.ShowAsync();
+                ContentDialogResult result = await ShowMainContentDialogAsync(dialog);
 
                 if (result == ContentDialogResult.Primary)
                 {
@@ -1512,7 +1741,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         RefreshRoomEffectiveStates();
     }
 
-    private void SaveSelectedRoomSettings()
+    private void SaveSelectedRoomSettings(RoomRecordingOptions? recordingOptions = null)
     {
         RoomStatusReactive? roomStatusReactive = RoomStatuses.Where(room => room.RoomUrl == SelectedItem.RoomUrl).FirstOrDefault();
 
@@ -1533,6 +1762,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             room.IsToRecord = SelectedItem.IsToRecord;
             room.IsToMonitor = SelectedItem.IsToMonitor;
             room.IsFollowGlobalSettings = SelectedItem.IsFollowGlobalSettings;
+            if (recordingOptions != null)
+            {
+                RoomRecordingSettings.Apply(room, recordingOptions);
+            }
         }
 
         Configurations.Rooms.Set(rooms);
@@ -1614,8 +1847,6 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     public void Dispose()
     {
-        prewarmedSettingsWindow?.Close();
-        settingsWindow?.Close();
         livePreviewPlayer.Dispose();
     }
 }

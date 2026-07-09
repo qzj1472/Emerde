@@ -1,4 +1,4 @@
-<ui:FluentWindow x:Class="Emerde.Views.ScreenRecordListWindow"
+﻿<UserControl x:Class="Emerde.Views.ScreenRecordListWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -6,15 +6,10 @@
                  xmlns:local="clr-namespace:Emerde.Views"
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                 Title="视频列表"
-                 Width="1032"
-                 Height="720"
-                 d:Background="#FF101010"
-                 ExtendsContentIntoTitleBar="True"
-                 WindowBackdropType="Mica"
-                 WindowStartupLocation="CenterOwner"
+                 xmlns:vio="http://schemas.lepo.co/wpfui/2022/xaml/violeta"
+                 FontSize="14"
                  mc:Ignorable="d">
-    <ui:FluentWindow.Resources>
+    <UserControl.Resources>
         <Style x:Key="VideoListToolbarButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="MinWidth" Value="82" />
             <Setter Property="Height" Value="34" />
@@ -42,10 +37,10 @@
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
-    </ui:FluentWindow.Resources>
+    </UserControl.Resources>
 
-    <Grid>
-        <Grid x:Name="VideoListContentRoot" Margin="14,48,14,0">
+    <Grid x:Name="VideoListDialogContent">
+        <Grid x:Name="VideoListContentRoot" Margin="0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="48" />
                 <RowDefinition Height="*" />
@@ -63,6 +58,11 @@
                                VerticalAlignment="Center"
                                Orientation="Horizontal"
                                Spacing="8">
+                    <TextBlock Margin="0,0,12,0"
+                               VerticalAlignment="Center"
+                               FontSize="22"
+                               FontWeight="SemiBold"
+                               Text="视频列表" />
                     <Button Command="{Binding RefreshCommand}"
                             Style="{StaticResource VideoListToolbarButtonStyle}">
                         <ui:StackPanel Orientation="Horizontal" Spacing="7">
@@ -95,6 +95,14 @@
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          Glyph="{x:Static ui:FontSymbols.FolderOpen}" />
                             <TextBlock Text="导入" />
+                        </ui:StackPanel>
+                    </Button>
+                    <Button Command="{Binding OpenSaveFolderCommand}"
+                            Style="{StaticResource VideoListToolbarButtonStyle}">
+                        <ui:StackPanel Orientation="Horizontal" Spacing="7">
+                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                         Glyph="{x:Static ui:FontSymbols.FolderOpen}" />
+                            <TextBlock Text="{I18N SaveFolder}" />
                         </ui:StackPanel>
                     </Button>
                 </ui:StackPanel>
@@ -187,14 +195,14 @@
                 </ui:StackPanel>
             </Grid>
 
-            <ListBox Grid.Row="1"
-                     ItemsSource="{Binding Videos}"
-                     Background="Transparent"
-                     BorderThickness="0"
-                     ScrollViewer.CanContentScroll="True"
-                     ScrollViewer.VerticalScrollBarVisibility="Auto"
-                     VirtualizingPanel.IsVirtualizing="True"
-                     VirtualizingPanel.VirtualizationMode="Recycling">
+            <Grid Grid.Row="1" ClipToBounds="True">
+                <ListBox ItemsSource="{Binding Videos}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         ScrollViewer.CanContentScroll="True"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         VirtualizingPanel.IsVirtualizing="True"
+                         VirtualizingPanel.VirtualizationMode="Recycling">
                 <ListBox.ItemContainerStyle>
                     <Style TargetType="{x:Type ListBoxItem}" BasedOn="{StaticResource {x:Type ListBoxItem}}">
                         <Setter Property="Padding" Value="0" />
@@ -336,15 +344,20 @@
                         </DataTemplate.Triggers>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
-            </ListBox>
-        </Grid>
-
-        <Grid>
-            <ui:TitleBar Title="视频列表" ShowMaximize="False">
-                <ui:TitleBar.Icon>
-                    <ui:SymbolIcon Symbol="Video24" />
-                </ui:TitleBar.Icon>
-            </ui:TitleBar>
+                </ListBox>
+                <Border Height="6"
+                        VerticalAlignment="Top"
+                        Panel.ZIndex="20"
+                        Background="{DynamicResource EmerdeSurfaceBrush}"
+                        IsHitTestVisible="False"
+                        OpacityMask="{StaticResource TopEdgeFadeOpacityMask}" />
+                <Border Height="6"
+                        VerticalAlignment="Bottom"
+                        Panel.ZIndex="20"
+                        Background="{DynamicResource EmerdeSurfaceBrush}"
+                        IsHitTestVisible="False"
+                        OpacityMask="{StaticResource BottomEdgeFadeOpacityMask}" />
+            </Grid>
         </Grid>
 
         <Grid x:Name="VideoListDialogOverlay"
@@ -426,4 +439,4 @@
             </Border>
         </Grid>
     </Grid>
-</ui:FluentWindow>
+</UserControl>

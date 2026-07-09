@@ -20,6 +20,7 @@ public partial class LivePreviewWindow : FluentWindow
         InitializeComponent();
         StateChanged += (_, _) => RefreshPreviewLayout();
         SizeChanged += (_, _) => RefreshPreviewLayout();
+        Deactivated += (_, _) => PreviewContent.HidePreviewControlsImmediately();
         KeyDown += OnKeyDown;
     }
 
@@ -72,7 +73,6 @@ public partial class LivePreviewWindow : FluentWindow
         WindowTitleBar.Visibility = System.Windows.Visibility.Collapsed;
         PreviewContent.Margin = new System.Windows.Thickness(0);
         PreviewContent.IsFullScreen = true;
-        Topmost = true;
 
         Left = bounds.Left;
         Top = bounds.Top;
@@ -80,6 +80,18 @@ public partial class LivePreviewWindow : FluentWindow
         Height = bounds.Height;
 
         RefreshPreviewLayout();
+    }
+
+    public void PrepareExternalNavigation()
+    {
+        PreviewContent.HidePreviewControlsImmediately();
+
+        if (IsPreviewFullScreen)
+        {
+            ExitPreviewFullScreen();
+        }
+
+        Topmost = false;
     }
 
     private void ExitPreviewFullScreen()
@@ -113,5 +125,33 @@ public partial class LivePreviewWindow : FluentWindow
         {
             ExitPreviewFullScreen();
         }
+    }
+
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        RestoreOwnerActivation();
+        base.OnClosing(e);
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        RestoreOwnerActivation();
+        base.OnClosed(e);
+    }
+
+    private void RestoreOwnerActivation()
+    {
+        if (Owner is not { IsVisible: true } owner)
+        {
+            return;
+        }
+
+        if (owner.WindowState == System.Windows.WindowState.Minimized)
+        {
+            owner.WindowState = System.Windows.WindowState.Normal;
+        }
+
+        owner.Activate();
+        owner.Focus();
     }
 }

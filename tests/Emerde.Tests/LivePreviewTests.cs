@@ -6,7 +6,7 @@ namespace Emerde.Tests;
 public sealed class LivePreviewTests
 {
     [Fact]
-    public void PreviewUrl_UsesHlsBeforeFlv()
+    public void PreviewUrl_UsesFlvBeforeHls()
     {
         RoomStatusReactive room = new()
         {
@@ -14,8 +14,8 @@ public sealed class LivePreviewTests
             HlsUrl = "https://example.test/live.m3u8",
         };
 
-        Assert.Equal("https://example.test/live.m3u8", room.PreviewUrl);
-        Assert.Equal("HLS", room.PreviewSourceText);
+        Assert.Equal("https://example.test/live.flv", room.PreviewUrl);
+        Assert.Equal("FLV", room.PreviewSourceText);
     }
 
     [Fact]

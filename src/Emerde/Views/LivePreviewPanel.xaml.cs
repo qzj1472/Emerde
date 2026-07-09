@@ -221,6 +221,14 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         PreviewControls.IsHitTestVisible = false;
     }
 
+    public void HidePreviewControlsImmediately()
+    {
+        controlsIdleTimer.Stop();
+        PreviewControlsPopup.IsOpen = false;
+        PreviewControls.Opacity = 0;
+        PreviewControls.IsHitTestVisible = false;
+    }
+
     private void ToggleWindowSize_OnClick(object sender, System.Windows.RoutedEventArgs e)
     {
         System.Windows.Window? window = System.Windows.Window.GetWindow(this);
@@ -417,5 +425,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         UpdateVideoSurfaceSize();
         UpdatePreviewControlsPlacement();
         UpdateWindowSizeIcon();
+        ShowPreviewControls();
     }
 }
