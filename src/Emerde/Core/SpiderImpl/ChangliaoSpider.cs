@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using System.Text.RegularExpressions;
 
 namespace Emerde.Core;
@@ -49,12 +49,12 @@ public sealed partial class ChangliaoSpider : ISpider
         string currentUrl = $"https://wap.tlclw.com/{roomId}";
         string api = "https://wap.tlclw.com/api/ui/room/v1.0.0/live.ashx"
                    + $"?roomidx={Uri.EscapeDataString(roomId)}&currentUrl={Uri.EscapeDataString(currentUrl)}";
-        string? json = SpiderRequest.Get(api, Headers(), Configurations.CookieChina.Get());
+        string? json = SpiderRequest.Get(api, Headers(), PlatformCookieStore.GetCookie("Changliao", Configurations.CookieChina.Get()));
         ExtractRoomInfo(json, result);
 
         if (result.IsLiveStreaming == true && !string.IsNullOrWhiteSpace(result.LiveId))
         {
-            string? html = SpiderRequest.Get(roomUrl, Headers(), Configurations.CookieChina.Get());
+            string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("Changliao", Configurations.CookieChina.Get()));
             (string? flvDomain, string? hlsDomain) = ExtractLiveDomain(html);
             ApplyLiveDomain(result, flvDomain, hlsDomain);
         }

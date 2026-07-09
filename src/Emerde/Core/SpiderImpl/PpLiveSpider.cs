@@ -1,4 +1,4 @@
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -55,7 +55,7 @@ public sealed class PpLiveSpider : ISpider
         }
 
         string body = JsonConvert.SerializeObject(new { inviteUuid = "", anchorUuid = anchorUid });
-        string? json = SpiderRequest.PostJson("https://api.pp.weimipopo.com/live/preview", body, Headers(), Configurations.CookieChina.Get());
+        string? json = SpiderRequest.PostJson("https://api.pp.weimipopo.com/live/preview", body, Headers(), PlatformCookieStore.GetCookie("PPLive", Configurations.CookieChina.Get()));
         ExtractPreview(json, result);
 
         return result;

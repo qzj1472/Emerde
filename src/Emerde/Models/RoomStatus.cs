@@ -12,6 +12,8 @@ public sealed class RoomStatus
 
     public string PlatformName { get; set; } = string.Empty;
 
+    public string LiveTitle { get; set; } = string.Empty;
+
     public string FlvUrl { get; set; } = string.Empty;
 
     public string HlsUrl { get; set; } = string.Empty;

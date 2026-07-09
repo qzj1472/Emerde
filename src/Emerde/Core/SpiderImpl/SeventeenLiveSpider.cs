@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using RestSharp;
 using System.Net;
 
@@ -185,7 +185,7 @@ public sealed class SeventeenLiveSpider : ISpider
             Timeout = TimeSpan.FromSeconds(5),
         };
 
-        string cookie = Configurations.CookieOversea.Get();
+        string cookie = PlatformCookieStore.GetCookie("17Live", Configurations.CookieOversea.Get());
 
         request.AddHeader("Origin", "https://17.live");
         request.AddHeader("Referer", "https://17.live/");

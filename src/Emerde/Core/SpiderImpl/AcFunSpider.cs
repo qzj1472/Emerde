@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using RestSharp;
 using System.Net;
 
@@ -222,7 +222,7 @@ public sealed class AcFunSpider : ISpider
             Timeout = TimeSpan.FromSeconds(5),
         };
 
-        string configuredCookie = Configurations.CookieChina.Get();
+        string configuredCookie = PlatformCookieStore.GetCookie("AcFun", Configurations.CookieChina.Get());
 
         request.AddHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0");
         request.AddHeader("Referer", "https://live.acfun.cn/");

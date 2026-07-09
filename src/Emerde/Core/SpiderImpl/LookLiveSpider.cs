@@ -1,4 +1,4 @@
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Globalization;
 using System.Numerics;
@@ -64,7 +64,7 @@ public sealed partial class LookLiveSpider : ISpider
                 ["encSecKey"] = requestData.EncSecKey,
             },
             Headers(),
-            Configurations.CookieChina.Get());
+            PlatformCookieStore.GetCookie("Look", Configurations.CookieChina.Get()));
         ExtractRoomInfo(json, result);
 
         return result;

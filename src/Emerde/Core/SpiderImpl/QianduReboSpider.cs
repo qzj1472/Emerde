@@ -1,4 +1,4 @@
-using RestSharp;
+﻿using RestSharp;
 using System.Net;
 using System.Text.RegularExpressions;
 
@@ -116,7 +116,7 @@ public sealed partial class QianduReboSpider : ISpider
             Timeout = TimeSpan.FromSeconds(5),
         };
 
-        string cookie = Configurations.CookieChina.Get();
+        string cookie = PlatformCookieStore.GetCookie("QianduRebo", Configurations.CookieChina.Get());
 
         request.AddHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7");
         request.AddHeader("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");

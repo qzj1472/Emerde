@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using RestSharp;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -183,7 +183,7 @@ public sealed partial class ShowRoomSpider : ISpider
             Timeout = TimeSpan.FromSeconds(5),
         };
 
-        string cookie = Configurations.CookieOversea.Get();
+        string cookie = PlatformCookieStore.GetCookie("ShowRoom", Configurations.CookieOversea.Get());
 
         request.AddHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0");
         request.AddHeader("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");

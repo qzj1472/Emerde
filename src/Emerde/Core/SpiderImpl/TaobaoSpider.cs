@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using RestSharp;
 using System.Net;
 using System.Security.Cryptography;
@@ -55,7 +55,7 @@ public sealed partial class TaobaoSpider : ISpider
 
         if (string.IsNullOrWhiteSpace(liveId))
         {
-            string? html = SpiderRequest.Get(roomUrl, Headers(), Configurations.CookieChina.Get());
+            string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("Taobao", Configurations.CookieChina.Get()));
             liveId = ExtractRedirectLiveId(html);
         }
 
@@ -64,7 +64,7 @@ public sealed partial class TaobaoSpider : ISpider
             return result;
         }
 
-        string cookie = Configurations.CookieChina.Get();
+        string cookie = PlatformCookieStore.GetCookie("Taobao", Configurations.CookieChina.Get());
         string? token = ExtractCookieValue(cookie, "_m_h5_tk")?.Split('_').FirstOrDefault();
 
         if (string.IsNullOrWhiteSpace(token))

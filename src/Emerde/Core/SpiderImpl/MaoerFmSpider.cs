@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 
 namespace Emerde.Core;
 
@@ -51,7 +51,7 @@ public sealed class MaoerFmSpider : ISpider
         string? json = SpiderRequest.Get(
             $"https://fm.missevan.com/api/v2/live/{Uri.EscapeDataString(roomId)}",
             Headers(roomUrl),
-            Configurations.CookieChina.Get());
+            PlatformCookieStore.GetCookie("MaoerFM", Configurations.CookieChina.Get()));
         ExtractRoomInfo(json, result);
 
         return result;

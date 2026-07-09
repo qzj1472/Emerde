@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using RestSharp;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -67,7 +67,7 @@ public sealed partial class JdSpider : ISpider
                     ["body"] = "{\"authorId\":\"" + authorId + "\",\"monitorSource\":\"1\",\"userId\":\"\"}",
                 },
                 Headers(),
-                Configurations.CookieChina.Get());
+                PlatformCookieStore.GetCookie("JD", Configurations.CookieChina.Get()));
             liveId = ExtractTalentInfo(talentJson, result);
         }
 
@@ -76,7 +76,7 @@ public sealed partial class JdSpider : ISpider
             return result;
         }
 
-        string? playJson = SpiderRequest.Get(BuildPlayApiUrl(liveId), Headers(), Configurations.CookieChina.Get());
+        string? playJson = SpiderRequest.Get(BuildPlayApiUrl(liveId), Headers(), PlatformCookieStore.GetCookie("JD", Configurations.CookieChina.Get()));
         ExtractPlayInfo(playJson, result);
 
         return result;
@@ -179,7 +179,7 @@ public sealed partial class JdSpider : ISpider
                 request.AddHeader(key, value);
             }
 
-            string cookie = Configurations.CookieChina.Get();
+            string cookie = PlatformCookieStore.GetCookie("JD", Configurations.CookieChina.Get());
 
             if (!string.IsNullOrWhiteSpace(cookie))
             {

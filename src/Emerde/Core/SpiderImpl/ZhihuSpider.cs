@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
 
@@ -59,7 +59,7 @@ public sealed partial class ZhihuSpider : ISpider
             string? profileJson = SpiderRequest.Get(
                 $"https://api.zhihu.com/people/{Uri.EscapeDataString(segments[1])}/profile?profile_new_version=",
                 Headers(),
-                Configurations.CookieChina.Get());
+                PlatformCookieStore.GetCookie("Zhihu", Configurations.CookieChina.Get()));
             livePageUrl = ExtractLivePageUrl(profileJson) ?? livePageUrl;
             result.RoomUrl = livePageUrl;
         }
@@ -76,7 +76,7 @@ public sealed partial class ZhihuSpider : ISpider
             return result;
         }
 
-        string? html = SpiderRequest.Get(livePageUrl, Headers(), Configurations.CookieChina.Get());
+        string? html = SpiderRequest.Get(livePageUrl, Headers(), PlatformCookieStore.GetCookie("Zhihu", Configurations.CookieChina.Get()));
         ExtractInitialData(html, webId, result);
 
         return result;

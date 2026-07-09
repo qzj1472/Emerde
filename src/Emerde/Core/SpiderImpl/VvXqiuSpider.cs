@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using System.Web;
 
 namespace Emerde.Core;
@@ -48,13 +48,13 @@ public sealed class VvXqiuSpider : ISpider
         string roomId = HttpUtility.ParseQueryString(new Uri(roomUrl).Query)["roomId"] ?? string.Empty;
         result.RoomId = roomId;
 
-        string? json = SpiderRequest.Get($"https://h5p.vvxqiu.com/activity-center/fanclub/activity/captain/banner?roomId={Uri.EscapeDataString(roomId)}&product=vvstar", Headers(), Configurations.CookieChina.Get());
+        string? json = SpiderRequest.Get($"https://h5p.vvxqiu.com/activity-center/fanclub/activity/captain/banner?roomId={Uri.EscapeDataString(roomId)}&product=vvstar", Headers(), PlatformCookieStore.GetCookie("VVXqiu", Configurations.CookieChina.Get()));
         ExtractBanner(json, result);
 
         string hlsUrl = $"https://liveplay-pro.wasaixiu.com/live/1400442770_{roomId}_{(roomId.Length > 2 ? roomId[2..] : roomId)}_single.m3u8";
         result.HlsUrl = hlsUrl;
 
-        string? response = SpiderRequest.Get(hlsUrl, Headers(), Configurations.CookieChina.Get());
+        string? response = SpiderRequest.Get(hlsUrl, Headers(), PlatformCookieStore.GetCookie("VVXqiu", Configurations.CookieChina.Get()));
 
         if (!string.IsNullOrWhiteSpace(response) && !response.Contains("Not Found", StringComparison.OrdinalIgnoreCase))
         {

@@ -187,6 +187,7 @@ public sealed class Recorder
 
             EndTime = DateTime.Now;
             RecordStatus = RecordStatus.NotRecording;
+            RecordingCleanupService.QueueRun();
         });
     }
 
@@ -239,18 +240,14 @@ public sealed class Recorder
 
     private static string BuildSaveFolder(string saveFolder, string nickName, DateTime timestamp)
     {
-        if (!Configurations.SaveFolderDistinguishedByAuthors.Get())
-        {
-            return saveFolder;
-        }
-
         string safeNickName = nickName.SanitizeFileName().ReplaceTrailingDotsWithUnderscores();
 
         return Math.Clamp(Configurations.SaveFolderPathLevel.Get(), 0, 3) switch
         {
             2 => Path.Combine(saveFolder, safeNickName, timestamp.ToString("yyyy-MM")),
             3 => Path.Combine(saveFolder, safeNickName, timestamp.ToString("yyyy-MM"), timestamp.ToString("dd")),
-            1 or _ => Path.Combine(saveFolder, safeNickName),
+            1 => Path.Combine(saveFolder, safeNickName),
+            0 or _ => saveFolder,
         };
     }
 
@@ -264,15 +261,9 @@ public sealed class Recorder
 
     private static string BuildBaseFileName(string nickName, DateTime timestamp)
     {
-        string defaultRule = "{主播名}_{录制时间}";
-        string rule = Math.Clamp(Configurations.SaveFileNameRule.Get(), 0, 4) switch
-        {
-            1 => "{录制时间}_{主播名}",
-            2 => "{主播名}",
-            3 => "{平台}_{主播名}_{录制时间}",
-            4 => string.IsNullOrWhiteSpace(Configurations.SaveFileNameCustomRule.Get()) ? defaultRule : Configurations.SaveFileNameCustomRule.Get(),
-            0 or _ => defaultRule,
-        };
+        const string defaultRule = "{主播名}_{录制时间}";
+        string configuredRule = Configurations.SaveFileNameCustomRule.Get();
+        string rule = string.IsNullOrWhiteSpace(configuredRule) ? defaultRule : configuredRule;
 
         return rule
             .Replace("{主播名}", nickName, StringComparison.Ordinal)

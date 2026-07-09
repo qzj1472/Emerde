@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using System.Text.RegularExpressions;
 
 namespace Emerde.Core;
@@ -48,7 +48,7 @@ public sealed partial class FaceitSpider : ISpider
         }
 
         string nickname = match.Groups[1].Value;
-        string? userJson = SpiderRequest.Get($"https://www.faceit.com/api/users/v1/nicknames/{Uri.EscapeDataString(nickname)}", Headers(), Configurations.CookieOversea.Get());
+        string? userJson = SpiderRequest.Get($"https://www.faceit.com/api/users/v1/nicknames/{Uri.EscapeDataString(nickname)}", Headers(), PlatformCookieStore.GetCookie("Faceit", Configurations.CookieOversea.Get()));
         string? userId = ExtractUserId(userJson);
 
         if (string.IsNullOrWhiteSpace(userId))
@@ -56,7 +56,7 @@ public sealed partial class FaceitSpider : ISpider
             return result;
         }
 
-        string? streamJson = SpiderRequest.Get($"https://www.faceit.com/api/stream/v1/streamings?userId={Uri.EscapeDataString(userId)}", Headers(), Configurations.CookieOversea.Get());
+        string? streamJson = SpiderRequest.Get($"https://www.faceit.com/api/stream/v1/streamings?userId={Uri.EscapeDataString(userId)}", Headers(), PlatformCookieStore.GetCookie("Faceit", Configurations.CookieOversea.Get()));
         ExtractStreaming(streamJson, result);
 
         if (result.Platform == "twitch" && !string.IsNullOrWhiteSpace(result.PlatformId))

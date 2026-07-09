@@ -140,13 +140,22 @@ internal static class GlobalMonitor
                             StreamStatus prevStreamStatus = roomStatus.StreamStatus;
 
                             // Update Room Status
-                            if (string.IsNullOrWhiteSpace(roomStatus.AvatarThumbUrl))
+                            if (string.IsNullOrWhiteSpace(roomStatus.AvatarThumbUrl) && !string.IsNullOrWhiteSpace(spiderResult.AvatarThumbUrl))
                             {
-                                roomStatus.AvatarThumbUrl = spiderResult.AvatarThumbUrl!;
+                                roomStatus.AvatarThumbUrl = spiderResult.AvatarThumbUrl;
                             }
                             roomStatus.PlatformName = spiderResult.PlatformName ?? Spider.GetPlatformName(room.RoomUrl);
-                            roomStatus.FlvUrl = spiderResult.FlvUrl!;
-                            roomStatus.HlsUrl = spiderResult.HlsUrl!;
+                            string? liveTitle = SpiderResultMetadata.GetTitle(spiderResult);
+                            if (spiderResult.IsLiveStreaming == true && !string.IsNullOrWhiteSpace(liveTitle))
+                            {
+                                roomStatus.LiveTitle = liveTitle;
+                            }
+                            else if (spiderResult.IsLiveStreaming == false)
+                            {
+                                roomStatus.LiveTitle = string.Empty;
+                            }
+                            roomStatus.FlvUrl = spiderResult.FlvUrl ?? string.Empty;
+                            roomStatus.HlsUrl = spiderResult.HlsUrl ?? string.Empty;
 
                             // If current status is `StreamStatus.Streaming`, don't update it in 30s.
                             if (roomStatus.StreamStatus == StreamStatus.Streaming
@@ -278,6 +287,7 @@ internal static class GlobalMonitor
             RoomStatus.TryAdd(room.RoomUrl, new RoomStatus()
             {
                 NickName = room.NickName,
+                AvatarThumbUrl = room.AvatarThumbUrl,
                 RoomUrl = room.RoomUrl,
                 PlatformName = Spider.GetPlatformName(room.RoomUrl),
                 FlvUrl = null!,

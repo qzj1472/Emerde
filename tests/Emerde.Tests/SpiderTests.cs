@@ -573,6 +573,128 @@ public sealed class SpiderTests
         Assert.Equal("https://example.test/live/index.m3u8?token=abc", result.HlsUrl);
     }
 
+    [Theory]
+    [InlineData("https://live.douyin.com/123456?from=test", "https://live.douyin.com/123456")]
+    [InlineData("https://www.douyin.com/root/live/123456?from=test", "https://live.douyin.com/123456")]
+    [InlineData("https://www.tiktok.com/@someone/live?from=test", "https://www.tiktok.com/@someone/live")]
+    public void StreamResolverNormalizeUrl_NormalizesKnownRoomUrls(string input, string expected)
+    {
+        string? result = StreamResolver.NormalizeUrl(input);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void StreamResolverExtractDouyinData_MapsRoomMetadataAndStreams()
+    {
+        string html = """
+            {\"status_str\":\"2\",\"nickname\":\"anchor\",\"avatar_thumb\":{\"url_list\":[\"https:\/\/example.test\/avatar.jpeg?x=1\u0026y=2\"]},\"room_title\":\"real live title\",\"hls_pull_url_map\":{\"FULL_HD1\":\"https:\/\/example.test\/live.m3u8?token=abc\u0026line=1\"},\"flv_pull_url\":{\"FULL_HD1\":\"https:\/\/example.test\/live.flv\"}}
+            """;
+
+        StreamResolverResult result = StreamResolver.ExtractDouyinData("https://live.douyin.com/123456", html);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("real live title", result.Title);
+        Assert.Equal("https://example.test/avatar.jpeg?x=1&y=2", result.AvatarThumbUrl);
+        Assert.Equal("https://example.test/live.m3u8?token=abc&line=1", result.HlsUrl);
+        Assert.Equal("https://example.test/live.flv", result.FlvUrl);
+    }
+
+    [Fact]
+    public void StreamResolverExtractDouyinData_PrefersRoomTitleOverPageLegalTitle()
+    {
+        string html = """
+            {"title":"\u7528\u6237\u670d\u52a1\u534f\u8bae","data":[{"status":2,"stream_url":{"hls_pull_url_map":{"FULL_HD1":"https:\/\/example.test\/live.m3u8"},"flv_pull_url":{"FULL_HD1":"https:\/\/example.test\/live.flv"}},"room":{"title":"\u771f\u5b9e\u76f4\u64ad\u6807\u9898"}}]}
+            """;
+
+        StreamResolverResult result = StreamResolver.ExtractDouyinData("https://live.douyin.com/123456", html);
+
+        Assert.Equal("\u771f\u5b9e\u76f4\u64ad\u6807\u9898", result.Title);
+    }
+
+    [Fact]
+    public void StreamResolverExtractDouyinData_DoesNotUsePageLegalTitle()
+    {
+        string html = """
+            {"title":"\u7528\u6237\u670d\u52a1\u534f\u8bae","status":2}
+            """;
+
+        StreamResolverResult result = StreamResolver.ExtractDouyinData("https://live.douyin.com/123456", html);
+
+        Assert.Null(result.Title);
+    }
+
+    [Fact]
+    public void StreamResolverExtractDouyinData_DoesNotMarkProfileOnlyDataAsNotStreaming()
+    {
+        string html = """
+            {"nickname":"anchor","avatar_thumb":{"url_list":["https:\/\/example.test\/avatar.jpeg"]}}
+            """;
+
+        StreamResolverResult result = StreamResolver.ExtractDouyinData("https://live.douyin.com/123456", html);
+
+        Assert.Null(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/avatar.jpeg", result.AvatarThumbUrl);
+    }
+
+    [Fact]
+    public void DouyinExtractData_DoesNotMarkCaptchaPageAsNotStreaming()
+    {
+        DouyinSpiderResult result = DouyinSpider.ExtractData("<html>captcha</html>");
+
+        Assert.Null(result.IsLiveStreaming);
+    }
+
+    [Fact]
+    public void StreamResolverExtractDouyinWebEnterData_MapsSignedRoomData()
+    {
+        string json = """
+            {"data":{"user":{"nickname":"anchor","avatar_thumb":{"url_list":["https:\/\/example.test\/avatar.jpeg"]}},"data":[{"status":2,"title":"real live title","stream_url":{"hls_pull_url_map":{"FULL_HD1":"https:\/\/example.test\/live.m3u8"},"flv_pull_url":{"FULL_HD1":"https:\/\/example.test\/live.flv"}}}]}}
+            """;
+
+        StreamResolverResult result = StreamResolver.ExtractDouyinWebEnterData("https://live.douyin.com/123456", json);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("real live title", result.Title);
+        Assert.Equal("https://example.test/avatar.jpeg", result.AvatarThumbUrl);
+        Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
+        Assert.Equal("https://example.test/live.flv", result.FlvUrl);
+        Assert.Equal("FULL_HD1", result.Quality);
+    }
+
+    [Fact]
+    public void StreamResolverExtractDouyinWebEnterData_DoesNotExposeOfflineTitle()
+    {
+        string json = """
+            {"data":{"user":{"nickname":"anchor"},"data":[{"status":4,"title":"old live title"}]}}
+            """;
+
+        StreamResolverResult result = StreamResolver.ExtractDouyinWebEnterData("https://live.douyin.com/123456", json);
+
+        Assert.False(result.IsLiveStreaming);
+        Assert.Null(result.Title);
+    }
+
+    [Fact]
+    public void StreamResolverExtractTiktokData_MapsRoomMetadataAndStreams()
+    {
+        string html = """
+            <script id="SIGI_STATE" type="application/json">{"LiveRoom":{"liveRoomUserInfo":{"user":{"uniqueId":"someone","nickname":"anchor","avatarThumb":"https://example.test/avatar.png","status":"2"},"liveRoom":{"title":"real live title","streamData":{"pull_data":{"stream_data":"{\"data\":{\"origin\":{\"main\":{\"flv\":\"https://example.test/live.flv\",\"hls\":\"https://example.test/live.m3u8\"}}}}"}}}}}}</script>
+            """;
+
+        StreamResolverResult result = StreamResolver.ExtractTiktokData("https://www.tiktok.com/@someone/live", html);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("real live title", result.Title);
+        Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
+        Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
+        Assert.Equal("https://example.test/live.flv", result.FlvUrl);
+    }
+
     [Fact]
     public void BilibiliExtractors_MapRoomMasterAndPlayData()
     {

@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using RestSharp;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -167,7 +167,7 @@ public sealed partial class NeteaseCcSpider : ISpider
             Timeout = TimeSpan.FromSeconds(5),
         };
 
-        string cookie = Configurations.CookieChina.Get();
+        string cookie = PlatformCookieStore.GetCookie("NeteaseCC", Configurations.CookieChina.Get());
 
         request.AddHeader("Accept", "application/json, text/plain, */*");
         request.AddHeader("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");

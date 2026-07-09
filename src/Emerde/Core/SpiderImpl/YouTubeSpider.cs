@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
 
@@ -59,7 +59,7 @@ public sealed partial class YouTubeSpider : ISpider
             return result;
         }
 
-        string? html = SpiderRequest.Get(roomUrl, Headers(), Configurations.CookieOversea.Get());
+        string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("YouTube", Configurations.CookieOversea.Get()));
         ExtractInitialPlayerResponse(html, result);
 
         return result;

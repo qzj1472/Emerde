@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using System.Text.RegularExpressions;
 
 namespace Emerde.Core;
@@ -41,12 +41,12 @@ public sealed partial class FlexTvSpider : ISpider
         }
 
         string channelId = ChannelRegex.Match(new Uri(roomUrl).AbsolutePath).Groups[1].Value;
-        string? html = SpiderRequest.Get($"https://www.ttinglive.com/channels/{Uri.EscapeDataString(channelId)}/live", Headers(), Configurations.CookieOversea.Get());
+        string? html = SpiderRequest.Get($"https://www.ttinglive.com/channels/{Uri.EscapeDataString(channelId)}/live", Headers(), PlatformCookieStore.GetCookie("FlexTV", Configurations.CookieOversea.Get()));
         ExtractNextData(html, result);
 
         if (result.IsLiveStreaming == true)
         {
-            string? streamJson = SpiderRequest.Get($"https://www.ttinglive.com/api/channels/{Uri.EscapeDataString(channelId)}/stream?option=all", Headers(), Configurations.CookieOversea.Get());
+            string? streamJson = SpiderRequest.Get($"https://www.ttinglive.com/api/channels/{Uri.EscapeDataString(channelId)}/stream?option=all", Headers(), PlatformCookieStore.GetCookie("FlexTV", Configurations.CookieOversea.Get()));
             ExtractStreamInfo(streamJson, result);
         }
 

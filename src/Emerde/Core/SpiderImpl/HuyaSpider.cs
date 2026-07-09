@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using RestSharp;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -224,7 +224,7 @@ public sealed partial class HuyaSpider : ISpider
             Timeout = TimeSpan.FromSeconds(5),
         };
 
-        string cookie = Configurations.CookieChina.Get();
+        string cookie = PlatformCookieStore.GetCookie("Huya", Configurations.CookieChina.Get());
 
         request.AddHeader("User-Agent", "ios/7.830 (ios 17.0; ; iPhone 15 (A2846/A3089/A3090/A3092))");
         request.AddHeader("Accept-Language", "zh-CN,zh;q=0.9");

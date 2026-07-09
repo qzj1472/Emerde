@@ -10,11 +10,11 @@ public static class Configurations
     public static ConfigurationDefinition<string> Theme { get; } = new(nameof(Theme), string.Empty);
     public static ConfigurationDefinition<int> DisplayScale { get; } = new(nameof(DisplayScale), 100);
     public static ConfigurationDefinition<int> UpdateChannel { get; } = new(nameof(UpdateChannel), 0);
-    public static ConfigurationDefinition<bool> IsSessionLogEnabled { get; } = new(nameof(IsSessionLogEnabled), false);
+    public static ConfigurationDefinition<bool> IsSessionLogEnabled { get; } = new(nameof(IsSessionLogEnabled), true);
     public static ConfigurationDefinition<bool> IsOffRemindCloseToTray { get; } = new(nameof(IsOffRemindCloseToTray), false);
     public static ConfigurationDefinition<Room[]> Rooms { get; } = new(nameof(Rooms), []);
     public static ConfigurationDefinition<bool> IsUseStatusTray { get; } = new(nameof(IsUseStatusTray), true);
-    public static ConfigurationDefinition<int> RoutineInterval { get; } = new(nameof(RoutineInterval), 30000);
+    public static ConfigurationDefinition<int> RoutineInterval { get; } = new(nameof(RoutineInterval), 3000);
     public static ConfigurationDefinition<int> RoutineIntervalUnit { get; } = new(nameof(RoutineIntervalUnit), 1);
     public static ConfigurationDefinition<bool> IsMonitorRunning { get; } = new(nameof(IsMonitorRunning), true);
     public static ConfigurationDefinition<bool> IsToMonitor { get; } = new(nameof(IsToMonitor), true);
@@ -39,12 +39,14 @@ public static class Configurations
     public static ConfigurationDefinition<bool> IsRemoveTs { get; } = new(nameof(IsRemoveTs), false);
     public static ConfigurationDefinition<bool> IsToSegment { get; } = new(nameof(IsToSegment), false);
     public static ConfigurationDefinition<int> SegmentTime { get; } = new(nameof(SegmentTime), 1800);
-    public static ConfigurationDefinition<int> SegmentTimeUnit { get; } = new(nameof(SegmentTimeUnit), 0);
+    public static ConfigurationDefinition<int> SegmentTimeUnit { get; } = new(nameof(SegmentTimeUnit), 1);
     public static ConfigurationDefinition<string> SaveFolder { get; } = new(nameof(SaveFolder), string.Empty);
-    public static ConfigurationDefinition<int> SaveFolderPathLevel { get; } = new(nameof(SaveFolderPathLevel), 1);
+    public static ConfigurationDefinition<int> SaveFolderPathLevel { get; } = new(nameof(SaveFolderPathLevel), 3);
     public static ConfigurationDefinition<bool> SaveFolderDistinguishedByAuthors { get; } = new(nameof(SaveFolderDistinguishedByAuthors), true);
     public static ConfigurationDefinition<int> SaveFileNameRule { get; } = new(nameof(SaveFileNameRule), 0);
-    public static ConfigurationDefinition<string> SaveFileNameCustomRule { get; } = new(nameof(SaveFileNameCustomRule), "{主播名}_{录制时间}");
+    public static ConfigurationDefinition<string> SaveFileNameCustomRule { get; } = new(nameof(SaveFileNameCustomRule), string.Empty);
+    public static ConfigurationDefinition<int> DataRetentionValue { get; } = new(nameof(DataRetentionValue), 1);
+    public static ConfigurationDefinition<int> DataRetentionUnit { get; } = new(nameof(DataRetentionUnit), 1);
     public static ConfigurationDefinition<string> Player { get; } = new(nameof(Player), "ffplay");
     public static ConfigurationDefinition<bool> IsPlayerRect { get; } = new(nameof(IsPlayerRect), false);
     public static ConfigurationDefinition<bool> IsUseKeepAwake { get; } = new(nameof(IsUseKeepAwake), false);
@@ -52,6 +54,7 @@ public static class Configurations
     public static ConfigurationDefinition<string> AutoShutdownTime { get; } = new(nameof(AutoShutdownTime), "00:00");
     public static ConfigurationDefinition<bool> IsUseProxy { get; } = new(nameof(IsUseProxy), false);
     public static ConfigurationDefinition<string> ProxyUrl { get; } = new(nameof(ProxyUrl), string.Empty);
+    public static ConfigurationDefinition<string> PlatformCookies { get; } = new(nameof(PlatformCookies), string.Empty);
     public static ConfigurationDefinition<string> CookieChina { get; } = new(nameof(CookieChina), string.Empty);
     public static ConfigurationDefinition<string> CookieOversea { get; } = new(nameof(CookieOversea), string.Empty);
     public static ConfigurationDefinition<string> UserAgent { get; } = new(nameof(UserAgent), string.Empty);
@@ -62,6 +65,7 @@ public sealed class Room
 {
     public string NickName { get; set; } = null!;
     public string RoomUrl { get; set; } = null!;
+    public string AvatarThumbUrl { get; set; } = string.Empty;
     public bool IsToNotify { get; set; } = true;
     public bool IsToRecord { get; set; } = true;
     public bool IsToMonitor { get; set; } = true;

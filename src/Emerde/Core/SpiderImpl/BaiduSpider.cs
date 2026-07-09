@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using RestSharp;
 using System.Net;
 using System.Web;
@@ -222,7 +222,7 @@ public sealed class BaiduSpider : ISpider
             },
         }.ToString(Newtonsoft.Json.Formatting.None);
 
-        string cookie = Configurations.CookieChina.Get();
+        string cookie = PlatformCookieStore.GetCookie("Baidu", Configurations.CookieChina.Get());
 
         request.AddHeader("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");
         request.AddHeader("Connection", "keep-alive");

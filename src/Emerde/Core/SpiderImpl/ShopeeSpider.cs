@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using RestSharp;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -59,13 +59,13 @@ public sealed class ShopeeSpider : ISpider
 
         if (!string.IsNullOrWhiteSpace(uid))
         {
-            string? ongoingJson = SpiderRequest.Get($"{apiHost}/api/v1/shop_page/live/ongoing?uid={Uri.EscapeDataString(uid)}", Headers(), Configurations.CookieOversea.Get());
+            string? ongoingJson = SpiderRequest.Get($"{apiHost}/api/v1/shop_page/live/ongoing?uid={Uri.EscapeDataString(uid)}", Headers(), PlatformCookieStore.GetCookie("Shopee", Configurations.CookieOversea.Get()));
             sessionId = ExtractOngoingSessionId(ongoingJson);
             isLiving = !string.IsNullOrWhiteSpace(sessionId);
 
             if (!isLiving)
             {
-                string? replayJson = SpiderRequest.Get($"{apiHost}/api/v1/shop_page/live/replay_list?offset=0&limit=1&uid={Uri.EscapeDataString(uid)}", Headers(), Configurations.CookieOversea.Get());
+                string? replayJson = SpiderRequest.Get($"{apiHost}/api/v1/shop_page/live/replay_list?offset=0&limit=1&uid={Uri.EscapeDataString(uid)}", Headers(), PlatformCookieStore.GetCookie("Shopee", Configurations.CookieOversea.Get()));
                 ExtractReplayInfo(replayJson, result);
                 return result;
             }
@@ -76,7 +76,7 @@ public sealed class ShopeeSpider : ISpider
             return result;
         }
 
-        string? sessionJson = SpiderRequest.Get($"{apiHost}/api/v1/session/{Uri.EscapeDataString(sessionId)}", Headers(), Configurations.CookieOversea.Get());
+        string? sessionJson = SpiderRequest.Get($"{apiHost}/api/v1/session/{Uri.EscapeDataString(sessionId)}", Headers(), PlatformCookieStore.GetCookie("Shopee", Configurations.CookieOversea.Get()));
         ExtractSession(sessionJson, isLiving, result);
 
         return result;

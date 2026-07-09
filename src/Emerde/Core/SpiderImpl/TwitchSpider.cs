@@ -1,4 +1,4 @@
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace Emerde.Core;
@@ -50,13 +50,13 @@ public sealed class TwitchSpider : ISpider
             "https://gql.twitch.tv/gql",
             BuildAccessTokenBody(channel),
             Headers(),
-            Configurations.CookieOversea.Get());
+            PlatformCookieStore.GetCookie("Twitch", Configurations.CookieOversea.Get()));
         TwitchAccessToken? token = ExtractPlaybackAccessToken(tokenJson);
         string? roomJson = SpiderRequest.PostJson(
             "https://gql.twitch.tv/gql",
             BuildRoomInfoBody(channel),
             Headers(),
-            Configurations.CookieOversea.Get());
+            PlatformCookieStore.GetCookie("Twitch", Configurations.CookieOversea.Get()));
         ExtractRoomInfo(roomJson, result);
 
         if (result.IsLiveStreaming == true && token != null)

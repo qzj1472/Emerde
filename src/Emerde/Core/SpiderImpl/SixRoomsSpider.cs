@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using System.Text.RegularExpressions;
 
 namespace Emerde.Core;
@@ -45,7 +45,7 @@ public sealed partial class SixRoomsSpider : ISpider
             return result;
         }
 
-        string? html = SpiderRequest.Get(roomUrl, Headers(), Configurations.CookieChina.Get());
+        string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("6Rooms", Configurations.CookieChina.Get()));
         string? roomId = ExtractRoomId(html);
         result.RoomId = roomId;
 
@@ -67,7 +67,7 @@ public sealed partial class SixRoomsSpider : ISpider
                 ["ruid"] = roomId,
             },
             Headers(),
-            Configurations.CookieChina.Get());
+            PlatformCookieStore.GetCookie("6Rooms", Configurations.CookieChina.Get()));
         ExtractMobileRoom(json, result);
 
         return result;

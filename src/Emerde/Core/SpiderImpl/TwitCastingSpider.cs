@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
 
@@ -46,13 +46,13 @@ public sealed partial class TwitCastingSpider : ISpider
             return result;
         }
 
-        string? html = SpiderRequest.Get(roomUrl, Headers(), Configurations.CookieOversea.Get());
+        string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("TwitCasting", Configurations.CookieOversea.Get()));
         ExtractPageData(html, result);
 
         if (result.IsLiveStreaming == true && !string.IsNullOrWhiteSpace(result.AnchorId))
         {
             string api = $"https://twitcasting.tv/streamserver.php?target={Uri.EscapeDataString(result.AnchorId)}&mode=client&player=pc_web";
-            string? streamJson = SpiderRequest.Get(api, Headers(), Configurations.CookieOversea.Get());
+            string? streamJson = SpiderRequest.Get(api, Headers(), PlatformCookieStore.GetCookie("TwitCasting", Configurations.CookieOversea.Get()));
             ExtractStreamServer(streamJson, result);
         }
 

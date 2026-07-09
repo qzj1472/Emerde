@@ -5,6 +5,8 @@ namespace Emerde.Core;
 
 internal static class ConfigFileManager
 {
+    private const int MaxResetBackupCount = 5;
+
     private static readonly HashSet<string> KnownKeys = new(StringComparer.OrdinalIgnoreCase)
     {
         nameof(Configurations.Language),
@@ -46,6 +48,8 @@ internal static class ConfigFileManager
         nameof(Configurations.SaveFolderDistinguishedByAuthors),
         nameof(Configurations.SaveFileNameRule),
         nameof(Configurations.SaveFileNameCustomRule),
+        nameof(Configurations.DataRetentionValue),
+        nameof(Configurations.DataRetentionUnit),
         nameof(Configurations.Player),
         nameof(Configurations.IsPlayerRect),
         nameof(Configurations.IsUseKeepAwake),
@@ -53,6 +57,7 @@ internal static class ConfigFileManager
         nameof(Configurations.AutoShutdownTime),
         nameof(Configurations.IsUseProxy),
         nameof(Configurations.ProxyUrl),
+        nameof(Configurations.PlatformCookies),
         nameof(Configurations.CookieChina),
         nameof(Configurations.CookieOversea),
         nameof(Configurations.UserAgent),
@@ -91,9 +96,10 @@ internal static class ConfigFileManager
 
         foreach (string configPath in AppPaths.GetConfigFiles())
         {
-            string backupPath = GetBackupPath(configPath);
+            string backupPath = GetResetBackupPath(configPath);
             File.Copy(configPath, backupPath, overwrite: false);
             File.Delete(configPath);
+            PruneResetBackups(configPath);
             backupPaths.Add(backupPath);
         }
 
@@ -137,6 +143,40 @@ internal static class ConfigFileManager
             {
                 return backupPath;
             }
+        }
+    }
+
+    private static string GetResetBackupPath(string targetPath)
+    {
+        string timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+        string directory = Path.GetDirectoryName(targetPath) ?? AppPaths.ConfigDirectory;
+        string name = Path.GetFileNameWithoutExtension(targetPath);
+        string extension = Path.GetExtension(targetPath);
+        Directory.CreateDirectory(directory);
+
+        for (int index = 1; ; index++)
+        {
+            string suffix = index == 1 ? string.Empty : $"-{index}";
+            string backupPath = Path.Combine(directory, $"{name}.reset-bak-{timestamp}{suffix}{extension}");
+            if (!File.Exists(backupPath))
+            {
+                return backupPath;
+            }
+        }
+    }
+
+    private static void PruneResetBackups(string targetPath)
+    {
+        string directory = Path.GetDirectoryName(targetPath) ?? AppPaths.ConfigDirectory;
+        string name = Path.GetFileNameWithoutExtension(targetPath);
+        string extension = Path.GetExtension(targetPath);
+
+        foreach (FileInfo backup in new DirectoryInfo(directory)
+            .GetFiles($"{name}.reset-bak-*{extension}")
+            .OrderByDescending(file => file.LastWriteTimeUtc)
+            .Skip(MaxResetBackupCount))
+        {
+            backup.Delete();
         }
     }
 }

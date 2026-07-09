@@ -74,6 +74,12 @@ internal static class Spider
 
     public static ISpiderResult? GetResult(string url)
     {
+        ISpiderResult? resolverResult = StreamResolver.GetResult(url);
+        if (StreamResolver.HasUsableData(resolverResult))
+        {
+            return resolverResult;
+        }
+
         foreach (ISpider spider in Spiders.Value)
         {
             if (!string.IsNullOrWhiteSpace(spider.ParseUrl(url)))
@@ -87,6 +93,12 @@ internal static class Spider
 
     public static string GetPlatformName(string url)
     {
+        string resolverPlatformName = StreamResolver.GetPlatformName(url);
+        if (!string.IsNullOrWhiteSpace(resolverPlatformName))
+        {
+            return resolverPlatformName;
+        }
+
         foreach (ISpider spider in Spiders.Value)
         {
             if (!string.IsNullOrWhiteSpace(spider.ParseUrl(url)))

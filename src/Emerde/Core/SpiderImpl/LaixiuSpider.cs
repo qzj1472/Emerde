@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -59,7 +59,7 @@ public sealed class LaixiuSpider : ISpider
         string? json = SpiderRequest.Get(
             $"https://api.imkktv.com/liveroom/getShareLiveVideo?roomId={Uri.EscapeDataString(roomId)}",
             Headers(sign),
-            Configurations.CookieChina.Get());
+            PlatformCookieStore.GetCookie("Laixiu", Configurations.CookieChina.Get()));
         ExtractShareLiveVideo(json, result);
 
         return result;

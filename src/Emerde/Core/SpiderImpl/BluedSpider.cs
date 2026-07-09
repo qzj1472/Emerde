@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
 
@@ -46,7 +46,7 @@ public sealed partial class BluedSpider : ISpider
             return result;
         }
 
-        string? html = SpiderRequest.Get(roomUrl, Headers(), Configurations.CookieChina.Get());
+        string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("Blued", Configurations.CookieChina.Get()));
         ExtractPageData(html, result);
 
         return result;

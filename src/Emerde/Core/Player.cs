@@ -1,6 +1,7 @@
 using MediaInfoLib;
 using System.Diagnostics;
 using Emerde.Extensions;
+using Emerde.Views;
 using Vanara.PInvoke;
 using Windows.System;
 using Wpf.Ui.Violeta.Resources;
@@ -21,46 +22,35 @@ public sealed class Player
             return;
         }
 
-        bool isFFplay = false;
-        string player = Configurations.Player.Get() ?? string.Empty;
+        bool isFFplay = true;
         bool isPlayerRect = Configurations.IsPlayerRect.Get();
         string? playerPath = null;
         string playerArgs = string.Empty;
 
-        if (player.Equals("system", StringComparison.OrdinalIgnoreCase))
-        {
-            // TODO: Implement for other platforms
-            await Launcher.LaunchUriAsync(new Uri(mediaPath));
-            return;
-        }
-        else
-        {
-            isFFplay = true;
+        playerPath = SearchFileHelper.SearchFiles(".", "ffplay[/.exe]").FirstOrDefault();
 
-            playerPath = SearchFileHelper.SearchFiles(".", "ffplay[/.exe]").FirstOrDefault();
+        if (isSeekable)
+        {
+            using MediaInfo lib = new();
+            lib.Open(mediaPath);
 
-            if (isSeekable)
+            if (double.TryParse(lib.Get(StreamKind.Video, 0, "Duration"), out double duration))
             {
-                using MediaInfo lib = new();
-                lib.Open(mediaPath);
-
-                if (double.TryParse(lib.Get(StreamKind.Video, 0, "Duration"), out double duration))
-                {
-                    playerArgs = $"-ss {duration / 1000 - 5} -i \"{mediaPath}\"";
-                }
-                else
-                {
-                    playerArgs = $"-i \"{mediaPath}\"";
-                }
+                playerArgs = $"-ss {duration / 1000 - 5} -i \"{mediaPath}\"";
             }
             else
             {
                 playerArgs = $"-i \"{mediaPath}\"";
             }
         }
+        else
+        {
+            playerArgs = $"-i \"{mediaPath}\"";
+        }
 
         if (string.IsNullOrEmpty(playerPath))
         {
+            using DialogBlurScope blurScope = new();
             _ = MessageBox.Warning("PlayerErrorOfFFplayNotFound".Tr());
             return;
         }

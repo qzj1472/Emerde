@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
 
@@ -59,7 +59,7 @@ public sealed class PandaLiveSpider : ISpider
                 ["info"] = "media fanGrade",
             },
             Headers(),
-            Configurations.CookieOversea.Get());
+            PlatformCookieStore.GetCookie("PandaTV", Configurations.CookieOversea.Get()));
         ExtractBjInfo(infoJson, result);
 
         if (result.IsLiveStreaming == true)
@@ -74,7 +74,7 @@ public sealed class PandaLiveSpider : ISpider
                     ["shareLinkType"] = string.Empty,
                 },
                 Headers(),
-                Configurations.CookieOversea.Get());
+                PlatformCookieStore.GetCookie("PandaTV", Configurations.CookieOversea.Get()));
             ExtractPlayInfo(playJson, result);
         }
 

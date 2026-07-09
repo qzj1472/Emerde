@@ -1,4 +1,4 @@
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -57,7 +57,7 @@ public sealed partial class PopkonTvSpider : ISpider
             return result;
         }
 
-        string? html = SpiderRequest.Get(roomUrl, Headers(), Configurations.CookieOversea.Get());
+        string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("PopkonTV", Configurations.CookieOversea.Get()));
         ExtractNextData(html, result);
 
         if (result.IsLiveStreaming == true &&
@@ -69,7 +69,7 @@ public sealed partial class PopkonTvSpider : ISpider
                 "https://www.popkontv.com/api/proxy/broadcast/v1/castwatchonoffguest",
                 BuildWatchBody(result, partnerCode, GetQueryValue(uri.Query, "pwd")),
                 Headers(),
-                Configurations.CookieOversea.Get());
+                PlatformCookieStore.GetCookie("PopkonTV", Configurations.CookieOversea.Get()));
             ExtractWatchInfo(watchJson, result);
         }
 
