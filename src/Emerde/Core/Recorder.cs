@@ -38,6 +38,7 @@ public sealed class Recorder
 
         return Task.Run(async () =>
         {
+            RoomRecordingOptions recordingOptions = startInfo.Options;
             try
             {
                 string? recorderPath = SearchFileHelper.SearchFiles(".", "ffmpeg[\\.exe]").FirstOrDefault();
@@ -49,9 +50,9 @@ public sealed class Recorder
                     return;
                 }
 
-                string saveFolder = SaveFolderHelper.GetSaveFolder(Configurations.SaveFolder.Get());
+                string saveFolder = SaveFolderHelper.GetSaveFolder(recordingOptions.SaveFolder);
 
-                saveFolder = BuildSaveFolder(saveFolder, startInfo.NickName, DateTime.Now);
+                saveFolder = BuildSaveFolder(saveFolder, startInfo.NickName, DateTime.Now, recordingOptions.SaveFolderPathLevel);
                 if (!Directory.Exists(saveFolder))
                 {
                     Directory.CreateDirectory(saveFolder);
@@ -60,9 +61,9 @@ public sealed class Recorder
                 string userAgent = Configurations.UserAgent.Get();
                 string httpProxy = Configurations.ProxyUrl.Get();
                 bool isUseProxy = Configurations.IsUseProxy.Get() && !string.IsNullOrWhiteSpace(httpProxy);
-                int segmentTime = Configurations.SegmentTime.Get();
-                int segmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(Configurations.SegmentTimeUnit.Get());
-                bool isToSegment = Configurations.IsToSegment.Get() && segmentTime > 0;
+                int segmentTime = Math.Max(1, recordingOptions.SegmentTime);
+                int segmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(recordingOptions.SegmentTimeUnit);
+                bool isToSegment = recordingOptions.IsToSegment && segmentTime > 0;
                 bool isToSegmentBySize = isToSegment && SegmentTimeUnitHelper.IsSizeUnit(segmentTimeUnit);
 
                 IsToSegment = isToSegment;
@@ -70,12 +71,12 @@ public sealed class Recorder
                 if (!string.IsNullOrWhiteSpace(startInfo.HlsUrl))
                 {
                     Url = startInfo.HlsUrl;
-                    FileName = BuildOutputFileName(saveFolder, startInfo.NickName, DateTime.Now, isToSegment, isHls: true);
+                    FileName = BuildOutputFileName(saveFolder, startInfo, DateTime.Now, isToSegment, isHls: true);
                 }
                 else
                 {
                     Url = startInfo.FlvUrl;
-                    FileName = BuildOutputFileName(saveFolder, startInfo.NickName, DateTime.Now, isToSegment, isHls: false);
+                    FileName = BuildOutputFileName(saveFolder, startInfo, DateTime.Now, isToSegment, isHls: false);
                 }
 
                 if (string.IsNullOrWhiteSpace(userAgent))
@@ -142,7 +143,7 @@ public sealed class Recorder
                 .AddIf(isToSegment,
                     "-reset_timestamps", "1"
                 )
-                .AddIf(true, FileName) // _%03d
+                .AddIf(true, FileName)
                 .ToArguments();
                 TokenSource = tokenSource ?? new CancellationTokenSource();
 
@@ -170,13 +171,13 @@ public sealed class Recorder
                 // Converter to target format if recorded.
                 if (File.Exists(FileName))
                 {
-                    string formatArrow = Configurations.RecordFormat.Get();
+                    string formatArrow = recordingOptions.RecordFormat;
 
                     if (!string.IsNullOrEmpty(formatArrow) && formatArrow.Contains("->"))
                     {
                         formatArrow = "." + formatArrow.Split('>')[1].Trim().ToLower();
 
-                        _ = ConvertRecordedFileAsync(FileName, formatArrow);
+                        _ = ConvertRecordedFileAsync(FileName, formatArrow, recordingOptions.IsRemoveTs);
                     }
                 }
             }
@@ -220,13 +221,13 @@ public sealed class Recorder
         return Task.CompletedTask;
     }
 
-    private async Task ConvertRecordedFileAsync(string fileName, string targetFormat)
+    private async Task ConvertRecordedFileAsync(string fileName, string targetFormat, bool isRemoveTs)
     {
         try
         {
             bool isConverted = await new Converter().ExecuteAsync(fileName, targetFormat);
 
-            if (isConverted && Configurations.IsRemoveTs.Get())
+            if (isConverted && isRemoveTs)
             {
                 File.Delete(fileName);
                 FileName = Path.ChangeExtension(fileName, targetFormat);
@@ -238,11 +239,11 @@ public sealed class Recorder
         }
     }
 
-    private static string BuildSaveFolder(string saveFolder, string nickName, DateTime timestamp)
+    private static string BuildSaveFolder(string saveFolder, string nickName, DateTime timestamp, int saveFolderPathLevel)
     {
         string safeNickName = nickName.SanitizeFileName().ReplaceTrailingDotsWithUnderscores();
 
-        return Math.Clamp(Configurations.SaveFolderPathLevel.Get(), 0, 3) switch
+        return Math.Clamp(saveFolderPathLevel, 0, 3) switch
         {
             2 => Path.Combine(saveFolder, safeNickName, timestamp.ToString("yyyy-MM")),
             3 => Path.Combine(saveFolder, safeNickName, timestamp.ToString("yyyy-MM"), timestamp.ToString("dd")),
@@ -251,12 +252,32 @@ public sealed class Recorder
         };
     }
 
-    internal static string BuildOutputFileName(string saveFolder, string nickName, DateTime timestamp, bool isToSegment, bool isHls)
+    internal static string BuildOutputFileName(string saveFolder, RecorderStartInfo startInfo, DateTime timestamp, bool isToSegment, bool isHls)
     {
         string suffix = isToSegment ? "_%03d.ts" : isHls ? ".ts" : ".flv";
-        string fileName = BuildBaseFileName(nickName, timestamp).SanitizeFileName();
+        string fileName = BuildBaseFileName(startInfo, timestamp).SanitizeFileName();
 
         return Path.Combine(saveFolder, $"{fileName}{suffix}");
+    }
+
+    internal static string BuildOutputFileName(string saveFolder, string nickName, DateTime timestamp, bool isToSegment, bool isHls)
+    {
+        return BuildOutputFileName(saveFolder, new RecorderStartInfo { NickName = nickName }, timestamp, isToSegment, isHls);
+    }
+
+    private static string BuildBaseFileName(RecorderStartInfo startInfo, DateTime timestamp)
+    {
+        const string defaultRule = "{主播名}_{录制时间}";
+        string configuredRule = startInfo.Options.SaveFileNameCustomRule;
+        string rule = string.IsNullOrWhiteSpace(configuredRule) ? defaultRule : configuredRule;
+
+        return rule
+            .Replace("{主播名}", startInfo.NickName, StringComparison.Ordinal)
+            .Replace("{录制时间}", timestamp.ToString("yyyy-MM-dd_HH-mm-ss"), StringComparison.Ordinal)
+            .Replace("{日期}", timestamp.ToString("yyyy-MM-dd"), StringComparison.Ordinal)
+            .Replace("{时间}", timestamp.ToString("HH-mm-ss"), StringComparison.Ordinal)
+            .Replace("{平台}", string.IsNullOrWhiteSpace(startInfo.PlatformName) ? "Emerde" : startInfo.PlatformName, StringComparison.Ordinal)
+            .Replace("{分辨率}", startInfo.Resolution, StringComparison.Ordinal);
     }
 
     private static string BuildBaseFileName(string nickName, DateTime timestamp)
@@ -289,9 +310,17 @@ public record RecorderStartInfo
 {
     public string NickName { get; set; } = string.Empty;
 
+    public string RoomUrl { get; set; } = string.Empty;
+
+    public string PlatformName { get; set; } = string.Empty;
+
+    public string Resolution { get; set; } = string.Empty;
+
     public string FlvUrl { get; set; } = string.Empty;
 
     public string HlsUrl { get; set; } = string.Empty;
+
+    public RoomRecordingOptions Options { get; set; } = RoomRecordingSettings.GetGlobal();
 }
 
 file static class FileNameSanitizer

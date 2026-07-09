@@ -127,7 +127,7 @@ public partial class RoomStatusReactive : ReactiveObject
         _ => "RecordStatusOfUnknown".Tr(),
     };
 
-    public string PreviewUrl => !string.IsNullOrWhiteSpace(HlsUrl) ? HlsUrl : FlvUrl;
+    public string PreviewUrl => !string.IsNullOrWhiteSpace(FlvUrl) ? FlvUrl : HlsUrl;
 
     public bool CanPreview => StreamStatus == StreamStatus.Streaming && !string.IsNullOrWhiteSpace(PreviewUrl);
 
@@ -173,14 +173,14 @@ public partial class RoomStatusReactive : ReactiveObject
     {
         get
         {
-            if (!string.IsNullOrWhiteSpace(HlsUrl))
-            {
-                return "HLS";
-            }
-
             if (!string.IsNullOrWhiteSpace(FlvUrl))
             {
                 return "FLV";
+            }
+
+            if (!string.IsNullOrWhiteSpace(HlsUrl))
+            {
+                return "HLS";
             }
 
             return "-";

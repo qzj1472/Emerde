@@ -29,6 +29,8 @@ internal static class GlobalMonitor
 
     private static Task? MonitorTask = null;
 
+    private static readonly ConcurrentDictionary<string, DateTime> LastRoomCheckTimes = new(StringComparer.OrdinalIgnoreCase);
+
     private sealed class GlobalMonitorRecipient : ObservableRecipient
     {
         public static GlobalMonitorRecipient Instance { get; } = new();
@@ -114,7 +116,9 @@ internal static class GlobalMonitor
                 Room[] rooms = Configurations.Rooms.Get();
 
                 // Check Global Settings
-                bool isGlobalToMonitor = Configurations.IsToMonitor.Get() && IsRoutineScheduleActive(DateTime.Now);
+                DateTime now = DateTime.Now;
+                RoomRecordingOptions globalSettings = RoomRecordingSettings.GetGlobal();
+                bool isGlobalToMonitor = Configurations.IsToMonitor.Get() && IsRoutineScheduleActive(now, globalSettings);
                 bool isGlobalToNotify = Configurations.IsToNotify.Get();
                 bool isGlobalToRecord = Configurations.IsToRecord.Get();
 
@@ -122,12 +126,20 @@ internal static class GlobalMonitor
                 {
                     if (TryGetRoomStatus(room) is RoomStatus roomStatus)
                     {
+                        RoomRecordingOptions settings = RoomRecordingSettings.Get(room);
                         bool shouldNotify = isGlobalToNotify && room.IsToNotify;
                         bool shouldRecord = room.IsFollowGlobalSettings ? isGlobalToRecord : room.IsToRecord;
-                        bool shouldMonitor = room.IsFollowGlobalSettings ? isGlobalToMonitor : room.IsToMonitor;
+                        bool shouldMonitor = room.IsFollowGlobalSettings
+                            ? isGlobalToMonitor
+                            : room.IsToMonitor && IsRoutineScheduleActive(now, settings);
 
                         if (shouldMonitor)
                         {
+                            if (!ShouldCheckRoom(room.RoomUrl, settings.RoutineInterval, now))
+                            {
+                                continue;
+                            }
+
                             // Spider Room Status
                             ISpiderResult? spiderResult = Spider.GetResult(room.RoomUrl);
 
@@ -146,6 +158,9 @@ internal static class GlobalMonitor
                             }
                             roomStatus.PlatformName = spiderResult.PlatformName ?? Spider.GetPlatformName(room.RoomUrl);
                             string? liveTitle = SpiderResultMetadata.GetTitle(spiderResult);
+                            string? quality = SpiderResultMetadata.GetQuality(spiderResult);
+                            string? resolution = SpiderResultMetadata.GetResolution(spiderResult);
+                            string? bitrate = SpiderResultMetadata.GetBitrate(spiderResult);
                             if (spiderResult.IsLiveStreaming == true && !string.IsNullOrWhiteSpace(liveTitle))
                             {
                                 roomStatus.LiveTitle = liveTitle;
@@ -153,6 +168,18 @@ internal static class GlobalMonitor
                             else if (spiderResult.IsLiveStreaming == false)
                             {
                                 roomStatus.LiveTitle = string.Empty;
+                            }
+                            if (!string.IsNullOrWhiteSpace(quality))
+                            {
+                                roomStatus.Quality = quality;
+                            }
+                            if (!string.IsNullOrWhiteSpace(resolution))
+                            {
+                                roomStatus.Resolution = resolution;
+                            }
+                            if (!string.IsNullOrWhiteSpace(bitrate))
+                            {
+                                roomStatus.Bitrate = bitrate;
                             }
                             roomStatus.FlvUrl = spiderResult.FlvUrl ?? string.Empty;
                             roomStatus.HlsUrl = spiderResult.HlsUrl ?? string.Empty;
@@ -189,8 +216,12 @@ internal static class GlobalMonitor
                                     _ = roomStatus.Recorder.Start(new RecorderStartInfo()
                                     {
                                         NickName = room.NickName,
+                                        RoomUrl = room.RoomUrl,
+                                        PlatformName = roomStatus.PlatformName,
+                                        Resolution = roomStatus.Resolution,
                                         FlvUrl = roomStatus.FlvUrl,
                                         HlsUrl = roomStatus.HlsUrl,
+                                        Options = settings,
                                     });
                                 }
                             }
@@ -238,9 +269,26 @@ internal static class GlobalMonitor
         }
     }
 
-    private static bool IsRoutineScheduleActive(DateTime now)
+    private static bool ShouldCheckRoom(string roomUrl, int routineInterval, DateTime now)
     {
-        switch (Math.Clamp(Configurations.RoutineScheduleMode.Get(), 0, 4))
+        if (!LastRoomCheckTimes.TryGetValue(roomUrl, out DateTime lastCheckTime))
+        {
+            LastRoomCheckTimes[roomUrl] = now;
+            return true;
+        }
+
+        if ((now - lastCheckTime).TotalMilliseconds < Math.Max(500, routineInterval))
+        {
+            return false;
+        }
+
+        LastRoomCheckTimes[roomUrl] = now;
+        return true;
+    }
+
+    private static bool IsRoutineScheduleActive(DateTime now, RoomRecordingOptions settings)
+    {
+        switch (Math.Clamp(settings.RoutineScheduleMode, 0, 4))
         {
             case 0:
                 return true;
@@ -252,7 +300,7 @@ internal static class GlobalMonitor
                 return now.TimeOfDay >= TimeSpan.FromHours(18) || now.TimeOfDay <= TimeSpan.FromHours(8);
         }
 
-        HashSet<string> enabledDays = Configurations.RoutineScheduleDays.Get()
+        HashSet<string> enabledDays = settings.RoutineScheduleDays
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -262,12 +310,12 @@ internal static class GlobalMonitor
         }
 
         TimeSpan start = new(
-            Math.Clamp(Configurations.RoutineScheduleStartHour.Get(), 0, 23),
-            Math.Clamp(Configurations.RoutineScheduleStartMinute.Get(), 0, 59),
+            Math.Clamp(settings.RoutineScheduleStartHour, 0, 23),
+            Math.Clamp(settings.RoutineScheduleStartMinute, 0, 59),
             0);
         TimeSpan end = new(
-            Math.Clamp(Configurations.RoutineScheduleEndHour.Get(), 0, 23),
-            Math.Clamp(Configurations.RoutineScheduleEndMinute.Get(), 0, 59),
+            Math.Clamp(settings.RoutineScheduleEndHour, 0, 23),
+            Math.Clamp(settings.RoutineScheduleEndMinute, 0, 59),
             0);
         TimeSpan current = now.TimeOfDay;
 

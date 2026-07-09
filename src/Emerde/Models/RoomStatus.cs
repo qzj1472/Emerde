@@ -14,6 +14,12 @@ public sealed class RoomStatus
 
     public string LiveTitle { get; set; } = string.Empty;
 
+    public string Quality { get; set; } = string.Empty;
+
+    public string Resolution { get; set; } = string.Empty;
+
+    public string Bitrate { get; set; } = string.Empty;
+
     public string FlvUrl { get; set; } = string.Empty;
 
     public string HlsUrl { get; set; } = string.Empty;
