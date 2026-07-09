@@ -15,17 +15,41 @@ public partial class RoomStatusReactive : ReactiveObject
     private string nickName = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AvatarDisplaySource))]
     private string avatarThumbUrl = string.Empty;
+
+    public string AvatarDisplaySource => string.IsNullOrWhiteSpace(AvatarThumbUrl)
+        ? "pack://application:,,,/Assets/Favicon.png"
+        : AvatarThumbUrl;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RoomCodeText))]
     private string roomUrl = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PlatformDisplayName))]
     private string platformName = string.Empty;
+
+    public string PlatformDisplayName => global::Emerde.Core.PlatformDisplayName.Get(PlatformName);
 
     [ObservableProperty]
     private int addedOrder = 0;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LiveTitleText))]
+    private string liveTitle = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(QualityText))]
+    private string quality = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ResolutionText))]
+    private string resolution = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BitrateText))]
+    private string bitrate = string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PreviewUrl))]
@@ -74,6 +98,9 @@ public partial class RoomStatusReactive : ReactiveObject
     [NotifyPropertyChangedFor(nameof(StreamStatusText))]
     [NotifyPropertyChangedFor(nameof(CanPreview))]
     private StreamStatus streamStatus = default;
+
+    [ObservableProperty]
+    private bool isRefreshFlashActive;
 
     public string StreamStatusText => StreamStatus switch
     {
@@ -132,13 +159,13 @@ public partial class RoomStatusReactive : ReactiveObject
 
     public string DanmakuSupportText => "-";
 
-    public string LiveTitleText => "-";
+    public string LiveTitleText => string.IsNullOrWhiteSpace(LiveTitle) ? string.Empty : LiveTitle;
 
-    public string QualityText => "原画";
+    public string QualityText => string.IsNullOrWhiteSpace(Quality) ? "原画" : Quality;
 
-    public string ResolutionText => "-";
+    public string ResolutionText => string.IsNullOrWhiteSpace(Resolution) ? "-" : Resolution;
 
-    public string BitrateText => "-";
+    public string BitrateText => string.IsNullOrWhiteSpace(Bitrate) ? "-" : Bitrate;
 
     public string PreviewSupportText => PreviewSourceText == "-" ? "HLS / FLV" : PreviewSourceText;
 
@@ -186,6 +213,7 @@ public partial class RoomStatusReactive : ReactiveObject
 
     public void RefreshStatus()
     {
+        OnPropertyChanged(nameof(PlatformDisplayName));
         OnPropertyChanged(nameof(StreamStatusText));
         OnPropertyChanged(nameof(RecordStatusText));
         OnPropertyChanged(nameof(EffectiveIsToNotify));
@@ -201,6 +229,15 @@ public partial class RoomStatusReactive : ReactiveObject
             OnPropertyChanged(nameof(RecordStatusText));
             OnPropertyChanged(nameof(Duration));
         }
+    }
+
+    public async void FlashRefresh()
+    {
+        IsRefreshFlashActive = false;
+        await Task.Delay(1);
+        IsRefreshFlashActive = true;
+        await Task.Delay(360);
+        IsRefreshFlashActive = false;
     }
 
     [RelayCommand]

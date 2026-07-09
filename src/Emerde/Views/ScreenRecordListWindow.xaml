@@ -45,7 +45,7 @@
     </ui:FluentWindow.Resources>
 
     <Grid>
-        <Grid Margin="14,48,14,0">
+        <Grid x:Name="VideoListContentRoot" Margin="14,48,14,0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="48" />
                 <RowDefinition Height="*" />
@@ -347,8 +347,15 @@
             </ui:TitleBar>
         </Grid>
 
-        <Grid Panel.ZIndex="40"
-                 Background="#66000000"
+        <Grid x:Name="VideoListDialogOverlay"
+              Background="Transparent"
+              IsHitTestVisible="False"
+              Panel.ZIndex="35"
+              Visibility="Collapsed" />
+
+        <Grid x:Name="VideoListModalOverlay"
+              Panel.ZIndex="40"
+              MouseDown="VideoListModalOverlayMouseDown"
               Visibility="{Binding IsModalOpen, Converter={x:Static c:BoolToVisibilityConverter.Instance}}">
             <Border Width="420"
                     Padding="18"

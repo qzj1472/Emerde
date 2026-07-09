@@ -17,6 +17,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Emerde.Core;
 using Emerde.Extensions;
 using Emerde.Models;
@@ -42,6 +43,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private readonly LivePreviewPlayer livePreviewPlayer = new();
     private LivePreviewWindow? livePreviewWindow;
     private ScreenRecordListWindow? screenRecordListWindow;
+    private SettingsWindow? settingsWindow;
+    private SettingsWindow? prewarmedSettingsWindow;
+    private bool isPrewarmingSettingsWindow;
 
     [ObservableProperty]
     private ReactiveCollection<RoomStatusReactive> roomStatuses = [];
@@ -71,7 +75,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Count();
 
-            return $"{totalCount} rooms / {streamingCount} live / {platformCount} platforms";
+            return "PlatformSummaryFormat".Tr(totalCount, streamingCount, platformCount);
         }
     }
 
@@ -79,10 +83,17 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private RoomStatusReactive selectedItem = new();
 
     [ObservableProperty]
+    private bool isRoomCardSelectionVisible = true;
+
+    [ObservableProperty]
     private bool isCardEditMode = false;
+
+    [ObservableProperty]
+    private bool isRefreshingSelectedRoomInfo = false;
 
     partial void OnSelectedItemChanged(RoomStatusReactive value)
     {
+        IsRoomCardSelectionVisible = true;
         OnPropertyChanged(nameof(CanPreviewSelectedRoom));
     }
 
@@ -122,6 +133,49 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         LivePreviewStatus.Error => "LivePreviewError".Tr(),
         _ => "LivePreviewIdle".Tr(),
     };
+
+    private static Room[] NormalizeStoredRooms(Room[] rooms)
+    {
+        List<Room> normalizedRooms = [];
+        HashSet<string> seenUrls = new(StringComparer.OrdinalIgnoreCase);
+        bool changed = false;
+
+        foreach (Room room in rooms)
+        {
+            string normalizedUrl = NormalizeRoomUrl(room.RoomUrl);
+            if (string.IsNullOrWhiteSpace(normalizedUrl) || !seenUrls.Add(normalizedUrl))
+            {
+                changed = true;
+                continue;
+            }
+
+            if (!string.Equals(room.RoomUrl, normalizedUrl, StringComparison.Ordinal))
+            {
+                room.RoomUrl = normalizedUrl;
+                changed = true;
+            }
+
+            normalizedRooms.Add(room);
+        }
+
+        if (changed)
+        {
+            Configurations.Rooms.Set(normalizedRooms.ToArray());
+            ConfigurationManager.Save();
+        }
+
+        return normalizedRooms.ToArray();
+    }
+
+    private static string NormalizeRoomUrl(string? roomUrl)
+    {
+        if (string.IsNullOrWhiteSpace(roomUrl))
+        {
+            return string.Empty;
+        }
+
+        return Spider.ParseUrl(roomUrl) ?? roomUrl.Trim();
+    }
 
     partial void OnIsRecordingChanged(bool value)
     {
@@ -186,11 +240,13 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     public MainViewModel()
     {
         DispatcherTimer = new(TimeSpan.FromSeconds(3), ReloadRoomStatus);
+        Room[] configuredRooms = NormalizeStoredRooms(Configurations.Rooms.Get());
 
-        RoomStatuses.Reset(Configurations.Rooms.Get().Select((room, index) => new RoomStatusReactive()
+        RoomStatuses.Reset(configuredRooms.Select((room, index) => new RoomStatusReactive()
         {
             NickName = room.NickName,
             RoomUrl = room.RoomUrl,
+            AvatarThumbUrl = room.AvatarThumbUrl,
             PlatformName = Spider.GetPlatformName(room.RoomUrl),
             IsToNotify = room.IsToNotify,
             IsToRecord = room.IsToRecord,
@@ -207,6 +263,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             {
                 roomStatusReactive.RefreshStatus();
             }
+            OnPropertyChanged(nameof(PlatformSummaryText));
         };
 
         WeakReferenceMessenger.Default.Register<ToastNotificationActivatedMessage>(this, (_, msg) =>
@@ -231,6 +288,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         ChildProcessTracerPeriodicTimer.Default.WhiteList = ["ffmpeg", "ffplay"];
         ChildProcessTracerPeriodicTimer.Default.Start();
         DispatcherTimer.Start();
+        RecordingCleanupService.QueueRun();
     }
 
     private void ReloadRoomStatus()
@@ -243,6 +301,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             {
                 roomStatusReactive.AvatarThumbUrl = roomStatus.AvatarThumbUrl;
                 roomStatusReactive.PlatformName = roomStatus.PlatformName;
+                roomStatusReactive.LiveTitle = roomStatus.LiveTitle;
                 roomStatusReactive.StreamStatus = roomStatus.StreamStatus;
                 roomStatusReactive.RecordStatus = roomStatus.RecordStatus;
                 roomStatusReactive.FlvUrl = roomStatus.FlvUrl;
@@ -301,6 +360,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                         {
                             if (Debugger.IsAttached)
                             {
+                                using DialogBlurScope blurScope = new(Application.Current.MainWindow);
                                 _ = MessageBox.Information("AutoShutdown".Tr());
                             }
                             else
@@ -401,6 +461,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             {
                 livePreviewWindow = null;
                 StopPreview();
+                RestoreMainWindowActivation();
             };
         }
 
@@ -415,6 +476,40 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
 
         livePreviewWindow.Activate();
+    }
+
+    private static void RestoreMainWindowActivation()
+    {
+        Window? mainWindow = Application.Current?.MainWindow;
+        if (mainWindow == null)
+        {
+            return;
+        }
+
+        mainWindow.Dispatcher.BeginInvoke(() =>
+        {
+            ActivateMainWindow(mainWindow);
+            mainWindow.Dispatcher.BeginInvoke(() => ActivateMainWindow(mainWindow), DispatcherPriority.ContextIdle);
+        }, DispatcherPriority.ApplicationIdle);
+    }
+
+    private static void ActivateMainWindow(Window mainWindow)
+    {
+        if (!mainWindow.IsVisible)
+        {
+            return;
+        }
+
+        if (mainWindow.WindowState == WindowState.Minimized)
+        {
+            mainWindow.WindowState = WindowState.Normal;
+        }
+
+        bool originalTopmost = mainWindow.Topmost;
+        mainWindow.Topmost = true;
+        mainWindow.Activate();
+        mainWindow.Focus();
+        mainWindow.Topmost = originalTopmost;
     }
 
     [RelayCommand]
@@ -511,55 +606,175 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private async Task AddRoomAsync()
     {
         AddRoomContentDialog dialog = new();
+        using DialogBlurScope blurScope = DialogBlurScope.ForLightDismiss(Application.Current.MainWindow, dialog);
         ContentDialogResult result = await dialog.ShowAsync();
 
-        if (result == ContentDialogResult.Primary)
+        if (result != ContentDialogResult.Primary ||
+            string.IsNullOrWhiteSpace(dialog.NickName) ||
+            string.IsNullOrWhiteSpace(dialog.RoomUrl))
         {
-            if (!string.IsNullOrWhiteSpace(dialog.NickName))
-            {
-                List<Room> rooms = [.. Configurations.Rooms.Get()];
-                string roomUrl = dialog.RoomUrl!;
-
-                rooms.RemoveAll(room => room.RoomUrl == roomUrl);
-                rooms.Add(new Room()
-                {
-                    NickName = dialog.NickName,
-                    RoomUrl = roomUrl,
-                    IsToMonitor = Configurations.IsToMonitor.Get(),
-                    IsToRecord = Configurations.IsToRecord.Get(),
-                    IsFollowGlobalSettings = true,
-                });
-                Configurations.Rooms.Set([.. rooms]);
-                ConfigurationManager.Save();
-
-                RoomStatuses.Add(new RoomStatusReactive()
-                {
-                    NickName = dialog.NickName,
-                    RoomUrl = roomUrl,
-                    PlatformName = Spider.GetPlatformName(roomUrl),
-                    IsToMonitor = Configurations.IsToMonitor.Get(),
-                    IsToRecord = Configurations.IsToRecord.Get(),
-                    IsFollowGlobalSettings = true,
-                    AddedOrder = RoomStatuses.Count == 0 ? 0 : RoomStatuses.Max(room => room.AddedOrder) + 1,
-                });
-                RoomStatusesView.Refresh();
-                OnPropertyChanged(nameof(PlatformSummaryText));
-            }
+            return;
         }
+
+        AddConfirmedRoom(dialog.NickName, dialog.RoomUrl, dialog.SpiderResult);
+    }
+
+    private void AddConfirmedRoom(string nickName, string roomUrl, ISpiderResult? spiderResult)
+    {
+        List<Room> rooms = [.. Configurations.Rooms.Get()];
+
+        rooms.RemoveAll(room => room.RoomUrl == roomUrl);
+        rooms.Add(new Room()
+        {
+            NickName = nickName,
+            RoomUrl = roomUrl,
+            AvatarThumbUrl = spiderResult?.AvatarThumbUrl ?? string.Empty,
+            IsToMonitor = Configurations.IsToMonitor.Get(),
+            IsToRecord = Configurations.IsToRecord.Get(),
+            IsFollowGlobalSettings = true,
+        });
+        Configurations.Rooms.Set([.. rooms]);
+        ConfigurationManager.Save();
+
+        RoomStatusReactive roomStatusReactive = new()
+        {
+            NickName = nickName,
+            RoomUrl = roomUrl,
+            PlatformName = Spider.GetPlatformName(roomUrl),
+            IsToMonitor = Configurations.IsToMonitor.Get(),
+            IsToRecord = Configurations.IsToRecord.Get(),
+            IsFollowGlobalSettings = true,
+            AddedOrder = RoomStatuses.Count == 0 ? 0 : RoomStatuses.Max(room => room.AddedOrder) + 1,
+        };
+        if (spiderResult != null)
+        {
+            ApplyRoomInfoResult(roomStatusReactive, spiderResult);
+        }
+
+        RoomStatuses.Add(roomStatusReactive);
+        RoomStatusesView.Refresh();
+        OnPropertyChanged(nameof(PlatformSummaryText));
     }
 
     [RelayCommand]
     private void OpenSettingsDialog()
     {
-        foreach (Window win in Application.Current.Windows.OfType<SettingsWindow>())
+        if (settingsWindow is { IsVisible: true })
         {
-            win.Close();
+            ActivateSettingsWindow(settingsWindow);
+            return;
         }
 
-        _ = new SettingsWindow()
+        foreach (Window win in Application.Current.Windows.OfType<SettingsWindow>().Where(window => window.IsVisible))
         {
-            Owner = Application.Current.MainWindow,
-        }.ShowDialog();
+            ActivateSettingsWindow((SettingsWindow)win);
+            return;
+        }
+
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        SettingsWindow window = TakePrewarmedSettingsWindow() ?? new SettingsWindow();
+        settingsWindow = window;
+        window.Owner = Application.Current.MainWindow;
+        window.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        window.ShowInTaskbar = false;
+        window.Closed += SettingsWindowClosed;
+        window.Show();
+        ActivateSettingsWindow(window);
+        AppSessionLogger.Write($"perf SettingsWindow shown in {stopwatch.ElapsedMilliseconds} ms");
+    }
+
+    private void SettingsWindowClosed(object? sender, EventArgs e)
+    {
+        if (sender is SettingsWindow window)
+        {
+            window.Closed -= SettingsWindowClosed;
+        }
+
+        if (ReferenceEquals(settingsWindow, sender))
+        {
+            settingsWindow = null;
+        }
+
+        QueueSettingsWindowPreload();
+    }
+
+    private static void ActivateSettingsWindow(SettingsWindow window)
+    {
+        if (window.WindowState == WindowState.Minimized)
+        {
+            window.WindowState = WindowState.Normal;
+        }
+
+        window.Activate();
+        window.Focus();
+    }
+
+    public void QueueSettingsWindowPreload()
+    {
+        _ = Application.Current.Dispatcher.BeginInvoke(
+            DispatcherPriority.ApplicationIdle,
+            new Action(PrewarmSettingsWindow));
+    }
+
+    private void PrewarmSettingsWindow()
+    {
+        if (isPrewarmingSettingsWindow ||
+            prewarmedSettingsWindow != null ||
+            Application.Current?.MainWindow == null ||
+            Application.Current.Windows.OfType<SettingsWindow>().Any(window => window.IsVisible))
+        {
+            return;
+        }
+
+        isPrewarmingSettingsWindow = true;
+        Stopwatch stopwatch = Stopwatch.StartNew();
+
+        try
+        {
+            SettingsWindow window = new()
+            {
+                Owner = Application.Current.MainWindow,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                ShowInTaskbar = false,
+            };
+            window.Closed += PrewarmedSettingsWindowClosed;
+            prewarmedSettingsWindow = window;
+            AppSessionLogger.Write($"perf SettingsWindow prewarmed in {stopwatch.ElapsedMilliseconds} ms");
+        }
+        catch (Exception e)
+        {
+            AppSessionLogger.WriteException(e);
+        }
+        finally
+        {
+            isPrewarmingSettingsWindow = false;
+        }
+    }
+
+    private SettingsWindow? TakePrewarmedSettingsWindow()
+    {
+        SettingsWindow? window = prewarmedSettingsWindow;
+        if (window == null)
+        {
+            return null;
+        }
+
+        prewarmedSettingsWindow = null;
+        window.Closed -= PrewarmedSettingsWindowClosed;
+        return window;
+    }
+
+    private void PrewarmedSettingsWindowClosed(object? sender, EventArgs e)
+    {
+        if (sender is SettingsWindow window)
+        {
+            window.Closed -= PrewarmedSettingsWindowClosed;
+        }
+
+        if (ReferenceEquals(prewarmedSettingsWindow, sender))
+        {
+            prewarmedSettingsWindow = null;
+        }
     }
 
     [RelayCommand]
@@ -610,6 +825,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private async Task OpenAboutAsync()
     {
         AboutContentDialog dialog = new();
+        using DialogBlurScope blurScope = DialogBlurScope.ForLightDismiss(Application.Current.MainWindow, dialog);
         _ = await dialog.ShowAsync();
     }
 
@@ -654,10 +870,168 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     }
 
     [RelayCommand]
-    private void RefreshRoomCards()
+    private async Task RefreshRoomCardsAsync()
     {
-        ReloadRoomStatus();
-        Toast.Success("SuccOp".Tr());
+        RoomStatusReactive[] rooms = [.. RoomStatuses.Where(room => !string.IsNullOrWhiteSpace(room.RoomUrl))];
+
+        if (rooms.Length == 0)
+        {
+            ReloadRoomStatus();
+            Toast.Warning("FailOp".Tr());
+            return;
+        }
+
+        using SemaphoreSlim semaphore = new(Math.Clamp(Environment.ProcessorCount, 2, 6));
+        bool hasUpdated = false;
+
+        Task[] tasks = rooms.Select(async room =>
+        {
+            await semaphore.WaitAsync();
+            try
+            {
+                ISpiderResult? result = await Task.Run(() => Spider.GetResult(room.RoomUrl));
+                if (result != null)
+                {
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        ApplyRoomInfoResult(room, result);
+                        hasUpdated = true;
+                    });
+                }
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        }).ToArray();
+
+        await Task.WhenAll(tasks);
+        SaveRoomOrder();
+        RoomStatusesView.Refresh();
+        OnPropertyChanged(nameof(PlatformSummaryText));
+        Toast.Success(hasUpdated ? "SuccOp".Tr() : "FailOp".Tr());
+    }
+
+    [RelayCommand]
+    private async Task RefreshSelectedRoomInfoAsync()
+    {
+        if (SelectedItem == null || string.IsNullOrWhiteSpace(SelectedItem.RoomUrl) || IsRefreshingSelectedRoomInfo)
+        {
+            return;
+        }
+
+        IsRefreshingSelectedRoomInfo = true;
+        try
+        {
+            ISpiderResult? result = await Task.Run(() => Spider.GetResult(SelectedItem.RoomUrl));
+            if (result == null)
+            {
+                Toast.Error("GetRoomInfoError".Tr());
+                return;
+            }
+
+            ApplyRoomInfoResult(SelectedItem, result);
+            SaveRoomOrder();
+            RoomStatusesView.Refresh();
+            OnPropertyChanged(nameof(PlatformSummaryText));
+            OnPropertyChanged(nameof(CanPreviewSelectedRoom));
+            Toast.Success("SuccOp".Tr());
+        }
+        finally
+        {
+            IsRefreshingSelectedRoomInfo = false;
+        }
+    }
+
+    private static void ApplyRoomInfoResult(RoomStatusReactive room, ISpiderResult result)
+    {
+        string oldRoomUrl = room.RoomUrl;
+        string? title = SpiderResultMetadata.GetTitle(result);
+        string? quality = SpiderResultMetadata.GetQuality(result);
+        string? resolution = SpiderResultMetadata.GetResolution(result);
+        string? bitrate = SpiderResultMetadata.GetBitrate(result);
+
+        if (!string.IsNullOrWhiteSpace(result.Nickname))
+        {
+            room.NickName = result.Nickname;
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.RoomUrl))
+        {
+            string normalizedRoomUrl = NormalizeRoomUrl(result.RoomUrl);
+            if (!string.IsNullOrWhiteSpace(normalizedRoomUrl))
+            {
+                room.RoomUrl = normalizedRoomUrl;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.AvatarThumbUrl))
+        {
+            room.AvatarThumbUrl = result.AvatarThumbUrl;
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.PlatformName))
+        {
+            room.PlatformName = result.PlatformName;
+        }
+        else if (!string.IsNullOrWhiteSpace(result.RoomUrl))
+        {
+            room.PlatformName = Spider.GetPlatformName(result.RoomUrl);
+        }
+
+        if (result.IsLiveStreaming == true && !string.IsNullOrWhiteSpace(title))
+        {
+            room.LiveTitle = title;
+        }
+        else if (result.IsLiveStreaming == false)
+        {
+            room.LiveTitle = string.Empty;
+        }
+
+        if (!string.IsNullOrWhiteSpace(quality))
+        {
+            room.Quality = quality;
+        }
+
+        if (!string.IsNullOrWhiteSpace(resolution))
+        {
+            room.Resolution = resolution;
+        }
+
+        if (!string.IsNullOrWhiteSpace(bitrate))
+        {
+            room.Bitrate = bitrate;
+        }
+
+        room.FlvUrl = result.FlvUrl ?? string.Empty;
+        room.HlsUrl = result.HlsUrl ?? string.Empty;
+        room.StreamStatus = result.IsLiveStreaming switch
+        {
+            true => StreamStatus.Streaming,
+            false => StreamStatus.NotStreaming,
+            _ => room.StreamStatus,
+        };
+
+        if (!string.Equals(oldRoomUrl, room.RoomUrl, StringComparison.OrdinalIgnoreCase))
+        {
+            _ = GlobalMonitor.RoomStatus.TryRemove(oldRoomUrl, out _);
+        }
+
+        RoomStatus status = GlobalMonitor.RoomStatus.GetOrAdd(room.RoomUrl, _ => new RoomStatus()
+        {
+            NickName = room.NickName,
+            RoomUrl = room.RoomUrl,
+            PlatformName = room.PlatformName,
+            StreamStatus = StreamStatus.Initialized,
+        });
+        status.NickName = room.NickName;
+        status.AvatarThumbUrl = room.AvatarThumbUrl;
+        status.PlatformName = room.PlatformName;
+        status.LiveTitle = room.LiveTitle;
+        status.FlvUrl = room.FlvUrl;
+        status.HlsUrl = room.HlsUrl;
+        status.StreamStatus = room.StreamStatus;
+        room.FlashRefresh();
     }
 
     [RelayCommand]
@@ -822,7 +1196,14 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         foreach (Room room in Configurations.Rooms.Get().Where(room => !string.IsNullOrWhiteSpace(room.RoomUrl)))
         {
-            roomsByUrl[room.RoomUrl] = room;
+            string normalizedRoomUrl = NormalizeRoomUrl(room.RoomUrl);
+            if (string.IsNullOrWhiteSpace(normalizedRoomUrl))
+            {
+                continue;
+            }
+
+            room.RoomUrl = normalizedRoomUrl;
+            roomsByUrl[normalizedRoomUrl] = room;
         }
 
         Room[] rooms = RoomStatuses
@@ -831,13 +1212,21 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             {
                 if (roomsByUrl.TryGetValue(roomStatus.RoomUrl, out Room? room))
                 {
+                    room.NickName = roomStatus.NickName;
+                    room.RoomUrl = NormalizeRoomUrl(roomStatus.RoomUrl);
+                    room.AvatarThumbUrl = roomStatus.AvatarThumbUrl;
+                    room.IsToNotify = roomStatus.IsToNotify;
+                    room.IsToRecord = roomStatus.IsToRecord;
+                    room.IsToMonitor = roomStatus.IsToMonitor;
+                    room.IsFollowGlobalSettings = roomStatus.IsFollowGlobalSettings;
                     return room;
                 }
 
                 return new Room()
                 {
                     NickName = roomStatus.NickName,
-                    RoomUrl = roomStatus.RoomUrl,
+                    RoomUrl = NormalizeRoomUrl(roomStatus.RoomUrl),
+                    AvatarThumbUrl = roomStatus.AvatarThumbUrl,
                     IsToNotify = roomStatus.IsToNotify,
                     IsToRecord = roomStatus.IsToRecord,
                     IsToMonitor = roomStatus.IsToMonitor,
@@ -915,6 +1304,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
 
         LocalSettingsContentDialog dialog = new(SelectedItem);
+        using DialogBlurScope blurScope = DialogBlurScope.ForLightDismiss(Application.Current.MainWindow, dialog);
         _ = await dialog.ShowAsync();
 
         if (!dialog.IsSaved)
@@ -947,6 +1337,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         string roomUrl = SelectedItem.RoomUrl;
         string nickName = SelectedItem.NickName;
+        using DialogBlurScope blurScope = new(Application.Current.MainWindow);
         MessageBoxResult result = await MessageBox.QuestionAsync("SureRemoveRoom".Tr(nickName));
 
         if (result == MessageBoxResult.Yes)
@@ -1035,6 +1426,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                     DefaultButton = ContentDialogButton.Primary,
                 };
 
+                using DialogBlurScope blurScope = DialogBlurScope.ForDialog(Application.Current.MainWindow, dialog);
                 ContentDialogResult result = await dialog.ShowAsync();
 
                 if (result == ContentDialogResult.Primary)
@@ -1222,6 +1614,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     public void Dispose()
     {
+        prewarmedSettingsWindow?.Close();
+        settingsWindow?.Close();
         livePreviewPlayer.Dispose();
     }
 }

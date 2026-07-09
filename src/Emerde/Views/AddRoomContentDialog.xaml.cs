@@ -13,7 +13,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
     partial void OnUrlChanged(string? value)
     {
         string platformName = string.IsNullOrWhiteSpace(value) ? string.Empty : Spider.GetPlatformName(value);
-        DetectedPlatformName = string.IsNullOrWhiteSpace(platformName) ? "Unsupported" : platformName;
+        DetectedPlatformName = string.IsNullOrWhiteSpace(platformName) ? "Unsupported" : PlatformDisplayName.Get(platformName);
     }
 
     [ObservableProperty]
@@ -25,9 +25,11 @@ public sealed partial class AddRoomContentDialog : ContentDialog
     [ObservableProperty]
     private string detectedPlatformName = "Unsupported";
 
-    public string SupportedPlatformsText => string.Join(" / ", Spider.SupportedPlatformNames);
+    public string SupportedPlatformsText => string.Join(" / ", Spider.SupportedPlatformNames.Select(PlatformDisplayName.Get));
 
     public string? RoomUrl = null;
+
+    public ISpiderResult? SpiderResult { get; private set; }
 
     public AddRoomContentDialog()
     {
@@ -92,6 +94,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
 
                     NickName = spider.Nickname;
                     RoomUrl = spider.RoomUrl;
+                    SpiderResult = spider;
 
                     Toast.Success("AddRoomSucc".Tr(NickName));
                 }

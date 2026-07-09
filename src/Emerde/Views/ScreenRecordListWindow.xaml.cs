@@ -9,6 +9,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using System.Windows.Data;
+using System.Windows.Input;
 using Windows.System;
 using WindowsAPICodePack.Dialogs;
 using Wpf.Ui.Controls;
@@ -25,7 +26,21 @@ public partial class ScreenRecordListWindow : FluentWindow
         DataContext = ViewModel;
         WindowSizing.UseRelativeMainWindowSize(this, 1032d, 720d);
         InitializeComponent();
-        Loaded += async (_, _) => await ViewModel.RefreshAsync();
+        VideoListModalOverlay.IsVisibleChanged += (_, _) => DialogBlurScope.ApplyBackdropBrush(VideoListModalOverlay);
+        Loaded += async (_, _) =>
+        {
+            DialogBlurScope.ApplyBackdropBrush(VideoListModalOverlay);
+            await ViewModel.RefreshAsync();
+        };
+    }
+
+    private void VideoListModalOverlayMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (ReferenceEquals(e.OriginalSource, sender) && ViewModel.IsIdle)
+        {
+            ViewModel.CloseModalCommand.Execute(null);
+            e.Handled = true;
+        }
     }
 }
 
@@ -332,7 +347,11 @@ public partial class ScreenRecordListViewModel : ObservableObject
             return;
         }
 
-        System.Windows.MessageBoxResult result = await MessageBox.QuestionAsync($"确定删除 {selected.Length} 个视频文件？");
+        System.Windows.MessageBoxResult result;
+        using (DialogBlurScope blurScope = new())
+        {
+            result = await MessageBox.QuestionAsync($"确定删除 {selected.Length} 个视频文件？");
+        }
         if (result != System.Windows.MessageBoxResult.Yes)
         {
             return;

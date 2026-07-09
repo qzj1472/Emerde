@@ -62,7 +62,8 @@
                            Spacing="10">
                 <vio:PersonPicture Width="42"
                                    Height="42"
-                                   ProfilePicture="{Binding SelectedItem.AvatarThumbUrl}"
+                                   DisplayName="{Binding SelectedItem.NickName}"
+                                   ProfilePicture="{Binding SelectedItem.AvatarDisplaySource}"
                                    RenderOptions.BitmapScalingMode="HighQuality"
                                    SnapsToDevicePixels="True" />
                 <StackPanel VerticalAlignment="Center">

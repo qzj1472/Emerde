@@ -54,15 +54,25 @@ internal class TrayIconManager
                     Tag = "TrayMenuOpenSettings",
                     Command = new RelayCommand(() =>
                     {
-                        foreach (Window win in Application.Current.Windows.OfType<SettingsWindow>())
+                        if (Application.Current.Windows.OfType<SettingsWindow>().FirstOrDefault(window => window.IsVisible) is SettingsWindow existing)
                         {
-                        win.Close();
+                            if (existing.WindowState == WindowState.Minimized)
+                            {
+                                existing.WindowState = WindowState.Normal;
+                            }
+
+                            existing.Activate();
+                            return;
                         }
 
-                        _ = new SettingsWindow()
+                        SettingsWindow window = new()
                         {
-                        WindowStartupLocation = WindowStartupLocation.CenterScreen,
-                        }.ShowDialog();
+                            Owner = Application.Current.MainWindow,
+                            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                            ShowInTaskbar = false,
+                        };
+                        window.Show();
+                        window.Activate();
                     }),
                 },
                 _itemAutoRun = new TrayMenuItem()
@@ -89,6 +99,7 @@ internal class TrayIconManager
                     {
                         if (GlobalMonitor.RoomStatus.Values.ToArray().Any(roomStatus => roomStatus.RecordStatus == RecordStatus.Recording))
                         {
+                            using DialogBlurScope blurScope = new(Application.Current.MainWindow);
                             if (MessageBox.Question("SureOnRecording".Tr()) == MessageBoxResult.Yes)
                             {
                                 RuntimeHelper.Restart(forced: true);
@@ -164,6 +175,7 @@ internal class TrayIconManager
     {
         if (GlobalMonitor.RoomStatus.Values.ToArray().Any(roomStatus => roomStatus.RecordStatus == RecordStatus.Recording))
         {
+            using DialogBlurScope blurScope = new(Application.Current.MainWindow);
             if (MessageBox.Question("SureOnRecording".Tr()) != MessageBoxResult.Yes)
             {
                 return;

@@ -1,5 +1,6 @@
 using Microsoft.Toolkit.Uwp.Notifications;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -34,7 +35,10 @@ public partial class MainWindow : FluentWindow
     public static readonly DependencyProperty RoomCardPaddingProperty = DependencyProperty.Register(nameof(RoomCardPadding), typeof(Thickness), typeof(MainWindow), new PropertyMetadata(new Thickness(8)));
     public static readonly DependencyProperty RoomCardMarginProperty = DependencyProperty.Register(nameof(RoomCardMargin), typeof(Thickness), typeof(MainWindow), new PropertyMetadata(new Thickness(4)));
     public static readonly DependencyProperty RoomCardAvatarSizeProperty = DependencyProperty.Register(nameof(RoomCardAvatarSize), typeof(double), typeof(MainWindow), new PropertyMetadata(32d));
-    public static readonly DependencyProperty RoomCardAvatarMarginProperty = DependencyProperty.Register(nameof(RoomCardAvatarMargin), typeof(Thickness), typeof(MainWindow), new PropertyMetadata(new Thickness(0, 0, 10, 0)));
+    public static readonly DependencyProperty RoomCardAvatarContainerSizeProperty = DependencyProperty.Register(nameof(RoomCardAvatarContainerSize), typeof(double), typeof(MainWindow), new PropertyMetadata(36d));
+    public static readonly DependencyProperty RoomCardAvatarIconSizeProperty = DependencyProperty.Register(nameof(RoomCardAvatarIconSize), typeof(double), typeof(MainWindow), new PropertyMetadata(18d));
+    public static readonly DependencyProperty RoomCardHeaderColumnWidthProperty = DependencyProperty.Register(nameof(RoomCardHeaderColumnWidth), typeof(GridLength), typeof(MainWindow), new PropertyMetadata(new GridLength(38)));
+    public static readonly DependencyProperty RoomCardAvatarMarginProperty = DependencyProperty.Register(nameof(RoomCardAvatarMargin), typeof(Thickness), typeof(MainWindow), new PropertyMetadata(new Thickness(3, 3, 10, 0)));
     public static readonly DependencyProperty RoomCardNameFontSizeProperty = DependencyProperty.Register(nameof(RoomCardNameFontSize), typeof(double), typeof(MainWindow), new PropertyMetadata(13d));
     public static readonly DependencyProperty RoomCardPlatformFontSizeProperty = DependencyProperty.Register(nameof(RoomCardPlatformFontSize), typeof(double), typeof(MainWindow), new PropertyMetadata(11d));
     public static readonly DependencyProperty RoomCardTitleFontSizeProperty = DependencyProperty.Register(nameof(RoomCardTitleFontSize), typeof(double), typeof(MainWindow), new PropertyMetadata(11d));
@@ -91,6 +95,24 @@ public partial class MainWindow : FluentWindow
     {
         get => (double)GetValue(RoomCardAvatarSizeProperty);
         set => SetValue(RoomCardAvatarSizeProperty, value);
+    }
+
+    public double RoomCardAvatarContainerSize
+    {
+        get => (double)GetValue(RoomCardAvatarContainerSizeProperty);
+        set => SetValue(RoomCardAvatarContainerSizeProperty, value);
+    }
+
+    public double RoomCardAvatarIconSize
+    {
+        get => (double)GetValue(RoomCardAvatarIconSizeProperty);
+        set => SetValue(RoomCardAvatarIconSizeProperty, value);
+    }
+
+    public GridLength RoomCardHeaderColumnWidth
+    {
+        get => (GridLength)GetValue(RoomCardHeaderColumnWidthProperty);
+        set => SetValue(RoomCardHeaderColumnWidthProperty, value);
     }
 
     public Thickness RoomCardAvatarMargin
@@ -160,6 +182,7 @@ public partial class MainWindow : FluentWindow
     private const double RoomCardLargeSizeScale = 1.5d;
     private const double RoomCardMediumSizeScale = 1d;
     private const double RoomCardSmallSizeScale = 0.5d;
+    private const double RoomCardMinimumAvatarSize = 30d;
     private const double RoomCardHorizontalGap = 6d;
     private const double RoomCardVerticalGap = 6d;
     private const double RoomCardScrollContentPadding = 6d;
@@ -186,9 +209,16 @@ public partial class MainWindow : FluentWindow
 
     public MainWindow()
     {
+        Stopwatch stopwatch = Stopwatch.StartNew();
         DataContext = ViewModel = new();
         WindowSizing.UseRelativeScreenSize(this, 1290d, 900d);
         InitializeComponent();
+        AppSessionLogger.Write($"perf MainWindow initialized in {stopwatch.ElapsedMilliseconds} ms");
+        Loaded += (_, _) =>
+        {
+            AppSessionLogger.Write($"perf MainWindow loaded in {stopwatch.ElapsedMilliseconds} ms");
+            ViewModel.QueueSettingsWindowPreload();
+        };
 
         if (Configurations.IsUseKeepAwake.Get())
         {
@@ -330,8 +360,11 @@ public partial class MainWindow : FluentWindow
         double chipHeight = Math.Clamp((cardWidth - 18d) / 4d, 14d, 42d);
 
         RoomCardPadding = new Thickness(Math.Round(8d * scale));
-        RoomCardAvatarSize = Math.Round(36d * scale);
-        RoomCardAvatarMargin = new Thickness(0, 0, Math.Round(10d * scale), 0);
+        RoomCardAvatarContainerSize = Math.Round(38d * scale);
+        RoomCardAvatarSize = Math.Max(RoomCardMinimumAvatarSize, Math.Round(36d * scale));
+        RoomCardAvatarIconSize = Math.Round(20d * scale);
+        RoomCardAvatarMargin = new Thickness(Math.Round(3d * scale), Math.Round(3d * scale), Math.Round(10d * scale), 0);
+        RoomCardHeaderColumnWidth = new GridLength(Math.Round(54d * scale));
         RoomCardNameFontSize = Math.Max(8d, Math.Round(15d * scale));
         RoomCardPlatformFontSize = Math.Max(7d, Math.Round(12d * scale));
         RoomCardTitleFontSize = Math.Max(7d, Math.Round(12d * scale));
@@ -388,10 +421,12 @@ public partial class MainWindow : FluentWindow
         {
             draggedRoom = null;
             draggedRoomItem = null;
+            ViewModel.IsRoomCardSelectionVisible = false;
             StartRoomCardBlankPress(roomCardDragStart);
             return;
         }
 
+        ViewModel.IsRoomCardSelectionVisible = true;
         draggedRoom = ViewModel.IsCardEditMode ? item.DataContext as RoomStatusReactive : null;
         draggedRoomItem = draggedRoom == null ? null : item;
         roomCardDragOffset = e.GetPosition(item);
@@ -460,6 +495,7 @@ public partial class MainWindow : FluentWindow
         if (FindVisualParent<ListBoxItem>(e.OriginalSource as DependencyObject) is ListBoxItem item &&
             item.DataContext is RoomStatusReactive room)
         {
+            ViewModel.IsRoomCardSelectionVisible = true;
             RoomCardList.SelectedItem = room;
             ViewModel.SelectedItem = room;
             item.Focus();
