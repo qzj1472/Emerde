@@ -8,8 +8,10 @@ using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Windows.Threading;
 using Emerde.Core;
 using Emerde.Extensions;
+using Emerde.Views;
 using Vanara.PInvoke;
 using Windows.Storage;
 using Windows.System;
@@ -24,7 +26,15 @@ namespace Emerde.ViewModels;
 [ObservableObject]
 public partial class SettingsViewModel : ReactiveObject
 {
+    private const string DefaultSaveFileNameCustomRule = "{主播名}_{录制时间}";
+
     public sealed record UnitOption(int Value, string DisplayName);
+
+    public System.Windows.Window? OwnerWindow { get; set; }
+
+    public string ConfigFilePath => string.IsNullOrWhiteSpace(ConfigurationManager.FilePath)
+        ? AppPaths.ConfigFilePath
+        : ConfigurationManager.FilePath;
 
     public IReadOnlyList<UnitOption> TimeUnitOptions { get; } =
     [
@@ -44,11 +54,181 @@ public partial class SettingsViewModel : ReactiveObject
         new(SegmentTimeUnitHelper.Gigabytes, "GB"),
     ];
 
-    public string ChinaCookiePlatformsText => "Douyin / Bilibili / Kuaishou / Huya / Douyu / Baidu / MaoerFM / Lianjie / 6Rooms / VVXqiu / Blued / Liuxing / Changliao / Yinbo / Zhihu / PPLive / CatShow / Laixiu / JD / Weibo / Huajiao / Look / Taobao / Xiaohongshu / Kugou / Yingke / AcFun / YY / NeteaseCC / QianduRebo";
+    public IReadOnlyList<UnitOption> DataRetentionUnitOptions { get; } =
+    [
+        new(DataRetentionUnitHelper.Days, "天"),
+        new(DataRetentionUnitHelper.Weeks, "周"),
+        new(DataRetentionUnitHelper.Months, "月"),
+        new(DataRetentionUnitHelper.Years, "年"),
+    ];
 
-    public string OverseaCookiePlatformsText => "TikTok / Bigo / ShowRoom / 17Live / CHZZK / Picarto / LangLive / PandaTV / WinkTV / Twitch / YouTube / Shopee / TwitCasting / Faceit / SOOP / FlexTV / PopkonTV / LiveMe";
+    private IReadOnlyList<PlatformCookieItem>? domesticCookiePlatforms;
 
-    public string DirectStreamPlatformsText => "Direct stream";
+    public IReadOnlyList<PlatformCookieItem> DomesticCookiePlatforms =>
+        domesticCookiePlatforms ??= CreateCookieItems(DomesticCookiePlatformNames, Configurations.CookieChina.Get());
+
+    private IReadOnlyList<PlatformCookieItem>? overseasCookiePlatforms;
+
+    public IReadOnlyList<PlatformCookieItem> OverseasCookiePlatforms =>
+        overseasCookiePlatforms ??= CreateCookieItems(OverseasCookiePlatformNames, Configurations.CookieOversea.Get());
+
+    public string ChinaCookiePlatformsText => string.Join(" / ", DomesticCookiePlatformNames.Select(GetPlatformDisplayName));
+
+    public string OverseaCookiePlatformsText => string.Join(" / ", OverseasCookiePlatformNames.Select(GetPlatformDisplayName));
+
+    public string DirectStreamPlatformsText => string.Join(" / ", NoCookiePlatformNames.Select(GetPlatformDisplayName));
+
+    private static readonly string[] DomesticCookiePlatformNames =
+    [
+        "Douyin",
+        "Bilibili",
+        "Kuaishou",
+        "Huya",
+        "Douyu",
+        "Baidu",
+        "MaoerFM",
+        "Lianjie",
+        "6Rooms",
+        "VVXqiu",
+        "Blued",
+        "Liuxing",
+        "Changliao",
+        "Yinbo",
+        "Zhihu",
+        "PPLive",
+        "CatShow",
+        "Laixiu",
+        "JD",
+        "Weibo",
+        "Huajiao",
+        "Look",
+        "Taobao",
+        "Xiaohongshu",
+        "Kugou",
+        "Yingke",
+        "AcFun",
+        "YY",
+        "NeteaseCC",
+        "QianduRebo",
+    ];
+
+    private static readonly string[] OverseasCookiePlatformNames =
+    [
+        "TikTok",
+        "Bigo",
+        "ShowRoom",
+        "17Live",
+        "CHZZK",
+        "Picarto",
+        "LangLive",
+        "PandaTV",
+        "WinkTV",
+        "Twitch",
+        "YouTube",
+        "Shopee",
+        "TwitCasting",
+        "Faceit",
+        "SOOP",
+        "FlexTV",
+        "PopkonTV",
+        "LiveMe",
+    ];
+
+    private static readonly string[] NoCookiePlatformNames =
+    [
+        "Direct",
+    ];
+
+    private static readonly IReadOnlyDictionary<string, string> SimplifiedChinesePlatformNames =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Douyin"] = "抖音",
+            ["Bilibili"] = "哔哩哔哩",
+            ["Kuaishou"] = "快手",
+            ["Huya"] = "虎牙",
+            ["Douyu"] = "斗鱼",
+            ["Baidu"] = "百度",
+            ["MaoerFM"] = "猫耳FM",
+            ["Lianjie"] = "链街",
+            ["6Rooms"] = "六间房",
+            ["VVXqiu"] = "VV星球",
+            ["Liuxing"] = "流星",
+            ["Changliao"] = "畅聊",
+            ["Yinbo"] = "音播",
+            ["Zhihu"] = "知乎",
+            ["Laixiu"] = "来秀",
+            ["JD"] = "京东",
+            ["Weibo"] = "微博",
+            ["Huajiao"] = "花椒",
+            ["Taobao"] = "淘宝",
+            ["Xiaohongshu"] = "小红书",
+            ["Kugou"] = "酷狗",
+            ["Yingke"] = "映客",
+            ["NeteaseCC"] = "网易CC",
+            ["QianduRebo"] = "千度热播",
+            ["Direct"] = "直链",
+        };
+
+    private static readonly IReadOnlyDictionary<string, string> TraditionalChinesePlatformNames =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Douyin"] = "抖音",
+            ["Bilibili"] = "嗶哩嗶哩",
+            ["Kuaishou"] = "快手",
+            ["Huya"] = "虎牙",
+            ["Douyu"] = "鬥魚",
+            ["Baidu"] = "百度",
+            ["MaoerFM"] = "貓耳FM",
+            ["Lianjie"] = "鏈街",
+            ["6Rooms"] = "六間房",
+            ["VVXqiu"] = "VV星球",
+            ["Liuxing"] = "流星",
+            ["Changliao"] = "暢聊",
+            ["Yinbo"] = "音播",
+            ["Zhihu"] = "知乎",
+            ["Laixiu"] = "來秀",
+            ["JD"] = "京東",
+            ["Weibo"] = "微博",
+            ["Huajiao"] = "花椒",
+            ["Taobao"] = "淘寶",
+            ["Xiaohongshu"] = "小紅書",
+            ["Kugou"] = "酷狗",
+            ["Yingke"] = "映客",
+            ["NeteaseCC"] = "網易CC",
+            ["QianduRebo"] = "千度熱播",
+            ["Direct"] = "直鏈",
+        };
+
+    private static IReadOnlyList<PlatformCookieItem> CreateCookieItems(IEnumerable<string> platformNames, string fallbackCookie)
+    {
+        IReadOnlyDictionary<string, string> cookies = PlatformCookieStore.GetAll();
+        return platformNames
+            .Select(platformName =>
+            {
+                string cookie = cookies.TryGetValue(platformName, out string? savedCookie) && !string.IsNullOrWhiteSpace(savedCookie)
+                    ? savedCookie
+                    : fallbackCookie;
+                return new PlatformCookieItem(platformName, GetPlatformDisplayName(platformName), cookie);
+            })
+            .ToArray();
+    }
+
+    private static string GetPlatformDisplayName(string platformName)
+    {
+        CultureInfo culture = global::Emerde.Locale.Culture;
+        IReadOnlyDictionary<string, string>? localizedNames = culture.Name switch
+        {
+            "zh-Hant" => TraditionalChinesePlatformNames,
+            "zh-Hans" => SimplifiedChinesePlatformNames,
+            _ when string.Equals(culture.TwoLetterISOLanguageName, "zh", StringComparison.OrdinalIgnoreCase)
+                => SimplifiedChinesePlatformNames,
+            _ => null,
+        };
+
+        return localizedNames?.TryGetValue(platformName, out string? displayName) == true
+            ? displayName
+            : platformName;
+    }
 
     private enum LanguageIndexEnum
     {
@@ -185,6 +365,10 @@ public partial class SettingsViewModel : ReactiveObject
             _ => string.Empty,
         });
         ConfigurationManager.Save();
+        DialogBlurScope.RefreshActiveBackdropBrushes();
+        System.Windows.Application.Current.Dispatcher.BeginInvoke(
+            DispatcherPriority.ContextIdle,
+            DialogBlurScope.RefreshActiveBackdropBrushes);
     }
 
     [ObservableProperty]
@@ -552,6 +736,7 @@ public partial class SettingsViewModel : ReactiveObject
     {
         Configurations.SaveFolder.Set(value);
         ConfigurationManager.Save();
+        RecordingCleanupService.QueueRun();
     }
 
     [ObservableProperty]
@@ -580,32 +765,18 @@ public partial class SettingsViewModel : ReactiveObject
     }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsSaveFileNameRuleCustom))]
-    private int saveFileNameRuleIndex = Math.Clamp(Configurations.SaveFileNameRule.Get(), 0, 4);
+    private string saveFileNameCustomRule = NormalizeSaveFileNameCustomRule(Configurations.SaveFileNameCustomRule.Get());
 
-    public bool IsSaveFileNameRuleCustom => SaveFileNameRuleIndex == 4;
-
-    partial void OnSaveFileNameRuleIndexChanged(int value)
+    private static string NormalizeSaveFileNameCustomRule(string? value)
     {
-        int next = Math.Clamp(value, 0, 4);
-        if (next != value)
-        {
-            SaveFileNameRuleIndex = next;
-            return;
-        }
-
-        Configurations.SaveFileNameRule.Set(next);
-        ConfigurationManager.Save();
+        return string.IsNullOrWhiteSpace(value) || string.Equals(value, DefaultSaveFileNameCustomRule, StringComparison.Ordinal)
+            ? string.Empty
+            : value;
     }
-
-    [ObservableProperty]
-    private string saveFileNameCustomRule = string.IsNullOrWhiteSpace(Configurations.SaveFileNameCustomRule.Get())
-        ? "{主播名}_{录制时间}"
-        : Configurations.SaveFileNameCustomRule.Get();
 
     partial void OnSaveFileNameCustomRuleChanged(string value)
     {
-        Configurations.SaveFileNameCustomRule.Set(string.IsNullOrWhiteSpace(value) ? "{主播名}_{录制时间}" : value);
+        Configurations.SaveFileNameCustomRule.Set(value ?? string.Empty);
         ConfigurationManager.Save();
     }
 
@@ -625,7 +796,60 @@ public partial class SettingsViewModel : ReactiveObject
     [RelayCommand]
     private void ResetSaveFileNameRule()
     {
-        SaveFileNameCustomRule = "{主播名}_{录制时间}";
+        SaveFileNameCustomRule = string.Empty;
+    }
+
+    [RelayCommand]
+    private void DeleteLastSaveFileNameToken()
+    {
+        if (string.IsNullOrWhiteSpace(SaveFileNameCustomRule))
+        {
+            return;
+        }
+
+        string[] tokens = SaveFileNameCustomRule
+            .Split('_', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        SaveFileNameCustomRule = tokens.Length <= 1 ? string.Empty : string.Join("_", tokens.Take(tokens.Length - 1));
+    }
+
+    [RelayCommand]
+    private void ClearSaveFileNameRule()
+    {
+        SaveFileNameCustomRule = string.Empty;
+    }
+
+    [ObservableProperty]
+    private double dataRetentionValue = Math.Max(1, Configurations.DataRetentionValue.Get());
+
+    partial void OnDataRetentionValueChanged(double value)
+    {
+        int next = Math.Max(1, (int)Math.Round(value, MidpointRounding.AwayFromZero));
+        if (Math.Abs(next - value) > double.Epsilon)
+        {
+            DataRetentionValue = next;
+            return;
+        }
+
+        Configurations.DataRetentionValue.Set(next);
+        ConfigurationManager.Save();
+        RecordingCleanupService.QueueRun();
+    }
+
+    [ObservableProperty]
+    private int dataRetentionUnitIndex = DataRetentionUnitHelper.NormalizeUnit(Configurations.DataRetentionUnit.Get());
+
+    partial void OnDataRetentionUnitIndexChanged(int value)
+    {
+        int next = DataRetentionUnitHelper.NormalizeUnit(value);
+        if (next != value)
+        {
+            DataRetentionUnitIndex = next;
+            return;
+        }
+
+        Configurations.DataRetentionUnit.Set(next);
+        ConfigurationManager.Save();
+        RecordingCleanupService.QueueRun();
     }
 
     [RelayCommand]
@@ -891,18 +1115,34 @@ public partial class SettingsViewModel : ReactiveObject
     }
 
     [RelayCommand]
-    private void ExportRecentLogs()
+    private async Task ExportLogsAsync()
     {
-        ExportLogs(latest: true);
+        ContentDialog dialog = new()
+        {
+            Title = "导出运行日志",
+            Content = "选择要导出的运行日志范围。",
+            CloseButtonText = "取消",
+            SecondaryButtonText = "导出最近",
+            PrimaryButtonText = "导出全部",
+            DefaultButton = ContentDialogButton.Primary,
+            Style = System.Windows.Application.Current.TryFindResource("DefaultVioletaContentDialogStyle") as System.Windows.Style,
+        };
+
+        using DialogBlurScope blurScope = DialogBlurScope.ForDialog(OwnerWindow, dialog);
+        ContentDialogResult result = OwnerWindow is { IsLoaded: true }
+            ? await dialog.ShowAsync(OwnerWindow)
+            : await dialog.ShowAsync();
+        if (result == ContentDialogResult.Primary)
+        {
+            ExportLogsToFolder(latest: false);
+        }
+        else if (result == ContentDialogResult.Secondary)
+        {
+            ExportLogsToFolder(latest: true);
+        }
     }
 
-    [RelayCommand]
-    private void ExportAllLogs()
-    {
-        ExportLogs(latest: false);
-    }
-
-    private static void ExportLogs(bool latest)
+    private static void ExportLogsToFolder(bool latest)
     {
         using CommonOpenFileDialog dialog = new()
         {
@@ -932,6 +1172,17 @@ public partial class SettingsViewModel : ReactiveObject
     }
 
     [RelayCommand]
+    private void OpenConfigFolder()
+    {
+        Directory.CreateDirectory(AppPaths.ConfigDirectory);
+        Process.Start(new ProcessStartInfo()
+        {
+            FileName = AppPaths.ConfigDirectory,
+            UseShellExecute = true,
+        });
+    }
+
+    [RelayCommand]
     private async Task ImportConfigAsync()
     {
         using CommonOpenFileDialog dialog = new()
@@ -953,7 +1204,7 @@ public partial class SettingsViewModel : ReactiveObject
             string backupPath = ConfigFileManager.Import(dialog.FileName);
             AppSessionLogger.Write($"config imported from {dialog.FileName}; backup={backupPath}");
             Toast.Success("配置已导入");
-            _ = await MessageBox.InformationAsync($"配置已导入，重启后生效。当前配置备份：{Environment.NewLine}{backupPath}");
+            await RestartIfConfirmedAsync($"配置已导入，重启后生效。当前配置备份：{Environment.NewLine}{backupPath}{Environment.NewLine}{Environment.NewLine}是否立即重启软件？");
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -995,9 +1246,12 @@ public partial class SettingsViewModel : ReactiveObject
     [RelayCommand]
     private async Task ResetConfigAsync()
     {
-        if (MessageBox.Question("确定要重置配置文件吗？当前配置会先备份，重启后生效。") != System.Windows.MessageBoxResult.Yes)
+        using (DialogBlurScope blurScope = new(OwnerWindow))
         {
-            return;
+            if (MessageBox.Question("确定要重置配置文件吗？当前配置会先备份，重启后生效。") != System.Windows.MessageBoxResult.Yes)
+            {
+                return;
+            }
         }
 
         try
@@ -1006,7 +1260,7 @@ public partial class SettingsViewModel : ReactiveObject
             string backupText = backupPaths.Length == 0 ? "没有找到需要备份的配置文件。" : string.Join(Environment.NewLine, backupPaths);
             AppSessionLogger.Write($"config reset; backups={string.Join("|", backupPaths)}");
             Toast.Success("配置已重置");
-            _ = await MessageBox.InformationAsync($"配置已重置，重启后生效。配置备份：{Environment.NewLine}{backupText}");
+            await RestartIfConfirmedAsync($"配置已重置，重启后生效。配置备份：{Environment.NewLine}{backupText}{Environment.NewLine}{Environment.NewLine}是否立即重启软件？");
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -1020,6 +1274,29 @@ public partial class SettingsViewModel : ReactiveObject
         return Configurations.RoutineScheduleDays.Get()
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Contains(day.ToString(), StringComparer.OrdinalIgnoreCase);
+    }
+
+    private async Task RestartIfConfirmedAsync(string message)
+    {
+        ContentDialog dialog = new()
+        {
+            Title = "重启软件",
+            Content = message,
+            CloseButtonText = "取消",
+            PrimaryButtonText = "立即重启",
+            DefaultButton = ContentDialogButton.Close,
+            Style = System.Windows.Application.Current.TryFindResource("DefaultVioletaContentDialogStyle") as System.Windows.Style,
+        };
+
+        using DialogBlurScope blurScope = DialogBlurScope.ForDialog(OwnerWindow, dialog);
+        ContentDialogResult result = OwnerWindow is { IsLoaded: true }
+            ? await dialog.ShowAsync(OwnerWindow)
+            : await dialog.ShowAsync();
+
+        if (result == ContentDialogResult.Primary)
+        {
+            RuntimeHelper.Restart(forced: true);
+        }
     }
 
     private void SaveRoutineScheduleDays()
@@ -1103,6 +1380,28 @@ public partial class SettingsViewModel : ReactiveObject
             (int)TimeUnitIndexEnum.Seconds => milliseconds / 1000d,
             (int)TimeUnitIndexEnum.Milliseconds or _ => milliseconds,
         };
+    }
+}
+
+public sealed partial class PlatformCookieItem : ObservableObject
+{
+    public PlatformCookieItem(string platformName, string displayName, string initialCookie)
+    {
+        PlatformName = platformName;
+        DisplayName = displayName;
+        cookie = initialCookie;
+    }
+
+    public string PlatformName { get; }
+
+    public string DisplayName { get; }
+
+    [ObservableProperty]
+    private string cookie = string.Empty;
+
+    partial void OnCookieChanged(string value)
+    {
+        PlatformCookieStore.SetCookie(PlatformName, value);
     }
 }
 

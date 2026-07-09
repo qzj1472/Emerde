@@ -3,6 +3,7 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:b="http://schemas.github.com/computedbehaviors/2024/xaml"
                  xmlns:c="http://schemas.github.com/computedconverters/2024/xaml"
+                 xmlns:controls="clr-namespace:Emerde.Controls"
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                  xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
                  xmlns:local="clr-namespace:Emerde.Views"
@@ -19,9 +20,9 @@
                  WindowStartupLocation="CenterOwner"
                  mc:Ignorable="d">
     <Grid>
-        <ui:Grid Margin="8,42,4,8">
+        <ui:Grid x:Name="SettingsContentRoot" Margin="8,42,4,8">
             <ScrollViewer PanningMode="None" VerticalScrollBarVisibility="Visible">
-                <ui:StackPanel Margin="8,0,12,0" Spacing="8">
+                <ui:StackPanel x:Name="SettingsStackPanel" Margin="8,0,12,0" Spacing="8">
                     <i:Interaction.Behaviors>
                         <b:PanelTransitionsBehavior Type="DownToUp" />
                     </i:Interaction.Behaviors>
@@ -157,8 +158,7 @@
                                            Orientation="Horizontal"
                                            Spacing="8">
                                 <Button Command="{Binding OpenLogFolderCommand}" Content="打开目录" />
-                                <Button Command="{Binding ExportRecentLogsCommand}" Content="导出最近" />
-                                <Button Command="{Binding ExportAllLogsCommand}" Content="导出全部" />
+                                <Button Command="{Binding ExportLogsCommand}" Content="导出" />
                                 <ui:ToggleSwitch IsChecked="{Binding IsSessionLogEnabled, Mode=TwoWay}" />
                             </ui:StackPanel>
                         </ui:Grid>
@@ -179,12 +179,15 @@
                                 <TextBlock Grid.Row="1"
                                            FontSize="11"
                                            Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
-                                           Text="导入、导出或重置 YAML 配置。" />
+                                           Text="{Binding ConfigFilePath}"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding ConfigFilePath}" />
                             </ui:Grid>
                             <ui:StackPanel Grid.Column="2"
                                            Margin="0,0,28,0"
                                            Orientation="Horizontal"
                                            Spacing="8">
+                                <Button Command="{Binding OpenConfigFolderCommand}" Content="打开位置" />
                                 <Button Command="{Binding ImportConfigCommand}" Content="导入" />
                                 <Button Command="{Binding ExportConfigCommand}" Content="导出" />
                                 <Button Command="{Binding ResetConfigCommand}" Content="重置" />
@@ -332,10 +335,10 @@
                                            Margin="0,0,28,0"
                                            Orientation="Horizontal"
                                            Spacing="8">
-                                <ui:NumberBox MinWidth="112"
-                                              Maximum="{c:DoubleMaxValue}"
-                                              Minimum="1"
-                                              Value="{Binding RoutineInterval, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <controls:CompactNumberBox MinWidth="112"
+                                                           Maximum="{c:DoubleMaxValue}"
+                                                           Minimum="1"
+                                                           Value="{Binding RoutineInterval, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 <ComboBox MinWidth="86"
                                           DisplayMemberPath="DisplayName"
                                           ItemsSource="{Binding TimeUnitOptions}"
@@ -366,15 +369,16 @@
                                       MinWidth="150"
                                       Margin="0,0,28,0"
                                       SelectedIndex="{Binding RoutineScheduleModeIndex, Mode=TwoWay}">
-                                <ComboBoxItem Content="始终运行" />
-                                <ComboBoxItem Content="工作日运行" />
-                                <ComboBoxItem Content="周末运行" />
-                                <ComboBoxItem Content="夜间运行" />
-                                <ComboBoxItem Content="自定义计划" />
+                                <ComboBoxItem Content="始终运行" ToolTip="周一至周日，全天运行" />
+                                <ComboBoxItem Content="工作日运行" ToolTip="周一至周五运行" />
+                                <ComboBoxItem Content="周末运行" ToolTip="周六、周日运行" />
+                                <ComboBoxItem Content="夜间运行" ToolTip="每天 18:00 至次日 08:00 运行" />
+                                <ComboBoxItem Content="自定义计划" ToolTip="手动选择星期和起止时间段" />
                             </ComboBox>
                         </ui:Grid>
                     </ui:Card>
-                    <ui:CardExpander Visibility="{Binding IsRoutineScheduleCustom, Converter={x:Static c:BoolToVisibilityConverter.Instance}}">
+                    <ui:CardExpander IsExpanded="True"
+                                     Visibility="{Binding IsRoutineScheduleCustom, Converter={x:Static c:BoolToVisibilityConverter.Instance}}">
                         <ui:CardExpander.Header>
                             <ui:Grid ColumnDefinitions="Auto,*,Auto">
                                 <Grid Grid.Column="0" Margin="0,0,12,0">
@@ -397,11 +401,11 @@
                                           MinWidth="150"
                                           Margin="0,0,12,0"
                                           SelectedIndex="{Binding RoutineScheduleModeIndex, Mode=TwoWay}">
-                                    <ComboBoxItem Content="始终运行" />
-                                    <ComboBoxItem Content="工作日运行" />
-                                    <ComboBoxItem Content="周末运行" />
-                                    <ComboBoxItem Content="夜间运行" />
-                                    <ComboBoxItem Content="自定义计划" />
+                                    <ComboBoxItem Content="始终运行" ToolTip="周一至周日，全天运行" />
+                                    <ComboBoxItem Content="工作日运行" ToolTip="周一至周五运行" />
+                                    <ComboBoxItem Content="周末运行" ToolTip="周六、周日运行" />
+                                    <ComboBoxItem Content="夜间运行" ToolTip="每天 18:00 至次日 08:00 运行" />
+                                    <ComboBoxItem Content="自定义计划" ToolTip="手动选择星期和起止时间段" />
                                 </ComboBox>
                             </ui:Grid>
                         </ui:CardExpander.Header>
@@ -419,30 +423,30 @@
                             </WrapPanel>
                             <ui:Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="时间段" />
-                                <ui:NumberBox Grid.Column="1"
-                                              Width="72"
-                                              Margin="12,0,0,0"
-                                              Maximum="23"
-                                              Minimum="0"
-                                              Value="{Binding RoutineScheduleStartHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <controls:CompactNumberBox Grid.Column="1"
+                                                           Width="72"
+                                                           Margin="12,0,0,0"
+                                                           Maximum="23"
+                                                           Minimum="0"
+                                                           Value="{Binding RoutineScheduleStartHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 <TextBlock Grid.Column="2" Margin="6,0" VerticalAlignment="Center" Text=":" />
-                                <ui:NumberBox Grid.Column="3"
-                                              Width="72"
-                                              Maximum="59"
-                                              Minimum="0"
-                                              Value="{Binding RoutineScheduleStartMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <controls:CompactNumberBox Grid.Column="3"
+                                                           Width="72"
+                                                           Maximum="59"
+                                                           Minimum="0"
+                                                           Value="{Binding RoutineScheduleStartMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 <TextBlock Grid.Column="4" Margin="12,0" VerticalAlignment="Center" Text="至" />
-                                <ui:NumberBox Grid.Column="5"
-                                              Width="72"
-                                              Maximum="23"
-                                              Minimum="0"
-                                              Value="{Binding RoutineScheduleEndHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <controls:CompactNumberBox Grid.Column="5"
+                                                           Width="72"
+                                                           Maximum="23"
+                                                           Minimum="0"
+                                                           Value="{Binding RoutineScheduleEndHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 <TextBlock Grid.Column="6" Margin="6,0" VerticalAlignment="Center" Text=":" />
-                                <ui:NumberBox Grid.Column="7"
-                                              Width="72"
-                                              Maximum="59"
-                                              Minimum="0"
-                                              Value="{Binding RoutineScheduleEndMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <controls:CompactNumberBox Grid.Column="7"
+                                                           Width="72"
+                                                           Maximum="59"
+                                                           Minimum="0"
+                                                           Value="{Binding RoutineScheduleEndMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             </ui:Grid>
                         </ui:StackPanel>
                     </ui:CardExpander>
@@ -514,12 +518,12 @@
                                     <TextBlock Grid.Column="0"
                                                VerticalAlignment="Center"
                                                Text="{Binding SegmentTimeValueLabel}" />
-                                    <ui:NumberBox Grid.Column="1"
-                                                  MinWidth="112"
-                                                  Margin="8,0,0,0"
-                                                  Maximum="2147483647"
-                                                  Minimum="1"
-                                                  Value="{Binding SegmentTimeValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <controls:CompactNumberBox Grid.Column="1"
+                                                               MinWidth="112"
+                                                               Margin="8,0,0,0"
+                                                               Maximum="2147483647"
+                                                               Minimum="1"
+                                                               Value="{Binding SegmentTimeValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     <ComboBox Grid.Column="2"
                                               MinWidth="86"
                                               Margin="8,0,0,0"
@@ -544,7 +548,7 @@
                                                Text="{x:Static ui:FontSymbols.Folder}" />
                                 </Grid>
                                 <ui:Grid Grid.Column="1" RowDefinitions="Auto,Auto">
-                                    <TextBlock Grid.Row="0" Text="{I18N SaveFolder}" />
+                                    <TextBlock Grid.Row="0" Text="{I18N Save}" />
                                     <TextBlock Grid.Row="1"
                                                FontSize="11"
                                                Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
@@ -573,109 +577,117 @@
                                         Command="{Binding OpenSaveFolderCommand}"
                                         Content="{I18N OpenFolder}" />
                             </ui:Grid>
-                            <ui:Grid Margin="42,0,28,0" ColumnDefinitions="Auto,*,Auto,Auto">
-                                <CheckBox Content="{I18N SaveFolderDistinguishedByAuthors}" IsChecked="{Binding SaveFolderDistinguishedByAuthors}" />
-                            </ui:Grid>
-                            <ui:Grid Margin="42,0,28,0" ColumnDefinitions="*,16,*">
+                            <ui:Grid Margin="42,0,28,0" ColumnDefinitions="*,12,*">
                                 <ui:Grid Grid.Column="0" ColumnDefinitions="Auto,*">
                                     <TextBlock Grid.Column="0"
                                                VerticalAlignment="Center"
-                                               Text="保存路径层级" />
+                                               Text="{I18N SavePathLevel}" />
                                     <ComboBox Grid.Column="1"
-                                              MinWidth="160"
-                                              Margin="16,0,0,0"
+                                              MinWidth="130"
+                                              Margin="10,0,0,0"
+                                              HorizontalAlignment="Stretch"
                                               SelectedIndex="{Binding SaveFolderPathLevelIndex, Mode=TwoWay}">
-                                        <ComboBoxItem Content="仅保存目录" />
-                                        <ComboBoxItem Content="主播名" />
-                                        <ComboBoxItem Content="主播名 / 年月" />
-                                        <ComboBoxItem Content="主播名 / 年月 / 日期" />
+                                        <ComboBoxItem Content="{I18N SavePathLevelRootOnly}" />
+                                        <ComboBoxItem Content="{I18N SavePathLevelAuthor}" />
+                                        <ComboBoxItem Content="{I18N SavePathLevelAuthorYearMonth}" />
+                                        <ComboBoxItem Content="{I18N SavePathLevelAuthorDate}" />
                                     </ComboBox>
                                 </ui:Grid>
-                                <ui:Grid Grid.Column="2" ColumnDefinitions="Auto,*">
+                                <ui:Grid Grid.Column="2"
+                                         ColumnDefinitions="Auto,*,Auto"
+                                         ToolTip="{I18N DataRetentionHint}">
                                     <TextBlock Grid.Column="0"
                                                VerticalAlignment="Center"
-                                               Text="文件命名规则" />
-                                    <ComboBox Grid.Column="1"
-                                              MinWidth="180"
-                                              Margin="16,0,0,0"
-                                              SelectedIndex="{Binding SaveFileNameRuleIndex, Mode=TwoWay}">
-                                        <ComboBoxItem Content="主播名_录制时间" />
-                                        <ComboBoxItem Content="录制时间_主播名" />
-                                        <ComboBoxItem Content="主播名" />
-                                        <ComboBoxItem Content="平台_主播名_录制时间" />
-                                        <ComboBoxItem Content="自定义" />
-                                    </ComboBox>
+                                               Text="{I18N DataRetention}" />
+                                    <controls:CompactNumberBox Grid.Column="1"
+                                                               MinWidth="76"
+                                                               Margin="10,0,0,0"
+                                                               Maximum="9999"
+                                                               Minimum="1"
+                                                               Value="{Binding DataRetentionValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <ComboBox Grid.Column="2"
+                                              MinWidth="70"
+                                              Margin="8,0,0,0"
+                                              DisplayMemberPath="DisplayName"
+                                              ItemsSource="{Binding DataRetentionUnitOptions}"
+                                              SelectedValue="{Binding DataRetentionUnitIndex, Mode=TwoWay}"
+                                              SelectedValuePath="Value" />
                                 </ui:Grid>
                             </ui:Grid>
-                            <ui:Grid Margin="42,0,28,0"
-                                     ColumnDefinitions="Auto,*,Auto"
-                                     Visibility="{Binding IsSaveFileNameRuleCustom, Converter={x:Static c:BoolToVisibilityConverter.Instance}}">
-                                <TextBlock Grid.Column="0"
-                                           VerticalAlignment="Center"
-                                           Text="自定义规则" />
-                                <ui:TextBox Grid.Column="1"
-                                            Margin="16,0,0,0"
-                                            PlaceholderText="{}{主播名}_{录制时间}"
-                                            Text="{Binding SaveFileNameCustomRule, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                <Button Grid.Column="2"
-                                        Margin="8,0,0,0"
-                                        Command="{Binding ResetSaveFileNameRuleCommand}"
-                                        Content="重置" />
-                            </ui:Grid>
-                            <WrapPanel Margin="42,0,28,0"
-                                       Visibility="{Binding IsSaveFileNameRuleCustom, Converter={x:Static c:BoolToVisibilityConverter.Instance}}">
-                                <Button Margin="0,0,8,8" Command="{Binding AppendSaveFileNameTokenCommand}" CommandParameter="{}{主播名}" Content="主播名" />
-                                <Button Margin="0,0,8,8" Command="{Binding AppendSaveFileNameTokenCommand}" CommandParameter="{}{录制时间}" Content="录制时间" />
-                                <Button Margin="0,0,8,8" Command="{Binding AppendSaveFileNameTokenCommand}" CommandParameter="{}{日期}" Content="日期" />
-                                <Button Margin="0,0,8,8" Command="{Binding AppendSaveFileNameTokenCommand}" CommandParameter="{}{时间}" Content="时间" />
-                                <Button Margin="0,0,8,8" Command="{Binding AppendSaveFileNameTokenCommand}" CommandParameter="{}{平台}" Content="平台" />
-                            </WrapPanel>
-                        </ui:StackPanel>
-                    </ui:CardExpander>
-                    <ui:CardExpander>
-                        <ui:CardExpander.Header>
-                            <ui:Grid ColumnDefinitions="Auto,*,Auto">
-                                <Grid Grid.Column="0" Margin="0,0,12,0">
-                                    <TextBlock MinWidth="26"
-                                               Margin="4,0,0,0"
-                                               HorizontalAlignment="Center"
+                            <ui:StackPanel Margin="42,10,28,0"
+                                           Spacing="10">
+                                <Border Height="1"
+                                        Margin="0,0,0,2"
+                                        Background="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                        Opacity="0.65" />
+                                <ui:Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                                    <TextBlock Grid.Column="0"
                                                VerticalAlignment="Center"
-                                               FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                               FontSize="18"
-                                               Text="{x:Static ui:FontSymbols.Play}" />
-                                </Grid>
-                                <ui:Grid Grid.Column="1" RowDefinitions="Auto,Auto">
-                                    <TextBlock Grid.Row="0" Text="{I18N PlayRecord}" />
-                                    <TextBlock Grid.Row="1"
-                                               FontSize="11"
-                                               Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
-                                               Text="{I18N PlayRecordHint}" />
+                                               Text="{I18N CustomRule}" />
+                                    <ui:TextBox Grid.Column="1"
+                                                Margin="16,0,0,0"
+                                                Cursor="Arrow"
+                                                Focusable="False"
+                                                IsReadOnly="True"
+                                                IsTabStop="False"
+                                                PlaceholderText="{}{主播名}_{录制时间}"
+                                                Text="{Binding SaveFileNameCustomRule, Mode=OneWay}" />
+                                    <Button Grid.Column="2"
+                                            Width="34"
+                                            Height="34"
+                                            MinWidth="34"
+                                            Margin="8,0,0,0"
+                                            Padding="0"
+                                            Command="{Binding DeleteLastSaveFileNameTokenCommand}"
+                                            ToolTip="{I18N DeleteLast}">
+                                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Delete}" />
+                                    </Button>
+                                    <Button Grid.Column="3"
+                                            Width="34"
+                                            Height="34"
+                                            MinWidth="34"
+                                            Margin="8,0,0,0"
+                                            Padding="0"
+                                            Command="{Binding ClearSaveFileNameRuleCommand}"
+                                            ToolTip="{I18N Clear}">
+                                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.CalculatorMultiply}" />
+                                    </Button>
                                 </ui:Grid>
-                                <Grid Grid.Column="2" Margin="0,0,12,0">
-                                    <!--  EMPTY  -->
-                                </Grid>
-                            </ui:Grid>
-                        </ui:CardExpander.Header>
-                        <ui:StackPanel Spacing="8">
-                            <ui:Grid Margin="42,0,28,0" ColumnDefinitions="Auto,Auto,Auto">
-                                <TextBlock Grid.Row="0"
-                                           VerticalAlignment="Center"
-                                           Text="{I18N Player}" />
-                                <ComboBox Grid.Column="1"
-                                          MinWidth="150"
-                                          Margin="16,0,0,0"
-                                          SelectedIndex="{Binding PlayerIndex, Mode=TwoWay}">
-                                    <ComboBoxItem Content="{I18N PlayerInner}" ToolTip="{I18N PlayerInnerHint}" />
-                                    <ComboBoxItem Content="{I18N PlayerSystem}" ToolTip="{I18N PlayerSystemHint}" />
-                                </ComboBox>
-                                <CheckBox Grid.Column="2"
-                                          Margin="16,0,0,0"
-                                          Content="{I18N PlayerInnerUseRect}"
-                                          IsChecked="{Binding IsPlayerRect, Mode=TwoWay}"
-                                          IsEnabled="{Binding PlayerIndex, Converter={x:Static c:IntToBoolConverter.Instance}, ConverterParameter={c:Int Value=0}}" />
-                            </ui:Grid>
+                                <Border Height="1"
+                                        Background="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                        Opacity="0.65" />
+                                <WrapPanel>
+                                    <Button Margin="0,0,8,8" Command="{Binding AppendSaveFileNameTokenCommand}" CommandParameter="{}{主播名}" Content="{I18N TokenAuthor}" />
+                                    <Button Margin="0,0,8,8" Command="{Binding AppendSaveFileNameTokenCommand}" CommandParameter="{}{录制时间}" Content="{I18N TokenRecordTime}" />
+                                    <Button Margin="0,0,8,8" Command="{Binding AppendSaveFileNameTokenCommand}" CommandParameter="{}{日期}" Content="{I18N TokenDate}" />
+                                    <Button Margin="0,0,8,8" Command="{Binding AppendSaveFileNameTokenCommand}" CommandParameter="{}{时间}" Content="{I18N TokenTime}" />
+                                    <Button Margin="0,0,8,8" Command="{Binding AppendSaveFileNameTokenCommand}" CommandParameter="{}{平台}" Content="{I18N Platform}" />
+                                </WrapPanel>
+                            </ui:StackPanel>
                         </ui:StackPanel>
                     </ui:CardExpander>
+                    <ui:Card>
+                        <ui:Grid MinHeight="35" ColumnDefinitions="Auto,*,Auto">
+                            <Grid Grid.Column="0" Margin="0,0,12,0">
+                                <TextBlock MinWidth="26"
+                                           Margin="4,0,0,0"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                           FontSize="18"
+                                           Text="{x:Static ui:FontSymbols.Play}" />
+                            </Grid>
+                            <ui:Grid Grid.Column="1">
+                                <TextBlock VerticalAlignment="Center" Text="{I18N Preview}" />
+                            </ui:Grid>
+                            <TextBlock Grid.Column="2"
+                                       Margin="0,0,28,0"
+                                       VerticalAlignment="Center"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
+                                       Text="{I18N PreviewBuiltInPlayerHint}" />
+                        </ui:Grid>
+                    </ui:Card>
                     <TextBlock Margin="4,0,0,4"
                                FontSize="14"
                                Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
@@ -863,7 +875,7 @@
                                     <TextBlock Grid.Row="0"
                                                Grid.Column="0"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                               Text="{I18N UseCookieOfDouyin}" />
+                                               Text="{I18N DomesticCookiePlatforms}" />
                                     <TextBlock Grid.Row="0"
                                                Grid.Column="1"
                                                Text="{Binding ChinaCookiePlatformsText}"
@@ -872,7 +884,7 @@
                                                Grid.Column="0"
                                                Margin="0,5,0,0"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                               Text="{I18N UseCookieOfOversea}" />
+                                               Text="{I18N OverseasCookiePlatforms}" />
                                     <TextBlock Grid.Row="1"
                                                Grid.Column="1"
                                                Margin="0,5,0,0"
@@ -958,28 +970,90 @@
                                 </Grid>
                             </ui:Grid>
                         </ui:CardExpander.Header>
-                        <ui:StackPanel Spacing="12">
-                            <ui:Grid Margin="42,0,28,0" ColumnDefinitions="Auto,*,Auto">
-                                <TextBlock VerticalAlignment="Center" Text="{I18N UseCookieOfDouyin}" />
-                                <ui:TextBox Grid.Column="1"
-                                            Margin="8,0,0,0"
-                                            PlaceholderText="{I18N UseCookieEnterHint}"
-                                            Text="{Binding CookieChina, Mode=TwoWay}" />
-                                <Button Grid.Column="2"
-                                        Margin="8,0,0,0"
+                        <ui:StackPanel Spacing="14">
+                            <ui:Grid Margin="42,0,28,0" ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0"
+                                           VerticalAlignment="Center"
+                                           FontWeight="SemiBold"
+                                           Text="{I18N DomesticCookiePlatforms}" />
+                                <Button Grid.Column="1"
                                         Command="{Binding OpenHowToGetCookieChinaCommand}"
                                         Content="{I18N HowToGet}" />
                             </ui:Grid>
-                            <ui:Grid Margin="42,0,28,0" ColumnDefinitions="Auto,*,Auto">
-                                <TextBlock VerticalAlignment="Center" Text="{I18N UseCookieOfOversea}" />
-                                <ui:TextBox Grid.Column="1"
-                                            Margin="8,0,0,0"
-                                            PlaceholderText="{I18N UseCookieEnterHint}"
-                                            Text="{Binding CookieOversea, Mode=TwoWay}" />
-                                <Button Grid.Column="2"
-                                        Margin="8,0,0,0"
+                            <ItemsControl Margin="42,0,28,0" ItemsSource="{Binding DomesticCookiePlatforms}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="2" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <ui:Grid Margin="0,0,12,8" ColumnDefinitions="88,*">
+                                            <TextBlock Grid.Column="0"
+                                                       VerticalAlignment="Center"
+                                                       Text="{Binding DisplayName}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <ui:TextBox Grid.Column="1"
+                                                        MinWidth="120"
+                                                        Margin="8,0,0,0"
+                                                        PlaceholderText="{I18N UseCookieEnterHint}"
+                                                        Text="{Binding Cookie, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        </ui:Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Border Height="1"
+                                    Margin="42,0,28,0"
+                                    Background="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                    Opacity="0.65" />
+                            <ui:Grid Margin="42,0,28,0" ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0"
+                                           VerticalAlignment="Center"
+                                           FontWeight="SemiBold"
+                                           Text="{I18N OverseasCookiePlatforms}" />
+                                <Button Grid.Column="1"
                                         Command="{Binding OpenHowToGetCookieOverseaCommand}"
                                         Content="{I18N HowToGet}" />
+                            </ui:Grid>
+                            <ItemsControl Margin="42,0,28,0" ItemsSource="{Binding OverseasCookiePlatforms}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="2" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <ui:Grid Margin="0,0,12,8" ColumnDefinitions="88,*">
+                                            <TextBlock Grid.Column="0"
+                                                       VerticalAlignment="Center"
+                                                       Text="{Binding DisplayName}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <ui:TextBox Grid.Column="1"
+                                                        MinWidth="120"
+                                                        Margin="8,0,0,0"
+                                                        PlaceholderText="{I18N UseCookieEnterHint}"
+                                                        Text="{Binding Cookie, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        </ui:Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Border Height="1"
+                                    Margin="42,0,28,0"
+                                    Background="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                    Opacity="0.65" />
+                            <ui:Grid Margin="42,0,28,0" ColumnDefinitions="88,*">
+                                <TextBlock Grid.Column="0"
+                                           VerticalAlignment="Center"
+                                           FontWeight="SemiBold"
+                                           Text="{I18N NoCookiePlatforms}" />
+                                <TextBlock Grid.Column="1"
+                                           Margin="8,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           Text="{Binding DirectStreamPlatformsText}"
+                                           TextWrapping="Wrap" />
                             </ui:Grid>
                         </ui:StackPanel>
                     </ui:CardExpander>
@@ -1021,6 +1095,11 @@
                 </ui:StackPanel>
             </ScrollViewer>
         </ui:Grid>
+        <Grid x:Name="SettingsDialogOverlay"
+              Background="Transparent"
+              IsHitTestVisible="False"
+              Panel.ZIndex="40"
+              Visibility="Collapsed" />
         <Grid>
             <ui:TitleBar Title="{I18N Settings}" ShowMaximize="False">
                 <ui:TitleBar.Icon>

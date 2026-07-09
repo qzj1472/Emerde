@@ -1319,6 +1319,249 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("TrayStatusHint", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Save.
+        /// </summary>
+        public static string Save {
+            get {
+                return ResourceManager.GetString("Save", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Path Level.
+        /// </summary>
+        public static string SavePathLevel {
+            get {
+                return ResourceManager.GetString("SavePathLevel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save folder only.
+        /// </summary>
+        public static string SavePathLevelRootOnly {
+            get {
+                return ResourceManager.GetString("SavePathLevelRootOnly", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Author.
+        /// </summary>
+        public static string SavePathLevelAuthor {
+            get {
+                return ResourceManager.GetString("SavePathLevelAuthor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Author / Year / Month.
+        /// </summary>
+        public static string SavePathLevelAuthorYearMonth {
+            get {
+                return ResourceManager.GetString("SavePathLevelAuthorYearMonth", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Author / Year / Month / Date.
+        /// </summary>
+        public static string SavePathLevelAuthorDate {
+            get {
+                return ResourceManager.GetString("SavePathLevelAuthorDate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Naming Rule.
+        /// </summary>
+        public static string SaveNamingRule {
+            get {
+                return ResourceManager.GetString("SaveNamingRule", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Auto Cleanup.
+        /// </summary>
+        public static string DataRetention {
+            get {
+                return ResourceManager.GetString("DataRetention", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Automatically delete expired recording files in the save folder.
+        /// </summary>
+        public static string DataRetentionHint {
+            get {
+                return ResourceManager.GetString("DataRetentionHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Author_Record time.
+        /// </summary>
+        public static string SaveNamingRuleAuthorRecordTime {
+            get {
+                return ResourceManager.GetString("SaveNamingRuleAuthorRecordTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Record time_Author.
+        /// </summary>
+        public static string SaveNamingRuleRecordTimeAuthor {
+            get {
+                return ResourceManager.GetString("SaveNamingRuleRecordTimeAuthor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Author.
+        /// </summary>
+        public static string SaveNamingRuleAuthor {
+            get {
+                return ResourceManager.GetString("SaveNamingRuleAuthor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Platform_Author_Record time.
+        /// </summary>
+        public static string SaveNamingRulePlatformAuthorRecordTime {
+            get {
+                return ResourceManager.GetString("SaveNamingRulePlatformAuthorRecordTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Custom.
+        /// </summary>
+        public static string Custom {
+            get {
+                return ResourceManager.GetString("Custom", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Custom Rule.
+        /// </summary>
+        public static string CustomRule {
+            get {
+                return ResourceManager.GetString("CustomRule", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete last.
+        /// </summary>
+        public static string DeleteLast {
+            get {
+                return ResourceManager.GetString("DeleteLast", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Clear.
+        /// </summary>
+        public static string Clear {
+            get {
+                return ResourceManager.GetString("Clear", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Author.
+        /// </summary>
+        public static string TokenAuthor {
+            get {
+                return ResourceManager.GetString("TokenAuthor", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Record time.
+        /// </summary>
+        public static string TokenRecordTime {
+            get {
+                return ResourceManager.GetString("TokenRecordTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Date.
+        /// </summary>
+        public static string TokenDate {
+            get {
+                return ResourceManager.GetString("TokenDate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Time.
+        /// </summary>
+        public static string TokenTime {
+            get {
+                return ResourceManager.GetString("TokenTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Preview.
+        /// </summary>
+        public static string Preview {
+            get {
+                return ResourceManager.GetString("Preview", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Using built-in player.
+        /// </summary>
+        public static string PreviewBuiltInPlayerHint {
+            get {
+                return ResourceManager.GetString("PreviewBuiltInPlayerHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Domestic Platforms.
+        /// </summary>
+        public static string DomesticCookiePlatforms {
+            get {
+                return ResourceManager.GetString("DomesticCookiePlatforms", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Overseas Platforms.
+        /// </summary>
+        public static string OverseasCookiePlatforms {
+            get {
+                return ResourceManager.GetString("OverseasCookiePlatforms", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No-cookie Platforms.
+        /// </summary>
+        public static string NoCookiePlatforms {
+            get {
+                return ResourceManager.GetString("NoCookiePlatforms", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} rooms / {1} live / {2} platforms.
+        /// </summary>
+        public static string PlatformSummaryFormat {
+            get {
+                return ResourceManager.GetString("PlatformSummaryFormat", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Use Cookie.

@@ -550,4 +550,85 @@
   <data name="SegmentHint" xml:space="preserve">
     <value>指定每個輸出檔案的時間長度（單位為秒）</value>
   </data>
+  <data name="Save" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="SavePathLevel" xml:space="preserve">
+    <value>路徑層級</value>
+  </data>
+  <data name="SavePathLevelRootOnly" xml:space="preserve">
+    <value>僅保存目錄</value>
+  </data>
+  <data name="SavePathLevelAuthor" xml:space="preserve">
+    <value>主播名</value>
+  </data>
+  <data name="SavePathLevelAuthorYearMonth" xml:space="preserve">
+    <value>主播年月</value>
+  </data>
+  <data name="SavePathLevelAuthorDate" xml:space="preserve">
+    <value>主播年月日期</value>
+  </data>
+  <data name="SaveNamingRule" xml:space="preserve">
+    <value>命名規則</value>
+  </data>
+  <data name="DataRetention" xml:space="preserve">
+    <value>自動清理</value>
+  </data>
+  <data name="DataRetentionHint" xml:space="preserve">
+    <value>自動刪除保存目錄中超出保留時長的錄製檔案。</value>
+  </data>
+  <data name="SaveNamingRuleAuthorRecordTime" xml:space="preserve">
+    <value>主播名_錄製時間</value>
+  </data>
+  <data name="SaveNamingRuleRecordTimeAuthor" xml:space="preserve">
+    <value>錄製時間_主播名</value>
+  </data>
+  <data name="SaveNamingRuleAuthor" xml:space="preserve">
+    <value>主播名</value>
+  </data>
+  <data name="SaveNamingRulePlatformAuthorRecordTime" xml:space="preserve">
+    <value>平台_主播名_錄製時間</value>
+  </data>
+  <data name="Custom" xml:space="preserve">
+    <value>自訂</value>
+  </data>
+  <data name="CustomRule" xml:space="preserve">
+    <value>自訂規則</value>
+  </data>
+  <data name="DeleteLast" xml:space="preserve">
+    <value>逐個刪除</value>
+  </data>
+  <data name="Clear" xml:space="preserve">
+    <value>清空</value>
+  </data>
+  <data name="TokenAuthor" xml:space="preserve">
+    <value>主播名</value>
+  </data>
+  <data name="TokenRecordTime" xml:space="preserve">
+    <value>錄製時間</value>
+  </data>
+  <data name="TokenDate" xml:space="preserve">
+    <value>日期</value>
+  </data>
+  <data name="TokenTime" xml:space="preserve">
+    <value>時間</value>
+  </data>
+  <data name="Preview" xml:space="preserve">
+    <value>預覽</value>
+  </data>
+  <data name="PreviewBuiltInPlayerHint" xml:space="preserve">
+    <value>使用的是內建播放器</value>
+  </data>
+  <data name="DomesticCookiePlatforms" xml:space="preserve">
+    <value>國內平台</value>
+  </data>
+  <data name="OverseasCookiePlatforms" xml:space="preserve">
+    <value>海外平台</value>
+  </data>
+  <data name="NoCookiePlatforms" xml:space="preserve">
+    <value>無需 Cookie 平台</value>
+  </data>
+  <data name="PlatformSummaryFormat" xml:space="preserve">
+    <value>{0} 個直播間 / {1} 個開播 / {2} 個平台</value>
+  </data>
 </root>
