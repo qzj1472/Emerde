@@ -21,7 +21,15 @@ internal static class AppPaths
         return Directory.EnumerateFiles(ConfigDirectory, "config*.yaml", SearchOption.TopDirectoryOnly)
             .Concat(Directory.EnumerateFiles(ConfigDirectory, "config*.yml", SearchOption.TopDirectoryOnly))
             .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(IsConfigFile)
             .OrderBy(static file => file, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    internal static bool IsConfigFile(string filePath)
+    {
+        string fileName = Path.GetFileName(filePath);
+        return !fileName.Contains(".bak-", StringComparison.OrdinalIgnoreCase)
+            && !fileName.Contains(".reset-bak-", StringComparison.OrdinalIgnoreCase);
     }
 }
