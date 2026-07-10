@@ -129,23 +129,17 @@
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <ToggleButton Grid.Column="0"
-                                                      Margin="0,0,6,0"
-                                                      HorizontalAlignment="Stretch"
-                                                      Content="{I18N LiveNotification}"
-                                                      IsChecked="{Binding IsToNotify, Mode=TwoWay}" />
+                                                       Margin="0,0,6,0"
+                                                       HorizontalAlignment="Stretch"
+                                                       Content="监控"
+                                                       IsChecked="{Binding IsToMonitor, Mode=TwoWay}" />
                                         <ToggleButton Grid.Column="1"
-                                                      Margin="6,0"
-                                                      HorizontalAlignment="Stretch"
-                                                      Content="自动监控"
-                                                      IsChecked="{Binding IsToMonitor, Mode=TwoWay}" />
-                                        <ToggleButton Grid.Column="2"
-                                                      Margin="6,0,0,0"
-                                                      HorizontalAlignment="Stretch"
-                                                      Content="{I18N EnableRecord}"
-                                                      IsChecked="{Binding IsToRecord, Mode=TwoWay}" />
+                                                       Margin="6,0,0,0"
+                                                       HorizontalAlignment="Stretch"
+                                                       Content="{I18N EnableRecord}"
+                                                       IsChecked="{Binding IsToRecord, Mode=TwoWay}" />
                                     </Grid>
                                 </ui:Card>
 
