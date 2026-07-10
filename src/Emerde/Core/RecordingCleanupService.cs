@@ -45,6 +45,11 @@ internal static class RecordingCleanupService
 
     public static void QueueRun()
     {
+        if (!Configurations.IsDataRetentionEnabled.Get())
+        {
+            return;
+        }
+
         _ = Task.Run(() => RunAsync());
     }
 
@@ -75,6 +80,11 @@ internal static class RecordingCleanupService
 
     private static void Cleanup(CancellationToken cancellationToken)
     {
+        if (!Configurations.IsDataRetentionEnabled.Get())
+        {
+            return;
+        }
+
         string root = SaveFolderHelper.GetSaveFolder(Configurations.SaveFolder.Get());
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
         {

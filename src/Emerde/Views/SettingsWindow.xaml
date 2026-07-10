@@ -720,21 +720,26 @@
                                     </ComboBox>
                                 </ui:Grid>
                                 <ui:Grid Grid.Column="2"
-                                         ColumnDefinitions="Auto,*,Auto"
+                                         ColumnDefinitions="Auto,Auto,*,Auto"
                                          ToolTip="{I18N DataRetentionHint}">
                                     <TextBlock Grid.Column="0"
                                                VerticalAlignment="Center"
                                                Text="{I18N DataRetention}" />
-                                    <controls:CompactNumberBox Grid.Column="1"
-                                                               MinWidth="76"
-                                                               Margin="10,0,0,0"
-                                                               Maximum="9999"
-                                                               Minimum="1"
-                                                               Value="{Binding DataRetentionValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <ComboBox Grid.Column="2"
+                                    <ui:ToggleSwitch Grid.Column="1"
+                                                     Margin="10,0,0,0"
+                                                     IsChecked="{Binding IsDataRetentionEnabled, Mode=TwoWay}" />
+                                    <controls:CompactNumberBox Grid.Column="2"
+                                                                MinWidth="76"
+                                                                Margin="10,0,0,0"
+                                                                Maximum="9999"
+                                                                Minimum="1"
+                                                                IsEnabled="{Binding IsDataRetentionEnabled}"
+                                                                Value="{Binding DataRetentionValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <ComboBox Grid.Column="3"
                                               MinWidth="70"
                                               Margin="8,0,0,0"
                                               DisplayMemberPath="DisplayName"
+                                              IsEnabled="{Binding IsDataRetentionEnabled}"
                                               ItemsSource="{Binding DataRetentionUnitOptions}"
                                               SelectedValue="{Binding DataRetentionUnitIndex, Mode=TwoWay}"
                                               SelectedValuePath="Value" />

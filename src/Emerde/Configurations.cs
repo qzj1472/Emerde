@@ -45,6 +45,7 @@ public static class Configurations
     public static ConfigurationDefinition<bool> SaveFolderDistinguishedByAuthors { get; } = new(nameof(SaveFolderDistinguishedByAuthors), true);
     public static ConfigurationDefinition<int> SaveFileNameRule { get; } = new(nameof(SaveFileNameRule), 0);
     public static ConfigurationDefinition<string> SaveFileNameCustomRule { get; } = new(nameof(SaveFileNameCustomRule), string.Empty);
+    public static ConfigurationDefinition<bool> IsDataRetentionEnabled { get; } = new(nameof(IsDataRetentionEnabled), false);
     public static ConfigurationDefinition<int> DataRetentionValue { get; } = new(nameof(DataRetentionValue), 1);
     public static ConfigurationDefinition<int> DataRetentionUnit { get; } = new(nameof(DataRetentionUnit), 1);
     public static ConfigurationDefinition<string> Player { get; } = new(nameof(Player), "ffplay");

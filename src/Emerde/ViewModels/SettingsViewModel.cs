@@ -824,6 +824,20 @@ public partial class SettingsViewModel : ReactiveObject
     }
 
     [ObservableProperty]
+    private bool isDataRetentionEnabled = Configurations.IsDataRetentionEnabled.Get();
+
+    partial void OnIsDataRetentionEnabledChanged(bool value)
+    {
+        Configurations.IsDataRetentionEnabled.Set(value);
+        ConfigurationManager.Save();
+
+        if (value)
+        {
+            RecordingCleanupService.QueueRun();
+        }
+    }
+
+    [ObservableProperty]
     private double dataRetentionValue = Math.Max(1, Configurations.DataRetentionValue.Get());
 
     partial void OnDataRetentionValueChanged(double value)

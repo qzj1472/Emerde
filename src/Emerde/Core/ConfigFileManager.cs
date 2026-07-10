@@ -48,6 +48,7 @@ internal static class ConfigFileManager
         nameof(Configurations.SaveFolderDistinguishedByAuthors),
         nameof(Configurations.SaveFileNameRule),
         nameof(Configurations.SaveFileNameCustomRule),
+        nameof(Configurations.IsDataRetentionEnabled),
         nameof(Configurations.DataRetentionValue),
         nameof(Configurations.DataRetentionUnit),
         nameof(Configurations.Player),

@@ -575,7 +575,7 @@
     <value>自動清理</value>
   </data>
   <data name="DataRetentionHint" xml:space="preserve">
-    <value>自動刪除保存目錄中超出保留時長的錄製檔案。</value>
+    <value>啟用後自動刪除保存目錄中超出保留時長的錄製檔案。</value>
   </data>
   <data name="SaveNamingRuleAuthorRecordTime" xml:space="preserve">
     <value>主播名_錄製時間</value>

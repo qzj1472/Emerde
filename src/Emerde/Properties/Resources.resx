@@ -575,7 +575,7 @@
     <value>Auto Cleanup</value>
   </data>
   <data name="DataRetentionHint" xml:space="preserve">
-    <value>Automatically delete expired recording files in the save folder.</value>
+    <value>When enabled, automatically delete expired recording files in the save folder.</value>
   </data>
   <data name="SaveNamingRuleAuthorRecordTime" xml:space="preserve">
     <value>Author_Record time</value>

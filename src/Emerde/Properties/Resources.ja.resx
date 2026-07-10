@@ -578,7 +578,7 @@
     <value>自動クリーンアップ</value>
   </data>
   <data name="DataRetentionHint" xml:space="preserve">
-    <value>保存フォルダー内で保存期間を超えた録画ファイルを自動削除します。</value>
+    <value>有効化すると、保存フォルダー内で保存期間を超えた録画ファイルを自動削除します。</value>
   </data>
   <data name="SaveNamingRuleAuthorRecordTime" xml:space="preserve">
     <value>配信者名_録画時間</value>
