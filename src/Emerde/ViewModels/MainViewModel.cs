@@ -1463,6 +1463,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         Configurations.Rooms.Set(rooms);
         ConfigurationManager.Save();
+        GlobalMonitor.RefreshRoutineInterval();
     }
 
     [RelayCommand]
@@ -1770,6 +1771,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         Configurations.Rooms.Set(rooms);
         ConfigurationManager.Save();
+        GlobalMonitor.RefreshRoutineInterval();
     }
 
     private void RefreshRoomEffectiveStates()

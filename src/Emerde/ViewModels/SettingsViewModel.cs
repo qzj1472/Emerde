@@ -557,10 +557,10 @@ public partial class SettingsViewModel : ReactiveObject
     {
         int milliseconds = ConvertTimeUnitToMilliseconds(value, unitIndex);
         milliseconds = Math.Max(500, milliseconds);
-        GlobalMonitor.RoutinePeriodicWait.Period = TimeSpan.FromMilliseconds(milliseconds);
         Configurations.RoutineInterval.Set(milliseconds);
         Configurations.RoutineIntervalUnit.Set(unitIndex);
         ConfigurationManager.Save();
+        GlobalMonitor.RefreshRoutineInterval();
     }
 
     [ObservableProperty]

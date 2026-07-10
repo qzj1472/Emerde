@@ -21,7 +21,7 @@ internal static class GlobalMonitor
     /// </summary>
     public static ConcurrentDictionary<string, RoomStatus> RoomStatus { get; } = new();
 
-    public static PeriodicWait RoutinePeriodicWait = new(TimeSpan.FromMilliseconds(int.Max(Configurations.RoutineInterval.Get(), 500)), TimeSpan.Zero);
+    public static PeriodicWait RoutinePeriodicWait = new(GetRoutinePeriod(), TimeSpan.Zero);
 
     public static CancellationTokenSource? TokenSource { get; private set; } = null;
 
@@ -85,7 +85,7 @@ internal static class GlobalMonitor
 
             CancellationTokenSource source = tokenSource ?? new CancellationTokenSource();
             TokenSource = source;
-            RoutinePeriodicWait = new PeriodicWait(TimeSpan.FromMilliseconds(int.Max(Configurations.RoutineInterval.Get(), 500)), TimeSpan.Zero);
+            RoutinePeriodicWait = new PeriodicWait(GetRoutinePeriod(), TimeSpan.Zero);
             MonitorTask = Task.Factory.StartNew(
                 () => StartAsync(source.Token),
                 CancellationToken.None,
@@ -107,6 +107,8 @@ internal static class GlobalMonitor
     {
         while (!token.IsCancellationRequested)
         {
+            RefreshRoutineInterval();
+
             // Delay Routine Interval
             _ = await RoutinePeriodicWait.WaitForNextTickAsync(token);
 
@@ -267,6 +269,39 @@ internal static class GlobalMonitor
                 Debug.WriteLine(e);
             }
         }
+    }
+
+    public static void RefreshRoutineInterval()
+    {
+        RoutinePeriodicWait.Period = GetRoutinePeriod();
+    }
+
+    internal static TimeSpan GetRoutinePeriod()
+    {
+        return TimeSpan.FromMilliseconds(GetEffectiveRoutineInterval());
+    }
+
+    internal static int GetEffectiveRoutineInterval()
+    {
+        Room[] rooms = Configurations.Rooms.Get();
+        int interval = Math.Max(500, Configurations.RoutineInterval.Get());
+
+        foreach (Room room in rooms)
+        {
+            bool isRoomMonitorEnabled = room.IsFollowGlobalSettings
+                ? Configurations.IsToMonitor.Get()
+                : room.IsToMonitor;
+
+            if (!isRoomMonitorEnabled)
+            {
+                continue;
+            }
+
+            RoomRecordingOptions settings = RoomRecordingSettings.Get(room);
+            interval = Math.Min(interval, Math.Max(500, settings.RoutineInterval));
+        }
+
+        return interval;
     }
 
     private static bool ShouldCheckRoom(string roomUrl, int routineInterval, DateTime now)
