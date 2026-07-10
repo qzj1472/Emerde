@@ -3,8 +3,10 @@ using Flucli;
 using Flucli.Utils.Extensions;
 using System.Diagnostics;
 using System.Text;
+using System.Text.RegularExpressions;
 using Emerde.Extensions;
 using Emerde.Models;
+using Emerde.Threading;
 
 namespace Emerde.Core;
 
@@ -14,11 +16,27 @@ public sealed class Recorder
 
     public CancellationTokenSource? TokenSource { get; private set; } = null;
 
+    private readonly object stateLock = new();
+
+    private readonly object processLock = new();
+
+    private Process? currentProcess;
+
+    private Task? recordingTask;
+
+    private bool stopRequested;
+
+    private readonly List<string> recordedFilePatterns = [];
+
+    public bool IsBusy => recordingTask is { IsCompleted: false };
+
     public string? Url { get; set; } = null;
 
     public string? FileName { get; set; } = null;
 
     public string? Parameters { get; set; } = null;
+
+    public string? MetadataPath { get; set; } = null;
 
     public DateTime StartTime { get; private set; } = DateTime.MinValue;
 
@@ -28,179 +46,627 @@ public sealed class Recorder
 
     public Task Start(RecorderStartInfo startInfo, CancellationTokenSource? tokenSource = null)
     {
-        if (RecordStatus == RecordStatus.Recording)
+        lock (stateLock)
         {
-            // Already recording
-            return Task.CompletedTask;
+            if (RecordStatus == RecordStatus.Recording || recordingTask is { IsCompleted: false })
+            {
+                return recordingTask ?? Task.CompletedTask;
+            }
+
+            stopRequested = false;
+            RecordStatus = RecordStatus.Recording;
+            TokenSource = tokenSource ?? new CancellationTokenSource();
+            recordingTask = Task.Factory.StartNew(
+                () => RunAsync(startInfo, TokenSource.Token),
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default
+            ).Unwrap();
+            return recordingTask;
         }
+    }
 
-        RecordStatus = RecordStatus.Recording;
-
-        return Task.Run(async () =>
+    private async Task RunAsync(RecorderStartInfo startInfo, CancellationToken token)
+    {
+        RoomRecordingOptions recordingOptions = startInfo.Options;
+        try
         {
-            RoomRecordingOptions recordingOptions = startInfo.Options;
-            try
+            string? recorderPath = SearchFileHelper.SearchExecutable("ffmpeg.exe");
+
+            if (recorderPath == null)
             {
-                string? recorderPath = SearchFileHelper.SearchFiles(".", "ffmpeg[\\.exe]").FirstOrDefault();
-
-                if (recorderPath == null)
+                RecordStatus = RecordStatus.NotRecording;
+                AppSessionLogger.Event("error", "recorder", "recorder_missing", "ffmpeg executable was not found", new
                 {
-                    // Recorder not found so you should reinstall the program.
-                    RecordStatus = RecordStatus.NotRecording;
-                    return;
-                }
-
-                string saveFolder = SaveFolderHelper.GetSaveFolder(recordingOptions.SaveFolder);
-
-                saveFolder = BuildSaveFolder(saveFolder, startInfo.NickName, DateTime.Now, recordingOptions.SaveFolderPathLevel);
-                if (!Directory.Exists(saveFolder))
-                {
-                    Directory.CreateDirectory(saveFolder);
-                }
-
-                string userAgent = Configurations.UserAgent.Get();
-                string httpProxy = Configurations.ProxyUrl.Get();
-                bool isUseProxy = Configurations.IsUseProxy.Get() && !string.IsNullOrWhiteSpace(httpProxy);
-                int segmentTime = Math.Max(1, recordingOptions.SegmentTime);
-                int segmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(recordingOptions.SegmentTimeUnit);
-                bool isToSegment = recordingOptions.IsToSegment && segmentTime > 0;
-                bool isToSegmentBySize = isToSegment && SegmentTimeUnitHelper.IsSizeUnit(segmentTimeUnit);
-
-                IsToSegment = isToSegment;
-
-                if (!string.IsNullOrWhiteSpace(startInfo.HlsUrl))
-                {
-                    Url = startInfo.HlsUrl;
-                    FileName = BuildOutputFileName(saveFolder, startInfo, DateTime.Now, isToSegment, isHls: true);
-                }
-                else
-                {
-                    Url = startInfo.FlvUrl;
-                    FileName = BuildOutputFileName(saveFolder, startInfo, DateTime.Now, isToSegment, isHls: false);
-                }
-
-                if (string.IsNullOrWhiteSpace(userAgent))
-                {
-                    userAgent = "Mozilla/5.0 (Linux; Android 11; SAMSUNG SM-G973U) AppleWebKit/537.36 ("
-                              + "KHTML, like Gecko) SamsungBrowser/14.2 Chrome/87.0.4280.141 Mobile "
-                              + "Safari/537.36";
-                }
-
-                Parameters = new List<string>() {
-                    "-y",                             // Overwrite output files.
-                    "-v", "verbose",                  // Set logging level to `verbose`.
-                    "-rw_timeout", "15000000",        // Set maximum time to wait for (network) read/write operations to complete, in microseconds to `15 seconds`.
-                    "-loglevel", "error",             // Set logging level to `error`.
-                    "-hide_banner",                   // Suppress printing banner.
-                    "-user_agent", userAgent,         // Override the User-Agent header. If not specified the protocol will use a string describing the libavformat build. ("Lavf/<version>")
-                    "-protocol_whitelist", "rtmp,crypto,file,http,https,tcp,tls,udp,rtp,httpproxy",
-                                                      // Set a ","-separated list of allowed protocols.
-                                                      // "ALL" matches all protocols.
-                                                      // Protocols prefixed by "-" are disabled.
-                                                      // All protocols are allowed by default but protocols used by an another protocol (nested protocols) are restricted to a per protocol subset.
-                    "-thread_queue_size", "1024",     // For input, this option sets the maximum number of queued packets when reading from the file or device.
-                                                      // With low latency / high rate live streams, packets may be discarded if they are not read in a timely manner; setting this value can force ffmpeg to use a separate input thread and read packets as soon as they arrive.
-                                                      // By default ffmpeg only does this if multiple inputs are specified.
-                                                      // For output, this option specified the maximum number of packets that may be queued to each muxing thread.
-                    "-analyzeduration", "20000000",   // Specify how many microseconds are analyzed to probe the input.
-                                                      // A higher value will enable detecting more accurate information, but will increase latency.
-                                                      // It defaults to 5,000,000 microseconds = 5 seconds.
-                                                      // Set to 20,000,000 microseconds = 20 seconds.
-                    "-probesize", "10000000",         // Set probing size in bytes, i.e. the size of the data to analyze to get stream information.
-                                                      // A higher value will enable detecting more information in case it is dispersed into the stream, but will increase latency.
-                                                      // Must be an integer not lesser than 32. It is 5000000 by default.
-                    "-fflags", "+discardcorrupt",     // Set format flags. Some are implemented for a limited number of formats.
-                                                      // Set to +discardcorrupt: Discard corrupted packets.
-                    "-i", Url,                        // Input infile.
-                    "-bufsize", "8000k",              // Specifies the decoder buffer size, which determines the variability of the output bitrate.
-                    "-sn",                            // Disable subtitle.
-                    "-dn",                            // Disable data.
-                    "-reconnect_delay_max", "60",     // Set the maximum delay in seconds after which to give up reconnecting.
-                    "-reconnect_streamed",            // If set then even streamed/non seekable streams will be reconnected on errors.
-                    "-reconnect_at_eof",              // If set then eof is treated like an error and causes reconnection, this is useful for live / endless streams.
-                    "-max_muxing_queue_size", "1024", // When transcoding audio and/or video streams, ffmpeg will not begin writing into the output until it has one packet for each such stream.
-                                                      // While waiting for that to happen, packets for other streams are buffered.
-                                                      // This option sets the size of this buffer, in packets, for the matching output stream.
-                                                      // The default value of this option should be high enough for most uses, so only touch this option if you are sure that you need it.
-                    "-correct_ts_overflow", "1",      // Correct single timestamp overflows if set to 1. Default is 1.
-                    "-c:v", "copy",                   // Video codec name.
-                    "-c:a", "copy",                   // Audio codec name.
-                    "-map", "0",                      // Set input stream mapping.
-                }
-                .AddIf(isUseProxy, "-http_proxy", httpProxy)
-                .AddIf(isToSegment && !isToSegmentBySize,
-                    "-f", "segment",
-                    "-segment_time", SegmentTimeUnitHelper.ToSegmentArgument(segmentTime, segmentTimeUnit),
-                    "-segment_time_delta", "0.05",
-                    "-segment_atclocktime", "0",
-                    "-segment_format", "mpegts"
-                )
-                .AddIf(isToSegmentBySize,
-                    "-f", "segment",
-                    "-segment_size", segmentTime.ToString(),
-                    "-segment_format", "mpegts"
-                )
-                .AddIf(isToSegment,
-                    "-reset_timestamps", "1"
-                )
-                .AddIf(true, FileName)
-                .ToArguments();
-                TokenSource = tokenSource ?? new CancellationTokenSource();
-
-                EndTime = DateTime.MinValue;
-                StartTime = DateTime.Now;
-
-                CliResult result = await recorderPath
-                    .WithArguments(Parameters)
-                    .WithEnvironmentVariable(
-                    [
-                        (isUseProxy ? "http_proxy" : "__EMERDE_IGNORE_HTTP_PROXY__", "http://" + httpProxy),
-                        (isUseProxy ? "https_proxy" : "__EMERDE_IGNORE_HTTPS_PROXY__", "http://" + httpProxy),
-                    ])
-                    .WithStandardErrorPipe(PipeTarget.ToDelegate(OnStandardErrorReceived, Encoding.UTF8))
-                    .WithStandardOutputPipe(PipeTarget.ToDelegate(OnStandardOutputReceived, Encoding.UTF8))
-                    .ExecuteAsync(cancellationToken: TokenSource.Token);
-            }
-            catch (Exception e)
-            {
-                Debug.WriteLine(e);
+                    startInfo.RoomUrl,
+                    startInfo.NickName,
+                });
+                return;
             }
 
-            try
+            string saveFolder = SaveFolderHelper.GetSaveFolder(recordingOptions.SaveFolder);
+            saveFolder = BuildSaveFolder(saveFolder, startInfo.NickName, DateTime.Now, recordingOptions.SaveFolderPathLevel);
+            Directory.CreateDirectory(saveFolder);
+
+            string userAgent = Configurations.UserAgent.Get();
+            string httpProxy = Configurations.ProxyUrl.Get();
+            bool isUseProxy = Configurations.IsUseProxy.Get() && !string.IsNullOrWhiteSpace(httpProxy);
+            int segmentTime = Math.Max(1, recordingOptions.SegmentTime);
+            int segmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(recordingOptions.SegmentTimeUnit);
+            bool isToSegment = recordingOptions.IsToSegment && segmentTime > 0;
+            bool isToSegmentBySize = isToSegment && SegmentTimeUnitHelper.IsSizeUnit(segmentTimeUnit);
+            string headers = NormalizeHeaders(startInfo.Headers);
+
+            IsToSegment = isToSegment;
+            Url = SelectInputUrl(startInfo);
+
+            if (string.IsNullOrWhiteSpace(Url))
             {
-                // Converter to target format if recorded.
-                if (File.Exists(FileName))
+                RecordStatus = RecordStatus.NotRecording;
+                AppSessionLogger.Event("warn", "recorder", "record_no_input", "recording has no input stream url", new
                 {
-                    string formatArrow = recordingOptions.RecordFormat;
-
-                    if (!string.IsNullOrEmpty(formatArrow) && formatArrow.Contains("->"))
-                    {
-                        formatArrow = "." + formatArrow.Split('>')[1].Trim().ToLower();
-
-                        _ = ConvertRecordedFileAsync(FileName, formatArrow, recordingOptions.IsRemoveTs);
-                    }
-                }
+                    startInfo.RoomUrl,
+                    startInfo.NickName,
+                    hasRecordUrl = !string.IsNullOrWhiteSpace(startInfo.RecordUrl),
+                    hasFlvUrl = !string.IsNullOrWhiteSpace(startInfo.FlvUrl),
+                    hasHlsUrl = !string.IsNullOrWhiteSpace(startInfo.HlsUrl),
+                });
+                return;
             }
-            catch (Exception e)
+
+            bool isHls = IsHlsUrl(Url, startInfo);
+
+            if (string.IsNullOrWhiteSpace(userAgent))
             {
-                Debug.WriteLine(e);
+                userAgent = "Mozilla/5.0 (Linux; Android 11; SAMSUNG SM-G973U) AppleWebKit/537.36 ("
+                          + "KHTML, like Gecko) SamsungBrowser/14.2 Chrome/87.0.4280.141 Mobile "
+                          + "Safari/537.36";
             }
 
+            EndTime = DateTime.MinValue;
+            StartTime = DateTime.Now;
+            recordedFilePatterns.Clear();
+
+            int attempt = 0;
+            while (!token.IsCancellationRequested && !stopRequested)
+            {
+                DateTime now = DateTime.Now;
+                string baseFileName = BuildBaseFileName(startInfo, now).SanitizeFileName();
+                FileName = BuildOutputFileName(saveFolder, baseFileName, isToSegment, isHls);
+                VideoRecordingMetadata metadata = BuildMetadata(baseFileName, isHls ? "ts" : "flv", startInfo, now);
+                MetadataPath = VideoRecordingMetadataStore.WriteSidecar(saveFolder, baseFileName, metadata);
+                recordedFilePatterns.Add(FileName);
+
+                List<string> arguments = BuildArguments(
+                    FileName,
+                    isUseProxy,
+                    httpProxy,
+                    headers,
+                    userAgent,
+                    isToSegment,
+                    isToSegmentBySize,
+                    segmentTime,
+                    segmentTimeUnit,
+                    metadata);
+
+                Parameters = FormatArguments(arguments);
+                AppSessionLogger.Event("info", "recorder", "record_process_starting", "ffmpeg recording process is starting", new
+                {
+                    startInfo.RoomUrl,
+                    startInfo.NickName,
+                    startInfo.PlatformName,
+                    inputKind = isHls ? "hls" : "flv",
+                    hasHeaders = !string.IsNullOrWhiteSpace(headers),
+                    FileName,
+                    isToSegment,
+                    isUseProxy,
+                    attempt,
+                });
+
+                int exitCode = await ExecuteRecorderAsync(recorderPath, arguments, isUseProxy, httpProxy, startInfo, token);
+                if (token.IsCancellationRequested || stopRequested || exitCode == 0)
+                {
+                    break;
+                }
+
+                attempt++;
+                TimeSpan delay = TimeSpan.FromSeconds(Math.Min(8, attempt switch
+                {
+                    1 => 1,
+                    2 => 3,
+                    _ => 8,
+                }));
+                AppSessionLogger.Event("warn", "recorder", "record_reconnect_scheduled", "record reconnect scheduled", new
+                {
+                    startInfo.RoomUrl,
+                    startInfo.NickName,
+                    exitCode,
+                    attempt,
+                    delaySeconds = delay.TotalSeconds,
+                });
+                await Task.Delay(delay, token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e);
+            AppSessionLogger.WriteException(e);
+        }
+        finally
+        {
             EndTime = DateTime.Now;
-            RecordStatus = RecordStatus.NotRecording;
+            lock (stateLock)
+            {
+                if (RecordStatus == RecordStatus.Recording)
+                {
+                    RecordStatus = RecordStatus.NotRecording;
+                }
+            }
+            AppSessionLogger.Event("info", "recorder", "record_finished", "recording task finished", new
+            {
+                startInfo.RoomUrl,
+                startInfo.NickName,
+                FileName,
+                stopRequested,
+                startedAt = StartTime,
+                endedAt = EndTime,
+                durationSeconds = StartTime == DateTime.MinValue ? 0 : Math.Max(0, (EndTime - StartTime).TotalSeconds),
+            });
+            await ConvertRecordedFilesAsync(recordingOptions);
             RecordingCleanupService.QueueRun();
-        });
+        }
     }
 
     public void Stop()
     {
-        TokenSource?.Cancel();
+        stopRequested = true;
+        RequestCurrentProcessExit();
+        lock (stateLock)
+        {
+            TokenSource?.Cancel();
+            if (RecordStatus == RecordStatus.Recording)
+            {
+                EndTime = DateTime.Now;
+                RecordStatus = RecordStatus.NotRecording;
+            }
+        }
+    }
+
+    public void EndNowIfRecording()
+    {
+        lock (stateLock)
+        {
+            if (EndTime == DateTime.MinValue)
+            {
+                EndTime = DateTime.Now;
+            }
+
+            if (RecordStatus == RecordStatus.Recording)
+            {
+                RecordStatus = RecordStatus.NotRecording;
+            }
+        }
+    }
+
+    private List<string> BuildArguments(
+        string outputFileName,
+        bool isUseProxy,
+        string httpProxy,
+        string headers,
+        string userAgent,
+        bool isToSegment,
+        bool isToSegmentBySize,
+        int segmentTime,
+        int segmentTimeUnit,
+        VideoRecordingMetadata metadata)
+    {
+        List<string> arguments =
+        [
+            "-y",
+            "-v", "verbose",
+            "-rw_timeout", "30000000",
+            "-loglevel", "error",
+            "-hide_banner",
+            "-user_agent", userAgent,
+            "-protocol_whitelist", "rtmp,crypto,file,http,https,tcp,tls,udp,rtp,httpproxy",
+            "-thread_queue_size", "1024",
+            "-analyzeduration", "20000000",
+            "-probesize", "10000000",
+            "-fflags", "+discardcorrupt",
+        ];
+
+        arguments
+            .AddIf(isUseProxy, "-http_proxy", httpProxy)
+            .AddIf(!string.IsNullOrWhiteSpace(headers), "-headers", headers)
+            .AddIf(true,
+                "-i", Url ?? string.Empty,
+                "-bufsize", "8000k",
+                "-sn",
+                "-dn",
+                "-reconnect_delay_max", "60",
+                "-reconnect", "1",
+                "-reconnect_streamed", "1",
+                "-reconnect_at_eof", "1",
+                "-reconnect_on_network_error", "1",
+                "-reconnect_on_http_error", "4xx,5xx",
+                "-max_muxing_queue_size", "1024",
+                "-correct_ts_overflow", "1",
+                "-avoid_negative_ts", "1",
+                "-map", "0",
+                "-c:v", "copy",
+                "-c:a", "copy"
+            )
+            .AddIf(isToSegment && !isToSegmentBySize,
+                "-f", "segment",
+                "-segment_time", SegmentTimeUnitHelper.ToSegmentArgument(segmentTime, segmentTimeUnit),
+                "-segment_time_delta", "0.05",
+                "-segment_atclocktime", "0",
+                "-segment_format", "mpegts"
+            )
+            .AddIf(isToSegmentBySize,
+                "-f", "segment",
+                "-segment_size", segmentTime.ToString(),
+                "-segment_format", "mpegts"
+            )
+            .AddIf(isToSegment,
+                "-reset_timestamps", "1"
+            );
+
+        arguments.AddRange(VideoRecordingMetadataStore.BuildFfmpegMetadataArguments(metadata));
+        if (VideoRecordingMetadataStore.UsesMovMetadataTags(outputFileName))
+        {
+            arguments.AddRange(["-movflags", "use_metadata_tags"]);
+        }
+
+        arguments.Add(outputFileName);
+
+        return arguments;
+    }
+
+    private async Task<int> ExecuteRecorderAsync(string recorderPath, List<string> arguments, bool isUseProxy, string httpProxy, RecorderStartInfo startInfo, CancellationToken token)
+    {
+        ProcessStartInfo processStartInfo = new()
+        {
+            FileName = recorderPath,
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            RedirectStandardInput = true,
+            CreateNoWindow = true,
+            StandardErrorEncoding = Encoding.UTF8,
+            StandardOutputEncoding = Encoding.UTF8,
+        };
+
+        foreach (string argument in arguments)
+        {
+            processStartInfo.ArgumentList.Add(argument);
+        }
+
+        if (isUseProxy)
+        {
+            processStartInfo.Environment["http_proxy"] = "http://" + httpProxy;
+            processStartInfo.Environment["https_proxy"] = "http://" + httpProxy;
+        }
+
+        using Process process = new() { StartInfo = processStartInfo };
+        process.Start();
+        TryTraceProcess(process);
+        RuntimeResourceLogger.Register(process, "ffmpeg", "record", startInfo.RoomUrl, startInfo.NickName, new
+        {
+            startInfo.PlatformName,
+            FileName,
+            inputUrl = Url ?? string.Empty,
+        });
+
+        lock (processLock)
+        {
+            currentProcess = process;
+        }
+
+        Task errorTask = ReadPipeAsync(process.StandardError, OnStandardErrorReceived, CancellationToken.None);
+        Task outputTask = ReadPipeAsync(process.StandardOutput, OnStandardOutputReceived, CancellationToken.None);
+        bool wasCanceled = false;
+
+        try
+        {
+            Task exitTask = process.WaitForExitAsync(CancellationToken.None);
+            Task cancellationTask = WaitForCancellationAsync(token);
+            Task completedTask = await Task.WhenAny(exitTask, cancellationTask);
+
+            if (completedTask == cancellationTask && token.IsCancellationRequested)
+            {
+                wasCanceled = true;
+                await StopProcessGracefullyAsync(process);
+            }
+            else
+            {
+                await exitTask;
+            }
+        }
+        finally
+        {
+            lock (processLock)
+            {
+                if (ReferenceEquals(currentProcess, process))
+                {
+                    currentProcess = null;
+                }
+            }
+        }
+
+        await Task.WhenAll(errorTask, outputTask);
+        AppSessionLogger.Event(process.ExitCode == 0 ? "info" : "warn", "recorder", "record_process_exited", "ffmpeg recording process exited", new
+        {
+            startInfo.RoomUrl,
+            startInfo.NickName,
+            process.Id,
+            process.ExitCode,
+            wasCanceled,
+            FileName,
+        });
+
+        if (wasCanceled)
+        {
+            throw new OperationCanceledException(token);
+        }
+
+        return process.ExitCode;
+    }
+
+    private static async Task WaitForCancellationAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private static async Task ReadPipeAsync(StreamReader reader, Func<string, CancellationToken, Task> handler, CancellationToken token)
+    {
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                string? line = await reader.ReadLineAsync(token);
+                if (line == null)
+                {
+                    break;
+                }
+
+                await handler(line, token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
+    private async Task ConvertRecordedFilesAsync(RoomRecordingOptions recordingOptions)
+    {
+        try
+        {
+            string formatArrow = recordingOptions.RecordFormat;
+
+            if (string.IsNullOrWhiteSpace(formatArrow) || !formatArrow.Contains("->", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            string targetFormat = "." + formatArrow.Split('>')[1].Trim().ToLowerInvariant();
+            foreach (string fileName in GetRecordedSourceFiles())
+            {
+                if (await new Converter().ExecuteAsync(fileName, targetFormat) && recordingOptions.IsRemoveTs)
+                {
+                    File.Delete(fileName);
+                    VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(fileName);
+                    if (string.Equals(FileName, fileName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        FileName = Path.ChangeExtension(fileName, targetFormat);
+                    }
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e);
+            AppSessionLogger.WriteException(e);
+        }
+    }
+
+    private string[] GetRecordedSourceFiles()
+    {
+        string[] patterns = recordedFilePatterns.Count > 0
+            ? recordedFilePatterns.Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+            : string.IsNullOrWhiteSpace(FileName) ? [] : [FileName];
+
+        return patterns.SelectMany(GetRecordedSourceFilesForPattern)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(file => file, StringComparer.OrdinalIgnoreCase)
+            .Where(file =>
+            {
+                try
+                {
+                    FileInfo info = new(file);
+                    return info.Exists && info.Length > 0;
+                }
+                catch
+                {
+                    return false;
+                }
+            })
+            .ToArray();
+    }
+
+    private static string[] GetRecordedSourceFilesForPattern(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return [];
+        }
+
+        if (!fileName.Contains("%03d", StringComparison.Ordinal))
+        {
+            return File.Exists(fileName) ? [fileName] : [];
+        }
+
+        string? directory = Path.GetDirectoryName(fileName);
+        string pattern = Path.GetFileName(fileName);
+
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory) || string.IsNullOrWhiteSpace(pattern))
+        {
+            return [];
+        }
+
+        string regexPattern = "^" + Regex.Escape(pattern).Replace("%03d", @"\d{3}") + "$";
+        Regex regex = new(regexPattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        return Directory.EnumerateFiles(directory)
+            .Where(file => regex.IsMatch(Path.GetFileName(file)))
+            .OrderBy(file => file, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private void RequestCurrentProcessExit()
+    {
+        Process? process;
+        lock (processLock)
+        {
+            process = currentProcess;
+        }
+
+        if (process != null)
+        {
+            RequestProcessExit(process);
+        }
+    }
+
+    private static async Task StopProcessGracefullyAsync(Process process)
+    {
+        RequestProcessExit(process);
+
+        if (await WaitForExitAsync(process, TimeSpan.FromSeconds(15)))
+        {
+            return;
+        }
+
+        KillProcessTree(process);
+        await process.WaitForExitAsync(CancellationToken.None);
+    }
+
+    private static void RequestProcessExit(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.StandardInput.WriteLine("q");
+                process.StandardInput.Flush();
+            }
+        }
+        catch (Exception e) when (e is InvalidOperationException or IOException or ObjectDisposedException)
+        {
+        }
+    }
+
+    private static async Task<bool> WaitForExitAsync(Process process, TimeSpan timeout)
+    {
+        try
+        {
+            Task exitTask = process.WaitForExitAsync(CancellationToken.None);
+            Task timeoutTask = Task.Delay(timeout);
+            return await Task.WhenAny(exitTask, timeoutTask) == exitTask;
+        }
+        catch (InvalidOperationException)
+        {
+            return true;
+        }
+    }
+
+    private static void KillProcessTree(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch (Exception e) when (e is InvalidOperationException or ArgumentException)
+        {
+        }
+    }
+
+    private static void TryTraceProcess(Process process)
+    {
+        _ = ChildProcessTracerPeriodicTimer.Default.TryTraceProcess(process);
+    }
+
+    private static string FormatArguments(IEnumerable<string> arguments)
+    {
+        return string.Join(" ", arguments.Select(FormatArgument));
+    }
+
+    private static string FormatArgument(string argument)
+    {
+        if (argument.Length == 0)
+        {
+            return "\"\"";
+        }
+
+        return argument.Any(char.IsWhiteSpace) || argument.Contains('"')
+            ? "\"" + argument.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\""
+            : argument;
+    }
+
+    private static string SelectInputUrl(RecorderStartInfo startInfo)
+    {
+        if (!string.IsNullOrWhiteSpace(startInfo.RecordUrl))
+        {
+            return startInfo.RecordUrl;
+        }
+
+        if (!string.IsNullOrWhiteSpace(startInfo.HlsUrl))
+        {
+            return startInfo.HlsUrl;
+        }
+
+        return startInfo.FlvUrl;
+    }
+
+    private static string NormalizeHeaders(string? headers)
+    {
+        string value = (headers ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value.EndsWith('\n') ? value : value + "\r\n";
+    }
+
+    private static bool IsHlsUrl(string url, RecorderStartInfo startInfo)
+    {
+        return url.Contains(".m3u8", StringComparison.OrdinalIgnoreCase)
+            || url == startInfo.RecordUrl && startInfo.RecordUrl.Contains(".m3u8", StringComparison.OrdinalIgnoreCase)
+            || url == startInfo.HlsUrl;
     }
 
     private Task OnStandardErrorReceived(string data, CancellationToken token)
     {
-        // TODO
         Debug.WriteLine(data);
+        AppSessionLogger.Event("debug", "recorder", "ffmpeg_stderr", data, new
+        {
+            FileName,
+        });
         _ = WeakReferenceMessenger.Default.Send(new RecorderMessage()
         {
             DataType = StandardData.StandardError,
@@ -211,32 +677,17 @@ public sealed class Recorder
 
     private Task OnStandardOutputReceived(string data, CancellationToken token)
     {
-        // TODO
         Debug.WriteLine(data);
+        AppSessionLogger.Event("debug", "recorder", "ffmpeg_stdout", data, new
+        {
+            FileName,
+        });
         _ = WeakReferenceMessenger.Default.Send(new RecorderMessage()
         {
             DataType = StandardData.StandardOutput,
             Data = data,
         });
         return Task.CompletedTask;
-    }
-
-    private async Task ConvertRecordedFileAsync(string fileName, string targetFormat, bool isRemoveTs)
-    {
-        try
-        {
-            bool isConverted = await new Converter().ExecuteAsync(fileName, targetFormat);
-
-            if (isConverted && isRemoveTs)
-            {
-                File.Delete(fileName);
-                FileName = Path.ChangeExtension(fileName, targetFormat);
-            }
-        }
-        catch (Exception e)
-        {
-            Debug.WriteLine(e);
-        }
     }
 
     private static string BuildSaveFolder(string saveFolder, string nickName, DateTime timestamp, int saveFolderPathLevel)
@@ -254,9 +705,13 @@ public sealed class Recorder
 
     internal static string BuildOutputFileName(string saveFolder, RecorderStartInfo startInfo, DateTime timestamp, bool isToSegment, bool isHls)
     {
-        string suffix = isToSegment ? "_%03d.ts" : isHls ? ".ts" : ".flv";
         string fileName = BuildBaseFileName(startInfo, timestamp).SanitizeFileName();
+        return BuildOutputFileName(saveFolder, fileName, isToSegment, isHls);
+    }
 
+    private static string BuildOutputFileName(string saveFolder, string fileName, bool isToSegment, bool isHls)
+    {
+        string suffix = isToSegment ? "_%03d.ts" : isHls ? ".ts" : ".flv";
         return Path.Combine(saveFolder, $"{fileName}{suffix}");
     }
 
@@ -271,13 +726,7 @@ public sealed class Recorder
         string configuredRule = startInfo.Options.SaveFileNameCustomRule;
         string rule = string.IsNullOrWhiteSpace(configuredRule) ? defaultRule : configuredRule;
 
-        return rule
-            .Replace("{主播名}", startInfo.NickName, StringComparison.Ordinal)
-            .Replace("{录制时间}", timestamp.ToString("yyyy-MM-dd_HH-mm-ss"), StringComparison.Ordinal)
-            .Replace("{日期}", timestamp.ToString("yyyy-MM-dd"), StringComparison.Ordinal)
-            .Replace("{时间}", timestamp.ToString("HH-mm-ss"), StringComparison.Ordinal)
-            .Replace("{平台}", string.IsNullOrWhiteSpace(startInfo.PlatformName) ? "Emerde" : startInfo.PlatformName, StringComparison.Ordinal)
-            .Replace("{分辨率}", startInfo.Resolution, StringComparison.Ordinal);
+        return ApplyFileNameRule(rule, startInfo.NickName, timestamp, string.IsNullOrWhiteSpace(startInfo.PlatformName) ? "Emerde" : startInfo.PlatformName, startInfo.Resolution);
     }
 
     private static string BuildBaseFileName(string nickName, DateTime timestamp)
@@ -286,12 +735,40 @@ public sealed class Recorder
         string configuredRule = Configurations.SaveFileNameCustomRule.Get();
         string rule = string.IsNullOrWhiteSpace(configuredRule) ? defaultRule : configuredRule;
 
+        return ApplyFileNameRule(rule, nickName, timestamp, "Emerde", string.Empty);
+    }
+
+    private static string ApplyFileNameRule(string rule, string nickName, DateTime timestamp, string platformName, string resolution)
+    {
         return rule
             .Replace("{主播名}", nickName, StringComparison.Ordinal)
             .Replace("{录制时间}", timestamp.ToString("yyyy-MM-dd_HH-mm-ss"), StringComparison.Ordinal)
             .Replace("{日期}", timestamp.ToString("yyyy-MM-dd"), StringComparison.Ordinal)
             .Replace("{时间}", timestamp.ToString("HH-mm-ss"), StringComparison.Ordinal)
-            .Replace("{平台}", "Emerde", StringComparison.Ordinal);
+            .Replace("{平台}", platformName, StringComparison.Ordinal)
+            .Replace("{分辨率}", resolution, StringComparison.Ordinal)
+            .Replace("{涓绘挱鍚峿", nickName, StringComparison.Ordinal)
+            .Replace("{褰曞埗鏃堕棿}", timestamp.ToString("yyyy-MM-dd_HH-mm-ss"), StringComparison.Ordinal)
+            .Replace("{鏃ユ湡}", timestamp.ToString("yyyy-MM-dd"), StringComparison.Ordinal)
+            .Replace("{鏃堕棿}", timestamp.ToString("HH-mm-ss"), StringComparison.Ordinal)
+            .Replace("{骞冲彴}", platformName, StringComparison.Ordinal)
+            .Replace("{鍒嗚鲸鐜噠", resolution, StringComparison.Ordinal);
+    }
+
+    private static VideoRecordingMetadata BuildMetadata(string fileName, string outputExtension, RecorderStartInfo startInfo, DateTime timestamp)
+    {
+        return new VideoRecordingMetadata
+        {
+            FileName = $"{fileName}.{outputExtension}",
+            NickName = startInfo.NickName,
+            RoomUrl = startInfo.RoomUrl,
+            Platform = startInfo.PlatformName,
+            Title = startInfo.Title,
+            Resolution = startInfo.Resolution,
+            Bitrate = startInfo.Bitrate,
+            CoverPath = startInfo.CoverPath,
+            RecordedAt = timestamp,
+        };
     }
 }
 
@@ -320,37 +797,59 @@ public record RecorderStartInfo
 
     public string HlsUrl { get; set; } = string.Empty;
 
+    public string RecordUrl { get; set; } = string.Empty;
+
+    public string Headers { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Bitrate { get; set; } = string.Empty;
+
+    public string CoverPath { get; set; } = string.Empty;
+
     public RoomRecordingOptions Options { get; set; } = RoomRecordingSettings.GetGlobal();
+}
+
+public sealed class VideoRecordingMetadata
+{
+    public string FileName { get; set; } = string.Empty;
+
+    public string NickName { get; set; } = string.Empty;
+
+    public string RoomUrl { get; set; } = string.Empty;
+
+    public string Platform { get; set; } = string.Empty;
+
+    public string Title { get; set; } = string.Empty;
+
+    public string Resolution { get; set; } = string.Empty;
+
+    public string Bitrate { get; set; } = string.Empty;
+
+    public string CoverPath { get; set; } = string.Empty;
+
+    public DateTime RecordedAt { get; set; } = DateTime.MinValue;
 }
 
 file static class FileNameSanitizer
 {
-    /// <summary>
-    /// Sanitizes the input file name by replacing invalid characters with underscores.
-    /// </summary>
-    /// <param name="fileName">The input file name.</param>
-    /// <returns>The sanitized file name.</returns>
     public static string SanitizeFileName(this string fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName))
+        {
             throw new ArgumentException("File name cannot be null or whitespace.", nameof(fileName));
+        }
 
-        // Get invalid file name characters.
         char[] invalidChars = Path.GetInvalidFileNameChars();
-
-        // Replace each invalid character with an underscore.
         return string.Concat(fileName.Select(ch => invalidChars.Contains(ch) ? '_' : ch));
     }
 
-    /// <summary>
-    /// Replaces all trailing periods (.) in a string with underscores (_).
-    /// </summary>
-    /// <param name="input">The input string.</param>
-    /// <returns>The modified string with trailing periods replaced by underscores.</returns>
     public static string ReplaceTrailingDotsWithUnderscores(this string input)
     {
         if (string.IsNullOrEmpty(input))
+        {
             return input;
+        }
 
         int i = input.Length - 1;
         while (i >= 0 && input[i] == '.')
@@ -358,7 +857,6 @@ file static class FileNameSanitizer
             i--;
         }
 
-        // Replace trailing dots with underscores
         return string.Concat(input.AsSpan(0, i + 1), new string('_', input.Length - i - 1));
     }
 }
