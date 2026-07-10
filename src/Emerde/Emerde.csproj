@@ -48,6 +48,14 @@
 
     <ItemGroup>
         <Resource Include="Assets\*" />
+        <Content Include="..\..\tools\ffmpeg\win-x64\ffmpeg.exe" Link="ffmpeg.exe">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+        <Content Include="..\..\tools\ffmpeg\win-x64\ffprobe.exe" Link="ffprobe.exe">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
         <Content Remove="$(NuGetPackageRoot)lottiesharp\**\lottie_sharp.ico" />
     </ItemGroup>
 
