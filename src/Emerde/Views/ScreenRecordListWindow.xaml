@@ -43,6 +43,7 @@
         <Grid x:Name="VideoListContentRoot" Margin="0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="48" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -195,7 +196,40 @@
                 </ui:StackPanel>
             </Grid>
 
-            <Grid Grid.Row="1" ClipToBounds="True">
+            <Grid Grid.Row="1" Margin="0,4,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <ui:StackPanel Grid.Column="0"
+                               Orientation="Horizontal"
+                               VerticalAlignment="Center"
+                               Spacing="8">
+                    <TextBlock VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Text="主播" />
+                    <ComboBox MinWidth="200"
+                              ItemsSource="{Binding StreamerOptions}"
+                              SelectedItem="{Binding SelectedStreamer, Mode=TwoWay}" />
+                </ui:StackPanel>
+
+                <ui:StackPanel Grid.Column="1"
+                               Margin="18,0,0,0"
+                               Orientation="Horizontal"
+                               VerticalAlignment="Center"
+                               Spacing="8">
+                    <TextBlock VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Text="时间" />
+                    <ComboBox MinWidth="160"
+                              ItemsSource="{Binding TimeRangeOptions}"
+                              SelectedIndex="{Binding SelectedTimeRangeIndex, Mode=TwoWay}" />
+                </ui:StackPanel>
+            </Grid>
+
+            <Grid Grid.Row="2" ClipToBounds="True">
                 <ListBox ItemsSource="{Binding Videos}"
                          Background="Transparent"
                          BorderThickness="0"

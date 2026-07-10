@@ -46,14 +46,19 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
 public partial class ScreenRecordListViewModel : ObservableObject
 {
     private static readonly string[] VideoExtensions = [".mp4", ".mkv", ".flv", ".ts", ".mov", ".webm"];
+    private const string AllStreamerOption = "全部主播";
+    private static readonly string[] TimeRangeOptionsInternal = ["全部时间", "24 小时内", "一周内", "一个月内", "三个月内", "一年内"];
 
     private readonly ObservableCollection<RecordedVideoItem> videos = [];
 
     public ICollectionView Videos { get; }
+    public ObservableCollection<string> StreamerOptions { get; } = [AllStreamerOption];
+    public IReadOnlyList<string> TimeRangeOptions => TimeRangeOptionsInternal;
 
     public ScreenRecordListViewModel()
     {
         Videos = CollectionViewSource.GetDefaultView(videos);
+        Videos.Filter = FilterVideo;
     }
 
     [ObservableProperty]
@@ -61,6 +66,29 @@ public partial class ScreenRecordListViewModel : ObservableObject
     private bool isSortDescending = true;
 
     public string SortDirectionText => IsSortDescending ? "倒序" : "正序";
+
+    [ObservableProperty]
+    private string selectedStreamer = AllStreamerOption;
+
+    partial void OnSelectedStreamerChanged(string value)
+    {
+        ApplyFilters();
+    }
+
+    [ObservableProperty]
+    private int selectedTimeRangeIndex;
+
+    partial void OnSelectedTimeRangeIndexChanged(int value)
+    {
+        int next = Math.Clamp(value, 0, TimeRangeOptionsInternal.Length - 1);
+        if (next != value)
+        {
+            SelectedTimeRangeIndex = next;
+            return;
+        }
+
+        ApplyFilters();
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SelectedVideoSummary))]
@@ -471,7 +499,9 @@ public partial class ScreenRecordListViewModel : ObservableObject
             videos.Add(item);
         }
 
+        UpdateStreamerOptions();
         ApplySort();
+        ApplyFilters();
         RefreshSelectionSummary();
     }
 
@@ -579,6 +609,65 @@ public partial class ScreenRecordListViewModel : ObservableObject
             nameof(RecordedVideoItem.CreatedAt),
             IsSortDescending ? ListSortDirection.Descending : ListSortDirection.Ascending));
         Videos.Refresh();
+    }
+
+    private void ApplyFilters()
+    {
+        Videos.Refresh();
+    }
+
+    private bool FilterVideo(object item)
+    {
+        if (item is not RecordedVideoItem video)
+        {
+            return false;
+        }
+
+        bool streamerMatched = string.IsNullOrWhiteSpace(SelectedStreamer)
+            || string.Equals(SelectedStreamer, AllStreamerOption, StringComparison.Ordinal)
+            || string.Equals(video.NickName, SelectedStreamer, StringComparison.OrdinalIgnoreCase);
+        if (!streamerMatched)
+        {
+            return false;
+        }
+
+        DateTime threshold = SelectedTimeRangeIndex switch
+        {
+            1 => DateTime.Now.AddDays(-1),
+            2 => DateTime.Now.AddDays(-7),
+            3 => DateTime.Now.AddDays(-30),
+            4 => DateTime.Now.AddDays(-90),
+            5 => DateTime.Now.AddDays(-365),
+            _ => DateTime.MinValue,
+        };
+
+        return threshold == DateTime.MinValue || video.CreatedAt >= threshold;
+    }
+
+    private void UpdateStreamerOptions()
+    {
+        string currentSelection = SelectedStreamer;
+        string[] streamers = videos
+            .Select(video => video.NickName)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
+
+        StreamerOptions.Clear();
+        StreamerOptions.Add(AllStreamerOption);
+        foreach (string streamer in streamers)
+        {
+            StreamerOptions.Add(streamer);
+        }
+
+        if (!StreamerOptions.Contains(currentSelection))
+        {
+            SelectedStreamer = AllStreamerOption;
+            return;
+        }
+
+        SelectedStreamer = currentSelection;
     }
 
     private void VideoItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
