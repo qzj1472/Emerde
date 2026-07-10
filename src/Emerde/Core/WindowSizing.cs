@@ -57,7 +57,7 @@ internal static class WindowSizing
 
     public static void ApplyContentDialogSizeLimit(ContentDialog dialog, Window? owner = null)
     {
-        if (dialog.GetType().Name == "LocalSettingsContentDialog")
+        if (dialog.Content is Views.LocalSettingsContentDialog)
         {
             return;
         }

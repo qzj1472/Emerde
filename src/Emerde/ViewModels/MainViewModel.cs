@@ -1523,28 +1523,48 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     }
 
     [RelayCommand]
-    private async Task OpenLocalSettingsAsync()
+    private Task OpenLocalSettingsAsync()
+    {
+        if (SelectedItem == null || string.IsNullOrWhiteSpace(SelectedItem.RoomUrl))
+        {
+            return Task.CompletedTask;
+        }
+
+        return OpenLocalSettingsDialogAsync();
+    }
+
+    private async Task OpenLocalSettingsDialogAsync()
     {
         if (SelectedItem == null || string.IsNullOrWhiteSpace(SelectedItem.RoomUrl))
         {
             return;
         }
 
-        LocalSettingsContentDialog dialog = new(SelectedItem);
-        dialog.ApplyDialogVisualSize();
-        using DialogBlurScope blurScope = DialogBlurScope.ForLightDismiss(Application.Current.MainWindow, dialog);
-        _ = await ShowMainContentDialogAsync(dialog);
+        LocalSettingsContentDialog content = new(SelectedItem);
+        Window? owner = Application.Current?.MainWindow;
+        ContentDialog dialog = new()
+        {
+            Title = "SingleSettings".Tr(),
+            Content = content,
+            PrimaryButtonText = "Save".Tr(),
+            CloseButtonText = "ButtonOfCancel".Tr(),
+            DefaultButton = ContentDialogButton.Primary,
+            Style = Application.Current?.TryFindResource("DefaultVioletaContentDialogStyle") as Style,
+        };
+        content.ApplyDialogVisualSize(dialog, owner);
 
-        if (!dialog.IsSaved)
+        using DialogBlurScope blurScope = DialogBlurScope.ForLightDismiss(owner, dialog);
+        ContentDialogResult result = await ShowMainContentDialogAsync(dialog);
+        if (result != ContentDialogResult.Primary)
         {
             return;
         }
 
-        SelectedItem.IsFollowGlobalSettings = dialog.IsFollowGlobalSettings;
-        SelectedItem.IsToNotify = dialog.IsToNotify;
-        SelectedItem.IsToMonitor = dialog.IsToMonitor;
-        SelectedItem.IsToRecord = dialog.IsToRecord;
-        SaveSelectedRoomSettings(dialog.GetRecordingOptions());
+        SelectedItem.IsFollowGlobalSettings = content.IsFollowGlobalSettings;
+        SelectedItem.IsToNotify = content.IsToNotify;
+        SelectedItem.IsToMonitor = content.IsToMonitor;
+        SelectedItem.IsToRecord = content.IsToRecord;
+        SaveSelectedRoomSettings(content.GetRecordingOptions());
         RefreshRoomEffectiveStates();
         Toast.Success("SuccOp".Tr());
     }

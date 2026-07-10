@@ -1,20 +1,23 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Emerde.Controls;
 using Emerde.Core;
 using Emerde.Extensions;
 using Emerde.ViewModels;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Threading;
+using System.Windows.Media.Media3D;
 using Windows.Storage;
 using Windows.System;
 using WindowsAPICodePack.Dialogs;
-using Wpf.Ui.Violeta.Controls;
+using Wpf.Ui.Controls;
+using WpfPoint = System.Windows.Point;
 
 namespace Emerde.Views;
 
 [ObservableObject]
-public sealed partial class LocalSettingsContentDialog : ContentDialog
+public sealed partial class LocalSettingsContentDialog : System.Windows.Controls.UserControl
 {
     private const int Milliseconds = 0;
     private const int Seconds = 1;
@@ -223,8 +226,6 @@ public sealed partial class LocalSettingsContentDialog : ContentDialog
     [ObservableProperty]
     private string saveFileNameCustomRule = string.Empty;
 
-    public bool IsSaved { get; private set; }
-
     public LocalSettingsContentDialog(RoomStatusReactive room)
     {
         NickName = room.NickName;
@@ -240,84 +241,159 @@ public sealed partial class LocalSettingsContentDialog : ContentDialog
 
         DataContext = this;
         InitializeComponent();
-        Loaded += OnLoaded;
-        LayoutUpdated += OnLayoutUpdated;
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e)
+    protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
     {
-        ApplyDialogVisualSize();
-        Dispatcher.BeginInvoke(ApplyDialogVisualSize, DispatcherPriority.Loaded);
-        Dispatcher.BeginInvoke(ApplyDialogVisualSize, DispatcherPriority.Render);
-        Dispatcher.BeginInvoke(ApplyDialogVisualSize, DispatcherPriority.ContextIdle);
-    }
-
-    private void OnLayoutUpdated(object? sender, EventArgs e)
-    {
-        ApplyDialogVisualSize();
-        LayoutUpdated -= OnLayoutUpdated;
-    }
-
-    public void ApplyDialogVisualSize()
-    {
-        Window? owner = Application.Current?.MainWindow;
-        double ownerWidth = owner?.ActualWidth > 1d ? owner.ActualWidth : owner?.Width ?? 0d;
-        double ownerHeight = owner?.ActualHeight > 1d ? owner.ActualHeight : owner?.Height ?? 0d;
-        if (ownerWidth <= 1d || ownerHeight <= 1d)
+        if (e.Handled || e.ChangedButton != MouseButton.Left)
         {
+            base.OnPreviewMouseLeftButtonDown(e);
             return;
         }
 
-        double targetWidth = Math.Min(Math.Max(900d, ownerWidth - 32d), Math.Max(1260d, ownerWidth * 0.92d));
-        double targetHeight = Math.Min(Math.Max(620d, ownerHeight - 32d), Math.Max(760d, ownerHeight * 0.88d));
-
-        Width = targetWidth;
-        MinWidth = targetWidth;
-        MaxWidth = targetWidth;
-        Height = targetHeight;
-        MinHeight = targetHeight;
-        MaxHeight = targetHeight;
-
-        if (Content is FrameworkElement content)
+        if (e.OriginalSource is not DependencyObject source || IsInteractiveElement(source))
         {
-            content.Width = Math.Max(1d, targetWidth - 48d);
-            content.MinWidth = content.Width;
-            content.MaxWidth = content.Width;
-            content.Height = Math.Max(1d, targetHeight - 128d);
-            content.MinHeight = content.Height;
-            content.MaxHeight = content.Height;
+            base.OnPreviewMouseLeftButtonDown(e);
+            return;
         }
 
-        DependencyObject? current = this;
-        for (int i = 0; i < 40; i++)
+        CardExpander? expander = FindVisualAncestor<CardExpander>(source);
+        if (expander == null || !IsPointInsideHeader(expander, e.GetPosition(expander)))
         {
-            current = VisualTreeHelper.GetParent(current) ?? LogicalTreeHelper.GetParent(current);
-            if (current == null || current is Window)
-            {
-                break;
-            }
-
-            if (current is FrameworkElement element)
-            {
-                StretchDialogElement(element, targetWidth, targetHeight);
-            }
+            base.OnPreviewMouseLeftButtonDown(e);
+            return;
         }
+
+        expander.IsExpanded = !expander.IsExpanded;
+        e.Handled = true;
+        base.OnPreviewMouseLeftButtonDown(e);
     }
 
-    private static void StretchDialogElement(FrameworkElement element, double targetWidth, double targetHeight)
+    private static bool IsPointInsideHeader(CardExpander expander, WpfPoint point)
     {
-        if (element.ActualWidth <= targetWidth)
+        if (expander.Template.FindName("HeaderChrome", expander) is not FrameworkElement header)
         {
-            element.Width = targetWidth;
-            element.MinWidth = targetWidth;
-            element.MaxWidth = targetWidth;
+            return point.Y >= 0d && point.Y <= 86d;
         }
 
-        if (element.ActualHeight <= targetHeight)
+        WpfPoint topLeft = header.TranslatePoint(new WpfPoint(0d, 0d), expander);
+        return point.X >= topLeft.X
+            && point.X <= topLeft.X + header.ActualWidth
+            && point.Y >= topLeft.Y
+            && point.Y <= topLeft.Y + header.ActualHeight;
+    }
+
+    private static bool IsInteractiveElement(DependencyObject source)
+    {
+        for (DependencyObject? current = source; current != null; current = GetVisualParent(current))
         {
-            element.Height = targetHeight;
-            element.MinHeight = targetHeight;
+            if (current is System.Windows.Controls.Primitives.ButtonBase
+                or System.Windows.Controls.TextBox
+                or System.Windows.Controls.Primitives.TextBoxBase
+                or System.Windows.Controls.ComboBox
+                or System.Windows.Controls.Primitives.Selector
+                or System.Windows.Controls.Slider
+                or System.Windows.Controls.Primitives.ScrollBar
+                or System.Windows.Controls.Primitives.Thumb
+                or System.Windows.Controls.Primitives.ToggleButton
+                or Wpf.Ui.Controls.TextBox
+                or Wpf.Ui.Controls.NumberBox
+                or Wpf.Ui.Controls.ToggleSwitch)
+            {
+                return true;
+            }
+
+            if (current is CompactNumberBox)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static T? FindVisualAncestor<T>(DependencyObject source)
+        where T : DependencyObject
+    {
+        for (DependencyObject? current = source; current != null; current = GetVisualParent(current))
+        {
+            if (current is T typed)
+            {
+                return typed;
+            }
+        }
+
+        return null;
+    }
+
+    private static DependencyObject? GetVisualParent(DependencyObject source)
+    {
+        return source is Visual or Visual3D ? VisualTreeHelper.GetParent(source) : null;
+    }
+
+    public void ApplyDialogVisualSize(Wpf.Ui.Violeta.Controls.ContentDialog dialog, Window? owner = null)
+    {
+        void ApplySize()
+        {
+            Window? reference = owner ?? Application.Current?.MainWindow;
+            double ownerWidth = reference?.ActualWidth > 1d ? reference.ActualWidth : reference?.Width ?? 0d;
+            double ownerHeight = reference?.ActualHeight > 1d ? reference.ActualHeight : reference?.Height ?? 0d;
+            if (ownerWidth <= 1d || ownerHeight <= 1d)
+            {
+                return;
+            }
+
+            double targetWidth = Math.Max(1d, Math.Floor(ownerWidth * 0.65d));
+            double targetHeight = Math.Max(1d, Math.Floor(ownerHeight * 0.85d));
+            double contentWidth = Math.Max(1d, targetWidth - 40d);
+            double contentHeight = Math.Max(1d, targetHeight - 96d);
+
+            dialog.Width = targetWidth;
+            dialog.Height = targetHeight;
+            dialog.MinWidth = targetWidth;
+            dialog.MinHeight = targetHeight;
+            dialog.MaxWidth = targetWidth;
+            dialog.MaxHeight = targetHeight;
+
+            Width = contentWidth;
+            Height = contentHeight;
+            MinWidth = contentWidth;
+            MinHeight = contentHeight;
+            MaxWidth = contentWidth;
+            MaxHeight = contentHeight;
+
+            ExpandDialogVisualPath(dialog, targetWidth, targetHeight);
+        }
+
+        ApplySize();
+        RoutedEventHandler? loadedHandler = null;
+        loadedHandler = (_, _) =>
+        {
+            dialog.Loaded -= loadedHandler;
+            _ = dialog.Dispatcher.BeginInvoke((Action)ApplySize, System.Windows.Threading.DispatcherPriority.Loaded);
+        };
+        dialog.Loaded += loadedHandler;
+    }
+
+    private void ExpandDialogVisualPath(Wpf.Ui.Violeta.Controls.ContentDialog dialog, double targetWidth, double targetHeight)
+    {
+        DependencyObject? current = this;
+        while (current != null && !ReferenceEquals(current, dialog))
+        {
+            current = System.Windows.Media.VisualTreeHelper.GetParent(current) ?? LogicalTreeHelper.GetParent(current);
+            if (current is not FrameworkElement element || ReferenceEquals(element, dialog))
+            {
+                continue;
+            }
+
+            element.Width = double.NaN;
+            element.Height = double.NaN;
+            element.MinWidth = 0d;
+            element.MinHeight = 0d;
+            element.MaxWidth = targetWidth;
             element.MaxHeight = targetHeight;
+            element.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
+            element.VerticalAlignment = System.Windows.VerticalAlignment.Stretch;
         }
     }
 
@@ -455,11 +531,6 @@ public sealed partial class LocalSettingsContentDialog : ContentDialog
         }
 
         await Launcher.LaunchFolderAsync(await StorageFolder.GetFolderFromPathAsync(folder));
-    }
-
-    private void OnPrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs e)
-    {
-        IsSaved = true;
     }
 
     private string BuildRoutineScheduleDays()
