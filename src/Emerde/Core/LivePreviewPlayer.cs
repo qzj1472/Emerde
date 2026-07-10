@@ -19,9 +19,10 @@ public sealed class LivePreviewPlayer : IDisposable
         };
     }
 
-    public async Task PlayAsync(string url, string userAgent, string proxyUrl)
+    public async Task PlayAsync(string url, string userAgent, string proxyUrl, CancellationToken cancellationToken = default)
     {
         await StopAsync();
+        cancellationToken.ThrowIfCancellationRequested();
 
         using Media media = new(libVlc, new Uri(url));
 
@@ -45,12 +46,14 @@ public sealed class LivePreviewPlayer : IDisposable
 
         try
         {
-            if (!MediaPlayer.Play(media))
+            bool playAccepted = await Task.Run(() => MediaPlayer.Play(media));
+            if (!playAccepted)
             {
                 throw new InvalidOperationException("Live preview playback could not start.");
             }
 
-            Task completed = await Task.WhenAny(playbackStarted.Task, Task.Delay(TimeSpan.FromSeconds(3)));
+            Task completed = await Task.WhenAny(playbackStarted.Task, Task.Delay(TimeSpan.FromSeconds(3), cancellationToken));
+            cancellationToken.ThrowIfCancellationRequested();
             if (ReferenceEquals(completed, playbackStarted.Task))
             {
                 await playbackStarted.Task;
@@ -84,7 +87,7 @@ public sealed class LivePreviewPlayer : IDisposable
 
         try
         {
-            MediaPlayer.Stop();
+            await Task.Run(() => MediaPlayer.Stop());
             await Task.WhenAny(playbackStopped.Task, Task.Delay(TimeSpan.FromSeconds(1)));
         }
         finally

@@ -51,7 +51,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     protected internal ForeverDispatcherTimer DispatcherTimer { get; }
 
     private readonly LivePreviewPlayer livePreviewPlayer = new();
+    private readonly SemaphoreSlim previewTransitionGate = new(1, 1);
+    private readonly object previewTransitionSync = new();
     private readonly object manualRefreshCooldownLock = new();
+    private CancellationTokenSource? previewTransitionCancellation;
     private long lastManualRefreshTimestamp;
 
     [ObservableProperty]
@@ -436,7 +439,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task PreviewLiveRoomAsync(RoomStatusReactive? roomStatus = null)
     {
         RoomStatusReactive? targetRoom = roomStatus ?? SelectedItem;
@@ -449,7 +452,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         if (IsPreviewing && IsSameRoom(PreviewingRoom, targetRoom))
         {
-            await StopPreviewAsync();
+            await RequestPreviewTransitionAsync(null);
             return;
         }
 
@@ -458,33 +461,123 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             SelectedItem = targetRoom;
         }
 
+        await RequestPreviewTransitionAsync(targetRoom);
+    }
+
+    private async Task RequestPreviewTransitionAsync(RoomStatusReactive? targetRoom)
+    {
+        CancellationTokenSource cancellation = BeginPreviewTransition();
+        ApplyPreviewRequestState(targetRoom);
+        bool enteredGate = false;
+
         try
         {
-            string proxyUrl = Configurations.IsUseProxy.Get() ? Configurations.ProxyUrl.Get() : string.Empty;
+            await previewTransitionGate.WaitAsync(cancellation.Token);
+            enteredGate = true;
+            cancellation.Token.ThrowIfCancellationRequested();
 
-            IsPreviewTransitioning = true;
-            PreviewingRoom = targetRoom;
-            IsPreviewing = true;
-            IsPreviewPaused = false;
-            LivePreviewStatus = LivePreviewStatus.Ready;
+            if (targetRoom == null)
+            {
+                await livePreviewPlayer.StopAsync();
+                return;
+            }
+
+            string proxyUrl = Configurations.IsUseProxy.Get() ? Configurations.ProxyUrl.Get() : string.Empty;
             livePreviewPlayer.SetMuted(IsPreviewMuted);
-            await livePreviewPlayer.PlayAsync(targetRoom.PreviewUrl, Configurations.UserAgent.Get(), proxyUrl);
-            LivePreviewStatus = LivePreviewStatus.Playing;
+            await livePreviewPlayer.PlayAsync(targetRoom.PreviewUrl, Configurations.UserAgent.Get(), proxyUrl, cancellation.Token);
+            cancellation.Token.ThrowIfCancellationRequested();
+            if (IsCurrentPreviewTransition(cancellation))
+            {
+                LivePreviewStatus = LivePreviewStatus.Playing;
+            }
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
         }
         catch (Exception e)
         {
             Debug.WriteLine(e);
-            livePreviewPlayer.Stop();
-            PreviewingRoom = null;
-            IsPreviewing = false;
-            IsPreviewPaused = false;
-            LivePreviewStatus = LivePreviewStatus.Error;
-            Toast.Error("LivePreviewError".Tr());
+            if (IsCurrentPreviewTransition(cancellation))
+            {
+                await livePreviewPlayer.StopAsync();
+                ApplyPreviewClosedState();
+                LivePreviewStatus = LivePreviewStatus.Error;
+                Toast.Error("LivePreviewError".Tr());
+            }
         }
         finally
         {
-            IsPreviewTransitioning = false;
+            if (enteredGate)
+            {
+                previewTransitionGate.Release();
+            }
+
+            if (IsCurrentPreviewTransition(cancellation))
+            {
+                IsPreviewTransitioning = false;
+            }
+
+            CompletePreviewTransition(cancellation);
         }
+    }
+
+    private CancellationTokenSource BeginPreviewTransition()
+    {
+        CancellationTokenSource current = new();
+        CancellationTokenSource? previous;
+        lock (previewTransitionSync)
+        {
+            previous = previewTransitionCancellation;
+            previewTransitionCancellation = current;
+        }
+
+        previous?.Cancel();
+        return current;
+    }
+
+    private bool IsCurrentPreviewTransition(CancellationTokenSource cancellation)
+    {
+        lock (previewTransitionSync)
+        {
+            return ReferenceEquals(previewTransitionCancellation, cancellation);
+        }
+    }
+
+    private void CompletePreviewTransition(CancellationTokenSource cancellation)
+    {
+        lock (previewTransitionSync)
+        {
+            if (ReferenceEquals(previewTransitionCancellation, cancellation))
+            {
+                previewTransitionCancellation = null;
+            }
+        }
+
+        cancellation.Dispose();
+    }
+
+    private void ApplyPreviewRequestState(RoomStatusReactive? targetRoom)
+    {
+        IsPreviewTransitioning = true;
+        if (targetRoom == null)
+        {
+            ApplyPreviewClosedState();
+            return;
+        }
+
+        PreviewingRoom = targetRoom;
+        IsPreviewing = true;
+        IsPreviewPaused = false;
+        LivePreviewStatus = LivePreviewStatus.Ready;
+    }
+
+    private void ApplyPreviewClosedState()
+    {
+        IsPreviewDetached = false;
+        PreviewingRoom = null;
+        IsPreviewing = false;
+        IsPreviewPaused = false;
+        LivePreviewStatus = CanPreviewSelectedRoom ? LivePreviewStatus.Ready : LivePreviewStatus.Idle;
     }
 
     private static bool IsSameRoom(RoomStatusReactive? current, RoomStatusReactive? next)
@@ -497,23 +590,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         return ReferenceEquals(current, next) || string.Equals(current.RoomUrl, next.RoomUrl, StringComparison.OrdinalIgnoreCase);
     }
 
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task StopPreviewAsync()
     {
-        IsPreviewTransitioning = true;
-        try
-        {
-            await livePreviewPlayer.StopAsync();
-            IsPreviewDetached = false;
-            PreviewingRoom = null;
-            IsPreviewing = false;
-            IsPreviewPaused = false;
-            LivePreviewStatus = CanPreviewSelectedRoom ? LivePreviewStatus.Ready : LivePreviewStatus.Idle;
-        }
-        finally
-        {
-            IsPreviewTransitioning = false;
-        }
+        await RequestPreviewTransitionAsync(null);
     }
 
     [RelayCommand]
@@ -521,11 +601,15 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     {
         if (IsPreviewing)
         {
-            await StopPreviewAsync();
+            await RequestPreviewTransitionAsync(null);
             return;
         }
 
-        await PreviewLiveRoomAsync();
+        RoomStatusReactive? targetRoom = SelectedItem;
+        if (targetRoom != null && targetRoom.CanPreview)
+        {
+            await RequestPreviewTransitionAsync(targetRoom);
+        }
     }
 
     [RelayCommand]
@@ -534,6 +618,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         if (!IsPreviewing)
         {
             await PreviewLiveRoomAsync();
+            return;
+        }
+
+        if (IsPreviewTransitioning)
+        {
             return;
         }
 
@@ -1915,6 +2004,12 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     public void Dispose()
     {
+        lock (previewTransitionSync)
+        {
+            previewTransitionCancellation?.Cancel();
+            previewTransitionCancellation = null;
+        }
+
         livePreviewPlayer.Dispose();
     }
 }

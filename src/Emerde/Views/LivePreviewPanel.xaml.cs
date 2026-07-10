@@ -29,6 +29,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     private System.Windows.CornerRadius normalPanelCornerRadius;
     private System.Windows.GridLength normalRoomHeaderHeight;
     private System.Windows.GridLength normalPreviewHeaderHeight;
+    private LibVLCSharp.WPF.VideoView? previewVideoView;
 
     public bool IsEmbeddedMode
     {
@@ -132,8 +133,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
 
     private void DetachMediaPlayerEvents()
     {
-        PreviewVideoView.MediaPlayer = null;
-        PreviewVideoView.Visibility = System.Windows.Visibility.Collapsed;
+        ClearVideoPresentation();
         PreviewOverlayRoot.DataContext = null;
 
         if (attachedViewModel != null)
@@ -175,16 +175,65 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     {
         if (!CanPresentVideo())
         {
-            pendingVideoLayoutRefreshes = 0;
-            HidePreviewControlsImmediately();
-            PreviewVideoView.MediaPlayer = null;
-            PreviewVideoView.Visibility = System.Windows.Visibility.Collapsed;
+            ClearVideoPresentation();
             return;
         }
 
-        PreviewVideoView.Visibility = System.Windows.Visibility.Visible;
-        PreviewVideoView.MediaPlayer = attachedMediaPlayer;
+        EnsurePreviewVideoView();
+        if (previewVideoView != null)
+        {
+            previewVideoView.MediaPlayer = attachedMediaPlayer;
+        }
+
         ScheduleVideoLayoutRefresh();
+    }
+
+    private void EnsurePreviewVideoView()
+    {
+        if (previewVideoView != null)
+        {
+            return;
+        }
+
+        if (PreviewOverlayRoot.Parent is System.Windows.Controls.Panel overlayOwner)
+        {
+            overlayOwner.Children.Remove(PreviewOverlayRoot);
+        }
+
+        previewVideoView = new LibVLCSharp.WPF.VideoView
+        {
+            HorizontalContentAlignment = System.Windows.HorizontalAlignment.Stretch,
+            VerticalContentAlignment = System.Windows.VerticalAlignment.Stretch,
+            Content = PreviewOverlayRoot,
+            Visibility = System.Windows.Visibility.Visible,
+        };
+
+        PreviewOverlayRoot.Visibility = System.Windows.Visibility.Visible;
+        VideoSurface.Children.Insert(0, previewVideoView);
+    }
+
+    private void ClearVideoPresentation()
+    {
+        pendingVideoLayoutRefreshes = 0;
+        HidePreviewControlsImmediately();
+
+        if (previewVideoView != null)
+        {
+            previewVideoView.MediaPlayer = null;
+            previewVideoView.Content = null;
+            VideoSurface.Children.Remove(previewVideoView);
+            previewVideoView.Dispose();
+            previewVideoView = null;
+        }
+
+        PreviewOverlayRoot.Visibility = System.Windows.Visibility.Collapsed;
+        if (PreviewOverlayRoot.Parent == null)
+        {
+            VideoSurface.Children.Add(PreviewOverlayRoot);
+        }
+
+        VideoSurface.UpdateLayout();
+        PreviewViewport.InvalidateVisual();
     }
 
     private bool CanPresentVideo()
@@ -510,7 +559,8 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             && IsVisible
             && !isVideoPresentationSuspended
             && PreviewViewport.IsVisible
-            && PreviewVideoView.Visibility == System.Windows.Visibility.Visible
+            && previewVideoView != null
+            && previewVideoView.Visibility == System.Windows.Visibility.Visible
             && PreviewViewport.ActualWidth > 0
             && PreviewViewport.ActualHeight > 0
             && DataContext is ViewModels.MainViewModel { IsPreviewing: true, IsPreviewTransitioning: false };
