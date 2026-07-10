@@ -18,7 +18,13 @@ public partial class RoomStatusReactive : ReactiveObject
     [NotifyPropertyChangedFor(nameof(AvatarDisplaySource))]
     private string avatarThumbUrl = string.Empty;
 
-    public string AvatarDisplaySource => string.IsNullOrWhiteSpace(AvatarThumbUrl)
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AvatarDisplaySource))]
+    private string avatarLocalPath = string.Empty;
+
+    public string AvatarDisplaySource => !string.IsNullOrWhiteSpace(AvatarLocalPath)
+        ? AvatarLocalPath
+        : string.IsNullOrWhiteSpace(AvatarThumbUrl)
         ? "pack://application:,,,/Assets/Favicon.png"
         : AvatarThumbUrl;
 
@@ -41,6 +47,9 @@ public partial class RoomStatusReactive : ReactiveObject
     private string liveTitle = string.Empty;
 
     [ObservableProperty]
+    private string uid = string.Empty;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(QualityText))]
     private string quality = string.Empty;
 
@@ -52,6 +61,9 @@ public partial class RoomStatusReactive : ReactiveObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BitrateText))]
     private string bitrate = string.Empty;
+
+    [ObservableProperty]
+    private string headers = string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PreviewUrl))]
@@ -68,6 +80,14 @@ public partial class RoomStatusReactive : ReactiveObject
     [NotifyPropertyChangedFor(nameof(LiveStreamText))]
     [NotifyPropertyChangedFor(nameof(PreviewSupportText))]
     private string hlsUrl = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PreviewUrl))]
+    [NotifyPropertyChangedFor(nameof(CanPreview))]
+    [NotifyPropertyChangedFor(nameof(PreviewSourceText))]
+    [NotifyPropertyChangedFor(nameof(LiveStreamText))]
+    [NotifyPropertyChangedFor(nameof(PreviewSupportText))]
+    private string recordUrl = string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EffectiveIsToNotify))]
@@ -90,9 +110,9 @@ public partial class RoomStatusReactive : ReactiveObject
 
     public bool EffectiveIsToNotify => Configurations.IsToNotify.Get() && IsToNotify;
 
-    public bool EffectiveIsToRecord => IsFollowGlobalSettings ? Configurations.IsToRecord.Get() : IsToRecord;
+    public bool EffectiveIsToRecord => GlobalMonitor.GetEffectiveRoomRecord(RoomUrl, IsToRecord, IsFollowGlobalSettings);
 
-    public bool EffectiveIsToMonitor => IsFollowGlobalSettings ? Configurations.IsToMonitor.Get() : IsToMonitor;
+    public bool EffectiveIsToMonitor => GlobalMonitor.GetEffectiveRoomMonitor(RoomUrl, IsToMonitor, IsFollowGlobalSettings);
 
     public bool CanEditRoomSettings => !IsFollowGlobalSettings;
 
@@ -135,7 +155,11 @@ public partial class RoomStatusReactive : ReactiveObject
 
     public bool IsRecording => RecordStatus == RecordStatus.Recording;
 
-    public string PreviewUrl => !string.IsNullOrWhiteSpace(FlvUrl) ? FlvUrl : HlsUrl;
+    public string PreviewUrl => !string.IsNullOrWhiteSpace(RecordUrl)
+        ? RecordUrl
+        : !string.IsNullOrWhiteSpace(HlsUrl)
+            ? HlsUrl
+            : FlvUrl;
 
     public bool CanPreview => StreamStatus == StreamStatus.Streaming && !string.IsNullOrWhiteSpace(PreviewUrl);
 
@@ -175,20 +199,25 @@ public partial class RoomStatusReactive : ReactiveObject
 
     public string BitrateText => string.IsNullOrWhiteSpace(Bitrate) ? "-" : Bitrate;
 
-    public string PreviewSupportText => PreviewSourceText == "-" ? "HLS / FLV" : PreviewSourceText;
+    public string PreviewSupportText => PreviewSourceText == "-" ? "Record / HLS / FLV" : PreviewSourceText;
 
     public string PreviewSourceText
     {
         get
         {
-            if (!string.IsNullOrWhiteSpace(FlvUrl))
+            if (!string.IsNullOrWhiteSpace(RecordUrl))
             {
-                return "FLV";
+                return "Record";
             }
 
             if (!string.IsNullOrWhiteSpace(HlsUrl))
             {
                 return "HLS";
+            }
+
+            if (!string.IsNullOrWhiteSpace(FlvUrl))
+            {
+                return "FLV";
             }
 
             return "-";

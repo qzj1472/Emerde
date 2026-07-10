@@ -19,16 +19,30 @@ public sealed class LivePreviewPlayer : IDisposable
         };
     }
 
-    public async Task PlayAsync(string url, string userAgent, string proxyUrl, CancellationToken cancellationToken = default)
+    public async Task PlayAsync(string url, string userAgent, string proxyUrl, string headers = "", CancellationToken cancellationToken = default)
     {
         await StopAsync();
         cancellationToken.ThrowIfCancellationRequested();
 
         using Media media = new(libVlc, new Uri(url));
+        media.AddOption(":adaptive-logic=highest");
 
-        if (!string.IsNullOrWhiteSpace(userAgent))
+        string effectiveUserAgent = GetHeaderValue(headers, "User-Agent") ?? userAgent;
+        if (!string.IsNullOrWhiteSpace(effectiveUserAgent))
         {
-            media.AddOption($":http-user-agent={userAgent}");
+            media.AddOption($":http-user-agent={effectiveUserAgent}");
+        }
+
+        string? referer = GetHeaderValue(headers, "Referer");
+        if (!string.IsNullOrWhiteSpace(referer))
+        {
+            media.AddOption($":http-referrer={referer}");
+        }
+
+        string? cookie = GetHeaderValue(headers, "Cookie");
+        if (!string.IsNullOrWhiteSpace(cookie))
+        {
+            media.AddOption($":http-cookie={cookie}");
         }
 
         if (!string.IsNullOrWhiteSpace(proxyUrl))
@@ -111,5 +125,31 @@ public sealed class LivePreviewPlayer : IDisposable
         Stop();
         MediaPlayer.Dispose();
         libVlc.Dispose();
+    }
+
+    private static string? GetHeaderValue(string headers, string name)
+    {
+        if (string.IsNullOrWhiteSpace(headers))
+        {
+            return null;
+        }
+
+        foreach (string line in headers.Replace("\r\n", "\n").Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            int separator = line.IndexOf(':');
+            if (separator <= 0)
+            {
+                continue;
+            }
+
+            string headerName = line[..separator].Trim();
+            if (string.Equals(headerName, name, StringComparison.OrdinalIgnoreCase))
+            {
+                string value = line[(separator + 1)..].Trim();
+                return string.IsNullOrWhiteSpace(value) ? null : value;
+            }
+        }
+
+        return null;
     }
 }

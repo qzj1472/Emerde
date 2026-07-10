@@ -41,6 +41,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 {
     private const string AllPlatformFilter = "All";
     private const long ManualRefreshCooldownMilliseconds = 5000;
+    private const long PreviewQualityRefreshCooldownMilliseconds = 30000;
+    private const string PreviewStreamQualityPreference = StreamQualityCatalog.Original;
     private static readonly string[] NetworkThroughputTestUrls =
     [
         "https://speed.cloudflare.com/__down?bytes=50000000",
@@ -54,6 +56,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private readonly SemaphoreSlim previewTransitionGate = new(1, 1);
     private readonly object previewTransitionSync = new();
     private readonly object manualRefreshCooldownLock = new();
+    private readonly Dictionary<string, long> previewQualityRefreshTimestamps = new(StringComparer.OrdinalIgnoreCase);
     private CancellationTokenSource? previewTransitionCancellation;
     private long lastManualRefreshTimestamp;
 
@@ -197,6 +200,12 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 changed = true;
             }
 
+            if (string.IsNullOrWhiteSpace(room.PlatformName))
+            {
+                room.PlatformName = Spider.GetPlatformName(normalizedUrl);
+                changed = true;
+            }
+
             normalizedRooms.Add(room);
         }
 
@@ -301,7 +310,17 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             NickName = room.NickName,
             RoomUrl = room.RoomUrl,
             AvatarThumbUrl = room.AvatarThumbUrl,
-            PlatformName = Spider.GetPlatformName(room.RoomUrl),
+            AvatarLocalPath = room.AvatarLocalPath,
+            PlatformName = string.IsNullOrWhiteSpace(room.PlatformName) ? Spider.GetPlatformName(room.RoomUrl) : room.PlatformName,
+            LiveTitle = room.LiveTitle,
+            Uid = room.Uid,
+            Quality = room.Quality,
+            Resolution = room.Resolution,
+            Bitrate = room.Bitrate,
+            Headers = room.Headers,
+            FlvUrl = room.FlvUrl,
+            HlsUrl = room.HlsUrl,
+            RecordUrl = room.RecordUrl,
             IsToNotify = room.IsToNotify,
             IsToRecord = room.IsToRecord,
             IsToMonitor = room.IsToMonitor,
@@ -340,11 +359,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             }
         });
 
-        if (Configurations.IsMonitorRunning.Get())
+        if (ShouldRunMonitorLoop())
         {
             GlobalMonitor.Start();
         }
-        ChildProcessTracerPeriodicTimer.Default.WhiteList = ["ffmpeg", "ffplay"];
+        ChildProcessTracerPeriodicTimer.Default.WhiteList = ["ffmpeg", "ffprobe", "ffplay", "python", "python3", "node"];
         ChildProcessTracerPeriodicTimer.Default.Start();
         DispatcherTimer.Start();
         RecordingCleanupService.QueueRun();
@@ -359,15 +378,19 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             if (roomStatusReactive != null)
             {
                 roomStatusReactive.AvatarThumbUrl = roomStatus.AvatarThumbUrl;
+                roomStatusReactive.AvatarLocalPath = roomStatus.AvatarLocalPath;
                 roomStatusReactive.PlatformName = roomStatus.PlatformName;
                 roomStatusReactive.LiveTitle = roomStatus.LiveTitle;
+                roomStatusReactive.Uid = roomStatus.Uid;
                 roomStatusReactive.Quality = roomStatus.Quality;
                 roomStatusReactive.Resolution = roomStatus.Resolution;
                 roomStatusReactive.Bitrate = roomStatus.Bitrate;
+                roomStatusReactive.Headers = roomStatus.Headers;
                 roomStatusReactive.StreamStatus = roomStatus.StreamStatus;
                 roomStatusReactive.RecordStatus = roomStatus.RecordStatus;
                 roomStatusReactive.FlvUrl = roomStatus.FlvUrl;
                 roomStatusReactive.HlsUrl = roomStatus.HlsUrl;
+                roomStatusReactive.RecordUrl = roomStatus.RecordUrl;
                 roomStatusReactive.StartTime = roomStatus.Recorder.StartTime;
                 roomStatusReactive.EndTime = roomStatus.Recorder.EndTime;
                 roomStatusReactive.RefreshDuration();
@@ -482,9 +505,30 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 return;
             }
 
+            await RefreshPreviewStreamQualityAsync(targetRoom, cancellation.Token);
+            cancellation.Token.ThrowIfCancellationRequested();
+            if (!targetRoom.CanPreview)
+            {
+                await livePreviewPlayer.StopAsync();
+                ApplyPreviewClosedState();
+                LivePreviewStatus = LivePreviewStatus.Unavailable;
+                Toast.Warning("LivePreviewUnavailable".Tr());
+                return;
+            }
+
             string proxyUrl = Configurations.IsUseProxy.Get() ? Configurations.ProxyUrl.Get() : string.Empty;
+            string previewUrl = GetPreviewPlaybackUrl(targetRoom);
+            if (string.IsNullOrWhiteSpace(previewUrl))
+            {
+                await livePreviewPlayer.StopAsync();
+                ApplyPreviewClosedState();
+                LivePreviewStatus = LivePreviewStatus.Unavailable;
+                Toast.Warning("LivePreviewUnavailable".Tr());
+                return;
+            }
+
             livePreviewPlayer.SetMuted(IsPreviewMuted);
-            await livePreviewPlayer.PlayAsync(targetRoom.PreviewUrl, Configurations.UserAgent.Get(), proxyUrl, cancellation.Token);
+            await livePreviewPlayer.PlayAsync(previewUrl, Configurations.UserAgent.Get(), proxyUrl, targetRoom.Headers, cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
             if (IsCurrentPreviewTransition(cancellation))
             {
@@ -590,6 +634,114 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         return ReferenceEquals(current, next) || string.Equals(current.RoomUrl, next.RoomUrl, StringComparison.OrdinalIgnoreCase);
     }
 
+    private async Task RefreshPreviewStreamQualityAsync(RoomStatusReactive targetRoom, CancellationToken cancellationToken)
+    {
+        string roomUrl = targetRoom.RoomUrl;
+        if (string.IsNullOrWhiteSpace(roomUrl))
+        {
+            return;
+        }
+
+        string preferredQuality = PreviewStreamQualityPreference;
+        if (!ShouldRefreshPreviewStreamQuality(targetRoom, preferredQuality))
+        {
+            return;
+        }
+
+        ISpiderResult? result;
+        try
+        {
+            result = await Task.Run(() => Spider.GetResult(roomUrl, preferredQuality), cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e);
+            return;
+        }
+
+        if (!HasPreviewRefreshResult(result))
+        {
+            return;
+        }
+
+        previewQualityRefreshTimestamps[roomUrl] = Environment.TickCount64;
+        ApplyRoomInfoResult(targetRoom, result!);
+        RoomStatusesView.Refresh();
+        OnPropertyChanged(nameof(CanPreviewSelectedRoom));
+        OnPropertyChanged(nameof(PlatformSummaryText));
+    }
+
+    private bool ShouldRefreshPreviewStreamQuality(RoomStatusReactive room, string preferredQuality)
+    {
+        if (room.StreamStatus != StreamStatus.Streaming || string.IsNullOrWhiteSpace(room.RoomUrl))
+        {
+            return false;
+        }
+
+        if (IsPreviewQualityRefreshCoolingDown(room.RoomUrl))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(room.Resolution) || string.IsNullOrWhiteSpace(room.Bitrate))
+        {
+            return true;
+        }
+
+        double? currentBitrate = ParseBitrateMbps(room.Bitrate);
+        if (currentBitrate is > 0 && currentBitrate.Value < EstimateRequiredMbps(room) * 0.75d)
+        {
+            return true;
+        }
+
+        string supportedPreference = StreamQualityCatalog.GetSupportedPreference(room.PlatformName, preferredQuality);
+        string currentPreference = StreamQualityCatalog.NormalizePreference(StreamQualityCatalog.GetDisplayName(room.PlatformName, room.Quality, room.Resolution));
+        return GetStreamQualityRank(currentPreference) < GetStreamQualityRank(supportedPreference);
+    }
+
+    internal static string GetPreviewPlaybackUrl(RoomStatusReactive room)
+    {
+        return room.PreviewUrl;
+    }
+
+    private bool IsPreviewQualityRefreshCoolingDown(string roomUrl)
+    {
+        if (!previewQualityRefreshTimestamps.TryGetValue(roomUrl, out long lastRefreshTimestamp))
+        {
+            return false;
+        }
+
+        return Environment.TickCount64 - lastRefreshTimestamp < PreviewQualityRefreshCooldownMilliseconds;
+    }
+
+    private static bool HasPreviewRefreshResult(ISpiderResult? result)
+    {
+        return result != null
+            && (result.IsLiveStreaming == false
+                || !string.IsNullOrWhiteSpace(result.RecordUrl)
+                || !string.IsNullOrWhiteSpace(result.FlvUrl)
+                || !string.IsNullOrWhiteSpace(result.HlsUrl));
+    }
+
+    private static int GetStreamQualityRank(string quality)
+    {
+        return StreamQualityCatalog.NormalizePreference(quality) switch
+        {
+            StreamQualityCatalog.Original => 5,
+            StreamQualityCatalog.BlueRay => 4,
+            StreamQualityCatalog.UltraHigh => 3,
+            StreamQualityCatalog.High => 2,
+            StreamQualityCatalog.Standard => 1,
+            StreamQualityCatalog.Smooth => 0,
+            _ => 0,
+        };
+    }
+
     [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task StopPreviewAsync()
     {
@@ -639,7 +791,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     }
 
     [RelayCommand]
-    private void ToggleMonitor()
+    private async Task ToggleMonitorAsync()
     {
         bool isMonitorRunning = !Configurations.IsMonitorRunning.Get();
         Configurations.IsMonitorRunning.Set(isMonitorRunning);
@@ -649,21 +801,47 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         if (isMonitorRunning)
         {
             GlobalMonitor.Start();
+            await GlobalMonitor.RunOnceAsync();
             Toast.Success("SuccOp".Tr());
         }
         else
         {
-            GlobalMonitor.Stop();
+            if (HasIndependentMonitorRooms())
+            {
+                GlobalMonitor.Start();
+                await GlobalMonitor.RunOnceAsync();
+            }
+            else
+            {
+                GlobalMonitor.Stop();
+            }
             Toast.Success("SuccOp".Tr());
         }
+
+        RefreshRoomEffectiveStates();
+    }
+
+    private static bool ShouldRunMonitorLoop()
+    {
+        return Configurations.IsMonitorRunning.Get() || HasIndependentMonitorRooms();
+    }
+
+    private static bool HasIndependentMonitorRooms()
+    {
+        return Configurations.Rooms.Get().Any(room => !room.IsFollowGlobalSettings && GlobalMonitor.GetEffectiveRoomMonitor(room));
     }
 
     [RelayCommand]
-    private void ToggleStatusMonitor()
+    private async Task ToggleStatusMonitorAsync()
     {
         StatusOfIsToMonitor = !StatusOfIsToMonitor;
         Configurations.IsToMonitor.Set(StatusOfIsToMonitor);
         ConfigurationManager.Save();
+        if (StatusOfIsToMonitor && Configurations.IsMonitorRunning.Get())
+        {
+            GlobalMonitor.Start();
+            await GlobalMonitor.RunOnceAsync();
+        }
         RefreshRoomEffectiveStates();
     }
 
@@ -678,12 +856,24 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     }
 
     [RelayCommand]
-    private void ToggleStatusRecord()
+    private async Task ToggleStatusRecordAsync()
     {
         StatusOfIsToRecord = !StatusOfIsToRecord;
         Configurations.IsToRecord.Set(StatusOfIsToRecord);
         ConfigurationManager.Save();
         TrayIconManager.GetInstance().UpdateTrayIcon();
+
+        if (StatusOfIsToRecord && Configurations.IsMonitorRunning.Get())
+        {
+            GlobalMonitor.ClearTemporaryRecordOverrides();
+            GlobalMonitor.Start();
+            await GlobalMonitor.RunOnceAsync();
+        }
+        else if (!StatusOfIsToRecord)
+        {
+            StopGlobalFollowRecorders();
+        }
+
         RefreshRoomEffectiveStates();
     }
 
@@ -763,6 +953,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             NickName = nickName,
             RoomUrl = roomUrl,
             AvatarThumbUrl = spiderResult?.AvatarThumbUrl ?? string.Empty,
+            PlatformName = Spider.GetPlatformName(roomUrl),
             IsToMonitor = Configurations.IsToMonitor.Get(),
             IsToRecord = Configurations.IsToRecord.Get(),
             IsFollowGlobalSettings = true,
@@ -1317,6 +1508,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         string? quality = SpiderResultMetadata.GetQuality(result);
         string? resolution = SpiderResultMetadata.GetResolution(result);
         string? bitrate = SpiderResultMetadata.GetBitrate(result);
+        string? headers = SpiderResultMetadata.GetHeaders(result);
 
         if (!string.IsNullOrWhiteSpace(result.Nickname))
         {
@@ -1364,6 +1556,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         room.FlvUrl = result.FlvUrl ?? string.Empty;
         room.HlsUrl = result.HlsUrl ?? string.Empty;
+        room.RecordUrl = result.RecordUrl ?? string.Empty;
+        room.Headers = headers ?? string.Empty;
+        room.Uid = result.Uid ?? string.Empty;
         room.StreamStatus = result.IsLiveStreaming switch
         {
             true => StreamStatus.Streaming,
@@ -1385,15 +1580,57 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         });
         status.NickName = room.NickName;
         status.AvatarThumbUrl = room.AvatarThumbUrl;
+        status.AvatarLocalPath = room.AvatarLocalPath;
         status.PlatformName = room.PlatformName;
         status.LiveTitle = room.LiveTitle;
+        status.Uid = room.Uid;
         status.Quality = room.Quality;
         status.Resolution = room.Resolution;
         status.Bitrate = room.Bitrate;
+        status.Headers = room.Headers;
         status.FlvUrl = room.FlvUrl;
         status.HlsUrl = room.HlsUrl;
+        status.RecordUrl = room.RecordUrl;
         status.StreamStatus = room.StreamStatus;
+        SaveRoomInfo(room);
         room.FlashRefresh();
+    }
+
+    private static void SaveRoomInfo(RoomStatusReactive source)
+    {
+        Room[] rooms = Configurations.Rooms.Get();
+        Room? room = rooms.FirstOrDefault(item => string.Equals(item.RoomUrl, source.RoomUrl, StringComparison.OrdinalIgnoreCase));
+        if (room == null)
+        {
+            return;
+        }
+
+        ApplyRoomStatusToRoom(source, room);
+        Configurations.Rooms.Set(rooms);
+        ConfigurationManager.Save();
+    }
+
+    private static void ApplyRoomStatusToRoom(RoomStatusReactive source, Room target)
+    {
+        target.NickName = source.NickName;
+        target.RoomUrl = NormalizeRoomUrl(source.RoomUrl);
+        target.AvatarThumbUrl = source.AvatarThumbUrl;
+        target.AvatarLocalPath = source.AvatarLocalPath;
+        target.PlatformName = source.PlatformName;
+        target.LiveTitle = source.LiveTitle;
+        target.Uid = source.Uid;
+        target.Quality = source.Quality;
+        target.Resolution = source.Resolution;
+        target.Bitrate = source.Bitrate;
+        target.Headers = source.Headers;
+        target.FlvUrl = source.FlvUrl;
+        target.HlsUrl = source.HlsUrl;
+        target.RecordUrl = source.RecordUrl;
+        target.LastInfoUpdatedAt = DateTime.Now;
+        target.IsToNotify = source.IsToNotify;
+        target.IsToRecord = source.IsToRecord;
+        target.IsToMonitor = source.IsToMonitor;
+        target.IsFollowGlobalSettings = source.IsFollowGlobalSettings;
     }
 
     [RelayCommand]
@@ -1574,26 +1811,17 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             {
                 if (roomsByUrl.TryGetValue(roomStatus.RoomUrl, out Room? room))
                 {
-                    room.NickName = roomStatus.NickName;
-                    room.RoomUrl = NormalizeRoomUrl(roomStatus.RoomUrl);
-                    room.AvatarThumbUrl = roomStatus.AvatarThumbUrl;
-                    room.IsToNotify = roomStatus.IsToNotify;
-                    room.IsToRecord = roomStatus.IsToRecord;
-                    room.IsToMonitor = roomStatus.IsToMonitor;
-                    room.IsFollowGlobalSettings = roomStatus.IsFollowGlobalSettings;
+                    ApplyRoomStatusToRoom(roomStatus, room);
                     return room;
                 }
 
-                return new Room()
+                Room newRoom = new()
                 {
                     NickName = roomStatus.NickName,
                     RoomUrl = NormalizeRoomUrl(roomStatus.RoomUrl),
-                    AvatarThumbUrl = roomStatus.AvatarThumbUrl,
-                    IsToNotify = roomStatus.IsToNotify,
-                    IsToRecord = roomStatus.IsToRecord,
-                    IsToMonitor = roomStatus.IsToMonitor,
-                    IsFollowGlobalSettings = roomStatus.IsFollowGlobalSettings,
                 };
+                ApplyRoomStatusToRoom(roomStatus, newRoom);
+                return newRoom;
             })
             .ToArray();
 
@@ -1603,7 +1831,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     }
 
     [RelayCommand]
-    private void ToggleSelectedRoomMonitor()
+    private async Task ToggleSelectedRoomMonitorAsync()
     {
         if (SelectedItem == null || string.IsNullOrWhiteSpace(SelectedItem.RoomUrl))
         {
@@ -1612,20 +1840,42 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         if (SelectedItem.IsFollowGlobalSettings)
         {
-            SelectedItem.IsFollowGlobalSettings = false;
-            SelectedItem.IsToMonitor = !Configurations.IsToMonitor.Get();
-        }
-        else
-        {
-            SelectedItem.IsToMonitor = !SelectedItem.IsToMonitor;
+            bool enabled = !GlobalMonitor.GetEffectiveRoomMonitor(SelectedItem.RoomUrl, SelectedItem.IsToMonitor, true);
+            GlobalMonitor.SetTemporaryRoomMonitor(SelectedItem.RoomUrl, enabled);
+            SelectedItem.RefreshStatus();
+
+            if (enabled)
+            {
+                GlobalMonitor.Start();
+                await GlobalMonitor.RunRoomAsync(SelectedItem.RoomUrl);
+            }
+
+            RefreshRoomEffectiveStates();
+            return;
         }
 
+        SelectedItem.IsToMonitor = !SelectedItem.IsToMonitor;
         SaveSelectedRoomSettings();
+        SelectedItem.RefreshStatus();
+
+        if (SelectedItem.IsToMonitor)
+        {
+            if (!Configurations.IsMonitorRunning.Get())
+            {
+                Configurations.IsMonitorRunning.Set(true);
+                ConfigurationManager.Save();
+                StatusOfIsMonitorRunning = true;
+            }
+
+            GlobalMonitor.Start();
+            await GlobalMonitor.RunRoomAsync(SelectedItem.RoomUrl);
+        }
+
         RefreshRoomEffectiveStates();
     }
 
     [RelayCommand]
-    private void ToggleSelectedRoomRecord()
+    private async Task ToggleSelectedRoomRecordAsync()
     {
         if (SelectedItem == null || string.IsNullOrWhiteSpace(SelectedItem.RoomUrl))
         {
@@ -1634,16 +1884,87 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         if (SelectedItem.IsFollowGlobalSettings)
         {
-            SelectedItem.IsFollowGlobalSettings = false;
-            SelectedItem.IsToRecord = !Configurations.IsToRecord.Get();
-        }
-        else
-        {
-            SelectedItem.IsToRecord = !SelectedItem.IsToRecord;
+            bool enabled = !GlobalMonitor.GetEffectiveRoomRecord(SelectedItem.RoomUrl, SelectedItem.IsToRecord, true);
+            GlobalMonitor.SetTemporaryRoomRecord(SelectedItem.RoomUrl, enabled);
+            SelectedItem.RefreshStatus();
+
+            if (enabled && SelectedItem.EffectiveIsToMonitor)
+            {
+                GlobalMonitor.Start();
+                await GlobalMonitor.RunRoomAsync(SelectedItem.RoomUrl);
+            }
+            else if (!enabled)
+            {
+                StopSelectedRoomRecording();
+            }
+
+            RefreshRoomEffectiveStates();
+            return;
         }
 
+        SelectedItem.IsToRecord = !SelectedItem.IsToRecord;
         SaveSelectedRoomSettings();
+        SelectedItem.RefreshStatus();
+
+        if (SelectedItem.IsToRecord && SelectedItem.EffectiveIsToMonitor)
+        {
+            GlobalMonitor.ClearTemporaryRoomRecord(SelectedItem.RoomUrl);
+
+            if (!Configurations.IsMonitorRunning.Get())
+            {
+                Configurations.IsMonitorRunning.Set(true);
+                ConfigurationManager.Save();
+                StatusOfIsMonitorRunning = true;
+            }
+
+            GlobalMonitor.Start();
+            await GlobalMonitor.RunRoomAsync(SelectedItem.RoomUrl);
+        }
+
+        if (!SelectedItem.IsToRecord)
+        {
+            StopSelectedRoomRecording();
+        }
+
         RefreshRoomEffectiveStates();
+    }
+
+    private void StopGlobalFollowRecorders()
+    {
+        Room[] rooms = Configurations.Rooms.Get();
+        foreach (RoomStatus roomStatus in GlobalMonitor.RoomStatus.Values)
+        {
+            Room? room = rooms.FirstOrDefault(room => string.Equals(room.RoomUrl, roomStatus.RoomUrl, StringComparison.OrdinalIgnoreCase));
+            if (room is { IsFollowGlobalSettings: false } && GlobalMonitor.GetEffectiveRoomRecord(room))
+            {
+                continue;
+            }
+
+            if (roomStatus.RecordStatus == RecordStatus.Recording)
+            {
+                roomStatus.Recorder.Stop();
+            }
+
+            roomStatus.RecordStatus = RecordStatus.Disabled;
+        }
+    }
+
+    private void StopSelectedRoomRecording()
+    {
+        if (SelectedItem == null || string.IsNullOrWhiteSpace(SelectedItem.RoomUrl))
+        {
+            return;
+        }
+
+        if (GlobalMonitor.RoomStatus.TryGetValue(SelectedItem.RoomUrl, out RoomStatus? roomStatus)
+            && roomStatus.RecordStatus == RecordStatus.Recording)
+        {
+            GlobalMonitor.SetTemporaryRoomRecord(SelectedItem.RoomUrl, false);
+            roomStatus.Recorder.Stop();
+            roomStatus.RecordStatus = RecordStatus.Disabled;
+            SelectedItem.RecordStatus = RecordStatus.Disabled;
+            SelectedItem.RefreshStatus();
+        }
     }
 
     [RelayCommand]
@@ -1731,6 +2052,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 roomStatus.Recorder.Stop();
                 _ = GlobalMonitor.RoomStatus.TryRemove(roomUrl, out _);
             }
+            GlobalMonitor.ClearTemporaryRoomOverrides(roomUrl);
 
             RoomStatusReactive? roomStatusReactive = RoomStatuses.FirstOrDefault(room => room.RoomUrl == roomUrl);
             if (roomStatusReactive != null)
@@ -1914,10 +2236,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         if (room != null)
         {
-            room.IsToNotify = SelectedItem.IsToNotify;
-            room.IsToRecord = SelectedItem.IsToRecord;
-            room.IsToMonitor = SelectedItem.IsToMonitor;
-            room.IsFollowGlobalSettings = SelectedItem.IsFollowGlobalSettings;
+            ApplyRoomStatusToRoom(SelectedItem, room);
             if (recordingOptions != null)
             {
                 RoomRecordingSettings.Apply(room, recordingOptions);
