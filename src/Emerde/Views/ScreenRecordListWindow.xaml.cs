@@ -450,7 +450,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         {
             return Directory.EnumerateFiles(folder, "*.*", System.IO.SearchOption.AllDirectories)
                 .Where(path => VideoExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
-                .Select(CreateRecordedVideoItem)
+                .Select(path => CreateRecordedVideoItem(path, folder))
                 .ToArray();
         });
 
@@ -475,10 +475,10 @@ public partial class ScreenRecordListViewModel : ObservableObject
         RefreshSelectionSummary();
     }
 
-    private static RecordedVideoItem CreateRecordedVideoItem(string path)
+    private static RecordedVideoItem CreateRecordedVideoItem(string path, string rootFolder)
     {
         FileInfo fileInfo = new(path);
-        string nickName = fileInfo.Directory?.Name ?? "-";
+        string nickName = InferNickName(path, rootFolder);
         string resolution = "-";
         string bitrate = "-";
 
@@ -518,6 +518,58 @@ public partial class ScreenRecordListViewModel : ObservableObject
             CanTranscode = fileInfo.Extension.Equals(".ts", StringComparison.OrdinalIgnoreCase)
                 || fileInfo.Extension.Equals(".flv", StringComparison.OrdinalIgnoreCase),
         };
+    }
+
+    internal static string InferNickName(string filePath, string rootFolder)
+    {
+        FileInfo fileInfo = new(filePath);
+        string fallback = fileInfo.Directory?.Name ?? "-";
+
+        if (string.IsNullOrWhiteSpace(rootFolder))
+        {
+            return fallback;
+        }
+
+        string fullRoot = Path.GetFullPath(rootFolder)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string fullPath = Path.GetFullPath(filePath);
+        string relativePath = Path.GetRelativePath(fullRoot, fullPath);
+
+        if (relativePath == "." || relativePath.StartsWith("..", StringComparison.Ordinal))
+        {
+            return fallback;
+        }
+
+        string? relativeDirectory = Path.GetDirectoryName(relativePath);
+        if (string.IsNullOrWhiteSpace(relativeDirectory))
+        {
+            return fallback;
+        }
+
+        string[] parts = relativeDirectory
+            .Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
+
+        if (parts.Length == 0)
+        {
+            return fallback;
+        }
+
+        if (parts.Length >= 2 && IsYearMonth(parts[1]))
+        {
+            return parts[0];
+        }
+
+        return parts[^1];
+    }
+
+    private static bool IsYearMonth(string value)
+    {
+        return value.Length == 7
+            && value[4] == '-'
+            && int.TryParse(value[..4], out int year)
+            && int.TryParse(value[5..], out int month)
+            && year is >= 1900 and <= 9999
+            && month is >= 1 and <= 12;
     }
 
     private void ApplySort()
