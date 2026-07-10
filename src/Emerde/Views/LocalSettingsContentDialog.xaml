@@ -56,8 +56,9 @@
         </Style>
     </UserControl.Resources>
     <Border Background="Transparent">
-        <Border Padding="14"
+        <Border Padding="0"
                 Background="{DynamicResource EmerdeSurfaceBrush}"
+                ClipToBounds="True"
                 CornerRadius="{StaticResource Win11ControlCornerRadius}">
             <Grid>
                 <Grid.RowDefinitions>
@@ -66,7 +67,7 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0">
+                <Grid Grid.Row="0" Margin="14,14,14,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
@@ -87,7 +88,7 @@
                 </Grid>
 
                 <ui:Card Grid.Row="1"
-                         Margin="0,16,0,12"
+                         Margin="14,16,14,12"
                          Padding="14,12">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -119,7 +120,7 @@
                     </Border.Style>
                     <Grid ClipToBounds="True">
                         <ScrollViewer x:Name="LocalSettingsScrollViewer"
-                                      Padding="0,0,8,46"
+                                      Padding="14,0,8,0"
                                       PanningMode="VerticalOnly"
                                       ScrollViewer.CanContentScroll="False"
                                       VerticalScrollBarVisibility="Visible">
@@ -509,18 +510,17 @@
                                         </ui:StackPanel>
                                     </ui:StackPanel>
                                 </ui:CardExpander>
-                                <FrameworkElement Height="52" />
                             </ui:StackPanel>
                         </ScrollViewer>
                         <Border Height="18"
-                                Margin="0,0,12,0"
+                                Margin="14,0,22,0"
                                 VerticalAlignment="Top"
                                 Panel.ZIndex="20"
                                 Background="{DynamicResource EmerdeSurfaceBrush}"
                                 IsHitTestVisible="False"
                                 OpacityMask="{StaticResource TopEdgeFadeOpacityMask}" />
-                        <Border Height="34"
-                                Margin="0,0,12,0"
+                        <Border Height="26"
+                                Margin="14,0,22,0"
                                 VerticalAlignment="Bottom"
                                 Panel.ZIndex="20"
                                 Background="{DynamicResource EmerdeSurfaceBrush}"

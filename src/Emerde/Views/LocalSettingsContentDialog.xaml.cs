@@ -23,6 +23,8 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
     private const int Seconds = 1;
     private const int Minutes = 2;
     private const int Hours = 3;
+    private const double DialogHorizontalChrome = 48d;
+    private const double DialogVerticalChrome = 176d;
 
     private int routineIntervalMilliseconds;
     private bool isUpdatingRoutineInterval;
@@ -345,8 +347,8 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
 
             double targetWidth = Math.Max(1d, Math.Floor(ownerWidth * 0.65d));
             double targetHeight = Math.Max(1d, Math.Floor(ownerHeight * 0.85d));
-            double contentWidth = Math.Max(1d, targetWidth - 40d);
-            double contentHeight = Math.Max(1d, targetHeight - 96d);
+            double contentWidth = Math.Max(1d, targetWidth - DialogHorizontalChrome);
+            double contentHeight = Math.Max(1d, targetHeight - DialogVerticalChrome);
 
             dialog.Width = targetWidth;
             dialog.Height = targetHeight;
@@ -361,6 +363,8 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
             MinHeight = contentHeight;
             MaxWidth = contentWidth;
             MaxHeight = contentHeight;
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
+            VerticalAlignment = System.Windows.VerticalAlignment.Stretch;
 
             ExpandDialogVisualPath(dialog, targetWidth, targetHeight);
         }
@@ -380,7 +384,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         DependencyObject? current = this;
         while (current != null && !ReferenceEquals(current, dialog))
         {
-            current = System.Windows.Media.VisualTreeHelper.GetParent(current) ?? LogicalTreeHelper.GetParent(current);
+            current = VisualTreeHelper.GetParent(current) ?? LogicalTreeHelper.GetParent(current);
             if (current is not FrameworkElement element || ReferenceEquals(element, dialog))
             {
                 continue;
