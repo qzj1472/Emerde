@@ -50,7 +50,6 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     protected internal ForeverDispatcherTimer DispatcherTimer { get; }
 
     private readonly LivePreviewPlayer livePreviewPlayer = new();
-    private LivePreviewWindow? livePreviewWindow;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsHomePageSelected))]
@@ -132,6 +131,12 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     [NotifyPropertyChangedFor(nameof(IsPreviewIdle))]
     [NotifyPropertyChangedFor(nameof(IsPreviewPlaying))]
     private bool isPreviewing = false;
+
+    [ObservableProperty]
+    private RoomStatusReactive? previewingRoom;
+
+    [ObservableProperty]
+    private bool isPreviewDetached = false;
 
     [ObservableProperty]
     private bool isPreviewMuted = true;
@@ -428,25 +433,32 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     [RelayCommand]
     private void PreviewLiveRoom(RoomStatusReactive? roomStatus = null)
     {
-        if (roomStatus != null)
-        {
-            SelectedItem = roomStatus;
-        }
-
-        if (SelectedItem == null || !SelectedItem.CanPreview)
+        RoomStatusReactive? targetRoom = roomStatus ?? SelectedItem;
+        if (targetRoom == null || !targetRoom.CanPreview)
         {
             LivePreviewStatus = LivePreviewStatus.Unavailable;
             Toast.Warning("LivePreviewUnavailable".Tr());
             return;
         }
 
+        if (IsPreviewing && IsSameRoom(PreviewingRoom, targetRoom))
+        {
+            StopPreview();
+            return;
+        }
+
+        if (!ReferenceEquals(SelectedItem, targetRoom))
+        {
+            SelectedItem = targetRoom;
+        }
+
         try
         {
             string proxyUrl = Configurations.IsUseProxy.Get() ? Configurations.ProxyUrl.Get() : string.Empty;
 
-            ShowLivePreviewWindow();
-            livePreviewPlayer.Play(SelectedItem.PreviewUrl, Configurations.UserAgent.Get(), proxyUrl);
+            livePreviewPlayer.Play(targetRoom.PreviewUrl, Configurations.UserAgent.Get(), proxyUrl);
             livePreviewPlayer.SetMuted(IsPreviewMuted);
+            PreviewingRoom = targetRoom;
             IsPreviewing = true;
             IsPreviewPaused = false;
             LivePreviewStatus = LivePreviewStatus.Playing;
@@ -454,6 +466,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         catch (Exception e)
         {
             Debug.WriteLine(e);
+            PreviewingRoom = null;
             IsPreviewing = false;
             IsPreviewPaused = false;
             LivePreviewStatus = LivePreviewStatus.Error;
@@ -461,10 +474,22 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
     }
 
+    private static bool IsSameRoom(RoomStatusReactive? current, RoomStatusReactive? next)
+    {
+        if (current == null || next == null)
+        {
+            return false;
+        }
+
+        return ReferenceEquals(current, next) || string.Equals(current.RoomUrl, next.RoomUrl, StringComparison.OrdinalIgnoreCase);
+    }
+
     [RelayCommand]
     private void StopPreview()
     {
         livePreviewPlayer.Stop();
+        IsPreviewDetached = false;
+        PreviewingRoom = null;
         IsPreviewing = false;
         IsPreviewPaused = false;
         LivePreviewStatus = CanPreviewSelectedRoom ? LivePreviewStatus.Ready : LivePreviewStatus.Idle;
@@ -494,35 +519,6 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         IsPreviewPaused = !IsPreviewPaused;
         livePreviewPlayer.SetPaused(IsPreviewPaused);
         LivePreviewStatus = IsPreviewPaused ? LivePreviewStatus.Ready : LivePreviewStatus.Playing;
-    }
-
-    private void ShowLivePreviewWindow()
-    {
-        if (livePreviewWindow == null)
-        {
-            livePreviewWindow = new()
-            {
-                Owner = Application.Current.MainWindow,
-                DataContext = this,
-            };
-            livePreviewWindow.Closed += (_, _) =>
-            {
-                livePreviewWindow = null;
-                StopPreview();
-            };
-        }
-
-        if (!livePreviewWindow.IsVisible)
-        {
-            livePreviewWindow.Show();
-        }
-
-        if (livePreviewWindow.WindowState == WindowState.Minimized)
-        {
-            livePreviewWindow.WindowState = WindowState.Normal;
-        }
-
-        livePreviewWindow.Activate();
     }
 
     [RelayCommand]
@@ -1616,17 +1612,16 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     }
 
     [RelayCommand]
-    private async Task GotoRoomUrlAsync()
+    private async Task GotoRoomUrlAsync(RoomStatusReactive? roomStatus = null)
     {
-        if (SelectedItem == null || string.IsNullOrWhiteSpace(SelectedItem.RoomUrl))
+        RoomStatusReactive? targetRoom = roomStatus ?? SelectedItem;
+        if (targetRoom == null || string.IsNullOrWhiteSpace(targetRoom.RoomUrl))
         {
             return;
         }
 
-        livePreviewWindow?.PrepareExternalNavigation();
-
         // TODO: Implement for other platforms
-        await Launcher.LaunchUriAsync(new Uri(SelectedItem.RoomUrl));
+        await Launcher.LaunchUriAsync(new Uri(targetRoom.RoomUrl));
     }
 
     [RelayCommand]
