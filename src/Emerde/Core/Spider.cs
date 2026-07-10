@@ -142,4 +142,46 @@ public interface ISpiderResult
     public string? FlvUrl { get; set; }
 
     public string? HlsUrl { get; set; }
+
+    public string? RecordUrl
+    {
+        get => null;
+        set { }
+    }
+
+    public string? Title
+    {
+        get => null;
+        set { }
+    }
+
+    public string? Quality
+    {
+        get => null;
+        set { }
+    }
+
+    public string? Uid
+    {
+        get => null;
+        set { }
+    }
+
+    public string? Resolution
+    {
+        get => null;
+        set { }
+    }
+
+    public string? Bitrate
+    {
+        get => null;
+        set { }
+    }
+
+    public string? Headers
+    {
+        get => null;
+        set { }
+    }
 }

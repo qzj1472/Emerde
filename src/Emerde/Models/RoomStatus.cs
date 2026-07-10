@@ -8,11 +8,15 @@ public sealed class RoomStatus
 
     public string AvatarThumbUrl { get; set; } = string.Empty;
 
+    public string AvatarLocalPath { get; set; } = string.Empty;
+
     public string RoomUrl { get; set; } = string.Empty;
 
     public string PlatformName { get; set; } = string.Empty;
 
     public string LiveTitle { get; set; } = string.Empty;
+
+    public string Uid { get; set; } = string.Empty;
 
     public string Quality { get; set; } = string.Empty;
 
@@ -20,9 +24,13 @@ public sealed class RoomStatus
 
     public string Bitrate { get; set; } = string.Empty;
 
+    public string Headers { get; set; } = string.Empty;
+
     public string FlvUrl { get; set; } = string.Empty;
 
     public string HlsUrl { get; set; } = string.Empty;
+
+    public string RecordUrl { get; set; } = string.Empty;
 
     public StreamStatus StreamStatus { get; set; } = default;
 
