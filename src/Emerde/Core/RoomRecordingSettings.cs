@@ -2,6 +2,8 @@ namespace Emerde.Core;
 
 public sealed record RoomRecordingOptions
 {
+    public string PreferredStreamQuality { get; init; } = StreamQualityCatalog.Original;
+
     public string RecordFormat { get; init; } = "TS/FLV";
 
     public bool IsRemoveTs { get; init; }
@@ -42,6 +44,7 @@ internal static class RoomRecordingSettings
     {
         return new RoomRecordingOptions
         {
+            PreferredStreamQuality = StreamQualityCatalog.NormalizePreference(Configurations.PreferredStreamQuality.Get()),
             RecordFormat = NormalizeRecordFormat(Configurations.RecordFormat.Get()),
             IsRemoveTs = Configurations.IsRemoveTs.Get(),
             IsToSegment = Configurations.IsToSegment.Get(),
@@ -70,6 +73,7 @@ internal static class RoomRecordingSettings
 
         return new RoomRecordingOptions
         {
+            PreferredStreamQuality = StreamQualityCatalog.NormalizePreference(room.PreferredStreamQuality, global.PreferredStreamQuality),
             RecordFormat = NormalizeRecordFormat(room.RecordFormat, global.RecordFormat),
             IsRemoveTs = room.IsRemoveTs ?? global.IsRemoveTs,
             IsToSegment = room.IsToSegment ?? global.IsToSegment,
@@ -88,8 +92,17 @@ internal static class RoomRecordingSettings
         };
     }
 
+    public static string GetPreferredStreamQuality(string? roomUrl)
+    {
+        Room? room = Configurations.Rooms.Get().FirstOrDefault(item =>
+            !string.IsNullOrWhiteSpace(roomUrl)
+            && string.Equals(item.RoomUrl, roomUrl, StringComparison.OrdinalIgnoreCase));
+        return room == null ? GetGlobal().PreferredStreamQuality : Get(room).PreferredStreamQuality;
+    }
+
     public static void Apply(Room room, RoomRecordingOptions settings)
     {
+        room.PreferredStreamQuality = StreamQualityCatalog.NormalizePreference(settings.PreferredStreamQuality);
         room.RecordFormat = NormalizeRecordFormat(settings.RecordFormat);
         room.IsRemoveTs = settings.IsRemoveTs;
         room.IsToSegment = settings.IsToSegment;

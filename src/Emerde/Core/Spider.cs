@@ -72,9 +72,9 @@ internal static class Spider
         return null;
     }
 
-    public static ISpiderResult? GetResult(string url)
+    public static ISpiderResult? GetResult(string url, string? preferredQuality = null)
     {
-        ISpiderResult? resolverResult = StreamResolver.GetResult(url);
+        ISpiderResult? resolverResult = StreamResolver.GetResult(url, preferredQuality);
         if (StreamResolver.HasUsableData(resolverResult))
         {
             return resolverResult;
@@ -84,7 +84,9 @@ internal static class Spider
         {
             if (!string.IsNullOrWhiteSpace(spider.ParseUrl(url)))
             {
-                return spider.GetResult(url);
+                return spider is IQualitySelectableSpider qualitySelectable
+                    ? qualitySelectable.GetResult(url, preferredQuality)
+                    : spider.GetResult(url);
             }
         }
 
@@ -118,6 +120,11 @@ public interface ISpider
     public string? ParseUrl(string url);
 
     public ISpiderResult GetResult(string url);
+}
+
+public interface IQualitySelectableSpider
+{
+    public ISpiderResult GetResult(string url, string? preferredQuality);
 }
 
 public interface ISpiderResult

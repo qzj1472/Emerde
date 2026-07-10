@@ -494,6 +494,33 @@
                                            VerticalAlignment="Center"
                                            FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                            FontSize="18"
+                                           Text="{x:Static ui:FontSymbols.Video}" />
+                            </Grid>
+                            <ui:Grid Grid.Column="1" RowDefinitions="Auto,Auto">
+                                <TextBlock Grid.Row="0" Text="画质" />
+                                <TextBlock Grid.Row="1"
+                                           FontSize="11"
+                                           Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
+                                           Text="支持的平台按所选档位取流，其余平台使用可用最高画质。" />
+                            </ui:Grid>
+                            <ComboBox Grid.Column="2"
+                                      MinWidth="150"
+                                      Margin="0,0,28,0"
+                                      DisplayMemberPath="DisplayName"
+                                      ItemsSource="{Binding StreamQualityOptions}"
+                                      SelectedValue="{Binding PreferredStreamQuality, Mode=TwoWay}"
+                                      SelectedValuePath="Value" />
+                        </ui:Grid>
+                    </ui:Card>
+                    <ui:Card>
+                        <ui:Grid MinHeight="35" ColumnDefinitions="Auto,*,Auto">
+                            <Grid Grid.Column="0" Margin="0,0,12,0">
+                                <TextBlock MinWidth="26"
+                                           Margin="4,0,0,0"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                           FontSize="18"
                                            Text="{x:Static ui:FontSymbols.Radar}" />
                             </Grid>
                             <ui:Grid Grid.Column="1" RowDefinitions="Auto,Auto">

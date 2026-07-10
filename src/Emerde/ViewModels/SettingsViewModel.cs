@@ -54,6 +54,8 @@ public partial class SettingsViewModel : ReactiveObject
         new(SegmentTimeUnitHelper.Gigabytes, "GB"),
     ];
 
+    public IReadOnlyList<StreamQualityOption> StreamQualityOptions { get; } = StreamQualityCatalog.GlobalOptions;
+
     public IReadOnlyList<UnitOption> DataRetentionUnitOptions { get; } =
     [
         new(DataRetentionUnitHelper.Days, "天"),
@@ -504,6 +506,22 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsToRecordChanged(bool value)
     {
         Configurations.IsToRecord.Set(value);
+        ConfigurationManager.Save();
+    }
+
+    [ObservableProperty]
+    private string preferredStreamQuality = StreamQualityCatalog.NormalizePreference(Configurations.PreferredStreamQuality.Get());
+
+    partial void OnPreferredStreamQualityChanged(string value)
+    {
+        string normalized = StreamQualityCatalog.NormalizePreference(value);
+        if (!string.Equals(value, normalized, StringComparison.Ordinal))
+        {
+            PreferredStreamQuality = normalized;
+            return;
+        }
+
+        Configurations.PreferredStreamQuality.Set(normalized);
         ConfigurationManager.Save();
     }
 

@@ -818,7 +818,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             await semaphore.WaitAsync();
             try
             {
-                ISpiderResult? result = await Task.Run(() => Spider.GetResult(room.RoomUrl));
+                string preferredQuality = RoomRecordingSettings.GetPreferredStreamQuality(room.RoomUrl);
+                ISpiderResult? result = await Task.Run(() => Spider.GetResult(room.RoomUrl, preferredQuality));
                 if (result != null)
                 {
                     Application.Current.Dispatcher.Invoke(() =>
@@ -858,7 +859,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         IsRefreshingSelectedRoomInfo = true;
         try
         {
-            ISpiderResult? result = await Task.Run(() => Spider.GetResult(SelectedItem.RoomUrl));
+            string preferredQuality = RoomRecordingSettings.GetPreferredStreamQuality(SelectedItem.RoomUrl);
+            ISpiderResult? result = await Task.Run(() => Spider.GetResult(SelectedItem.RoomUrl, preferredQuality));
             if (result == null)
             {
                 Toast.Error("GetRoomInfoError".Tr());
@@ -1264,19 +1266,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             room.LiveTitle = string.Empty;
         }
 
-        if (!string.IsNullOrWhiteSpace(quality))
+        if (result.IsLiveStreaming.HasValue)
         {
-            room.Quality = quality;
-        }
-
-        if (!string.IsNullOrWhiteSpace(resolution))
-        {
-            room.Resolution = resolution;
-        }
-
-        if (!string.IsNullOrWhiteSpace(bitrate))
-        {
-            room.Bitrate = bitrate;
+            room.Quality = quality ?? string.Empty;
+            room.Resolution = resolution ?? string.Empty;
+            room.Bitrate = bitrate ?? string.Empty;
         }
 
         room.FlvUrl = result.FlvUrl ?? string.Empty;

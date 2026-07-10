@@ -52,6 +52,8 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         new(SegmentTimeUnitHelper.Gigabytes, "GB"),
     ];
 
+    public IReadOnlyList<StreamQualityOption> QualityOptions { get; }
+
     [ObservableProperty]
     private string nickName = string.Empty;
 
@@ -76,6 +78,9 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
 
     [ObservableProperty]
     private bool isToRecord = true;
+
+    [ObservableProperty]
+    private string preferredQuality = StreamQualityCatalog.Original;
 
     [ObservableProperty]
     private int routineScheduleModeIndex;
@@ -236,6 +241,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         IsToNotify = room.IsToNotify;
         IsToMonitor = room.IsToMonitor;
         IsToRecord = room.IsToRecord;
+        QualityOptions = StreamQualityCatalog.GetOptions(room.PlatformName);
 
         Room? storedRoom = Configurations.Rooms.Get()
             .FirstOrDefault(item => string.Equals(item.RoomUrl, room.RoomUrl, StringComparison.OrdinalIgnoreCase));
@@ -405,6 +411,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
     {
         return new RoomRecordingOptions
         {
+            PreferredStreamQuality = PreferredQuality,
             RecordFormat = RecordFormatIndex switch
             {
                 1 => "TS/FLV -> MP4",
@@ -430,6 +437,10 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
 
     private void InitializeRecordingOptions(RoomRecordingOptions settings)
     {
+        string normalizedQuality = StreamQualityCatalog.NormalizePreference(settings.PreferredStreamQuality);
+        PreferredQuality = QualityOptions.Any(option => option.Value == normalizedQuality)
+            ? normalizedQuality
+            : StreamQualityCatalog.Original;
         RecordFormatIndex = settings.RecordFormat switch
         {
             "TS/FLV -> MP4" => 1,

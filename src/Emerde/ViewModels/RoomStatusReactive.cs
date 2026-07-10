@@ -28,6 +28,7 @@ public partial class RoomStatusReactive : ReactiveObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PlatformDisplayName))]
+    [NotifyPropertyChangedFor(nameof(QualityText))]
     private string platformName = string.Empty;
 
     public string PlatformDisplayName => global::Emerde.Core.PlatformDisplayName.Get(PlatformName);
@@ -45,6 +46,7 @@ public partial class RoomStatusReactive : ReactiveObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ResolutionText))]
+    [NotifyPropertyChangedFor(nameof(QualityText))]
     private string resolution = string.Empty;
 
     [ObservableProperty]
@@ -161,7 +163,7 @@ public partial class RoomStatusReactive : ReactiveObject
 
     public string LiveTitleText => string.IsNullOrWhiteSpace(LiveTitle) ? string.Empty : LiveTitle;
 
-    public string QualityText => string.IsNullOrWhiteSpace(Quality) ? "原画" : Quality;
+    public string QualityText => StreamQualityCatalog.GetDisplayName(PlatformName, Quality, Resolution);
 
     public string ResolutionText => string.IsNullOrWhiteSpace(Resolution) ? "-" : Resolution;
 

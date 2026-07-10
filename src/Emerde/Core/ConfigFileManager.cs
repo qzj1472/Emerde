@@ -38,6 +38,7 @@ internal static class ConfigFileManager
         nameof(Configurations.IsToNotifyGotoRoomUrl),
         nameof(Configurations.IsToNotifyGotoRoomUrlAndMute),
         nameof(Configurations.IsToRecord),
+        nameof(Configurations.PreferredStreamQuality),
         nameof(Configurations.RecordFormat),
         nameof(Configurations.IsRemoveTs),
         nameof(Configurations.IsToSegment),

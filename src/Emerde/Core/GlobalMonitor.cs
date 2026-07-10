@@ -143,7 +143,7 @@ internal static class GlobalMonitor
                             }
 
                             // Spider Room Status
-                            ISpiderResult? spiderResult = Spider.GetResult(room.RoomUrl);
+                            ISpiderResult? spiderResult = Spider.GetResult(room.RoomUrl, settings.PreferredStreamQuality);
 
                             if (spiderResult == null)
                             {
@@ -171,17 +171,11 @@ internal static class GlobalMonitor
                             {
                                 roomStatus.LiveTitle = string.Empty;
                             }
-                            if (!string.IsNullOrWhiteSpace(quality))
+                            if (spiderResult.IsLiveStreaming.HasValue)
                             {
-                                roomStatus.Quality = quality;
-                            }
-                            if (!string.IsNullOrWhiteSpace(resolution))
-                            {
-                                roomStatus.Resolution = resolution;
-                            }
-                            if (!string.IsNullOrWhiteSpace(bitrate))
-                            {
-                                roomStatus.Bitrate = bitrate;
+                                roomStatus.Quality = quality ?? string.Empty;
+                                roomStatus.Resolution = resolution ?? string.Empty;
+                                roomStatus.Bitrate = bitrate ?? string.Empty;
                             }
                             roomStatus.FlvUrl = spiderResult.FlvUrl ?? string.Empty;
                             roomStatus.HlsUrl = spiderResult.HlsUrl ?? string.Empty;

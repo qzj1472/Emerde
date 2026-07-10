@@ -4,7 +4,7 @@ using System.Net;
 
 namespace Emerde.Core;
 
-public sealed class BilibiliSpider : ISpider
+public sealed class BilibiliSpider : ISpider, IQualitySelectableSpider
 {
     public static Lazy<BilibiliSpider> Instance { get; } = new(() => new BilibiliSpider());
 
@@ -34,6 +34,11 @@ public sealed class BilibiliSpider : ISpider
 
     public ISpiderResult GetResult(string url)
     {
+        return GetResult(url, StreamQualityCatalog.Original);
+    }
+
+    public ISpiderResult GetResult(string url, string? preferredQuality)
+    {
         string? roomUrl = ParseUrl(url);
         BilibiliSpiderResult result = new()
         {
@@ -58,8 +63,9 @@ public sealed class BilibiliSpider : ISpider
 
         if (result.IsLiveStreaming == true && !string.IsNullOrWhiteSpace(result.RoomId))
         {
-            string? playJson = RequestUrl($"https://api.live.bilibili.com/room/v1/Room/playUrl?cid={result.RoomId}&qn=10000&platform=web", roomUrl);
-            ExtractPlayUrl(playJson, result);
+            int qualityNumber = StreamQualityCatalog.GetBilibiliQualityNumber(preferredQuality);
+            string? playJson = RequestUrl($"https://api.live.bilibili.com/room/v1/Room/playUrl?cid={result.RoomId}&qn={qualityNumber}&platform=web", roomUrl);
+            ExtractPlayUrl(playJson, result, qualityNumber.ToString());
         }
 
         return result;
@@ -122,7 +128,7 @@ public sealed class BilibiliSpider : ISpider
         }
     }
 
-    internal static void ExtractPlayUrl(string? json, BilibiliSpiderResult result)
+    internal static void ExtractPlayUrl(string? json, BilibiliSpiderResult result, string? quality = null)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
@@ -132,7 +138,8 @@ public sealed class BilibiliSpider : ISpider
         try
         {
             JObject root = JObject.Parse(json);
-            JArray? durl = root["data"]?["durl"] as JArray;
+            JToken? data = root["data"];
+            JArray? durl = data?["durl"] as JArray;
 
             if (durl == null || durl.Count == 0)
             {
@@ -157,6 +164,7 @@ public sealed class BilibiliSpider : ISpider
             {
                 result.FlvUrl = url;
             }
+            result.Quality = data?["current_qn"]?.ToString() ?? quality;
         }
         catch
         {
@@ -223,4 +231,6 @@ public sealed class BilibiliSpiderResult : ISpiderResult
     public string? FlvUrl { get; set; }
 
     public string? HlsUrl { get; set; }
+
+    public string? Quality { get; set; }
 }

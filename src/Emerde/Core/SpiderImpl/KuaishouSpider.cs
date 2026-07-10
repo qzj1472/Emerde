@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace Emerde.Core;
 
-public sealed partial class KuaishouSpider : ISpider
+public sealed partial class KuaishouSpider : ISpider, IQualitySelectableSpider
 {
     public static Lazy<KuaishouSpider> Instance { get; } = new(() => new KuaishouSpider());
 
@@ -38,6 +38,11 @@ public sealed partial class KuaishouSpider : ISpider
 
     public ISpiderResult GetResult(string url)
     {
+        return GetResult(url, StreamQualityCatalog.Original);
+    }
+
+    public ISpiderResult GetResult(string url, string? preferredQuality)
+    {
         string? roomUrl = ParseUrl(url);
         KuaishouSpiderResult result = new()
         {
@@ -51,12 +56,12 @@ public sealed partial class KuaishouSpider : ISpider
         }
 
         string? html = RequestUrl(roomUrl);
-        ExtractData(html, result);
+        ExtractData(html, result, preferredQuality);
 
         return result;
     }
 
-    internal static void ExtractData(string? html, KuaishouSpiderResult result)
+    internal static void ExtractData(string? html, KuaishouSpiderResult result, string? preferredQuality = null)
     {
         if (string.IsNullOrWhiteSpace(html))
         {
@@ -70,10 +75,10 @@ public sealed partial class KuaishouSpider : ISpider
             return;
         }
 
-        ExtractInitialState(match.Groups[1].Value, result);
+        ExtractInitialState(match.Groups[1].Value, result, preferredQuality);
     }
 
-    internal static void ExtractInitialState(string? json, KuaishouSpiderResult result)
+    internal static void ExtractInitialState(string? json, KuaishouSpiderResult result, string? preferredQuality = null)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
@@ -110,11 +115,20 @@ public sealed partial class KuaishouSpider : ISpider
                 return;
             }
 
-            string? flvUrl = representation
+            JObject[] variants = representation
                 .OfType<JObject>()
                 .OrderByDescending(item => item["bitrate"]?.Value<int>() ?? 0)
-                .Select(item => item["url"]?.ToString())
-                .FirstOrDefault(item => !string.IsNullOrWhiteSpace(item));
+                .Where(item => !string.IsNullOrWhiteSpace(item["url"]?.ToString()))
+                .ToArray();
+
+            if (variants.Length == 0)
+            {
+                result.IsLiveStreaming = false;
+                return;
+            }
+
+            JObject selected = variants[StreamQualityCatalog.GetVariantIndex(preferredQuality, variants.Length)];
+            string? flvUrl = selected["url"]?.ToString();
 
             if (string.IsNullOrWhiteSpace(flvUrl))
             {
@@ -124,6 +138,14 @@ public sealed partial class KuaishouSpider : ISpider
 
             result.IsLiveStreaming = true;
             result.FlvUrl = flvUrl;
+            result.Quality = StreamQualityCatalog.NormalizePreference(preferredQuality);
+            int? width = selected["width"]?.Value<int?>();
+            int? height = selected["height"]?.Value<int?>();
+            if (width > 0 && height > 0)
+            {
+                result.Resolution = $"{width}x{height}";
+            }
+            result.Bitrate = StreamQualityCatalog.FormatBitrate(selected["bitrate"]?.Value<double?>());
         }
         catch
         {
@@ -210,4 +232,10 @@ public sealed class KuaishouSpiderResult : ISpiderResult
     public string? FlvUrl { get; set; }
 
     public string? HlsUrl { get; set; }
+
+    public string? Quality { get; set; }
+
+    public string? Resolution { get; set; }
+
+    public string? Bitrate { get; set; }
 }

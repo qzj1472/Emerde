@@ -98,7 +98,7 @@ internal static partial class StreamResolver
         return null;
     }
 
-    public static ISpiderResult? GetResult(string url)
+    public static ISpiderResult? GetResult(string url, string? preferredQuality = null)
     {
         string? normalizedUrl = NormalizeUrl(url, allowNetwork: true);
         string resolverUrl = normalizedUrl ?? url.Trim();
@@ -119,12 +119,12 @@ internal static partial class StreamResolver
             string host = uri.Host.ToLowerInvariant();
             if (host.EndsWith("douyin.com", StringComparison.Ordinal))
             {
-                return ResolveDouyin(resolverUrl);
+                return ResolveDouyin(resolverUrl, preferredQuality);
             }
 
             if (host.EndsWith("tiktok.com", StringComparison.Ordinal))
             {
-                return ResolveTiktok(resolverUrl);
+                return ResolveTiktok(resolverUrl, preferredQuality);
             }
 
             return null;
@@ -148,7 +148,7 @@ internal static partial class StreamResolver
             || !string.IsNullOrWhiteSpace(result.HlsUrl);
     }
 
-    internal static StreamResolverResult ExtractDouyinData(string roomUrl, string? html)
+    internal static StreamResolverResult ExtractDouyinData(string roomUrl, string? html, string? preferredQuality = null)
     {
         StreamResolverResult result = new()
         {
@@ -163,11 +163,14 @@ internal static partial class StreamResolver
 
         string normalized = NormalizeEscapedText(html);
         DouyinSpiderResult legacy = DouyinSpider.ExtractData(html);
+        StreamCandidate hls = ExtractPreferredStreamCandidate(normalized, "hls", ".m3u8", preferredQuality);
+        StreamCandidate flv = ExtractPreferredStreamCandidate(normalized, "flv", ".flv", preferredQuality);
 
         result.Nickname = FirstNonEmpty(CleanOptionalText(legacy.Nickname), ExtractFirstJsonString(normalized, "nickname", "nick_name"));
         result.AvatarThumbUrl = FirstNonEmpty(CleanOptionalUrl(legacy.AvatarThumbUrl), ExtractFirstAvatar(normalized));
-        result.HlsUrl = FirstNonEmpty(CleanOptionalUrl(legacy.HlsUrl), ExtractPreferredStreamUrl(normalized, "hls", ".m3u8"));
-        result.FlvUrl = FirstNonEmpty(CleanOptionalUrl(legacy.FlvUrl), ExtractPreferredStreamUrl(normalized, "flv", ".flv"));
+        result.HlsUrl = FirstNonEmpty(hls.Url, CleanOptionalUrl(legacy.HlsUrl));
+        result.FlvUrl = FirstNonEmpty(flv.Url, CleanOptionalUrl(legacy.FlvUrl));
+        result.Quality = FirstNonEmpty(hls.Quality, flv.Quality);
         result.IsLiveStreaming = legacy.IsLiveStreaming ?? ExtractLiveStatus(normalized);
 
         if ((!string.IsNullOrWhiteSpace(result.HlsUrl) || !string.IsNullOrWhiteSpace(result.FlvUrl))
@@ -179,7 +182,7 @@ internal static partial class StreamResolver
         return result;
     }
 
-    internal static StreamResolverResult ExtractDouyinWebEnterData(string roomUrl, string? json)
+    internal static StreamResolverResult ExtractDouyinWebEnterData(string roomUrl, string? json, string? preferredQuality = null)
     {
         StreamResolverResult result = new()
         {
@@ -221,8 +224,8 @@ internal static partial class StreamResolver
             };
 
             JToken? streamUrl = room["stream_url"];
-            StreamCandidate hls = SelectPreferredStream(streamUrl?["hls_pull_url_map"]);
-            StreamCandidate flv = SelectPreferredStream(streamUrl?["flv_pull_url"]);
+            StreamCandidate hls = SelectPreferredStream(streamUrl?["hls_pull_url_map"], preferredQuality);
+            StreamCandidate flv = SelectPreferredStream(streamUrl?["flv_pull_url"], preferredQuality);
             result.HlsUrl = hls.Url;
             result.FlvUrl = flv.Url;
             result.Quality = FirstNonEmpty(hls.Quality, flv.Quality);
@@ -241,7 +244,7 @@ internal static partial class StreamResolver
         return result;
     }
 
-    internal static StreamResolverResult ExtractTiktokData(string roomUrl, string? html)
+    internal static StreamResolverResult ExtractTiktokData(string roomUrl, string? html, string? preferredQuality = null)
     {
         StreamResolverResult result = new()
         {
@@ -256,11 +259,14 @@ internal static partial class StreamResolver
 
         string normalized = NormalizeEscapedText(html);
         TiktokSpiderResult legacy = TiktokSpider.ExtractData(html);
+        StreamCandidate hls = ExtractPreferredStreamCandidate(normalized, "hls", ".m3u8", preferredQuality);
+        StreamCandidate flv = ExtractPreferredStreamCandidate(normalized, "flv", ".flv", preferredQuality);
 
         result.Nickname = FirstNonEmpty(CleanOptionalText(legacy.Nickname), ExtractFirstJsonString(normalized, "nickname", "nickName", "uniqueId"));
         result.AvatarThumbUrl = FirstNonEmpty(CleanOptionalUrl(legacy.AvatarThumbUrl), ExtractFirstJsonString(normalized, "avatarThumb", "avatarMedium", "avatarLarger", "avatar"));
-        result.HlsUrl = FirstNonEmpty(CleanOptionalUrl(legacy.HlsUrl), ExtractPreferredStreamUrl(normalized, "hls", ".m3u8"));
-        result.FlvUrl = FirstNonEmpty(CleanOptionalUrl(legacy.FlvUrl), ExtractPreferredStreamUrl(normalized, "flv", ".flv"));
+        result.HlsUrl = FirstNonEmpty(hls.Url, CleanOptionalUrl(legacy.HlsUrl));
+        result.FlvUrl = FirstNonEmpty(flv.Url, CleanOptionalUrl(legacy.FlvUrl));
+        result.Quality = FirstNonEmpty(hls.Quality, flv.Quality);
         result.IsLiveStreaming = legacy.IsLiveStreaming ?? ExtractLiveStatus(normalized);
 
         if ((!string.IsNullOrWhiteSpace(result.HlsUrl) || !string.IsNullOrWhiteSpace(result.FlvUrl))
@@ -273,9 +279,9 @@ internal static partial class StreamResolver
         return result;
     }
 
-    private static StreamResolverResult? ResolveDouyin(string roomUrl)
+    private static StreamResolverResult? ResolveDouyin(string roomUrl, string? preferredQuality)
     {
-        StreamResolverResult? webEnterResult = ResolveDouyinWebEnter(roomUrl);
+        StreamResolverResult? webEnterResult = ResolveDouyinWebEnter(roomUrl, preferredQuality);
         if (HasUsableData(webEnterResult))
         {
             LastErrors.TryRemove(roomUrl, out _);
@@ -288,7 +294,7 @@ internal static partial class StreamResolver
             PlatformCookieStore.GetCookie("Douyin", Configurations.CookieChina.Get()),
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0");
 
-        StreamResolverResult result = ExtractDouyinData(roomUrl, html);
+        StreamResolverResult result = ExtractDouyinData(roomUrl, html, preferredQuality);
 
         if (HasUsableData(result))
         {
@@ -300,7 +306,7 @@ internal static partial class StreamResolver
         return null;
     }
 
-    private static StreamResolverResult? ResolveDouyinWebEnter(string roomUrl)
+    private static StreamResolverResult? ResolveDouyinWebEnter(string roomUrl, string? preferredQuality)
     {
         if (!Uri.TryCreate(roomUrl, UriKind.Absolute, out Uri? uri))
         {
@@ -338,11 +344,11 @@ internal static partial class StreamResolver
             DouyinWebUserAgent,
             "application/json,text/plain,*/*");
 
-        StreamResolverResult result = ExtractDouyinWebEnterData(roomUrl, json);
+        StreamResolverResult result = ExtractDouyinWebEnterData(roomUrl, json, preferredQuality);
         return HasUsableData(result) ? result : null;
     }
 
-    private static StreamResolverResult? ResolveTiktok(string roomUrl)
+    private static StreamResolverResult? ResolveTiktok(string roomUrl, string? preferredQuality)
     {
         string? html = RequestText(
             roomUrl,
@@ -350,7 +356,7 @@ internal static partial class StreamResolver
             PlatformCookieStore.GetCookie("TikTok", Configurations.CookieOversea.Get()),
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0");
 
-        StreamResolverResult result = ExtractTiktokData(roomUrl, html);
+        StreamResolverResult result = ExtractTiktokData(roomUrl, html, preferredQuality);
 
         if (HasUsableData(result))
         {
@@ -746,7 +752,7 @@ internal static partial class StreamResolver
         return null;
     }
 
-    private static string? ExtractPreferredStreamUrl(string normalizedText, string streamKind, string extension)
+    private static StreamCandidate ExtractPreferredStreamCandidate(string normalizedText, string streamKind, string extension, string? preferredQuality)
     {
         Dictionary<string, string> urls = new(StringComparer.OrdinalIgnoreCase);
         foreach (Match match in StreamUrlRegex(extension).Matches(normalizedText))
@@ -766,18 +772,22 @@ internal static partial class StreamResolver
             }
         }
 
-        foreach (string key in new[] { "FULL_HD1", "FULL_HD", "ORIGIN", "HD1", "HD", "SD1", "SD", streamKind, string.Empty })
+        foreach (string key in StreamQualityCatalog.GetStreamKeyOrder(preferredQuality).Concat([streamKind, string.Empty]))
         {
             if (urls.TryGetValue(key, out string? url))
             {
-                return url;
+                string? quality = string.IsNullOrWhiteSpace(key) || key.Equals(streamKind, StringComparison.OrdinalIgnoreCase) ? null : key;
+                return new StreamCandidate(url, quality);
             }
         }
 
-        return urls.Values.FirstOrDefault();
+        KeyValuePair<string, string> first = urls.FirstOrDefault();
+        return string.IsNullOrWhiteSpace(first.Value)
+            ? default
+            : new StreamCandidate(first.Value, string.IsNullOrWhiteSpace(first.Key) ? null : first.Key);
     }
 
-    private static StreamCandidate SelectPreferredStream(JToken? map)
+    private static StreamCandidate SelectPreferredStream(JToken? map, string? preferredQuality)
     {
         if (map is not JObject obj)
         {
@@ -794,7 +804,7 @@ internal static partial class StreamResolver
             }
         }
 
-        foreach (string key in new[] { "FULL_HD1", "FULL_HD", "ORIGIN", "HD1", "HD", "SD1", "SD2", "SD", string.Empty })
+        foreach (string key in StreamQualityCatalog.GetStreamKeyOrder(preferredQuality).Append(string.Empty))
         {
             if (urls.TryGetValue(key, out string? url))
             {
@@ -1018,17 +1028,20 @@ internal static class SpiderResultMetadata
 
     public static string? GetQuality(ISpiderResult? result)
     {
-        return GetMetadataValue(result, nameof(IStreamMetadataResult.Quality));
+        string? value = GetMetadataValue(result, nameof(IStreamMetadataResult.Quality));
+        return !string.IsNullOrWhiteSpace(value) ? value : StreamMetadataParser.GetQuality(result?.FlvUrl, result?.HlsUrl);
     }
 
     public static string? GetResolution(ISpiderResult? result)
     {
-        return GetMetadataValue(result, nameof(IStreamMetadataResult.Resolution));
+        string? value = GetMetadataValue(result, nameof(IStreamMetadataResult.Resolution));
+        return !string.IsNullOrWhiteSpace(value) ? value : StreamMetadataParser.GetResolution(result?.FlvUrl, result?.HlsUrl);
     }
 
     public static string? GetBitrate(ISpiderResult? result)
     {
-        return GetMetadataValue(result, nameof(IStreamMetadataResult.Bitrate));
+        string? value = GetMetadataValue(result, nameof(IStreamMetadataResult.Bitrate));
+        return !string.IsNullOrWhiteSpace(value) ? value : StreamMetadataParser.GetBitrate(result?.FlvUrl, result?.HlsUrl);
     }
 
     public static string? GetHeaders(ISpiderResult? result)

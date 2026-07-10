@@ -1,4 +1,5 @@
 using Fischless.Configuration;
+using Emerde.Core;
 using System.Reflection;
 
 namespace Emerde;
@@ -35,6 +36,7 @@ public static class Configurations
     public static ConfigurationDefinition<bool> IsToNotifyGotoRoomUrl { get; } = new(nameof(IsToNotifyGotoRoomUrl), false);
     public static ConfigurationDefinition<bool> IsToNotifyGotoRoomUrlAndMute { get; } = new(nameof(IsToNotifyGotoRoomUrlAndMute), false);
     public static ConfigurationDefinition<bool> IsToRecord { get; } = new(nameof(IsToRecord), true);
+    public static ConfigurationDefinition<string> PreferredStreamQuality { get; } = new(nameof(PreferredStreamQuality), StreamQualityCatalog.Original);
     public static ConfigurationDefinition<string> RecordFormat { get; } = new(nameof(RecordFormat), "TS/FLV");
     public static ConfigurationDefinition<bool> IsRemoveTs { get; } = new(nameof(IsRemoveTs), false);
     public static ConfigurationDefinition<bool> IsToSegment { get; } = new(nameof(IsToSegment), false);
@@ -71,6 +73,7 @@ public sealed class Room
     public bool IsToRecord { get; set; } = true;
     public bool IsToMonitor { get; set; } = true;
     public bool IsFollowGlobalSettings { get; set; } = true;
+    public string? PreferredStreamQuality { get; set; }
     public string? RecordFormat { get; set; }
     public bool? IsRemoveTs { get; set; }
     public bool? IsToSegment { get; set; }

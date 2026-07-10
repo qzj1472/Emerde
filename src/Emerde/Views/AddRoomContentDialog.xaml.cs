@@ -76,7 +76,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
             {
                 try
                 {
-                    ISpiderResult? spider = Spider.GetResult(Url);
+                    ISpiderResult? spider = Spider.GetResult(Url, RoomRecordingSettings.GetGlobal().PreferredStreamQuality);
 
                     if (string.IsNullOrWhiteSpace(spider?.Nickname))
                     {
