@@ -251,10 +251,7 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
         if (expander.IsExpanded)
         {
             RestoreCardExpanderContent(expander);
-            return;
         }
-
-        _ = Dispatcher.BeginInvoke(() => _ = DeferCardExpanderContent(expander), DispatcherPriority.Background);
     }
 
     private void RestoreCardExpanderContent(CardExpander expander)
