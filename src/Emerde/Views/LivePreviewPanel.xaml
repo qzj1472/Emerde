@@ -49,6 +49,7 @@
             Background="{DynamicResource ControlFillColorDefaultBrush}"
             BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
             BorderThickness="1"
+            ClipToBounds="True"
             CornerRadius="{StaticResource Win11ControlCornerRadius}">
         <Grid>
             <Grid.RowDefinitions>
@@ -62,18 +63,18 @@
                            Spacing="10">
                 <vio:PersonPicture Width="42"
                                    Height="42"
-                                   DisplayName="{Binding SelectedItem.NickName}"
-                                   ProfilePicture="{Binding SelectedItem.AvatarDisplaySource}"
+                                   DisplayName="{Binding PreviewingRoom.NickName}"
+                                   ProfilePicture="{Binding PreviewingRoom.AvatarDisplaySource}"
                                    RenderOptions.BitmapScalingMode="HighQuality"
                                    SnapsToDevicePixels="True" />
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock FontSize="15"
                                FontWeight="SemiBold"
-                               Text="{Binding SelectedItem.NickName}"
+                               Text="{Binding PreviewingRoom.NickName}"
                                TextTrimming="CharacterEllipsis" />
                     <TextBlock FontSize="12"
                                Opacity="0.65"
-                               Text="{Binding SelectedItem.StreamStatusText}"
+                               Text="{Binding PreviewingRoom.StreamStatusText}"
                                TextTrimming="CharacterEllipsis" />
                 </StackPanel>
             </ui:StackPanel>
@@ -94,122 +95,121 @@
                            VerticalAlignment="Bottom"
                            FontSize="12"
                            Opacity="0.65"
-                           Text="{Binding SelectedItem.PreviewSourceText}" />
+                           Text="{Binding PreviewingRoom.PreviewSourceText}" />
             </Grid>
 
             <Grid x:Name="PreviewViewport"
                   Grid.Row="2"
                   MinHeight="180"
-                  Background="{DynamicResource ControlFillColorDefaultBrush}"
-                  MouseEnter="PreviewViewport_OnMouseActivity"
-                  MouseMove="PreviewViewport_OnMouseActivity">
+                  Background="Black"
+                  ClipToBounds="True">
                 <Grid x:Name="VideoSurface"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Center"
                       Background="Black">
-                    <vlc:VideoView MediaPlayer="{Binding LivePreviewMediaPlayer}" />
+                    <vlc:VideoView x:Name="PreviewVideoView"
+                                   HorizontalContentAlignment="Stretch"
+                                   VerticalContentAlignment="Stretch"
+                                   Visibility="Collapsed">
+                        <Grid x:Name="PreviewOverlayRoot"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch">
+                            <Border x:Name="PreviewTouchLayer"
+                                    Panel.ZIndex="0"
+                                    Background="#01000000"
+                                    HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Stretch"
+                                    MouseEnter="PreviewViewport_OnMouseActivity"
+                                    MouseMove="PreviewViewport_OnMouseActivity" />
+                            <Border x:Name="PreviewControls"
+                                    Panel.ZIndex="1"
+                                    Margin="0,0,0,16"
+                                    Padding="6"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Bottom"
+                                    Background="#B8000000"
+                                    CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                    IsHitTestVisible="False"
+                                    Opacity="0"
+                                    MouseEnter="PreviewControls_OnMouseEnter"
+                                    MouseLeave="PreviewControls_OnMouseLeave">
+                                <ui:StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button Style="{StaticResource PreviewControlButtonStyle}"
+                                            Command="{Binding TogglePreviewPauseCommand}"
+                                            IsEnabled="{Binding PreviewingRoom.CanPreview}">
+                                        <ContentControl>
+                                            <c:If Condition="{Binding IsPreviewPlaying}">
+                                                <c:If.TrueValue>
+                                                    <Viewbox Width="14" Height="14" Stretch="Uniform">
+                                                        <Canvas Width="24" Height="24">
+                                                            <Rectangle Canvas.Left="7" Canvas.Top="5" Width="4" Height="14" Fill="White" RadiusX="0" RadiusY="0" />
+                                                            <Rectangle Canvas.Left="13" Canvas.Top="5" Width="4" Height="14" Fill="White" RadiusX="0" RadiusY="0" />
+                                                        </Canvas>
+                                                    </Viewbox>
+                                                </c:If.TrueValue>
+                                                <c:If.FalseValue>
+                                                    <Viewbox Width="14" Height="14" Stretch="Uniform">
+                                                        <Canvas Width="24" Height="24">
+                                                            <Path Data="M8,5 L19,12 L8,19 Z" Fill="White" />
+                                                        </Canvas>
+                                                    </Viewbox>
+                                                </c:If.FalseValue>
+                                            </c:If>
+                                        </ContentControl>
+                                    </Button>
+                                    <Button Style="{StaticResource PreviewControlButtonStyle}"
+                                            Command="{Binding TogglePreviewMuteCommand}">
+                                        <ContentControl>
+                                            <c:If Condition="{Binding IsPreviewMuted}">
+                                                <c:If.TrueValue>
+                                                    <Viewbox Width="16" Height="16" Stretch="Uniform">
+                                                        <Canvas Width="24" Height="24">
+                                                            <Path Data="M4,9 L8,9 L13,5 L13,19 L8,15 L4,15 Z" Fill="White" />
+                                                            <Path Data="M17,9 L21,13 M21,9 L17,13" Stroke="White" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                        </Canvas>
+                                                    </Viewbox>
+                                                </c:If.TrueValue>
+                                                <c:If.FalseValue>
+                                                    <Viewbox Width="16" Height="16" Stretch="Uniform">
+                                                        <Canvas Width="24" Height="24">
+                                                            <Path Data="M4,9 L8,9 L13,5 L13,19 L8,15 L4,15 Z" Fill="White" />
+                                                            <Path Data="M16,8 C18,10 18,14 16,16 M18,5 C22,9 22,15 18,19" Stroke="White" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent" />
+                                                        </Canvas>
+                                                    </Viewbox>
+                                                </c:If.FalseValue>
+                                            </c:If>
+                                        </ContentControl>
+                                    </Button>
+                                    <Button x:Name="WindowSizeButton"
+                                            Style="{StaticResource PreviewControlButtonStyle}"
+                                            Click="ToggleWindowSize_OnClick">
+                                        <Grid>
+                                            <Viewbox x:Name="MaximizeIcon" Width="16" Height="16" Stretch="Uniform">
+                                                <Canvas Width="24" Height="24">
+                                                    <Path Data="M5,10 L5,5 L10,5 M14,5 L19,5 L19,10 M19,14 L19,19 L14,19 M10,19 L5,19 L5,14" Stroke="White" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent" />
+                                                </Canvas>
+                                            </Viewbox>
+                                            <Viewbox x:Name="RestoreIcon" Width="16" Height="16" Stretch="Uniform" Visibility="Collapsed">
+                                                <Canvas Width="24" Height="24">
+                                                    <Path Data="M8,4 L20,4 L20,16 M4,8 L16,8 L16,20 L4,20 Z" Stroke="White" StrokeThickness="2" StrokeLineJoin="Round" Fill="Transparent" />
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Grid>
+                                    </Button>
+                                    <Button Style="{StaticResource PreviewControlButtonStyle}"
+                                            Command="{Binding GotoRoomUrlCommand}"
+                                            CommandParameter="{Binding PreviewingRoom}">
+                                        <Viewbox Width="16" Height="16" Stretch="Uniform">
+                                            <Canvas Width="24" Height="24">
+                                                <Path Data="M5,6 L5,19 L18,19 L18,14 M12,5 L19,5 L19,12 M11,13 L19,5" Stroke="White" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" />
+                                            </Canvas>
+                                        </Viewbox>
+                                    </Button>
+                                </ui:StackPanel>
+                            </Border>
+                        </Grid>
+                    </vlc:VideoView>
                 </Grid>
-                <ui:StackPanel HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               Opacity="0.72"
-                               Spacing="8"
-                               Visibility="{Binding IsPreviewIdle, Converter={x:Static c:BoolToVisibilityConverter.Instance}}">
-                    <ui:FontIcon HorizontalAlignment="Center"
-                                 FontSize="36"
-                                 Foreground="White"
-                                 Glyph="{x:Static ui:FontSymbols.Video}" />
-                    <TextBlock FontSize="12"
-                               Foreground="White"
-                               Text="{Binding LivePreviewStatusText}"
-                               TextAlignment="Center"
-                               TextWrapping="Wrap" />
-                </ui:StackPanel>
-                <Popup x:Name="PreviewControlsPopup"
-                       AllowsTransparency="True"
-                       DataContext="{Binding DataContext, ElementName=Root}"
-                       Placement="AbsolutePoint"
-                       PlacementTarget="{Binding ElementName=PreviewViewport}"
-                       PopupAnimation="Fade"
-                       StaysOpen="True">
-                    <Border x:Name="PreviewControls"
-                            Padding="6"
-                            Background="#B8000000"
-                            CornerRadius="{StaticResource Win11ControlCornerRadius}"
-                            MouseEnter="PreviewControls_OnMouseEnter"
-                            MouseLeave="PreviewControls_OnMouseLeave">
-                    <ui:StackPanel Orientation="Horizontal" Spacing="6">
-                        <Button Style="{StaticResource PreviewControlButtonStyle}"
-                                Command="{Binding TogglePreviewPauseCommand}"
-                                IsEnabled="{Binding SelectedItem.CanPreview}">
-                            <ContentControl>
-                                <c:If Condition="{Binding IsPreviewPlaying}">
-                                    <c:If.TrueValue>
-                                        <Viewbox Width="14" Height="14" Stretch="Uniform">
-                                            <Canvas Width="24" Height="24">
-                                                <Rectangle Canvas.Left="7" Canvas.Top="5" Width="4" Height="14" Fill="White" RadiusX="0" RadiusY="0" />
-                                                <Rectangle Canvas.Left="13" Canvas.Top="5" Width="4" Height="14" Fill="White" RadiusX="0" RadiusY="0" />
-                                            </Canvas>
-                                        </Viewbox>
-                                    </c:If.TrueValue>
-                                    <c:If.FalseValue>
-                                        <Viewbox Width="14" Height="14" Stretch="Uniform">
-                                            <Canvas Width="24" Height="24">
-                                                <Path Data="M8,5 L19,12 L8,19 Z" Fill="White" />
-                                            </Canvas>
-                                        </Viewbox>
-                                    </c:If.FalseValue>
-                                </c:If>
-                            </ContentControl>
-                        </Button>
-                        <Button Style="{StaticResource PreviewControlButtonStyle}"
-                                Command="{Binding TogglePreviewMuteCommand}">
-                            <ContentControl>
-                                <c:If Condition="{Binding IsPreviewMuted}">
-                                    <c:If.TrueValue>
-                                        <Viewbox Width="16" Height="16" Stretch="Uniform">
-                                            <Canvas Width="24" Height="24">
-                                                <Path Data="M4,9 L8,9 L13,5 L13,19 L8,15 L4,15 Z" Fill="White" />
-                                                <Path Data="M17,9 L21,13 M21,9 L17,13" Stroke="White" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
-                                            </Canvas>
-                                        </Viewbox>
-                                    </c:If.TrueValue>
-                                    <c:If.FalseValue>
-                                        <Viewbox Width="16" Height="16" Stretch="Uniform">
-                                            <Canvas Width="24" Height="24">
-                                                <Path Data="M4,9 L8,9 L13,5 L13,19 L8,15 L4,15 Z" Fill="White" />
-                                                <Path Data="M16,8 C18,10 18,14 16,16 M18,5 C22,9 22,15 18,19" Stroke="White" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent" />
-                                            </Canvas>
-                                        </Viewbox>
-                                    </c:If.FalseValue>
-                                </c:If>
-                            </ContentControl>
-                        </Button>
-                        <Button Style="{StaticResource PreviewControlButtonStyle}"
-                                Click="ToggleWindowSize_OnClick">
-                            <Grid>
-                                <Viewbox x:Name="MaximizeIcon" Width="16" Height="16" Stretch="Uniform">
-                                    <Canvas Width="24" Height="24">
-                                        <Path Data="M5,10 L5,5 L10,5 M14,5 L19,5 L19,10 M19,14 L19,19 L14,19 M10,19 L5,19 L5,14" Stroke="White" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent" />
-                                    </Canvas>
-                                </Viewbox>
-                                <Viewbox x:Name="RestoreIcon" Width="16" Height="16" Stretch="Uniform" Visibility="Collapsed">
-                                    <Canvas Width="24" Height="24">
-                                        <Path Data="M8,4 L20,4 L20,16 M4,8 L16,8 L16,20 L4,20 Z" Stroke="White" StrokeThickness="2" StrokeLineJoin="Round" Fill="Transparent" />
-                                    </Canvas>
-                                </Viewbox>
-                            </Grid>
-                        </Button>
-                        <Button Style="{StaticResource PreviewControlButtonStyle}"
-                                Command="{Binding GotoRoomUrlCommand}">
-                            <Viewbox Width="16" Height="16" Stretch="Uniform">
-                                <Canvas Width="24" Height="24">
-                                    <Path Data="M5,6 L5,19 L18,19 L18,14 M12,5 L19,5 L19,12 M11,13 L19,5" Stroke="White" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" />
-                                </Canvas>
-                            </Viewbox>
-                        </Button>
-                    </ui:StackPanel>
-                    </Border>
-                </Popup>
             </Grid>
         </Grid>
     </Border>

@@ -175,7 +175,8 @@ public partial class MainWindow : FluentWindow
         set => SetValue(RoomCardChipMinHeightProperty, value);
     }
 
-    private const int RoomCardBaseColumns = 3;
+    private const int RoomCardNormalBaseColumns = 3;
+    private const int RoomCardPreviewBaseColumns = 1;
     private const double RoomCardMinScale = 0.86d;
     private const double RoomCardMaxScale = 1.14d;
     private const double RoomCardBoundaryTolerance = 1d;
@@ -190,8 +191,10 @@ public partial class MainWindow : FluentWindow
     private const int RoomCardDragDelayMilliseconds = 260;
     private const int RoomCardBlankLongPressMilliseconds = 560;
 
-    private double roomCardBaseWidth;
-    private bool isRoomCardBaseWidthCaptured;
+    private double normalRoomCardBaseWidth;
+    private bool isNormalRoomCardBaseWidthCaptured;
+    private double previewRoomCardBaseWidth;
+    private bool isPreviewRoomCardBaseWidthCaptured;
     private double roomCardSizePreference = RoomCardMediumSizeScale;
     private Point roomCardDragStart;
     private DateTime roomCardPressedAt = DateTime.MinValue;
@@ -206,6 +209,10 @@ public partial class MainWindow : FluentWindow
     private DragPreviewAdorner? roomCardDragAdorner;
     private InsertionLineAdorner? roomCardInsertionAdorner;
     private int roomCardInsertionIndex = -1;
+    private LivePreviewWindow? detachedPreviewWindow;
+    private System.Windows.Controls.Panel? previewPanelOwner;
+    private int previewPanelIndex = -1;
+    private bool previousPreviewingState;
 
     public MainWindow()
     {
@@ -213,9 +220,13 @@ public partial class MainWindow : FluentWindow
         DataContext = ViewModel = new();
         WindowSizing.UseMainWindowAspectSize(this);
         InitializeComponent();
+        previousPreviewingState = ViewModel.IsPreviewing;
+        UpdateHomePreviewLayout();
+        ViewModel.PropertyChanged += ViewModelPropertyChanged;
         AppSessionLogger.Write($"perf MainWindow initialized in {stopwatch.ElapsedMilliseconds} ms");
         Loaded += (_, _) =>
         {
+            UpdateHomePreviewLayout();
             AppSessionLogger.Write($"perf MainWindow loaded in {stopwatch.ElapsedMilliseconds} ms");
         };
 
@@ -235,6 +246,83 @@ public partial class MainWindow : FluentWindow
     private void RoomCardListSizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdateRoomCardMetrics(e.NewSize.Width);
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        ViewModel.PropertyChanged -= ViewModelPropertyChanged;
+        if (detachedPreviewWindow != null)
+        {
+            detachedPreviewWindow.Closed -= DetachedPreviewWindowClosed;
+            detachedPreviewWindow.Close();
+            detachedPreviewWindow = null;
+        }
+        base.OnClosed(e);
+    }
+
+    private void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(MainViewModel.IsPreviewing))
+        {
+            return;
+        }
+
+        bool bringSelectedRoomIntoView = !previousPreviewingState && ViewModel.IsPreviewing;
+        previousPreviewingState = ViewModel.IsPreviewing;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (!ViewModel.IsPreviewing && detachedPreviewWindow != null)
+            {
+                detachedPreviewWindow.Close();
+            }
+
+            UpdateHomePreviewLayout();
+            UpdateLayout();
+            UpdateRoomCardMetrics(RoomCardList.ActualWidth);
+            if (bringSelectedRoomIntoView)
+            {
+                BringSelectedRoomCardIntoView();
+            }
+        }, DispatcherPriority.Loaded);
+    }
+
+    private void BringSelectedRoomCardIntoView()
+    {
+        RoomStatusReactive? selectedRoom = ViewModel.SelectedItem;
+        if (selectedRoom == null)
+        {
+            return;
+        }
+
+        RoomCardList.ScrollIntoView(selectedRoom);
+        Dispatcher.BeginInvoke(() =>
+        {
+            RoomCardList.UpdateLayout();
+            if (RoomCardList.ItemContainerGenerator.ContainerFromItem(selectedRoom) is FrameworkElement container)
+            {
+                container.BringIntoView();
+            }
+        }, DispatcherPriority.Render);
+    }
+
+    internal void SetPreviewPresentationSuspended(bool isSuspended)
+    {
+        HomePreviewPanel.SetVideoPresentationSuspended(isSuspended);
+    }
+
+    private void UpdateHomePreviewLayout()
+    {
+        if (ViewModel.IsPreviewing)
+        {
+            HomeRoomCardColumn.Width = new GridLength(260);
+            HomePreviewColumn.Width = new GridLength(1, GridUnitType.Star);
+            HomeDetailColumn.Width = new GridLength(280);
+            return;
+        }
+
+        HomeRoomCardColumn.Width = new GridLength(7, GridUnitType.Star);
+        HomePreviewColumn.Width = new GridLength(0);
+        HomeDetailColumn.Width = new GridLength(3, GridUnitType.Star);
     }
 
     private void RoundedPanelContentSizeChanged(object sender, SizeChangedEventArgs e)
@@ -264,9 +352,10 @@ public partial class MainWindow : FluentWindow
         }
 
         double availableWidth = GetRoomCardAvailableWidth(width - RoomCardScrollContentPadding * 2d - RoomCardScrollBarReservedWidth);
-        double baseWidth = GetRoomCardBaseWidth(availableWidth);
-        roomCardSizePreference = NormalizeRoomCardScale(availableWidth, baseWidth, roomCardSizePreference);
-        (int columns, double slotWidth, double cardWidth) = CalculateRoomCardLayout(availableWidth, baseWidth, roomCardSizePreference, RoomCardHorizontalGap);
+        bool isPreviewMode = ViewModel.IsPreviewing;
+        double baseWidth = GetRoomCardBaseWidth(availableWidth, isPreviewMode);
+        double effectivePreference = NormalizeRoomCardScale(availableWidth, baseWidth, roomCardSizePreference);
+        (int columns, double slotWidth, double cardWidth) = CalculateRoomCardLayout(availableWidth, baseWidth, effectivePreference, RoomCardHorizontalGap, isPreviewMode);
         double cardHeight = Math.Floor(cardWidth * 2d / 3d);
         double itemHeight = cardHeight + RoomCardVerticalGap;
 
@@ -286,19 +375,52 @@ public partial class MainWindow : FluentWindow
 
     private void CaptureRoomCardBaseWidth(double width)
     {
-        if (isRoomCardBaseWidthCaptured)
+        bool isPreviewMode = ViewModel.IsPreviewing;
+        if (isPreviewMode && isPreviewRoomCardBaseWidthCaptured)
+        {
+            return;
+        }
+
+        if (!isPreviewMode && isNormalRoomCardBaseWidthCaptured)
         {
             return;
         }
 
         double availableWidth = GetRoomCardAvailableWidth(width - RoomCardScrollContentPadding * 2d - RoomCardScrollBarReservedWidth);
-        roomCardBaseWidth = Math.Max(1d, (availableWidth - RoomCardHorizontalGap * RoomCardBaseColumns) / RoomCardBaseColumns);
-        isRoomCardBaseWidthCaptured = true;
+        int baseColumns = GetRoomCardBaseColumns(isPreviewMode);
+        double baseWidth = Math.Max(1d, (availableWidth - RoomCardHorizontalGap * baseColumns) / baseColumns);
+
+        if (isPreviewMode)
+        {
+            previewRoomCardBaseWidth = baseWidth;
+            isPreviewRoomCardBaseWidthCaptured = true;
+        }
+        else
+        {
+            normalRoomCardBaseWidth = baseWidth;
+            isNormalRoomCardBaseWidthCaptured = true;
+        }
     }
 
-    private double GetRoomCardBaseWidth(double availableWidth)
+    private double GetRoomCardBaseWidth(double availableWidth, bool isPreviewMode)
     {
-        return isRoomCardBaseWidthCaptured ? roomCardBaseWidth : Math.Max(1d, (availableWidth - RoomCardHorizontalGap * RoomCardBaseColumns) / RoomCardBaseColumns);
+        if (isPreviewMode && isPreviewRoomCardBaseWidthCaptured)
+        {
+            return previewRoomCardBaseWidth;
+        }
+
+        if (!isPreviewMode && isNormalRoomCardBaseWidthCaptured)
+        {
+            return normalRoomCardBaseWidth;
+        }
+
+        int baseColumns = GetRoomCardBaseColumns(isPreviewMode);
+        return Math.Max(1d, (availableWidth - RoomCardHorizontalGap * baseColumns) / baseColumns);
+    }
+
+    private static int GetRoomCardBaseColumns(bool isPreviewMode)
+    {
+        return isPreviewMode ? RoomCardPreviewBaseColumns : RoomCardNormalBaseColumns;
     }
 
     private double NormalizeRoomCardScale(double availableWidth, double baseWidth, double preference)
@@ -322,45 +444,55 @@ public partial class MainWindow : FluentWindow
         return availableWidth >= targetWidth * RoomCardMinScale + horizontalGap;
     }
 
-    private static (int Columns, double SlotWidth, double CardWidth) CalculateRoomCardLayout(double availableWidth, double baseWidth, double preference, double horizontalGap)
+    private static (int Columns, double SlotWidth, double CardWidth) CalculateRoomCardLayout(double availableWidth, double baseWidth, double preference, double horizontalGap, bool isPreviewMode)
     {
         double targetWidth = Math.Max(1d, baseWidth * preference);
         double minWidth = targetWidth * RoomCardMinScale;
         double maxWidth = targetWidth * RoomCardMaxScale;
+
+        if (isPreviewMode)
+        {
+            double availableCardWidth = Math.Max(1d, availableWidth - horizontalGap);
+            double cardWidth = availableCardWidth < minWidth ? availableCardWidth : Math.Clamp(targetWidth, minWidth, Math.Min(maxWidth, availableCardWidth));
+            double slotWidth = Math.Min(availableWidth, cardWidth + horizontalGap);
+
+            return (1, slotWidth, cardWidth);
+        }
+
         double minSlotWidth = minWidth + horizontalGap;
         double maxSlotWidth = maxWidth + horizontalGap;
         double preferredSlotWidth = targetWidth + horizontalGap;
         int columns = Math.Max(1, (int)Math.Ceiling(availableWidth / preferredSlotWidth));
-        double slotWidth = availableWidth / columns;
-        double cardWidth = Math.Max(1d, slotWidth - horizontalGap);
+        double normalSlotWidth = availableWidth / columns;
+        double normalCardWidth = Math.Max(1d, normalSlotWidth - horizontalGap);
 
-        while (cardWidth > maxWidth)
+        while (normalCardWidth > maxWidth)
         {
             columns++;
-            slotWidth = availableWidth / columns;
-            cardWidth = Math.Max(1d, slotWidth - horizontalGap);
+            normalSlotWidth = availableWidth / columns;
+            normalCardWidth = Math.Max(1d, normalSlotWidth - horizontalGap);
         }
 
-        while (columns > 1 && cardWidth < minWidth - RoomCardBoundaryTolerance)
+        while (columns > 1 && normalCardWidth < minWidth - RoomCardBoundaryTolerance)
         {
             columns--;
-            slotWidth = availableWidth / columns;
-            cardWidth = Math.Max(1d, slotWidth - horizontalGap);
+            normalSlotWidth = availableWidth / columns;
+            normalCardWidth = Math.Max(1d, normalSlotWidth - horizontalGap);
         }
 
-        if (cardWidth > maxWidth)
+        if (normalCardWidth > maxWidth)
         {
-            cardWidth = maxWidth;
-            slotWidth = Math.Min(maxSlotWidth, cardWidth + horizontalGap);
+            normalCardWidth = maxWidth;
+            normalSlotWidth = Math.Min(maxSlotWidth, normalCardWidth + horizontalGap);
         }
 
-        if (cardWidth < minWidth - RoomCardBoundaryTolerance && availableWidth >= minSlotWidth)
+        if (normalCardWidth < minWidth - RoomCardBoundaryTolerance && availableWidth >= minSlotWidth)
         {
-            cardWidth = minWidth;
-            slotWidth = cardWidth + horizontalGap;
+            normalCardWidth = minWidth;
+            normalSlotWidth = normalCardWidth + horizontalGap;
         }
 
-        return (columns, slotWidth, cardWidth);
+        return (columns, normalSlotWidth, normalCardWidth);
     }
 
     private void UpdateRoomCardVisualMetrics(double cardWidth, double baseWidth)
@@ -403,7 +535,7 @@ public partial class MainWindow : FluentWindow
     private void SetRoomCardScale(double scale)
     {
         double availableWidth = GetRoomCardAvailableWidth(RoomCardList.ActualWidth - RoomCardScrollContentPadding * 2d - RoomCardScrollBarReservedWidth);
-        double baseWidth = GetRoomCardBaseWidth(availableWidth);
+        double baseWidth = GetRoomCardBaseWidth(availableWidth, ViewModel.IsPreviewing);
 
         if (scale > RoomCardMediumSizeScale && !CanUseRoomCardScale(availableWidth, baseWidth, scale, RoomCardHorizontalGap))
         {
@@ -412,6 +544,88 @@ public partial class MainWindow : FluentWindow
 
         roomCardSizePreference = Math.Clamp(scale, RoomCardSmallSizeScale, RoomCardLargeSizeScale);
         UpdateRoomCardMetrics(RoomCardList.ActualWidth);
+    }
+
+    internal void OpenDetachedPreviewWindow()
+    {
+        if (!ViewModel.IsPreviewing)
+        {
+            return;
+        }
+
+        if (detachedPreviewWindow != null)
+        {
+            detachedPreviewWindow.Activate();
+            detachedPreviewWindow.Focus();
+            return;
+        }
+
+        if (HomePreviewPanel.Parent is not System.Windows.Controls.Panel owner)
+        {
+            return;
+        }
+
+        previewPanelOwner = owner;
+        previewPanelIndex = owner.Children.IndexOf(HomePreviewPanel);
+        owner.Children.Remove(HomePreviewPanel);
+
+        try
+        {
+            detachedPreviewWindow = new LivePreviewWindow(HomePreviewPanel)
+            {
+                Owner = this,
+                DataContext = ViewModel,
+            };
+            detachedPreviewWindow.Closed += DetachedPreviewWindowClosed;
+            ViewModel.IsPreviewDetached = true;
+            detachedPreviewWindow.Show();
+        }
+        catch
+        {
+            LivePreviewPanel previewContent = detachedPreviewWindow?.ReleasePreviewContent() ?? HomePreviewPanel;
+            if (detachedPreviewWindow != null)
+            {
+                detachedPreviewWindow.Closed -= DetachedPreviewWindowClosed;
+            }
+
+            RestorePreviewPanel(previewContent);
+            detachedPreviewWindow = null;
+            ViewModel.IsPreviewDetached = false;
+            throw;
+        }
+    }
+
+    private void DetachedPreviewWindowClosed(object? sender, EventArgs e)
+    {
+        LivePreviewWindow? window = sender as LivePreviewWindow ?? detachedPreviewWindow;
+        LivePreviewPanel? previewContent = window?.ReleasePreviewContent();
+
+        if (window != null)
+        {
+            window.Closed -= DetachedPreviewWindowClosed;
+        }
+
+        detachedPreviewWindow = null;
+        RestorePreviewPanel(previewContent ?? HomePreviewPanel);
+        ViewModel.IsPreviewDetached = false;
+    }
+
+    private void RestorePreviewPanel(LivePreviewPanel previewPanel)
+    {
+        if (previewPanel.Parent is System.Windows.Controls.Panel currentOwner)
+        {
+            currentOwner.Children.Remove(previewPanel);
+        }
+
+        if (previewPanelOwner == null)
+        {
+            return;
+        }
+
+        int targetIndex = Math.Clamp(previewPanelIndex, 0, previewPanelOwner.Children.Count);
+        previewPanelOwner.Children.Insert(targetIndex, previewPanel);
+        previewPanelOwner = null;
+        previewPanelIndex = -1;
     }
 
     private void RoomCardListPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)

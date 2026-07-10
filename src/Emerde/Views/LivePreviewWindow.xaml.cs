@@ -1,48 +1,49 @@
 using Wpf.Ui.Controls;
-using System.Windows.Threading;
 
 namespace Emerde.Views;
 
 public partial class LivePreviewWindow : FluentWindow
 {
-    private System.Windows.Rect normalBounds;
-    private System.Windows.WindowState normalWindowState;
-    private System.Windows.WindowStyle normalWindowStyle;
-    private System.Windows.ResizeMode normalResizeMode;
-    private bool normalExtendsContentIntoTitleBar;
-    private bool normalTopmost;
-    private System.Windows.Thickness normalPreviewMargin;
+    private readonly System.Windows.Thickness previewMargin;
+
+    public LivePreviewPanel PreviewContent { get; }
 
     public bool IsPreviewFullScreen { get; private set; }
 
-    public LivePreviewWindow()
+    public LivePreviewWindow(LivePreviewPanel previewContent)
     {
         InitializeComponent();
-        StateChanged += (_, _) => RefreshPreviewLayout();
-        SizeChanged += (_, _) => RefreshPreviewLayout();
+        PreviewContent = previewContent;
+        previewMargin = previewContent.Margin;
+        PreviewHost.Content = previewContent;
+        SourceInitialized += (_, _) => EnterPreviewFullScreen();
         Deactivated += (_, _) => PreviewContent.HidePreviewControlsImmediately();
         KeyDown += OnKeyDown;
-    }
-
-    private void RefreshPreviewLayout()
-    {
-        Dispatcher.BeginInvoke(() =>
-        {
-            PreviewContent.InvalidateMeasure();
-            PreviewContent.InvalidateArrange();
-            PreviewContent.UpdateLayout();
-        }, DispatcherPriority.Render);
     }
 
     public void TogglePreviewFullScreen()
     {
         if (IsPreviewFullScreen)
         {
-            ExitPreviewFullScreen();
+            Close();
             return;
         }
 
         EnterPreviewFullScreen();
+    }
+
+    public LivePreviewPanel? ReleasePreviewContent()
+    {
+        if (!ReferenceEquals(PreviewHost.Content, PreviewContent))
+        {
+            return null;
+        }
+
+        PreviewContent.HidePreviewControlsImmediately();
+        PreviewContent.IsFullScreen = false;
+        PreviewContent.Margin = previewMargin;
+        PreviewHost.Content = null;
+        return PreviewContent;
     }
 
     private void EnterPreviewFullScreen()
@@ -53,82 +54,42 @@ public partial class LivePreviewWindow : FluentWindow
         }
 
         IsPreviewFullScreen = true;
-        normalWindowState = WindowState;
-        normalBounds = normalWindowState == System.Windows.WindowState.Normal
-            ? new System.Windows.Rect(Left, Top, Width, Height)
-            : RestoreBounds;
-        normalWindowStyle = WindowStyle;
-        normalResizeMode = ResizeMode;
-        normalExtendsContentIntoTitleBar = ExtendsContentIntoTitleBar;
-        normalTopmost = Topmost;
-        normalPreviewMargin = PreviewContent.Margin;
-
-        System.Windows.Forms.Screen screen = System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle);
-        System.Drawing.Rectangle bounds = screen.Bounds;
-
-        WindowState = System.Windows.WindowState.Normal;
-        WindowStyle = System.Windows.WindowStyle.None;
-        ResizeMode = System.Windows.ResizeMode.NoResize;
-        ExtendsContentIntoTitleBar = false;
-        WindowTitleBar.Visibility = System.Windows.Visibility.Collapsed;
+        System.Windows.Rect bounds = GetScreenBounds();
         PreviewContent.Margin = new System.Windows.Thickness(0);
         PreviewContent.IsFullScreen = true;
-
         Left = bounds.Left;
         Top = bounds.Top;
         Width = bounds.Width;
         Height = bounds.Height;
-
-        RefreshPreviewLayout();
+        Activate();
+        Focus();
     }
 
-    public void PrepareExternalNavigation()
+    private System.Windows.Rect GetScreenBounds()
     {
-        PreviewContent.HidePreviewControlsImmediately();
+        System.Windows.Forms.Screen screen = System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+        System.Drawing.Rectangle bounds = screen.Bounds;
+        System.Windows.DpiScale dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
 
-        if (IsPreviewFullScreen)
-        {
-            ExitPreviewFullScreen();
-        }
-
-        Topmost = false;
-    }
-
-    private void ExitPreviewFullScreen()
-    {
-        if (!IsPreviewFullScreen)
-        {
-            return;
-        }
-
-        IsPreviewFullScreen = false;
-        Topmost = normalTopmost;
-        WindowTitleBar.Visibility = System.Windows.Visibility.Visible;
-        PreviewContent.Margin = normalPreviewMargin;
-        PreviewContent.IsFullScreen = false;
-        ExtendsContentIntoTitleBar = normalExtendsContentIntoTitleBar;
-        WindowStyle = normalWindowStyle;
-        ResizeMode = normalResizeMode;
-
-        Left = normalBounds.Left;
-        Top = normalBounds.Top;
-        Width = normalBounds.Width;
-        Height = normalBounds.Height;
-        WindowState = normalWindowState;
-
-        RefreshPreviewLayout();
+        return new System.Windows.Rect(
+            bounds.Left / dpi.DpiScaleX,
+            bounds.Top / dpi.DpiScaleY,
+            bounds.Width / dpi.DpiScaleX,
+            bounds.Height / dpi.DpiScaleY);
     }
 
     private void OnKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (e.Key == System.Windows.Input.Key.Escape && IsPreviewFullScreen)
+        if (e.Key == System.Windows.Input.Key.Escape)
         {
-            ExitPreviewFullScreen();
+            Close();
         }
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
+        IsPreviewFullScreen = false;
+        PreviewContent.HidePreviewControlsImmediately();
         RestoreOwnerActivation();
         base.OnClosing(e);
     }

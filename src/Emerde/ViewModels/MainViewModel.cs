@@ -628,10 +628,19 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         AddConfirmedRoom(dialog.NickName, dialog.RoomUrl, dialog.SpiderResult);
     }
 
-    private static Task<ContentDialogResult> ShowMainContentDialogAsync(ContentDialog dialog)
+    private static async Task<ContentDialogResult> ShowMainContentDialogAsync(ContentDialog dialog)
     {
         Window? owner = Application.Current?.MainWindow;
-        return WindowSizing.ShowContentDialogAsync(dialog, owner);
+        MainWindow? mainWindow = owner as MainWindow;
+        mainWindow?.SetPreviewPresentationSuspended(true);
+        try
+        {
+            return await WindowSizing.ShowContentDialogAsync(dialog, owner);
+        }
+        finally
+        {
+            mainWindow?.SetPreviewPresentationSuspended(false);
+        }
     }
 
     private void AddConfirmedRoom(string nickName, string roomUrl, ISpiderResult? spiderResult)

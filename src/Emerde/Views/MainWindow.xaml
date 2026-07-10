@@ -597,9 +597,13 @@
                 <FrameworkElement Grid.Column="2" />
             </ui:Grid>
 
-            <ui:Grid Grid.Row="1"
-                     Margin="0,8,0,0"
-                     ColumnDefinitions="7*,3*">
+            <Grid Grid.Row="1"
+                  Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition x:Name="HomeRoomCardColumn" Width="7*" />
+                    <ColumnDefinition x:Name="HomePreviewColumn" Width="0" />
+                    <ColumnDefinition x:Name="HomeDetailColumn" Width="3*" />
+                </Grid.ColumnDefinitions>
                 <Border Grid.Column="0"
                         x:Name="RoomCardPanel"
                         Padding="0"
@@ -698,7 +702,9 @@
                                         </Border.RenderTransform>
                                         <Border.ContextMenu>
                                             <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
-                                                <MenuItem Header="{I18N PreviewLiveRoom}" Command="{Binding PreviewLiveRoomCommand}" CommandParameter="{Binding SelectedItem}">
+                                                <MenuItem Header="{I18N PreviewLiveRoom}"
+                                                          Command="{Binding PreviewLiveRoomCommand}"
+                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}">
                                                     <MenuItem.Icon>
                                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Play}" />
                                                     </MenuItem.Icon>
@@ -747,7 +753,7 @@
                                             </ContextMenu>
                                         </Border.ContextMenu>
                                         <ui:Grid ClipToBounds="False" RowDefinitions="Auto,*,Auto">
-                                            <ui:Grid Grid.Row="0" ClipToBounds="False">
+                                            <Grid Grid.Row="0" ClipToBounds="False">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="{Binding RoomCardHeaderColumnWidth, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" />
                                                     <ColumnDefinition Width="*" />
@@ -795,7 +801,7 @@
                                                                Text="{Binding PlatformDisplayName}"
                                                                TextTrimming="CharacterEllipsis" />
                                                 </ui:StackPanel>
-                                            </ui:Grid>
+                                            </Grid>
 
                                             <TextBlock Grid.Row="1"
                                                        Margin="0,5,0,0"
@@ -912,7 +918,23 @@
                     </Grid>
                 </Border>
 
-                <Border Grid.Column="1"
+                <views:LivePreviewPanel x:Name="HomePreviewPanel"
+                                        Grid.Column="1"
+                                        Margin="8,0,0,0"
+                                        IsEmbeddedMode="True">
+                    <views:LivePreviewPanel.Style>
+                        <Style TargetType="{x:Type views:LivePreviewPanel}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsPreviewing}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </views:LivePreviewPanel.Style>
+                </views:LivePreviewPanel>
+
+                <Border Grid.Column="2"
                         Margin="8,0,0,0"
                         Padding="0"
                         Background="{DynamicResource EmerdePanelBrush}"
@@ -1146,7 +1168,7 @@
                             OpacityMask="{StaticResource BottomEdgeFadeOpacityMask}" />
                     </Grid>
                 </Border>
-            </ui:Grid>
+            </Grid>
 
             <ui:Grid Grid.Row="2"
                      Height="28"
