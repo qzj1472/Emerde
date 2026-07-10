@@ -523,7 +523,7 @@
                     Background="{DynamicResource EmerdeSurfaceBrush}"
                     BorderThickness="0"
                     CornerRadius="{StaticResource Win11ControlCornerRadius}"
-                    Padding="10">
+                    Padding="10,10,10,6">
             <Grid x:Name="ShellPageHost">
                 <ui:Grid x:Name="HomePageRoot" RowDefinitions="Auto,*,Auto">
                     <ui:Grid.Style>
