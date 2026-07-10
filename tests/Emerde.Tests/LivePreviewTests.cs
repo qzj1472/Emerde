@@ -1,3 +1,4 @@
+using Emerde.Core;
 using Emerde.Models;
 using Emerde.ViewModels;
 
@@ -43,5 +44,27 @@ public sealed class LivePreviewTests
         };
 
         Assert.Equal(expected, room.CanPreview);
+    }
+
+    [Theory]
+    [InlineData(StreamStatus.Streaming, true)]
+    [InlineData(StreamStatus.NotStreaming, false)]
+    [InlineData(StreamStatus.Disabled, false)]
+    public void IsStreaming_OnlyReflectsActiveLiveState(StreamStatus streamStatus, bool expected)
+    {
+        RoomStatusReactive room = new() { StreamStatus = streamStatus };
+
+        Assert.Equal(expected, room.IsStreaming);
+    }
+
+    [Theory]
+    [InlineData(RecordStatus.Recording, true)]
+    [InlineData(RecordStatus.NotRecording, false)]
+    [InlineData(RecordStatus.Disabled, false)]
+    public void IsRecording_OnlyReflectsActiveRecordState(RecordStatus recordStatus, bool expected)
+    {
+        RoomStatusReactive room = new() { RecordStatus = recordStatus };
+
+        Assert.Equal(expected, room.IsRecording);
     }
 }

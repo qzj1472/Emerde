@@ -99,6 +99,7 @@ public partial class RoomStatusReactive : ReactiveObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StreamStatusText))]
     [NotifyPropertyChangedFor(nameof(CanPreview))]
+    [NotifyPropertyChangedFor(nameof(IsStreaming))]
     private StreamStatus streamStatus = default;
 
     [ObservableProperty]
@@ -113,8 +114,11 @@ public partial class RoomStatusReactive : ReactiveObject
         _ => "StreamStatusOfUnknown".Tr(),
     };
 
+    public bool IsStreaming => StreamStatus == StreamStatus.Streaming;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RecordStatusText))]
+    [NotifyPropertyChangedFor(nameof(IsRecording))]
     private RecordStatus recordStatus = default;
 
     public string RecordStatusText => RecordStatus switch
@@ -128,6 +132,8 @@ public partial class RoomStatusReactive : ReactiveObject
 #pragma warning restore CS0618 // Type or member is obsolete
         _ => "RecordStatusOfUnknown".Tr(),
     };
+
+    public bool IsRecording => RecordStatus == RecordStatus.Recording;
 
     public string PreviewUrl => !string.IsNullOrWhiteSpace(FlvUrl) ? FlvUrl : HlsUrl;
 
