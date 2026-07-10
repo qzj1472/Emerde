@@ -408,7 +408,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         }
         else if (window is MainWindow mainWindow && IsEmbeddedMode)
         {
-            mainWindow.OpenDetachedPreviewWindow();
+            mainWindow.TogglePreviewFullScreen();
         }
 
         ShowPreviewControls();
@@ -455,7 +455,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     {
         System.Windows.Window? window = System.Windows.Window.GetWindow(this);
         bool canResizePreviewWindow = window is LivePreviewWindow || window is MainWindow && IsEmbeddedMode;
-        bool isMaximized = window is LivePreviewWindow { IsPreviewFullScreen: true };
+        bool isMaximized = IsFullScreen || window is LivePreviewWindow { IsPreviewFullScreen: true } || window is MainWindow { IsPreviewFullScreenActive: true };
 
         WindowSizeButton.Visibility = canResizePreviewWindow ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
         OpenRoomButton.Visibility = IsFullScreen ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;

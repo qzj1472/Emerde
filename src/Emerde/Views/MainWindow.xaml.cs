@@ -15,6 +15,7 @@ using Emerde.ViewModels;
 using Vanara.PInvoke;
 using Wpf.Ui.Controls;
 using Brush = System.Windows.Media.Brush;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MouseButtonState = System.Windows.Input.MouseButtonState;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Pen = System.Windows.Media.Pen;
@@ -215,9 +216,34 @@ public partial class MainWindow : FluentWindow
     private DragPreviewAdorner? roomCardDragAdorner;
     private InsertionLineAdorner? roomCardInsertionAdorner;
     private int roomCardInsertionIndex = -1;
-    private LivePreviewWindow? detachedPreviewWindow;
-    private System.Windows.Controls.Panel? previewPanelOwner;
-    private int previewPanelIndex = -1;
+    private GridLength previewShellNavigationColumnWidth;
+    private GridLength previewShellGapColumnWidth;
+    private GridLength previewShellContentColumnWidth;
+    private GridLength previewHomeRoomCardColumnWidth;
+    private GridLength previewHomePreviewColumnWidth;
+    private GridLength previewHomeDetailColumnWidth;
+    private double previewHomeDetailColumnMaxWidth;
+    private Thickness previewMainContentRootMargin;
+    private Thickness previewShellContentPadding;
+    private Thickness previewHomePreviewLayoutMargin;
+    private Thickness previewHomePreviewPanelMargin;
+    private CornerRadius previewShellContentCornerRadius;
+    private Brush? previewShellContentBackground;
+    private Visibility previewShellNavigationVisibility;
+    private Visibility previewHomeActionBarVisibility;
+    private Visibility previewRoomCardPanelVisibility;
+    private Visibility previewRoomDetailPanelVisibility;
+    private Visibility previewHomeStatusTrayVisibility;
+    private Visibility previewShellTitleBarVisibility;
+    private WindowState previewWindowState;
+    private WindowStyle previewWindowStyle;
+    private ResizeMode previewResizeMode;
+    private bool previewTopmost;
+    private double previewLeft;
+    private double previewTop;
+    private double previewWidth;
+    private double previewHeight;
+    private bool isPreviewFullScreen;
     private bool previousPreviewingState;
 
     public MainWindow()
@@ -229,6 +255,7 @@ public partial class MainWindow : FluentWindow
         previousPreviewingState = ViewModel.IsPreviewing;
         UpdateHomePreviewLayout();
         ViewModel.PropertyChanged += ViewModelPropertyChanged;
+        PreviewKeyDown += MainWindowPreviewKeyDown;
         AppSessionLogger.Write($"perf MainWindow initialized in {stopwatch.ElapsedMilliseconds} ms");
         Loaded += (_, _) =>
         {
@@ -256,14 +283,20 @@ public partial class MainWindow : FluentWindow
 
     protected override void OnClosed(EventArgs e)
     {
+        PreviewKeyDown -= MainWindowPreviewKeyDown;
         ViewModel.PropertyChanged -= ViewModelPropertyChanged;
-        if (detachedPreviewWindow != null)
-        {
-            detachedPreviewWindow.Closed -= DetachedPreviewWindowClosed;
-            detachedPreviewWindow.Close();
-            detachedPreviewWindow = null;
-        }
         base.OnClosed(e);
+    }
+
+    private void MainWindowPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape || !isPreviewFullScreen)
+        {
+            return;
+        }
+
+        ExitPreviewFullScreen();
+        e.Handled = true;
     }
 
     private void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -283,9 +316,9 @@ public partial class MainWindow : FluentWindow
         HomePreviewPanel.SetVideoPresentationSuspended(!ViewModel.IsPreviewing);
         Dispatcher.BeginInvoke(() =>
         {
-            if (!ViewModel.IsPreviewing && detachedPreviewWindow != null)
+            if (!ViewModel.IsPreviewing && isPreviewFullScreen)
             {
-                detachedPreviewWindow.Close();
+                ExitPreviewFullScreen();
             }
 
             UpdateHomePreviewLayout();
@@ -324,6 +357,12 @@ public partial class MainWindow : FluentWindow
 
     private void UpdateHomePreviewLayout()
     {
+        if (isPreviewFullScreen)
+        {
+            ApplyPreviewFullScreenColumns();
+            return;
+        }
+
         if (ViewModel.IsPreviewing)
         {
             HomeRoomCardColumn.Width = new GridLength(GetPreviewRoomCardColumnWidth());
@@ -596,86 +635,198 @@ public partial class MainWindow : FluentWindow
         UpdateRoomCardMetrics(RoomCardList.ActualWidth);
     }
 
-    internal void OpenDetachedPreviewWindow()
+    internal void TogglePreviewFullScreen()
+    {
+        if (isPreviewFullScreen)
+        {
+            ExitPreviewFullScreen();
+            return;
+        }
+
+        EnterPreviewFullScreen();
+    }
+
+    internal bool IsPreviewFullScreenActive => isPreviewFullScreen;
+
+    private void EnterPreviewFullScreen()
     {
         if (!ViewModel.IsPreviewing)
         {
             return;
         }
 
-        if (detachedPreviewWindow != null)
-        {
-            detachedPreviewWindow.Activate();
-            detachedPreviewWindow.Focus();
-            return;
-        }
-
-        if (HomePreviewPanel.Parent is not System.Windows.Controls.Panel owner)
+        if (isPreviewFullScreen)
         {
             return;
         }
 
-        previewPanelOwner = owner;
-        previewPanelIndex = owner.Children.IndexOf(HomePreviewPanel);
-        owner.Children.Remove(HomePreviewPanel);
-
+        SavePreviewFullScreenLayout();
+        SavePreviewWindowPlacement();
         try
         {
-            detachedPreviewWindow = new LivePreviewWindow(HomePreviewPanel)
-            {
-                Owner = this,
-                DataContext = ViewModel,
-            };
-            detachedPreviewWindow.Closed += DetachedPreviewWindowClosed;
+            isPreviewFullScreen = true;
             ViewModel.IsPreviewDetached = true;
-            detachedPreviewWindow.Show();
+            ApplyPreviewFullScreenWindowBounds();
+            ApplyPreviewFullScreenLayout();
+            HomePreviewPanel.IsFullScreen = true;
+            Activate();
+            Focus();
         }
         catch
         {
-            LivePreviewPanel previewContent = detachedPreviewWindow?.ReleasePreviewContent() ?? HomePreviewPanel;
-            if (detachedPreviewWindow != null)
-            {
-                detachedPreviewWindow.Closed -= DetachedPreviewWindowClosed;
-            }
-
-            RestorePreviewPanel(previewContent);
-            detachedPreviewWindow = null;
+            HomePreviewPanel.IsFullScreen = false;
+            RestorePreviewFullScreenLayout();
+            RestorePreviewWindowPlacement();
+            isPreviewFullScreen = false;
             ViewModel.IsPreviewDetached = false;
             throw;
         }
     }
 
-    private void DetachedPreviewWindowClosed(object? sender, EventArgs e)
+    private void ExitPreviewFullScreen()
     {
-        LivePreviewWindow? window = sender as LivePreviewWindow ?? detachedPreviewWindow;
-        LivePreviewPanel? previewContent = window?.ReleasePreviewContent();
-
-        if (window != null)
-        {
-            window.Closed -= DetachedPreviewWindowClosed;
-        }
-
-        detachedPreviewWindow = null;
-        RestorePreviewPanel(previewContent ?? HomePreviewPanel);
-        ViewModel.IsPreviewDetached = false;
-    }
-
-    private void RestorePreviewPanel(LivePreviewPanel previewPanel)
-    {
-        if (previewPanel.Parent is System.Windows.Controls.Panel currentOwner)
-        {
-            currentOwner.Children.Remove(previewPanel);
-        }
-
-        if (previewPanelOwner == null)
+        if (!isPreviewFullScreen)
         {
             return;
         }
 
-        int targetIndex = Math.Clamp(previewPanelIndex, 0, previewPanelOwner.Children.Count);
-        previewPanelOwner.Children.Insert(targetIndex, previewPanel);
-        previewPanelOwner = null;
-        previewPanelIndex = -1;
+        HomePreviewPanel.HidePreviewControlsImmediately();
+        HomePreviewPanel.IsFullScreen = false;
+        RestorePreviewFullScreenLayout();
+        RestorePreviewWindowPlacement();
+        isPreviewFullScreen = false;
+        ViewModel.IsPreviewDetached = false;
+        Activate();
+        Focus();
+    }
+
+    private void SavePreviewFullScreenLayout()
+    {
+        previewShellNavigationColumnWidth = MainContentRoot.ColumnDefinitions[0].Width;
+        previewShellGapColumnWidth = MainContentRoot.ColumnDefinitions[1].Width;
+        previewShellContentColumnWidth = MainContentRoot.ColumnDefinitions[2].Width;
+        previewHomeRoomCardColumnWidth = HomeRoomCardColumn.Width;
+        previewHomePreviewColumnWidth = HomePreviewColumn.Width;
+        previewHomeDetailColumnWidth = HomeDetailColumn.Width;
+        previewHomeDetailColumnMaxWidth = HomeDetailColumn.MaxWidth;
+        previewMainContentRootMargin = MainContentRoot.Margin;
+        previewShellContentPadding = ShellContentSurface.Padding;
+        previewHomePreviewLayoutMargin = HomePreviewLayoutRoot.Margin;
+        previewHomePreviewPanelMargin = HomePreviewPanel.Margin;
+        previewShellContentCornerRadius = ShellContentSurface.CornerRadius;
+        previewShellContentBackground = ShellContentSurface.Background;
+        previewShellNavigationVisibility = ShellNavigationPanel.Visibility;
+        previewHomeActionBarVisibility = HomeActionBar.Visibility;
+        previewRoomCardPanelVisibility = RoomCardPanel.Visibility;
+        previewRoomDetailPanelVisibility = RoomDetailPanel.Visibility;
+        previewHomeStatusTrayVisibility = HomeStatusTray.Visibility;
+        previewShellTitleBarVisibility = ShellTitleBar.Visibility;
+    }
+
+    private void ApplyPreviewFullScreenLayout()
+    {
+        MainContentRoot.ColumnDefinitions[0].Width = new GridLength(0);
+        MainContentRoot.ColumnDefinitions[1].Width = new GridLength(0);
+        MainContentRoot.ColumnDefinitions[2].Width = new GridLength(1, GridUnitType.Star);
+        MainContentRoot.Margin = new Thickness(0);
+        ShellContentSurface.Padding = new Thickness(0);
+        ShellContentSurface.CornerRadius = new CornerRadius(0);
+        ShellContentSurface.Background = System.Windows.Media.Brushes.Black;
+        HomePreviewLayoutRoot.Margin = new Thickness(0);
+        HomePreviewPanel.Margin = new Thickness(0);
+        ShellNavigationPanel.Visibility = Visibility.Collapsed;
+        HomeActionBar.Visibility = Visibility.Collapsed;
+        RoomCardPanel.Visibility = Visibility.Collapsed;
+        RoomDetailPanel.Visibility = Visibility.Collapsed;
+        HomeStatusTray.Visibility = Visibility.Collapsed;
+        ShellTitleBar.Visibility = Visibility.Collapsed;
+        HomeDetailColumn.MaxWidth = double.PositiveInfinity;
+        ApplyPreviewFullScreenColumns();
+        HomePreviewPanel.UpdateLayout();
+    }
+
+    private void ApplyPreviewFullScreenColumns()
+    {
+        HomeRoomCardColumn.Width = new GridLength(0);
+        HomePreviewColumn.Width = new GridLength(1, GridUnitType.Star);
+        HomeDetailColumn.Width = new GridLength(0);
+    }
+
+    private void RestorePreviewFullScreenLayout()
+    {
+        MainContentRoot.ColumnDefinitions[0].Width = previewShellNavigationColumnWidth;
+        MainContentRoot.ColumnDefinitions[1].Width = previewShellGapColumnWidth;
+        MainContentRoot.ColumnDefinitions[2].Width = previewShellContentColumnWidth;
+        HomeRoomCardColumn.Width = previewHomeRoomCardColumnWidth;
+        HomePreviewColumn.Width = previewHomePreviewColumnWidth;
+        HomeDetailColumn.Width = previewHomeDetailColumnWidth;
+        HomeDetailColumn.MaxWidth = previewHomeDetailColumnMaxWidth;
+        MainContentRoot.Margin = previewMainContentRootMargin;
+        ShellContentSurface.Padding = previewShellContentPadding;
+        ShellContentSurface.CornerRadius = previewShellContentCornerRadius;
+        ShellContentSurface.Background = previewShellContentBackground;
+        HomePreviewLayoutRoot.Margin = previewHomePreviewLayoutMargin;
+        HomePreviewPanel.Margin = previewHomePreviewPanelMargin;
+        ShellNavigationPanel.Visibility = previewShellNavigationVisibility;
+        HomeActionBar.Visibility = previewHomeActionBarVisibility;
+        RoomCardPanel.Visibility = previewRoomCardPanelVisibility;
+        RoomDetailPanel.Visibility = previewRoomDetailPanelVisibility;
+        HomeStatusTray.Visibility = previewHomeStatusTrayVisibility;
+        ShellTitleBar.Visibility = previewShellTitleBarVisibility;
+    }
+
+    private void SavePreviewWindowPlacement()
+    {
+        previewWindowState = WindowState;
+        previewWindowStyle = WindowStyle;
+        previewResizeMode = ResizeMode;
+        previewTopmost = Topmost;
+        Rect restoreBounds = WindowState == WindowState.Normal
+            ? new Rect(Left, Top, Width, Height)
+            : RestoreBounds;
+        previewLeft = restoreBounds.Left;
+        previewTop = restoreBounds.Top;
+        previewWidth = restoreBounds.Width;
+        previewHeight = restoreBounds.Height;
+    }
+
+    private void ApplyPreviewFullScreenWindowBounds()
+    {
+        Rect bounds = GetCurrentScreenBounds();
+        WindowState = WindowState.Normal;
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
+        Topmost = true;
+        Left = bounds.Left;
+        Top = bounds.Top;
+        Width = bounds.Width;
+        Height = bounds.Height;
+    }
+
+    private void RestorePreviewWindowPlacement()
+    {
+        WindowState = WindowState.Normal;
+        WindowStyle = previewWindowStyle;
+        ResizeMode = previewResizeMode;
+        Topmost = previewTopmost;
+        Left = previewLeft;
+        Top = previewTop;
+        Width = previewWidth;
+        Height = previewHeight;
+        WindowState = previewWindowState;
+    }
+
+    private Rect GetCurrentScreenBounds()
+    {
+        System.Windows.Forms.Screen screen = System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+        System.Drawing.Rectangle bounds = screen.Bounds;
+        DpiScale dpi = VisualTreeHelper.GetDpi(this);
+
+        return new Rect(
+            bounds.Left / dpi.DpiScaleX,
+            bounds.Top / dpi.DpiScaleY,
+            bounds.Width / dpi.DpiScaleX,
+            bounds.Height / dpi.DpiScaleY);
     }
 
     private void RoomCardListPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
