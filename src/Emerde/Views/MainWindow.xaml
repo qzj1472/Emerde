@@ -35,20 +35,23 @@
             </LinearGradientBrush>
 
             <Style x:Key="StatusTrayButtonStyle" TargetType="{x:Type Button}">
-                <Setter Property="Width" Value="24" />
-                <Setter Property="Height" Value="24" />
-                <Setter Property="MinWidth" Value="24" />
+                <Setter Property="Width" Value="28" />
+                <Setter Property="Height" Value="28" />
+                <Setter Property="MinWidth" Value="28" />
                 <Setter Property="Padding" Value="0" />
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSolidNeutralBrush}" />
                 <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="VerticalAlignment" Value="Center" />
                 <Setter Property="HorizontalContentAlignment" Value="Center" />
                 <Setter Property="VerticalContentAlignment" Value="Center" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="{x:Type Button}">
                             <Border x:Name="ButtonChrome"
+                                    Width="{TemplateBinding Width}"
+                                    Height="{TemplateBinding Height}"
                                     Background="{TemplateBinding Background}"
                                     CornerRadius="{StaticResource Win11ControlCornerRadius}">
                                 <ContentPresenter HorizontalAlignment="Center"
@@ -68,21 +71,40 @@
                 </Setter>
             </Style>
 
+            <Style x:Key="StatusTrayTextBlockStyle" TargetType="{x:Type TextBlock}">
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            </Style>
+
+            <Style x:Key="StatusTrayIconStyle" TargetType="{x:Type ui:FontIcon}">
+                <Setter Property="Width" Value="18" />
+                <Setter Property="Height" Value="18" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontFamily" Value="{DynamicResource SymbolThemeFontFamily}" />
+                <Setter Property="FontSize" Value="15" />
+                <Setter Property="SnapsToDevicePixels" Value="True" />
+                <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            </Style>
+
             <Style x:Key="StatusTrayChipButtonStyle" TargetType="{x:Type Button}">
                 <Setter Property="MinWidth" Value="0" />
-                <Setter Property="Height" Value="24" />
-                <Setter Property="Padding" Value="4,0" />
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Padding" Value="6,0" />
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
                 <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="VerticalAlignment" Value="Center" />
                 <Setter Property="HorizontalContentAlignment" Value="Center" />
                 <Setter Property="VerticalContentAlignment" Value="Center" />
-                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontSize" Value="13" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="{x:Type Button}">
                             <Border x:Name="ButtonChrome"
+                                    Height="{TemplateBinding Height}"
                                     Background="{TemplateBinding Background}"
                                     CornerRadius="{StaticResource Win11ControlCornerRadius}">
                                 <ContentPresenter Margin="{TemplateBinding Padding}"
@@ -106,13 +128,14 @@
 
             <Style x:Key="StatusTrayCapacityButtonStyle" TargetType="{x:Type Button}">
                 <Setter Property="MinWidth" Value="0" />
-                <Setter Property="Height" Value="24" />
-                <Setter Property="Padding" Value="4,0" />
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Padding" Value="6,0" />
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
                 <Setter Property="Cursor" Value="Hand" />
-                <Setter Property="FontSize" Value="12" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="13" />
                 <Setter Property="FontWeight" Value="SemiBold" />
                 <Setter Property="HorizontalContentAlignment" Value="Center" />
                 <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -146,14 +169,15 @@
             </Style>
 
             <Style x:Key="StatusTrayCapacityRefreshButtonStyle" TargetType="{x:Type Button}">
-                <Setter Property="Width" Value="24" />
-                <Setter Property="Height" Value="24" />
-                <Setter Property="MinWidth" Value="24" />
+                <Setter Property="Width" Value="28" />
+                <Setter Property="Height" Value="28" />
+                <Setter Property="MinWidth" Value="28" />
                 <Setter Property="Padding" Value="0" />
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
                 <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="VerticalAlignment" Value="Center" />
                 <Setter Property="HorizontalContentAlignment" Value="Center" />
                 <Setter Property="VerticalContentAlignment" Value="Center" />
                 <Setter Property="Template">
@@ -1139,20 +1163,19 @@
             </ui:Grid>
 
             <ui:Grid Grid.Row="2"
-                     Height="24"
+                     Height="28"
                      Margin="0,4,0,0"
+                     SnapsToDevicePixels="True"
+                     UseLayoutRounding="True"
                      VerticalAlignment="Center"
                      ColumnDefinitions="Auto,*,Auto">
                 <ui:StackPanel Grid.Column="0"
-                               Height="24"
-                               Margin="4,0,0,0"
+                               Height="28"
                                VerticalAlignment="Center"
                                Orientation="Horizontal"
                                Spacing="8">
-                    <TextBlock VerticalAlignment="Center"
-                               Height="24"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                               LineHeight="24"
+                    <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Style="{StaticResource StatusTrayTextBlockStyle}"
                                Text="{Binding PlatformSummaryText}" />
                     <ui:StackPanel VerticalAlignment="Center"
                                    Orientation="Horizontal"
@@ -1163,15 +1186,10 @@
                             <ui:StackPanel VerticalAlignment="Center"
                                            Orientation="Horizontal"
                                            Spacing="5">
-                                <ui:FontIcon VerticalAlignment="Center"
-                                             FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                             FontSize="13"
+                                <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
                                              Glyph="{x:Static ui:FontSymbols.Globe}" />
-                                <TextBlock VerticalAlignment="Center"
-                                           Height="24"
-                                           FontSize="12"
-                                           FontWeight="SemiBold"
-                                           LineHeight="24"
+                                <TextBlock FontWeight="SemiBold"
+                                           Style="{StaticResource StatusTrayTextBlockStyle}"
                                            Text="{Binding NetworkCapacityDisplayText}"
                                            TextTrimming="CharacterEllipsis" />
                             </ui:StackPanel>
@@ -1179,14 +1197,13 @@
                         <Button Command="{Binding TestNetworkCapacityCommand}"
                                 Style="{StaticResource StatusTrayCapacityRefreshButtonStyle}"
                                 ToolTip="{Binding NetworkCapacityToolTip}">
-                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                         Glyph="{x:Static ui:FontSymbols.Sync}"
+                            <ui:FontIcon Glyph="{x:Static ui:FontSymbols.Sync}"
                                          RenderTransformOrigin="0.5,0.5">
                                 <ui:FontIcon.RenderTransform>
                                     <RotateTransform Angle="0" />
                                 </ui:FontIcon.RenderTransform>
                                 <ui:FontIcon.Style>
-                                    <Style TargetType="{x:Type ui:FontIcon}">
+                                    <Style BasedOn="{StaticResource StatusTrayIconStyle}" TargetType="{x:Type ui:FontIcon}">
                                         <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsNetworkCapacityTesting}" Value="True">
@@ -1212,8 +1229,7 @@
                     </ui:StackPanel>
                 </ui:StackPanel>
                 <ui:StackPanel Grid.Column="2"
-                               Height="24"
-                               Margin="0,0,0,0"
+                               Height="28"
                                HorizontalAlignment="Right"
                                VerticalAlignment="Center"
                                Opacity="0.9"
@@ -1224,12 +1240,12 @@
                                 ToolTip="监控">
                             <c:If Condition="{Binding StatusOfIsMonitorRunning, Mode=OneWay}">
                                 <c:If.TrueValue>
-                                    <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                    <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
                                                  Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                                  Glyph="{x:Static ui:FontSymbols.Radar}" />
                                 </c:If.TrueValue>
                                 <c:If.FalseValue>
-                                    <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                    <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
                                                  Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
                                                  Glyph="{x:Static ui:FontSymbols.Radar}" />
                                 </c:If.FalseValue>
@@ -1240,12 +1256,12 @@
                                 ToolTip="{I18N LiveNotification}">
                             <c:If Condition="{Binding StatusOfIsToNotify, Mode=OneWay}">
                                 <c:If.TrueValue>
-                                    <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                    <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
                                                  Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                                  Glyph="{x:Static ui:FontSymbols.Ringer}" />
                                 </c:If.TrueValue>
                                 <c:If.FalseValue>
-                                    <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                    <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
                                                  Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
                                                  Glyph="{x:Static ui:FontSymbols.Ringer}" />
                                 </c:If.FalseValue>
@@ -1256,12 +1272,12 @@
                                 ToolTip="{I18N EnableRecord}">
                             <c:If Condition="{Binding StatusOfIsToRecord, Mode=OneWay}">
                                 <c:If.TrueValue>
-                                    <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                    <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
                                                  Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                                  Glyph="{x:Static ui:FontSymbols.Video}" />
                                 </c:If.TrueValue>
                                 <c:If.FalseValue>
-                                    <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                    <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
                                                  Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
                                                  Glyph="{x:Static ui:FontSymbols.Video}" />
                                 </c:If.FalseValue>
@@ -1272,12 +1288,12 @@
                                 ToolTip="{I18N UseProxy}">
                             <c:If Condition="{Binding StatusOfIsUseProxy, Mode=OneWay}">
                                 <c:If.TrueValue>
-                                    <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                    <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
                                                  Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                                  Glyph="{x:Static ui:FontSymbols.VPN}" />
                                 </c:If.TrueValue>
                                 <c:If.FalseValue>
-                                    <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                    <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
                                                  Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
                                                  Glyph="{x:Static ui:FontSymbols.VPN}" />
                                 </c:If.FalseValue>
@@ -1288,12 +1304,12 @@
                                 ToolTip="{I18N KeepAwake}">
                             <c:If Condition="{Binding StatusOfIsUseKeepAwake, Mode=OneWay}">
                                 <c:If.TrueValue>
-                                    <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                    <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
                                                  Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                                  Glyph="{x:Static ui:FontSymbols.Recent}" />
                                 </c:If.TrueValue>
                                 <c:If.FalseValue>
-                                    <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                    <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
                                                  Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
                                                  Glyph="{x:Static ui:FontSymbols.Recent}" />
                                 </c:If.FalseValue>
@@ -1304,22 +1320,19 @@
                                 ToolTip="{I18N AutoShutdown}">
                             <c:If Condition="{Binding StatusOfIsUseAutoShutdown, Mode=OneWay}">
                                 <c:If.TrueValue>
-                                    <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                    <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
                                                  Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                                  Glyph="{x:Static ui:FontSymbols.PowerButton}" />
                                 </c:If.TrueValue>
                                 <c:If.FalseValue>
-                                    <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                    <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
                                                  Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
                                                  Glyph="{x:Static ui:FontSymbols.PowerButton}" />
                                 </c:If.FalseValue>
                             </c:If>
                         </Button>
-                        <TextBlock FontSize="12"
-                                   Height="24"
-                                   VerticalAlignment="Center"
-                                   Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
-                                   LineHeight="24"
+                        <TextBlock Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                   Style="{StaticResource StatusTrayTextBlockStyle}"
                                    Text="{Binding StatusOfAutoShutdownTime}"
                                    ToolTip="{I18N AutoShutdown}"
                                    Visibility="{Binding StatusOfIsUseAutoShutdown, Converter={x:Static c:BoolToVisibilityConverter.Instance}}" />
@@ -1329,19 +1342,18 @@
                                 Background="{DynamicResource ControlStrokeColorDefaultBrush}"
                                 Opacity="0.55" />
                         <Button Command="{Binding OpenSettingsDialogCommand}"
-                                Content="{Binding StatusOfRoutineIntervalWithUnit}"
                                 Style="{StaticResource StatusTrayChipButtonStyle}"
-                                ToolTip="{I18N RoutineInterval}" />
+                                ToolTip="{I18N RoutineInterval}">
+                            <TextBlock Style="{StaticResource StatusTrayTextBlockStyle}"
+                                       Text="{Binding StatusOfRoutineIntervalWithUnit}" />
+                        </Button>
                         <Border Width="1"
                                 Height="14"
                                 VerticalAlignment="Center"
                                 Background="{DynamicResource ControlStrokeColorDefaultBrush}"
                                 Opacity="0.55" />
-                        <TextBlock VerticalAlignment="Center"
-                                   Height="24"
-                                   FontSize="12"
-                                   LineHeight="24"
-                                   Opacity="0.6"
+                        <TextBlock Opacity="0.6"
+                                   Style="{StaticResource StatusTrayTextBlockStyle}"
                                    Text="{Binding StatusOfRecordFormat}"
                                    ToolTip="{I18N RecordFormat}" />
                 </ui:StackPanel>
