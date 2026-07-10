@@ -658,4 +658,7 @@
   <data name="NetworkCapacityFailed" xml:space="preserve">
     <value>速度テストに失敗しました</value>
   </data>
+  <data name="RefreshTooFrequently" xml:space="preserve">
+    <value>更新の間隔を 5 秒以上空けてください。</value>
+  </data>
 </root>

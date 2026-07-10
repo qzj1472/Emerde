@@ -655,4 +655,7 @@
   <data name="NetworkCapacityFailed" xml:space="preserve">
     <value>Network test failed</value>
   </data>
+  <data name="RefreshTooFrequently" xml:space="preserve">
+    <value>Please wait 5 seconds before refreshing again.</value>
+  </data>
 </root>

@@ -40,6 +40,7 @@ namespace Emerde.ViewModels;
 public partial class MainViewModel : ReactiveObject, IDisposable
 {
     private const string AllPlatformFilter = "All";
+    private const long ManualRefreshCooldownMilliseconds = 5000;
     private static readonly string[] NetworkThroughputTestUrls =
     [
         "https://speed.cloudflare.com/__down?bytes=50000000",
@@ -50,6 +51,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     protected internal ForeverDispatcherTimer DispatcherTimer { get; }
 
     private readonly LivePreviewPlayer livePreviewPlayer = new();
+    private readonly object manualRefreshCooldownLock = new();
+    private long lastManualRefreshTimestamp;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsHomePageSelected))]
@@ -783,6 +786,12 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return;
         }
 
+        if (!TryBeginManualRefresh())
+        {
+            Toast.Warning("RefreshTooFrequently".Tr());
+            return;
+        }
+
         using SemaphoreSlim semaphore = new(Math.Clamp(Environment.ProcessorCount, 2, 6));
         bool hasUpdated = false;
 
@@ -822,6 +831,12 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return;
         }
 
+        if (!TryBeginManualRefresh())
+        {
+            Toast.Warning("RefreshTooFrequently".Tr());
+            return;
+        }
+
         IsRefreshingSelectedRoomInfo = true;
         try
         {
@@ -842,6 +857,21 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         finally
         {
             IsRefreshingSelectedRoomInfo = false;
+        }
+    }
+
+    private bool TryBeginManualRefresh()
+    {
+        long now = Environment.TickCount64;
+        lock (manualRefreshCooldownLock)
+        {
+            if (lastManualRefreshTimestamp != 0 && now - lastManualRefreshTimestamp < ManualRefreshCooldownMilliseconds)
+            {
+                return false;
+            }
+
+            lastManualRefreshTimestamp = now;
+            return true;
         }
     }
 

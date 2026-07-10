@@ -655,4 +655,7 @@
   <data name="NetworkCapacityFailed" xml:space="preserve">
     <value>測速失敗</value>
   </data>
+  <data name="RefreshTooFrequently" xml:space="preserve">
+    <value>重新整理過於頻繁，請等待 5 秒後再試。</value>
+  </data>
 </root>
