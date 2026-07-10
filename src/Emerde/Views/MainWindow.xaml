@@ -1129,21 +1129,7 @@
                                         <TextBlock Text="设置" />
                                     </ui:StackPanel>
                                 </Button>
-                                <Button MinWidth="76"
-                                        Margin="0,0,8,8"
-                                        Command="{Binding RemoveRoomUrlCommand}">
-                                    <ui:StackPanel Orientation="Horizontal" Spacing="6">
-                                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.CalculatorMultiply}" />
-                                        <TextBlock Text="{I18N RemoveRoom}" />
-                                    </ui:StackPanel>
-                                </Button>
                             </WrapPanel>
-
-                            <UniformGrid Columns="1" Margin="0,10,0,0">
-                                <CheckBox Command="{Binding IsToNotifyCommand}"
-                                          Content="{I18N LiveNotification}"
-                                          IsChecked="{Binding SelectedItem.IsToNotify, Mode=TwoWay}" />
-                            </UniformGrid>
                         </StackPanel>
                     </ScrollViewer>
                     <Border Height="6"
