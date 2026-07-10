@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using Vanara.PInvoke;
 
@@ -14,59 +15,169 @@ public partial class ChildProcessTracerPeriodicTimer(TimeSpan period) : IDisposa
     public CancellationTokenSource? TokenSource { get; protected set; } = null;
     public HashSet<int> TracedChildProcessIds { get; } = [];
     public HashSet<string>? WhiteList { get; set; } = null;
+    private readonly object syncRoot = new();
+    private Task? workerTask = null;
 
     public void Start(CancellationTokenSource? tokenSource = null)
     {
-        TokenSource = tokenSource ?? new CancellationTokenSource();
+        lock (syncRoot)
+        {
+            if (workerTask is { IsCompleted: false })
+            {
+                return;
+            }
 
-        _ = Task.Run(() => StartAsync(TokenSource.Token));
+            TokenSource = tokenSource ?? new CancellationTokenSource();
+            workerTask = Task.Factory.StartNew(
+                () => StartAsync(TokenSource.Token),
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default
+            ).Unwrap();
+        }
     }
 
     private async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        TracedChildProcessIds.Clear();
-
-        while (await PeriodicTimer.WaitForNextTickAsync(cancellationToken))
+        try
         {
-            (int Id, string ProcessName)[] children = Interop.GetChildProcessIdAndName(Environment.ProcessId);
-
-            foreach ((int childId, string childProcessName) in children)
+            lock (syncRoot)
             {
-                // Skip owner console host process
-                if (childProcessName == "conhost")
-                {
-                    continue;
-                }
+                TracedChildProcessIds.Clear();
+            }
 
-                if (WhiteList != null && WhiteList.Count > 0)
+            while (await PeriodicTimer.WaitForNextTickAsync(cancellationToken))
+            {
+                (int Id, string ProcessName)[] children = Interop.GetChildProcessIdAndName(Environment.ProcessId);
+
+                foreach ((int childId, string childProcessName) in children)
                 {
-                    if (!WhiteList.Contains(childProcessName))
+                    if (!IsAllowedProcess(childProcessName))
                     {
                         continue;
                     }
+
+                    TryTraceProcess(childId);
                 }
 
-                if (TracedChildProcessIds.Add(childId))
+                lock (syncRoot)
                 {
-                    using Process childProcess = Process.GetProcessById(childId);
-
-                    if (childProcess != null && childProcess.Handle != nint.Zero)
-                    {
-                        Tracer.AddChildProcess(childProcess.Handle);
-                    }
+                    TracedChildProcessIds.RemoveWhere(tracedChildProcessId =>
+                       !children.Any(child => child.Id == tracedChildProcessId)
+                    );
                 }
             }
-
-            // Check if child process is still alive
-            TracedChildProcessIds.RemoveWhere(tracedChildProcessId =>
-               !children.Any(child => child.Id == tracedChildProcessId)
-            );
+        }
+        catch (OperationCanceledException)
+        {
         }
     }
 
-    public void Stop()
+    public bool TryTraceProcess(Process process)
+    {
+        try
+        {
+            if (process.HasExited || !IsAllowedProcess(process.ProcessName))
+            {
+                return false;
+            }
+
+            return TryTraceProcess(process.Id, process);
+        }
+        catch (Exception e) when (e is InvalidOperationException or ArgumentException or Win32Exception)
+        {
+            return false;
+        }
+    }
+
+    private bool TryTraceProcess(int processId, Process? process = null)
+    {
+        try
+        {
+            using Process? ownedProcess = process == null ? Process.GetProcessById(processId) : null;
+            Process childProcess = process ?? ownedProcess!;
+
+            if (childProcess.HasExited || childProcess.Handle == nint.Zero || !IsAllowedProcess(childProcess.ProcessName))
+            {
+                return false;
+            }
+
+            lock (syncRoot)
+            {
+                if (!TracedChildProcessIds.Add(childProcess.Id))
+                {
+                    return true;
+                }
+            }
+
+            Tracer.AddChildProcess(childProcess.Handle);
+            return true;
+        }
+        catch (Exception e) when (e is InvalidOperationException or ArgumentException or Win32Exception)
+        {
+            lock (syncRoot)
+            {
+                _ = TracedChildProcessIds.Remove(processId);
+            }
+            return false;
+        }
+    }
+
+    private bool IsAllowedProcess(string processName)
+    {
+        if (processName.Equals("conhost", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return WhiteList == null || WhiteList.Count == 0 || WhiteList.Any(item => item.Equals(processName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public void Stop(bool killChildren = false)
     {
         TokenSource?.Cancel();
+
+        if (killChildren)
+        {
+            KillTracedProcesses();
+        }
+    }
+
+    public void KillTracedProcesses()
+    {
+        int[] processIds;
+        lock (syncRoot)
+        {
+            processIds = [.. TracedChildProcessIds];
+        }
+
+        foreach (int processId in processIds)
+        {
+            try
+            {
+                using Process process = Process.GetProcessById(processId);
+                if (!process.HasExited && IsAllowedProcess(process.ProcessName))
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+            }
+            catch (Exception e) when (e is InvalidOperationException or ArgumentException or Win32Exception)
+            {
+            }
+        }
+
+        lock (syncRoot)
+        {
+            TracedChildProcessIds.Clear();
+        }
+    }
+
+    public HashSet<int> GetTracedProcessIds()
+    {
+        lock (syncRoot)
+        {
+            return [.. TracedChildProcessIds];
+        }
     }
 
     [SuppressMessage("Usage", "CA1816:Dispose methods should call SuppressFinalize")]

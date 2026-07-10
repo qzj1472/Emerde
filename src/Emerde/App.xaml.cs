@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Threading;
 using Emerde.Core;
 using Emerde.Extensions;
+using Emerde.Threading;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Violeta.Appearance;
 using Wpf.Ui.Violeta.Controls;
@@ -58,6 +59,7 @@ public partial class App : Application
 
         RuntimeHelper.CheckSingleInstance(AppConfig.PackName + (Debugger.IsAttached ? "_DEBUG" : string.Empty));
         AppSessionLogger.Start();
+        RuntimeResourceLogger.Start();
         TrayIconManager.Start();
     }
 
@@ -66,6 +68,10 @@ public partial class App : Application
     /// </summary>
     protected override void OnExit(ExitEventArgs e)
     {
+        GlobalMonitor.Stop();
+        GlobalMonitor.StopAllRecorders();
+        RuntimeResourceLogger.Stop();
+        ChildProcessTracerPeriodicTimer.Default.Stop(killChildren: true);
         AppSessionLogger.Stop();
         base.OnExit(e);
     }
