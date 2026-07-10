@@ -128,6 +128,7 @@
                        AllowsTransparency="True"
                        DataContext="{Binding DataContext, ElementName=Root}"
                        Placement="AbsolutePoint"
+                       PlacementTarget="{Binding ElementName=PreviewViewport}"
                        PopupAnimation="Fade"
                        StaysOpen="True">
                     <Border x:Name="PreviewControls"

@@ -16,6 +16,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     private System.Windows.Point lastScreenMousePosition = new(double.NaN, double.NaN);
     private System.Windows.Point lastPopupPosition = new(double.NaN, double.NaN);
     private System.Windows.Window? attachedWindow;
+    private bool isHostWindowClosing;
     private bool isFullScreen;
     private System.Windows.Media.Brush normalPanelBackground = System.Windows.Media.Brushes.Transparent;
     private System.Windows.Thickness normalPanelPadding;
@@ -70,8 +71,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         Unloaded += (_, _) =>
         {
             pointerTrackingTimer.Stop();
-            controlsIdleTimer.Stop();
-            PreviewControlsPopup.IsOpen = false;
+            HidePreviewControlsImmediately();
             DetachWindowEvents();
         };
     }
@@ -193,6 +193,12 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
 
     private void ShowPreviewControls()
     {
+        if (!CanShowPreviewControls())
+        {
+            HidePreviewControlsImmediately();
+            return;
+        }
+
         UpdatePreviewControlsPlacement();
         PreviewControlsPopup.IsOpen = true;
         PreviewControls.Opacity = 1;
@@ -209,6 +215,12 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     private void HidePreviewControls()
     {
         controlsIdleTimer.Stop();
+
+        if (!CanShowPreviewControls())
+        {
+            HidePreviewControlsImmediately();
+            return;
+        }
 
         if (PreviewControls.IsMouseOver)
         {
@@ -250,6 +262,12 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
 
     private void UpdatePreviewControlsPlacement()
     {
+        if (!CanShowPreviewControls())
+        {
+            HidePreviewControlsImmediately();
+            return;
+        }
+
         PreviewControls.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
 
         if (!VideoSurface.IsVisible || VideoSurface.ActualWidth <= 0 || VideoSurface.ActualHeight <= 0)
@@ -279,8 +297,9 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
 
     private void TrackPreviewPointer()
     {
-        if (!IsLoaded)
+        if (!CanShowPreviewControls())
         {
+            HidePreviewControlsImmediately();
             return;
         }
 
@@ -313,6 +332,24 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         System.Windows.Rect previewBounds = new(previewTopLeft, previewSize);
 
         return previewBounds.Contains(screenMousePosition);
+    }
+
+    private bool CanShowPreviewControls()
+    {
+        if (!IsLoaded || !IsVisible || !PreviewViewport.IsVisible)
+        {
+            return false;
+        }
+
+        if (System.Windows.PresentationSource.FromVisual(this) == null)
+        {
+            return false;
+        }
+
+        System.Windows.Window? window = System.Windows.Window.GetWindow(this);
+        return !isHostWindowClosing
+            && window is { IsVisible: true }
+            && window.WindowState != System.Windows.WindowState.Minimized;
     }
 
     private static System.Windows.Point GetScreenMousePosition()
@@ -371,9 +408,13 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
 
         DetachWindowEvents();
         attachedWindow = window;
+        isHostWindowClosing = false;
         attachedWindow.LocationChanged += OnWindowLayoutChanged;
         attachedWindow.SizeChanged += OnWindowLayoutChanged;
         attachedWindow.StateChanged += OnWindowLayoutChanged;
+        attachedWindow.IsVisibleChanged += OnWindowIsVisibleChanged;
+        attachedWindow.Closing += OnWindowClosing;
+        attachedWindow.Closed += OnWindowClosed;
     }
 
     private void DetachWindowEvents()
@@ -386,13 +427,43 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         attachedWindow.LocationChanged -= OnWindowLayoutChanged;
         attachedWindow.SizeChanged -= OnWindowLayoutChanged;
         attachedWindow.StateChanged -= OnWindowLayoutChanged;
+        attachedWindow.IsVisibleChanged -= OnWindowIsVisibleChanged;
+        attachedWindow.Closing -= OnWindowClosing;
+        attachedWindow.Closed -= OnWindowClosed;
         attachedWindow = null;
+        isHostWindowClosing = false;
     }
 
     private void OnWindowLayoutChanged(object? sender, EventArgs e)
     {
+        if (!CanShowPreviewControls())
+        {
+            HidePreviewControlsImmediately();
+            return;
+        }
+
         UpdateVideoSurfaceSize();
         UpdatePreviewControlsPlacement();
+    }
+
+    private void OnWindowIsVisibleChanged(object sender, System.Windows.DependencyPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is false)
+        {
+            HidePreviewControlsImmediately();
+        }
+    }
+
+    private void OnWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        isHostWindowClosing = true;
+        HidePreviewControlsImmediately();
+    }
+
+    private void OnWindowClosed(object? sender, EventArgs e)
+    {
+        isHostWindowClosing = true;
+        HidePreviewControlsImmediately();
     }
 
     private void ApplyFullScreenState()
