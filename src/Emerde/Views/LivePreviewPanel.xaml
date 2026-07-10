@@ -196,9 +196,11 @@
                                             </Viewbox>
                                         </Grid>
                                     </Button>
-                                    <Button Style="{StaticResource PreviewControlButtonStyle}"
+                                    <Button x:Name="OpenRoomButton"
+                                            Style="{StaticResource PreviewControlButtonStyle}"
                                             Command="{Binding GotoRoomUrlCommand}"
-                                            CommandParameter="{Binding PreviewingRoom}">
+                                            CommandParameter="{Binding PreviewingRoom}"
+                                            Visibility="Collapsed">
                                         <Viewbox Width="16" Height="16" Stretch="Uniform">
                                             <Canvas Width="24" Height="24">
                                                 <Path Data="M5,6 L5,19 L18,19 L18,14 M12,5 L19,5 L19,12 M11,13 L19,5" Stroke="White" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" />

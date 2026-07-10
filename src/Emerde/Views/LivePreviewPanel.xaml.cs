@@ -409,6 +409,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         bool isMaximized = window is LivePreviewWindow { IsPreviewFullScreen: true };
 
         WindowSizeButton.Visibility = canResizePreviewWindow ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+        OpenRoomButton.Visibility = IsFullScreen ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
         MaximizeIcon.Visibility = isMaximized ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
         RestoreIcon.Visibility = isMaximized ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
     }
