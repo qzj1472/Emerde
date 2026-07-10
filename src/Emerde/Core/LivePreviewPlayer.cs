@@ -19,9 +19,9 @@ public sealed class LivePreviewPlayer : IDisposable
         };
     }
 
-    public void Play(string url, string userAgent, string proxyUrl)
+    public async Task PlayAsync(string url, string userAgent, string proxyUrl)
     {
-        Stop();
+        await StopAsync();
 
         using Media media = new(libVlc, new Uri(url));
 
@@ -37,7 +37,30 @@ public sealed class LivePreviewPlayer : IDisposable
 
         MediaPlayer.AspectRatio = null;
         MediaPlayer.Scale = 0;
-        MediaPlayer.Play(media);
+        TaskCompletionSource playbackStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        EventHandler<EventArgs> playingHandler = (_, _) => playbackStarted.TrySetResult();
+        EventHandler<EventArgs> errorHandler = (_, _) => playbackStarted.TrySetException(new InvalidOperationException("Live preview playback failed."));
+        MediaPlayer.Playing += playingHandler;
+        MediaPlayer.EncounteredError += errorHandler;
+
+        try
+        {
+            if (!MediaPlayer.Play(media))
+            {
+                throw new InvalidOperationException("Live preview playback could not start.");
+            }
+
+            Task completed = await Task.WhenAny(playbackStarted.Task, Task.Delay(TimeSpan.FromSeconds(3)));
+            if (ReferenceEquals(completed, playbackStarted.Task))
+            {
+                await playbackStarted.Task;
+            }
+        }
+        finally
+        {
+            MediaPlayer.Playing -= playingHandler;
+            MediaPlayer.EncounteredError -= errorHandler;
+        }
     }
 
     public void Stop()
@@ -45,6 +68,28 @@ public sealed class LivePreviewPlayer : IDisposable
         if (MediaPlayer.State is not VLCState.Stopped and not VLCState.NothingSpecial)
         {
             MediaPlayer.Stop();
+        }
+    }
+
+    public async Task StopAsync()
+    {
+        if (MediaPlayer.State is VLCState.Stopped or VLCState.NothingSpecial)
+        {
+            return;
+        }
+
+        TaskCompletionSource playbackStopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        EventHandler<EventArgs> stoppedHandler = (_, _) => playbackStopped.TrySetResult();
+        MediaPlayer.Stopped += stoppedHandler;
+
+        try
+        {
+            MediaPlayer.Stop();
+            await Task.WhenAny(playbackStopped.Task, Task.Delay(TimeSpan.FromSeconds(1)));
+        }
+        finally
+        {
+            MediaPlayer.Stopped -= stoppedHandler;
         }
     }
 

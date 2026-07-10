@@ -512,7 +512,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             && PreviewVideoView.Visibility == System.Windows.Visibility.Visible
             && PreviewViewport.ActualWidth > 0
             && PreviewViewport.ActualHeight > 0
-            && DataContext is ViewModels.MainViewModel { IsPreviewing: true };
+            && DataContext is ViewModels.MainViewModel { IsPreviewing: true, IsPreviewTransitioning: false };
     }
 
     private void ApplyPanelClip()
