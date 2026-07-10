@@ -56,10 +56,12 @@
         </Style>
     </UserControl.Resources>
     <Border Background="Transparent">
-        <Border Padding="0"
+        <Border x:Name="LocalSettingsSurface"
+                Padding="0"
                 Background="{DynamicResource EmerdeSurfaceBrush}"
                 ClipToBounds="True"
-                CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                SizeChanged="LocalSettingsSurfaceSizeChanged">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />

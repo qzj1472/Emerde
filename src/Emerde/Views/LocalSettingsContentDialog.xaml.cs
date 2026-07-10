@@ -251,6 +251,16 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         InitializeComponent();
     }
 
+    private void LocalSettingsSurfaceSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (sender is not FrameworkElement element || element.ActualWidth <= 0d || element.ActualHeight <= 0d)
+        {
+            return;
+        }
+
+        element.Clip = new RectangleGeometry(new Rect(0d, 0d, element.ActualWidth, element.ActualHeight), 8d, 8d);
+    }
+
     protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         if (e.Handled || e.ChangedButton != MouseButton.Left)
