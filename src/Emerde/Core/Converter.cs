@@ -15,7 +15,7 @@ public sealed class Converter
         _ = sourceFileName ?? throw new ArgumentNullException(nameof(sourceFileName));
         _ = targetFormat ?? throw new ArgumentNullException(nameof(targetFormat));
 
-        string? recorderPath = SearchFileHelper.SearchFiles(".", "ffmpeg[\\.exe]").FirstOrDefault();
+        string? recorderPath = SearchFileHelper.SearchExecutable("ffmpeg.exe");
 
         if (recorderPath == null)
         {
@@ -36,27 +36,43 @@ public sealed class Converter
         }
 
         string targetFileName = Path.ChangeExtension(sourceFileName, targetFormat);
+        VideoRecordingMetadata metadata = VideoRecordingMetadataStore.WithFileName(
+            VideoRecordingMetadataStore.Load(sourceFileInfo),
+            Path.GetFileName(targetFileName));
         string parameters = string.Empty;
 
-        // From TS to other format
         if (sourceFileInfo.Extension.Equals(".ts", StringComparison.CurrentCultureIgnoreCase))
         {
-            parameters = new List<string>()
-            {
+            List<string> arguments =
+            [
                 "-y",
                 "-fflags", "+genpts",
                 "-i", sourceFileName,
-                "-c", "copy", targetFileName,
-            }.ToArguments();
+                "-c", "copy",
+            ];
+            arguments.AddRange(VideoRecordingMetadataStore.BuildFfmpegMetadataArguments(metadata));
+            if (VideoRecordingMetadataStore.UsesMovMetadataTags(targetFileName))
+            {
+                arguments.AddRange(["-movflags", "use_metadata_tags"]);
+            }
+            arguments.Add(targetFileName);
+            parameters = arguments.ToArguments();
         }
         else if (sourceFileInfo.Extension.Equals(".flv", StringComparison.CurrentCultureIgnoreCase))
         {
-            parameters = new List<string>()
-            {
+            List<string> arguments =
+            [
                 "-y",
                 "-i", sourceFileName,
-                "-c", "copy", targetFileName,
-            }.ToArguments();
+                "-c", "copy",
+            ];
+            arguments.AddRange(VideoRecordingMetadataStore.BuildFfmpegMetadataArguments(metadata));
+            if (VideoRecordingMetadataStore.UsesMovMetadataTags(targetFileName))
+            {
+                arguments.AddRange(["-movflags", "use_metadata_tags"]);
+            }
+            arguments.Add(targetFileName);
+            parameters = arguments.ToArguments();
         }
 
         CliResult result = await recorderPath
@@ -72,7 +88,6 @@ public sealed class Converter
 
     private Task OnStandardErrorReceived(string data, CancellationToken token)
     {
-        // TODO
         Debug.WriteLine(data);
         _ = WeakReferenceMessenger.Default.Send(new RecorderMessage()
         {
@@ -84,7 +99,6 @@ public sealed class Converter
 
     private Task OnStandardOutputReceived(string data, CancellationToken token)
     {
-        // TODO
         Debug.WriteLine(data);
         _ = WeakReferenceMessenger.Default.Send(new RecorderMessage()
         {

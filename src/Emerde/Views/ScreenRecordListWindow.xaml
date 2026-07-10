@@ -285,12 +285,33 @@
                                         BorderThickness="1"
                                         CornerRadius="{StaticResource Win11ControlCornerRadius}"
                                         ClipToBounds="True">
-                                    <ui:FontIcon HorizontalAlignment="Center"
-                                                 VerticalAlignment="Center"
-                                                 FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                                 FontSize="24"
-                                                 Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                 Glyph="{x:Static ui:FontSymbols.Video}" />
+                                    <Grid>
+                                        <Border CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                                            <Border.Background>
+                                                <ImageBrush AlignmentX="Center"
+                                                            AlignmentY="Center"
+                                                            ImageSource="{Binding ThumbnailPath}"
+                                                            Stretch="UniformToFill" />
+                                            </Border.Background>
+                                        </Border>
+                                        <ui:FontIcon HorizontalAlignment="Center"
+                                                     VerticalAlignment="Center"
+                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                                     FontSize="24"
+                                                     Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                     Glyph="{x:Static ui:FontSymbols.Video}">
+                                            <ui:FontIcon.Style>
+                                                <Style TargetType="{x:Type ui:FontIcon}">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ui:FontIcon.Style>
+                                        </ui:FontIcon>
+                                    </Grid>
                                 </Border>
 
                                 <StackPanel Grid.Column="1" Margin="0,0,20,0" VerticalAlignment="Center">
@@ -303,15 +324,15 @@
                                                    Spacing="0">
                                         <Border MaxWidth="220" Style="{StaticResource VideoMetaChipStyle}">
                                             <TextBlock Style="{StaticResource VideoMetaChipTextStyle}"
-                                                       Text="{Binding NickName}" />
+                                                       Text="{Binding StreamerChipText}" />
                                         </Border>
                                         <Border MaxWidth="160" Style="{StaticResource VideoMetaChipStyle}">
                                             <TextBlock Style="{StaticResource VideoMetaChipTextStyle}"
-                                                       Text="{Binding Resolution}" />
+                                                       Text="{Binding ResolutionChipText}" />
                                         </Border>
                                         <Border MaxWidth="150" Style="{StaticResource VideoMetaChipStyle}">
                                             <TextBlock Style="{StaticResource VideoMetaChipTextStyle}"
-                                                       Text="{Binding Bitrate}" />
+                                                       Text="{Binding BitrateChipText}" />
                                         </Border>
                                     </ui:StackPanel>
                                     <TextBlock Margin="0,8,0,0"
