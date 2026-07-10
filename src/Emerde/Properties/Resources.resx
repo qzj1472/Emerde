@@ -299,7 +299,7 @@
     <value>Whether to notify the start of the streaming through Windows system notifications, etc</value>
   </data>
   <data name="EnableRecord" xml:space="preserve">
-    <value>Enable Recording</value>
+    <value>Record</value>
   </data>
   <data name="EnableRecordHint" xml:space="preserve">
     <value>Indicates whether live streaming recording is enabled</value>

@@ -302,7 +302,7 @@
     <value>Windows システムなどを通じて配信スタートを知らせる</value>
   </data>
   <data name="EnableRecord" xml:space="preserve">
-    <value>録画有効</value>
+    <value>録画</value>
   </data>
   <data name="EnableRecordHint" xml:space="preserve">
     <value>録画機能を有効にするかどうか</value>

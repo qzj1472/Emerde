@@ -299,7 +299,7 @@
     <value>是否通過 Windows 系統通知等方式通知開播</value>
   </data>
   <data name="EnableRecord" xml:space="preserve">
-    <value>啟用錄製</value>
+    <value>錄製</value>
   </data>
   <data name="EnableRecordHint" xml:space="preserve">
     <value>指示是否啟用直播錄製</value>
