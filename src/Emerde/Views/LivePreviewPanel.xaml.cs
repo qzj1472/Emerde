@@ -25,7 +25,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     private ViewModels.MainViewModel? attachedViewModel;
     private bool isVideoPresentationSuspended;
     private bool isFullScreen;
-    private System.Windows.Media.Brush normalPanelBackground = System.Windows.Media.Brushes.Transparent;
     private System.Windows.Thickness normalPanelPadding;
     private System.Windows.Thickness normalPanelBorderThickness;
     private System.Windows.CornerRadius normalPanelCornerRadius;
@@ -56,7 +55,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     public LivePreviewPanel()
     {
         InitializeComponent();
-        normalPanelBackground = PanelChrome.Background;
         normalPanelPadding = PanelChrome.Padding;
         normalPanelBorderThickness = PanelChrome.BorderThickness;
         normalPanelCornerRadius = PanelChrome.CornerRadius;
@@ -554,7 +552,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         else
         {
             PanelChrome.Padding = normalPanelPadding;
-            PanelChrome.Background = normalPanelBackground;
+            PanelChrome.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "EmerdePanelBrush");
             PanelChrome.BorderThickness = normalPanelBorderThickness;
             PanelChrome.CornerRadius = normalPanelCornerRadius;
             PlayerHeader.Visibility = System.Windows.Visibility.Visible;
