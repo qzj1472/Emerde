@@ -319,7 +319,7 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
-        bool bringSelectedRoomIntoView = !previousPreviewingState && ViewModel.IsPreviewing;
+        bool bringSelectedRoomIntoView = previousPreviewingState != ViewModel.IsPreviewing;
         previousPreviewingState = ViewModel.IsPreviewing;
         if (ViewModel.IsPreviewing)
         {
