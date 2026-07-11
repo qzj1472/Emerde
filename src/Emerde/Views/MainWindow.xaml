@@ -675,7 +675,8 @@
 
             <Grid x:Name="HomePreviewLayoutRoot"
                   Grid.Row="1"
-                  Margin="0,8,0,0">
+                  Margin="0,8,0,0"
+                  SizeChanged="HomePreviewLayoutRootSizeChanged">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition x:Name="HomeRoomCardColumn" Width="7*" />
                     <ColumnDefinition x:Name="HomePreviewColumn" Width="0" />

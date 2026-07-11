@@ -27,9 +27,9 @@ public sealed class RoomCardLayoutTests
     }
 
     [Fact]
-    public void PreviewDetailWidth_KeepsSeventyFivePercentOfDefaultWidth()
+    public void PreviewPaneWidths_KeepThreeColumnsOnWideWindows()
     {
-        Assert.Equal(232d, MainWindow.GetPreviewDetailColumnWidth());
+        Assert.Equal((320d, 260d), MainWindow.CalculatePreviewPaneWidths(1600d));
     }
 
     [Fact]
@@ -39,9 +39,17 @@ public sealed class RoomCardLayoutTests
     }
 
     [Fact]
-    public void PreviewRoomCardColumnWidth_ReducesMediumWidthByFifteenPercent()
+    public void PreviewPaneWidths_CompressSideColumnsOnMediumWindows()
     {
-        Assert.Equal(266d, MainWindow.CalculatePreviewRoomCardColumnWidth(264d));
+        Assert.Equal((280d, 220d), MainWindow.CalculatePreviewPaneWidths(1100d));
+    }
+
+    [Theory]
+    [InlineData(850d, 230d)]
+    [InlineData(700d, 190d)]
+    public void PreviewPaneWidths_HideDetailsOnNarrowWindows(double availableWidth, double expectedRoomListWidth)
+    {
+        Assert.Equal((expectedRoomListWidth, 0d), MainWindow.CalculatePreviewPaneWidths(availableWidth));
     }
 
     [Fact]

@@ -44,8 +44,8 @@
         </Style>
     </UserControl.Resources>
     <Border x:Name="PanelChrome"
-            Padding="12"
-            Background="{DynamicResource ControlFillColorDefaultBrush}"
+            Padding="0"
+            Background="{DynamicResource EmerdePanelBrush}"
             BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
             BorderThickness="1"
             ClipToBounds="True"
@@ -53,59 +53,91 @@
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <ui:StackPanel x:Name="RoomHeader"
-                           Grid.Row="0"
-                           Orientation="Horizontal"
-                           Spacing="10">
-                <vio:PersonPicture Width="42"
-                                   Height="42"
+            <Grid x:Name="PlayerHeader"
+                  Grid.Row="0"
+                  MinHeight="58"
+                  Margin="14,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <vio:PersonPicture Grid.Column="0"
+                                   Width="36"
+                                   Height="36"
+                                   VerticalAlignment="Center"
                                    DisplayName="{Binding PreviewingRoom.NickName}"
                                    ProfilePicture="{Binding PreviewingRoom.AvatarDisplaySource}"
                                    RenderOptions.BitmapScalingMode="HighQuality"
                                    SnapsToDevicePixels="True" />
-                <StackPanel VerticalAlignment="Center">
+                <StackPanel Grid.Column="1"
+                            Margin="10,0,12,0"
+                            VerticalAlignment="Center">
                     <TextBlock FontSize="15"
                                FontWeight="SemiBold"
                                Text="{Binding PreviewingRoom.NickName}"
                                TextTrimming="CharacterEllipsis" />
-                    <TextBlock FontSize="12"
-                               Opacity="0.65"
-                               Text="{Binding PreviewingRoom.StreamStatusText}"
-                               TextTrimming="CharacterEllipsis" />
+                    <ui:StackPanel Margin="0,3,0,0"
+                                   Orientation="Horizontal"
+                                   Spacing="6">
+                        <Ellipse Width="7"
+                                 Height="7"
+                                 VerticalAlignment="Center"
+                                 Fill="#38C172" />
+                        <TextBlock VerticalAlignment="Center"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Text="{Binding PreviewingRoom.PlatformDisplayName}" />
+                        <TextBlock VerticalAlignment="Center"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Text="·" />
+                        <TextBlock VerticalAlignment="Center"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Text="{Binding PreviewingRoom.StreamStatusText}" />
+                    </ui:StackPanel>
                 </StackPanel>
-            </ui:StackPanel>
-
-            <Grid x:Name="PreviewHeader"
-                  Grid.Row="1"
-                  Margin="0,12,0,8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel>
-                    <TextBlock FontSize="12"
-                               Opacity="0.65"
-                               Text="{I18N LivePreview}" />
-                </StackPanel>
-                <TextBlock Grid.Column="1"
-                           VerticalAlignment="Bottom"
+                <TextBlock Grid.Column="2"
+                           MaxWidth="260"
+                           Margin="0,0,12,0"
+                           VerticalAlignment="Center"
                            FontSize="12"
-                           Opacity="0.65"
-                           Text="{Binding PreviewingRoom.PreviewSourceText}" />
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           TextTrimming="CharacterEllipsis">
+                    <Run Text="{Binding PreviewingRoom.PreviewSourceText, Mode=OneWay}" />
+                    <Run Text="  ·  " />
+                    <Run Text="{Binding PreviewingRoom.QualityText, Mode=OneWay}" />
+                    <Run Text="  ·  " />
+                    <Run Text="{Binding PreviewingRoom.ResolutionText, Mode=OneWay}" />
+                </TextBlock>
+                <Button Grid.Column="3"
+                        Width="32"
+                        Height="32"
+                        MinWidth="32"
+                        Padding="0"
+                        VerticalAlignment="Center"
+                        Background="Transparent"
+                        Command="{Binding StopPreviewCommand}"
+                        ToolTip="{I18N ButtonOfClose}">
+                    <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                 FontSize="13"
+                                 Glyph="{x:Static ui:FontSymbols.CalculatorMultiply}" />
+                </Button>
             </Grid>
 
             <Grid x:Name="PreviewViewport"
-                  Grid.Row="2"
+                  Grid.Row="1"
                   MinHeight="180"
-                  Background="Black"
+                  Background="#101010"
                   ClipToBounds="True">
                 <Grid x:Name="VideoSurface"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Center"
-                      Background="Black">
+                      Background="#080808">
                     <Grid x:Name="PreviewOverlayRoot"
                           HorizontalAlignment="Stretch"
                           VerticalAlignment="Stretch"

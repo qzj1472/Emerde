@@ -179,10 +179,16 @@ public partial class MainWindow : FluentWindow
     private const int RoomCardNormalBaseColumns = 3;
     private const int RoomCardPreviewBaseColumns = 1;
     private const double HomeDetailPanelBaseMaxWidth = 360d;
-    private const double HomeDetailPanelPreviewWidthRatio = 0.75d;
     private const double HomeDetailPanelMaxWidthReductionRatio = 1d / 7d;
-    private const double RoomCardPreviewFallbackBaseWidth = 219d;
-    private const double RoomCardPreviewWidthScale = 0.85d;
+    private const double PreviewWideLayoutThreshold = 1300d;
+    private const double PreviewDetailLayoutThreshold = 950d;
+    private const double PreviewCompactLayoutThreshold = 760d;
+    private const double PreviewWideRoomListWidth = 320d;
+    private const double PreviewStandardRoomListWidth = 280d;
+    private const double PreviewCompactRoomListWidth = 230d;
+    private const double PreviewNarrowRoomListWidth = 190d;
+    private const double PreviewWideDetailWidth = 260d;
+    private const double PreviewStandardDetailWidth = 220d;
     private const double RoomCardMinScale = 0.86d;
     private const double RoomCardMaxScale = 1.14d;
     private const double RoomCardBoundaryTolerance = 1d;
@@ -365,33 +371,36 @@ public partial class MainWindow : FluentWindow
 
         if (ViewModel.IsPreviewing)
         {
-            HomeRoomCardColumn.Width = new GridLength(GetPreviewRoomCardColumnWidth());
+            (double roomListWidth, double detailWidth) = CalculatePreviewPaneWidths(HomePreviewLayoutRoot.ActualWidth);
+            HomeRoomCardColumn.Width = new GridLength(roomListWidth);
             HomePreviewColumn.Width = new GridLength(1, GridUnitType.Star);
-            HomeDetailColumn.Width = new GridLength(GetPreviewDetailColumnWidth());
+            HomeDetailColumn.Width = new GridLength(detailWidth);
+            RoomDetailPanel.Visibility = detailWidth > 0d ? Visibility.Visible : Visibility.Collapsed;
             return;
         }
 
         HomeRoomCardColumn.Width = new GridLength(7, GridUnitType.Star);
         HomePreviewColumn.Width = new GridLength(0);
         HomeDetailColumn.Width = new GridLength(3, GridUnitType.Star);
+        RoomDetailPanel.Visibility = Visibility.Visible;
     }
 
-    private double GetPreviewRoomCardColumnWidth()
+    internal static (double RoomListWidth, double DetailWidth) CalculatePreviewPaneWidths(double availableWidth)
     {
-        double mediumCardWidth = isNormalRoomCardBaseWidthCaptured
-            ? normalRoomCardBaseWidth
-            : RoomCardPreviewFallbackBaseWidth;
-        return CalculatePreviewRoomCardColumnWidth(mediumCardWidth);
-    }
+        if (availableWidth >= PreviewWideLayoutThreshold)
+        {
+            return (PreviewWideRoomListWidth, PreviewWideDetailWidth);
+        }
+        if (availableWidth >= PreviewDetailLayoutThreshold)
+        {
+            return (PreviewStandardRoomListWidth, PreviewStandardDetailWidth);
+        }
+        if (availableWidth >= PreviewCompactLayoutThreshold)
+        {
+            return (PreviewCompactRoomListWidth, 0d);
+        }
 
-    internal static double CalculatePreviewRoomCardColumnWidth(double mediumCardWidth)
-    {
-        return Math.Ceiling(mediumCardWidth * RoomCardPreviewWidthScale + RoomCardHorizontalGap + RoomCardScrollContentPadding * 2d + RoomCardScrollBarReservedWidth);
-    }
-
-    internal static double GetPreviewDetailColumnWidth()
-    {
-        return Math.Round(GetHomeDetailPanelMaxWidth() * HomeDetailPanelPreviewWidthRatio);
+        return (PreviewNarrowRoomListWidth, 0d);
     }
 
     internal static double GetHomeDetailPanelMaxWidth()
@@ -407,6 +416,17 @@ public partial class MainWindow : FluentWindow
         }
 
         element.Clip = new RectangleGeometry(new Rect(0d, 0d, element.ActualWidth, element.ActualHeight), 8d, 8d);
+    }
+
+    private void HomePreviewLayoutRootSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (!ViewModel.IsPreviewing || isPreviewFullScreen)
+        {
+            return;
+        }
+
+        UpdateHomePreviewLayout();
+        UpdateRoomCardMetrics(RoomCardList.ActualWidth);
     }
 
     private void RoomCardListLoaded(object sender, RoutedEventArgs e)
@@ -706,6 +726,7 @@ public partial class MainWindow : FluentWindow
         RestorePreviewWindowPlacement();
         isPreviewFullScreen = false;
         ViewModel.IsPreviewDetached = false;
+        UpdateHomePreviewLayout();
         Activate();
         Focus();
     }
