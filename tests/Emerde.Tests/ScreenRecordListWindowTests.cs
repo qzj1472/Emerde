@@ -116,6 +116,15 @@ public sealed class ScreenRecordListWindowTests
         Assert.Equal("未知", resolution);
     }
 
+    [Theory]
+    [InlineData("1080p", "1080p")]
+    [InlineData("2160P", "2160p")]
+    [InlineData("1080I", "1080i")]
+    public void NormalizeResolution_PreservesVerticalResolutionLabels(string value, string expected)
+    {
+        Assert.Equal(expected, ScreenRecordListViewModel.NormalizeResolution(value));
+    }
+
     [Fact]
     public void ParseVideoProbeJson_UsesVideoStreamResolutionAndBitrate()
     {

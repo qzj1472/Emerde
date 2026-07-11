@@ -724,6 +724,14 @@ public partial class ScreenRecordListViewModel : ObservableObject
             return $"{width}x{height}";
         }
 
+        if (text.Length > 1
+            && (text[^1] is 'p' or 'P' or 'i' or 'I')
+            && int.TryParse(text[..^1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int verticalResolution)
+            && verticalResolution > 0)
+        {
+            return $"{verticalResolution}{char.ToLowerInvariant(text[^1])}";
+        }
+
         return UnknownResolutionText;
     }
 
