@@ -65,6 +65,7 @@
                                FontWeight="SemiBold"
                                Text="{I18N VideoListTitle}" />
                     <Button Command="{Binding RefreshCommand}"
+                            IsEnabled="{Binding IsIdle}"
                             Style="{StaticResource VideoListToolbarButtonStyle}">
                         <ui:StackPanel Orientation="Horizontal" Spacing="7">
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
@@ -73,6 +74,7 @@
                         </ui:StackPanel>
                     </Button>
                     <Button Command="{Binding ToggleSortCommand}"
+                            IsEnabled="{Binding IsIdle}"
                             Style="{StaticResource VideoListToolbarButtonStyle}">
                         <ui:StackPanel Orientation="Horizontal" Spacing="7">
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}">
@@ -91,6 +93,7 @@
                         </ui:StackPanel>
                     </Button>
                     <Button Command="{Binding ImportFolderCommand}"
+                            IsEnabled="{Binding IsIdle}"
                             Style="{StaticResource VideoListToolbarButtonStyle}">
                         <ui:StackPanel Orientation="Horizontal" Spacing="7">
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
@@ -129,12 +132,19 @@
                         <TextBlock VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    Text="{Binding SelectedVideoSummary}" />
-                        <Button Command="{Binding MergeSelectedCommand}"
+                        <Button Command="{Binding OpenMergeSelectedCommand}"
                                 IsEnabled="{Binding CanMergeSelectedVideos}"
                                 Style="{StaticResource VideoListIconButtonStyle}"
                                 ToolTip="{I18N MergeVideos}">
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          Glyph="{x:Static ui:FontSymbols.Link}" />
+                        </Button>
+                        <Button Command="{Binding SplitSelectedCommand}"
+                                IsEnabled="{Binding HasSelectedVideos}"
+                                Style="{StaticResource VideoListIconButtonStyle}"
+                                ToolTip="{I18N SplitVideo}">
+                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                         Glyph="{x:Static ui:FontSymbols.Cut}" />
                         </Button>
                         <Button Command="{Binding DeleteSelectedCommand}"
                                 IsEnabled="{Binding HasSelectedVideos}"
@@ -230,11 +240,13 @@
             </Grid>
 
             <Grid Grid.Row="2" ClipToBounds="True">
-                <ListBox ItemsSource="{Binding Videos}"
+                <ListBox x:Name="VideoListBox"
+                         ItemsSource="{Binding Videos}"
                          Background="Transparent"
                          BorderThickness="0"
                          ScrollViewer.CanContentScroll="True"
                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         ScrollViewer.ScrollChanged="VideoListScrollChanged"
                          VirtualizingPanel.IsVirtualizing="True"
                          VirtualizingPanel.VirtualizationMode="Recycling">
                 <ListBox.ItemContainerStyle>
@@ -264,10 +276,40 @@
                         <Border x:Name="VideoCardShell"
                                 Margin="2,8,10,0"
                                 Padding="12"
+                                Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
                                 Background="{DynamicResource CardBackground}"
                                 BorderBrush="{DynamicResource CardBorderBrush}"
                                 BorderThickness="1"
-                                CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                                CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                Loaded="VideoCardLoaded"
+                                PreviewMouseLeftButtonDown="VideoCardMouseLeftButtonDown">
+                            <Border.ContextMenu>
+                                <ContextMenu DataContext="{Binding PlacementTarget, RelativeSource={RelativeSource Self}}">
+                                    <MenuItem Header="删除"
+                                              Command="{Binding Tag.DeleteVideoCommand}"
+                                              CommandParameter="{Binding DataContext}" />
+                                    <MenuItem Header="分割"
+                                              Command="{Binding Tag.SplitVideoCommand}"
+                                              CommandParameter="{Binding DataContext}" />
+                                    <MenuItem Header="转码"
+                                              Command="{Binding Tag.TranscodeVideoCommand}"
+                                              CommandParameter="{Binding DataContext}"
+                                              IsEnabled="{Binding DataContext.CanTranscode}" />
+                                    <Separator />
+                                    <MenuItem Header="打开目录"
+                                              Command="{Binding Tag.OpenDirectoryCommand}"
+                                              CommandParameter="{Binding DataContext}" />
+                                    <MenuItem Header="重命名"
+                                              Command="{Binding Tag.RenameVideoCommand}"
+                                              CommandParameter="{Binding DataContext}" />
+                                    <MenuItem Header="打开视频"
+                                              Command="{Binding Tag.OpenVideoCommand}"
+                                              CommandParameter="{Binding DataContext}" />
+                                    <MenuItem Header="另存为"
+                                              Command="{Binding Tag.SaveAsVideoCommand}"
+                                              CommandParameter="{Binding DataContext}" />
+                                </ContextMenu>
+                            </Border.ContextMenu>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="146" />
@@ -345,6 +387,16 @@
                                             HorizontalAlignment="Right"
                                             VerticalAlignment="Center"
                                             Orientation="Horizontal">
+                                    <StackPanel.Style>
+                                        <Style TargetType="{x:Type StackPanel}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DataContext.IsMultiSelectMode, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
                                     <Button Margin="0,0,8,0"
                                             Command="{Binding DataContext.OpenVideoCommand, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
                                             CommandParameter="{Binding}"
@@ -374,9 +426,16 @@
                                 </StackPanel>
 
                                 <CheckBox Grid.Column="3"
-                                          Margin="14,0,0,0"
+                                          Width="22"
+                                          Height="22"
+                                          MinWidth="22"
+                                          Margin="12,0,0,0"
+                                          Padding="0"
                                           HorizontalAlignment="Right"
+                                          HorizontalContentAlignment="Center"
                                           VerticalAlignment="Center"
+                                          VerticalContentAlignment="Center"
+                                          PreviewMouseLeftButtonDown="SelectionCheckBoxPreviewMouseLeftButtonDown"
                                           IsChecked="{Binding IsSelected, Mode=TwoWay}">
                                     <CheckBox.Style>
                                         <Style TargetType="{x:Type CheckBox}" BasedOn="{StaticResource {x:Type CheckBox}}">
@@ -487,6 +546,60 @@
                                 IsEnabled="{Binding IsIdle}" />
                         <Button Grid.Column="2"
                                 Command="{Binding ConfirmSplitCommand}"
+                                Content="{I18N StartButton}"
+                                IsEnabled="{Binding IsIdle}" />
+                    </ui:Grid>
+                </ui:Grid>
+            </Border>
+            <Border Width="460"
+                    Padding="18"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                    BorderBrush="{DynamicResource SurfaceStrokeColorFlyoutBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                    Visibility="{Binding IsMergePanelOpen, Converter={x:Static c:BoolToVisibilityConverter.Instance}}">
+                <ui:Grid RowDefinitions="Auto,Auto,Auto,Auto">
+                    <ui:Grid Grid.Row="0" ColumnDefinitions="Auto,*">
+                        <ui:FontIcon Grid.Column="0"
+                                     Margin="0,0,12,0"
+                                     VerticalAlignment="Center"
+                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                     FontSize="20"
+                                     Glyph="{x:Static ui:FontSymbols.Link}" />
+                        <TextBlock Grid.Column="1"
+                                   VerticalAlignment="Center"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Text="{I18N MergeVideos}" />
+                    </ui:Grid>
+                    <TextBlock Grid.Row="1"
+                               Margin="0,16,0,0"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Text="{Binding MergeWarningText}"
+                               TextWrapping="Wrap" />
+                    <ProgressBar Grid.Row="2"
+                                 Height="6"
+                                 Margin="0,16,0,0"
+                                 IsIndeterminate="{Binding IsMergeProgressIndeterminate}"
+                                 Maximum="100"
+                                 Value="{Binding MergeProgressValue}" />
+                    <ui:Grid Grid.Row="3"
+                             Margin="0,18,0,0"
+                             ColumnDefinitions="*,Auto,Auto">
+                        <TextBlock Grid.Column="0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Text="{Binding OperationProgressText}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <Button Grid.Column="1"
+                                Margin="0,0,8,0"
+                                Command="{Binding CloseModalCommand}"
+                                Content="{I18N ButtonOfCancel}"
+                                IsEnabled="{Binding IsIdle}" />
+                        <Button Grid.Column="2"
+                                Command="{Binding ConfirmMergeSelectedCommand}"
                                 Content="{I18N StartButton}"
                                 IsEnabled="{Binding IsIdle}" />
                     </ui:Grid>

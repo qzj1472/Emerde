@@ -6,6 +6,23 @@ namespace Emerde.Tests;
 
 public sealed class ScreenRecordListWindowTests
 {
+    [Fact]
+    public void ContextMenuCommands_AreAvailable()
+    {
+        ScreenRecordListViewModel viewModel = new();
+
+        Assert.NotNull(viewModel.DeleteVideoCommand);
+        Assert.NotNull(viewModel.SplitVideoCommand);
+        Assert.NotNull(viewModel.TranscodeVideoCommand);
+        Assert.NotNull(viewModel.OpenDirectoryCommand);
+        Assert.NotNull(viewModel.RenameVideoCommand);
+        Assert.NotNull(viewModel.OpenVideoCommand);
+        Assert.NotNull(viewModel.SaveAsVideoCommand);
+        Assert.NotNull(viewModel.SplitSelectedCommand);
+        Assert.NotNull(viewModel.OpenMergeSelectedCommand);
+        Assert.NotNull(viewModel.ConfirmMergeSelectedCommand);
+    }
+
     [Theory]
     [InlineData(@"主播A\2026-07\03\record.mp4", "主播A")]
     [InlineData(@"主播A\2026-07\record.mp4", "主播A")]
@@ -41,6 +58,136 @@ public sealed class ScreenRecordListWindowTests
         Assert.Equal(filePath, startInfo.FileName);
         Assert.True(startInfo.UseShellExecute);
         Assert.Equal(Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar), startInfo.WorkingDirectory.TrimEnd(Path.DirectorySeparatorChar));
+    }
+
+    [Theory]
+    [InlineData("new-name", "new-name.mkv")]
+    [InlineData("new-name.mkv", "new-name.mkv")]
+    public void TryBuildRenameTarget_PreservesOriginalExtension(string requestedName, string expectedFileName)
+    {
+        string sourcePath = Path.Combine(Path.GetTempPath(), "old-name.mkv");
+
+        bool result = ScreenRecordListViewModel.TryBuildRenameTarget(sourcePath, requestedName, out string targetPath);
+
+        Assert.True(result);
+        Assert.Equal(Path.Combine(Path.GetTempPath(), expectedFileName), targetPath);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("folder/name")]
+    [InlineData("bad:name")]
+    public void TryBuildRenameTarget_RejectsInvalidNames(string requestedName)
+    {
+        string sourcePath = Path.Combine(Path.GetTempPath(), "old-name.mkv");
+
+        Assert.False(ScreenRecordListViewModel.TryBuildRenameTarget(sourcePath, requestedName, out _));
+    }
+
+    [Fact]
+    public void GetUniquePath_DoesNotOverwriteExistingVideo()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"emerde-unique-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        string original = Path.Combine(root, "record.mkv");
+
+        try
+        {
+            File.WriteAllText(original, "video");
+
+            string result = ScreenRecordListViewModel.GetUniquePath(original);
+
+            Assert.Equal(Path.Combine(root, "record_001.mkv"), result);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData(0, "")]
+    [InlineData(1, "Host")]
+    [InlineData(2, @"Host\2026-07")]
+    [InlineData(3, @"Host\2026-07\12")]
+    public void BuildClassifiedFolder_MatchesRecorderPathLevels(int pathLevel, string relativePath)
+    {
+        string root = Path.Combine(Path.GetTempPath(), "records");
+        FileInfo file = new(Path.Combine(Path.GetTempPath(), "source", "record.ts"));
+        VideoRecordingMetadata metadata = new()
+        {
+            NickName = "Host",
+            RecordedAt = new DateTime(2026, 7, 12, 10, 0, 0),
+        };
+
+        string result = ScreenRecordListViewModel.BuildClassifiedFolder(root, metadata, file, file.DirectoryName!, pathLevel);
+
+        Assert.Equal(string.IsNullOrEmpty(relativePath) ? root : Path.Combine(root, relativePath), result);
+    }
+
+    [Fact]
+    public void TransferVideoFile_MovePreservesMetadata()
+    {
+        string sourceRoot = Path.Combine(Path.GetTempPath(), $"emerde-move-source-{Guid.NewGuid():N}");
+        string targetRoot = Path.Combine(Path.GetTempPath(), $"emerde-move-target-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(sourceRoot);
+        Directory.CreateDirectory(targetRoot);
+        string sourceVideo = Path.Combine(sourceRoot, "record.ts");
+        string sourceMetadata = Path.Combine(sourceRoot, "record.mplr.json");
+        string targetVideo = Path.Combine(targetRoot, "record.ts");
+
+        try
+        {
+            File.WriteAllText(sourceVideo, "video");
+            File.WriteAllText(sourceMetadata, JsonSerializer.Serialize(new VideoRecordingMetadata { NickName = "Host" }));
+
+            ScreenRecordListViewModel.TransferVideoFile(sourceVideo, targetVideo, move: true);
+
+            Assert.False(File.Exists(sourceVideo));
+            Assert.False(File.Exists(sourceMetadata));
+            Assert.True(File.Exists(targetVideo));
+            Assert.Equal("Host", ScreenRecordListViewModel.LoadMetadata(new FileInfo(targetVideo)).NickName);
+        }
+        finally
+        {
+            if (Directory.Exists(sourceRoot))
+            {
+                Directory.Delete(sourceRoot, recursive: true);
+            }
+            if (Directory.Exists(targetRoot))
+            {
+                Directory.Delete(targetRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void OrderVideosForMerge_UsesFourDigitSegmentIndex()
+    {
+        RecordedVideoItem[] videos =
+        [
+            new() { FileName = "record_1001.ts", FullPath = @"C:\videos\record_1001.ts", CreatedAt = new DateTime(2026, 7, 12) },
+            new() { FileName = "record_1000.ts", FullPath = @"C:\videos\record_1000.ts", CreatedAt = new DateTime(2026, 7, 12) },
+            new() { FileName = "record_1002.ts", FullPath = @"C:\videos\record_1002.ts", CreatedAt = new DateTime(2026, 7, 12) },
+        ];
+
+        string[] result = ScreenRecordListViewModel.OrderVideosForMerge(videos).Select(video => video.FileName).ToArray();
+
+        Assert.Equal(["record_1000.ts", "record_1001.ts", "record_1002.ts"], result);
+    }
+
+    [Fact]
+    public void BuildMergeWarningText_ReportsNonContinuousSegments()
+    {
+        RecordedVideoItem[] videos =
+        [
+            new() { NickName = "Host", Resolution = "1920x1080", FullPath = @"C:\videos\record_001.ts" },
+            new() { NickName = "Host", Resolution = "1920x1080", FullPath = @"C:\videos\record_003.ts" },
+        ];
+
+        string result = ScreenRecordListViewModel.BuildMergeWarningText(videos);
+
+        Assert.Contains("不是同一组连续分段", result);
     }
 
     [Fact]
@@ -352,6 +499,44 @@ public sealed class ScreenRecordListWindowTests
             if (Directory.Exists(targetRoot))
             {
                 Directory.Delete(targetRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void RenameVideoFile_MovesVideoAndUpdatesMetadataFileName()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"emerde-rename-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        string sourceVideo = Path.Combine(root, "old-name.mkv");
+        string sourceMetadata = Path.Combine(root, "old-name.mplr.json");
+        string targetVideo = Path.Combine(root, "new-name.mkv");
+        string targetMetadata = Path.Combine(root, "new-name.mplr.json");
+
+        try
+        {
+            File.WriteAllText(sourceVideo, "video");
+            File.WriteAllText(sourceMetadata, JsonSerializer.Serialize(new VideoRecordingMetadata
+            {
+                FileName = "old-name.mkv",
+                NickName = "Host",
+            }));
+
+            ScreenRecordListViewModel.RenameVideoFile(sourceVideo, targetVideo);
+
+            Assert.False(File.Exists(sourceVideo));
+            Assert.False(File.Exists(sourceMetadata));
+            Assert.True(File.Exists(targetVideo));
+            Assert.True(File.Exists(targetMetadata));
+            VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(new FileInfo(targetVideo));
+            Assert.Equal("new-name.mkv", metadata.FileName);
+            Assert.Equal("Host", metadata.NickName);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
             }
         }
     }

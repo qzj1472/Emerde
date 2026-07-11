@@ -174,7 +174,7 @@ internal static class VideoRecordingMetadataStore
         return metadata;
     }
 
-    public static void TryDeleteSidecarIfNoSourceVideosRemain(string sourceFileName)
+    public static void TryDeleteSidecarIfNoSourceVideosRemain(string sourceFileName, bool sendToRecycleBin = false)
     {
         FileInfo source = new(sourceFileName);
         foreach (string metadataPath in GetMetadataCandidates(source).Distinct(StringComparer.OrdinalIgnoreCase))
@@ -186,7 +186,17 @@ internal static class VideoRecordingMetadataStore
                     continue;
                 }
 
-                File.Delete(metadataPath);
+                if (sendToRecycleBin)
+                {
+                    Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
+                        metadataPath,
+                        Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                        Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
+                }
+                else
+                {
+                    File.Delete(metadataPath);
+                }
             }
             catch (Exception e)
             {
