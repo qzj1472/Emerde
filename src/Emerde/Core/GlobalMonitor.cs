@@ -351,42 +351,24 @@ internal static class GlobalMonitor
 
         if (spiderResult == null)
         {
+            SyncRecordStatus(roomStatus);
             if (!shouldRecord)
             {
                 StopRecordingBecauseDisabled(room, roomStatus);
                 roomStatus.RecordStatus = RecordStatus.Disabled;
-                roomStatus.StreamStatus = StreamStatus.Disabled;
-                return;
             }
-
-            SyncRecordStatus(roomStatus);
-            if (roomStatus.RecordStatus == RecordStatus.Recording)
+            else if (roomStatus.RecordStatus != RecordStatus.Recording)
             {
-                AppSessionLogger.Event("warn", "business", "room_check_failed_while_recording", "room check failed while recorder is still running", new
-                {
-                    room.RoomUrl,
-                    room.NickName,
-                    roomStatus.PlatformName,
-                    hasRecordUrl = !string.IsNullOrWhiteSpace(roomStatus.RecordUrl),
-                    hasFlvUrl = !string.IsNullOrWhiteSpace(roomStatus.FlvUrl),
-                    hasHlsUrl = !string.IsNullOrWhiteSpace(roomStatus.HlsUrl),
-                });
-
-                if (HasRecordableStream(roomStatus))
-                {
-                    roomStatus.StreamStatus = StreamStatus.Streaming;
-                }
-
-                return;
+                roomStatus.RecordStatus = RecordStatus.NotRecording;
             }
 
-            roomStatus.RecordStatus = RecordStatus.NotRecording;
-            roomStatus.StreamStatus = StreamStatus.NotStreaming;
-            AppSessionLogger.Event("warn", "business", "room_check_no_result", "room check returned no spider result", new
+            AppSessionLogger.Event("warn", "business", "room_check_inconclusive", "room check returned no result and the previous stream state was preserved", new
             {
                 room.RoomUrl,
                 room.NickName,
                 roomStatus.PlatformName,
+                roomStatus.StreamStatus,
+                roomStatus.RecordStatus,
             });
             return;
         }
@@ -419,7 +401,8 @@ internal static class GlobalMonitor
             roomStatus.Resolution = resolution ?? string.Empty;
             roomStatus.Bitrate = bitrate ?? string.Empty;
         }
-        if (HasRecordableStream(spiderResult) || roomStatus.RecordStatus != RecordStatus.Recording)
+        bool hasFreshStream = HasRecordableStream(spiderResult);
+        if (spiderResult.IsLiveStreaming.HasValue || hasFreshStream)
         {
             roomStatus.FlvUrl = spiderResult.FlvUrl ?? string.Empty;
             roomStatus.HlsUrl = spiderResult.HlsUrl ?? string.Empty;
@@ -438,22 +421,22 @@ internal static class GlobalMonitor
             roomStatus.Headers = headers;
         }
 
-        bool isLiveStreaming = IsLiveStreaming(spiderResult);
         SyncRecordStatus(roomStatus);
+        roomStatus.StreamStatus = ResolveStreamStatus(roomStatus.StreamStatus, spiderResult.IsLiveStreaming, hasFreshStream);
+        bool isLiveStreaming = roomStatus.StreamStatus == StreamStatus.Streaming;
 
-        if (roomStatus.StreamStatus == StreamStatus.Streaming
-            && roomStatus.RecordStatus == RecordStatus.Recording
-            && (DateTime.Now - roomStatus.Recorder.StartTime).TotalSeconds < 30)
+        if (prevStreamStatus != roomStatus.StreamStatus)
         {
-        }
-        else
-        {
-            roomStatus.StreamStatus = spiderResult.IsLiveStreaming switch
+            AppSessionLogger.Event("info", "business", "room_stream_state_changed", "room stream state changed", new
             {
-                true => StreamStatus.Streaming,
-                false => StreamStatus.NotStreaming,
-                null or _ => isLiveStreaming ? StreamStatus.Streaming : StreamStatus.NotStreaming,
-            };
+                room.RoomUrl,
+                room.NickName,
+                previous = prevStreamStatus,
+                current = roomStatus.StreamStatus,
+                result = spiderResult.IsLiveStreaming,
+                hasFreshStream,
+                roomStatus.RecordStatus,
+            });
         }
 
         if (shouldRecord)
@@ -591,14 +574,11 @@ internal static class GlobalMonitor
         return true;
     }
 
-    private static bool IsLiveStreaming(ISpiderResult spiderResult)
+    private static bool HasRecordableStream(RoomStatus roomStatus)
     {
-        return spiderResult.IsLiveStreaming switch
-        {
-            true => true,
-            false => false,
-            null => HasRecordableStream(spiderResult),
-        };
+        return !string.IsNullOrWhiteSpace(roomStatus.RecordUrl)
+            || !string.IsNullOrWhiteSpace(roomStatus.HlsUrl)
+            || !string.IsNullOrWhiteSpace(roomStatus.FlvUrl);
     }
 
     private static bool HasRecordableStream(ISpiderResult spiderResult)
@@ -606,13 +586,6 @@ internal static class GlobalMonitor
         return !string.IsNullOrWhiteSpace(spiderResult.RecordUrl)
             || !string.IsNullOrWhiteSpace(spiderResult.HlsUrl)
             || !string.IsNullOrWhiteSpace(spiderResult.FlvUrl);
-    }
-
-    private static bool HasRecordableStream(RoomStatus roomStatus)
-    {
-        return !string.IsNullOrWhiteSpace(roomStatus.RecordUrl)
-            || !string.IsNullOrWhiteSpace(roomStatus.HlsUrl)
-            || !string.IsNullOrWhiteSpace(roomStatus.FlvUrl);
     }
 
     private static bool HasActiveRecorderForRoom(string roomUrl, RoomStatus current)
@@ -640,6 +613,17 @@ internal static class GlobalMonitor
                 roomStatus.PlatformName,
             });
         }
+    }
+
+    internal static StreamStatus ResolveStreamStatus(StreamStatus currentStatus, bool? isLiveStreaming, bool hasRecordableStream)
+    {
+        return isLiveStreaming switch
+        {
+            true => StreamStatus.Streaming,
+            false => StreamStatus.NotStreaming,
+            null when hasRecordableStream => StreamStatus.Streaming,
+            _ => currentStatus,
+        };
     }
 
     private static void StopRecordingBecauseDisabled(Room room, RoomStatus roomStatus)

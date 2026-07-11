@@ -1,4 +1,5 @@
 using Emerde.Core;
+using Emerde.Models;
 
 namespace Emerde.Tests;
 
@@ -155,5 +156,20 @@ public sealed class GlobalMonitorTests
             Configurations.IsToMonitor.Set(oldIsToMonitor);
             Configurations.IsMonitorRunning.Set(oldIsMonitorRunning);
         }
+    }
+
+    [Theory]
+    [InlineData(StreamStatus.Streaming, null, false, StreamStatus.Streaming)]
+    [InlineData(StreamStatus.NotStreaming, null, false, StreamStatus.NotStreaming)]
+    [InlineData(StreamStatus.NotStreaming, null, true, StreamStatus.Streaming)]
+    [InlineData(StreamStatus.Streaming, false, false, StreamStatus.NotStreaming)]
+    [InlineData(StreamStatus.NotStreaming, true, false, StreamStatus.Streaming)]
+    public void ResolveStreamStatus_OnlyExplicitOfflineOverridesConfirmedState(
+        StreamStatus currentStatus,
+        bool? isLiveStreaming,
+        bool hasRecordableStream,
+        StreamStatus expected)
+    {
+        Assert.Equal(expected, GlobalMonitor.ResolveStreamStatus(currentStatus, isLiveStreaming, hasRecordableStream));
     }
 }

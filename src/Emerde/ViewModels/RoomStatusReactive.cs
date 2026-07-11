@@ -120,6 +120,13 @@ public partial class RoomStatusReactive : ReactiveObject
     [NotifyPropertyChangedFor(nameof(StreamStatusText))]
     [NotifyPropertyChangedFor(nameof(CanPreview))]
     [NotifyPropertyChangedFor(nameof(IsStreaming))]
+    [NotifyPropertyChangedFor(nameof(LiveTitleText))]
+    [NotifyPropertyChangedFor(nameof(LiveStreamText))]
+    [NotifyPropertyChangedFor(nameof(PreviewSourceText))]
+    [NotifyPropertyChangedFor(nameof(PreviewSupportText))]
+    [NotifyPropertyChangedFor(nameof(QualityText))]
+    [NotifyPropertyChangedFor(nameof(ResolutionText))]
+    [NotifyPropertyChangedFor(nameof(BitrateText))]
     private StreamStatus streamStatus = default;
 
     [ObservableProperty]
@@ -187,17 +194,17 @@ public partial class RoomStatusReactive : ReactiveObject
         }
     }
 
-    public string LiveStreamText => string.IsNullOrWhiteSpace(PreviewUrl) ? "-" : PreviewUrl;
+    public string LiveStreamText => !IsStreaming || string.IsNullOrWhiteSpace(PreviewUrl) ? "-" : PreviewUrl;
 
     public string DanmakuSupportText => "-";
 
-    public string LiveTitleText => string.IsNullOrWhiteSpace(LiveTitle) ? string.Empty : LiveTitle;
+    public string LiveTitleText => !IsStreaming || string.IsNullOrWhiteSpace(LiveTitle) ? string.Empty : LiveTitle;
 
-    public string QualityText => StreamQualityCatalog.GetDisplayName(PlatformName, Quality, Resolution);
+    public string QualityText => IsStreaming ? StreamQualityCatalog.GetDisplayName(PlatformName, Quality, Resolution) : "-";
 
-    public string ResolutionText => string.IsNullOrWhiteSpace(Resolution) ? "-" : Resolution;
+    public string ResolutionText => !IsStreaming || string.IsNullOrWhiteSpace(Resolution) ? "-" : Resolution;
 
-    public string BitrateText => string.IsNullOrWhiteSpace(Bitrate) ? "-" : Bitrate;
+    public string BitrateText => !IsStreaming || string.IsNullOrWhiteSpace(Bitrate) ? "-" : Bitrate;
 
     public string PreviewSupportText => PreviewSourceText == "-" ? "Record / HLS / FLV" : PreviewSourceText;
 
@@ -205,6 +212,11 @@ public partial class RoomStatusReactive : ReactiveObject
     {
         get
         {
+            if (!IsStreaming)
+            {
+                return "-";
+            }
+
             if (!string.IsNullOrWhiteSpace(RecordUrl))
             {
                 return "Record";

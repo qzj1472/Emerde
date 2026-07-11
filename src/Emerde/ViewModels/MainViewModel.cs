@@ -1560,7 +1560,6 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         string? resolution = SpiderResultMetadata.GetResolution(result);
         string? bitrate = SpiderResultMetadata.GetBitrate(result);
         string? headers = SpiderResultMetadata.GetHeaders(result);
-
         if (!string.IsNullOrWhiteSpace(result.Nickname))
         {
             room.NickName = result.Nickname;
@@ -1613,16 +1612,12 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         {
             room.Headers = headers;
         }
+
         if (!string.IsNullOrWhiteSpace(result.Uid))
         {
             room.Uid = result.Uid;
         }
-        room.StreamStatus = result.IsLiveStreaming switch
-        {
-            true => StreamStatus.Streaming,
-            false => StreamStatus.NotStreaming,
-            _ => room.StreamStatus,
-        };
+        room.StreamStatus = GlobalMonitor.ResolveStreamStatus(room.StreamStatus, result.IsLiveStreaming, hasStreamUrl);
 
         RoomStatus status = GlobalMonitor.RoomStatus.GetOrAdd(room.RoomUrl, _ => new RoomStatus()
         {

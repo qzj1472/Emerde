@@ -23,6 +23,7 @@ public sealed class LivePreviewTests
     {
         RoomStatusReactive room = new()
         {
+            StreamStatus = StreamStatus.Streaming,
             FlvUrl = "https://example.test/live.flv",
             HlsUrl = "https://example.test/live.m3u8",
         };
@@ -36,6 +37,7 @@ public sealed class LivePreviewTests
     {
         RoomStatusReactive room = new()
         {
+            StreamStatus = StreamStatus.Streaming,
             RecordUrl = "https://example.test/live-record.flv",
             FlvUrl = "https://example.test/live.flv",
             HlsUrl = "https://example.test/live.m3u8",
@@ -50,6 +52,7 @@ public sealed class LivePreviewTests
     {
         RoomStatusReactive room = new()
         {
+            StreamStatus = StreamStatus.Streaming,
             FlvUrl = "https://example.test/live.flv",
             HlsUrl = "https://example.test/live.m3u8",
         };
@@ -62,6 +65,7 @@ public sealed class LivePreviewTests
     {
         RoomStatusReactive room = new()
         {
+            StreamStatus = StreamStatus.Streaming,
             FlvUrl = "https://example.test/live.flv",
         };
 
@@ -107,6 +111,27 @@ public sealed class LivePreviewTests
     }
 
     [Fact]
+    public void LiveMetadataText_HidesWhenRoomIsNotStreaming()
+    {
+        RoomStatusReactive room = new()
+        {
+            StreamStatus = StreamStatus.NotStreaming,
+            LiveTitle = "old title",
+            Quality = StreamQualityCatalog.BlueRay,
+            Resolution = "1920x1080",
+            Bitrate = "8 Mbps",
+            HlsUrl = "https://example.test/live.m3u8",
+        };
+
+        Assert.Equal(string.Empty, room.LiveTitleText);
+        Assert.Equal("-", room.LiveStreamText);
+        Assert.Equal("-", room.PreviewSourceText);
+        Assert.Equal("-", room.QualityText);
+        Assert.Equal("-", room.ResolutionText);
+        Assert.Equal("-", room.BitrateText);
+    }
+
+    [Fact]
     public void ApplyRoomInfoResult_PreservesStableIdentityAndPartialStreamData()
     {
         const string roomUrl = "https://example.test/original-room";
@@ -134,6 +159,79 @@ public sealed class LivePreviewTests
             Assert.Equal("Referer: https://example.test/", room.Headers);
             Assert.Equal("original-uid", room.Uid);
             Assert.Equal(StreamStatus.Streaming, room.StreamStatus);
+        }
+        finally
+        {
+            _ = GlobalMonitor.RoomStatus.TryRemove(roomUrl, out _);
+        }
+    }
+
+    [Fact]
+    public void ApplyRoomInfoResult_PreservesConfirmedLiveSessionWhenStatusIsUnknown()
+    {
+        const string roomUrl = "https://example.test/original-room";
+        RoomStatusReactive room = new()
+        {
+            RoomUrl = roomUrl,
+            LiveTitle = "confirmed live",
+            HlsUrl = "https://example.test/original.m3u8",
+            Headers = "Referer: https://example.test/",
+            StreamStatus = StreamStatus.Streaming,
+            RecordStatus = RecordStatus.NotRecording,
+        };
+        StreamResolverResult result = new()
+        {
+            RoomUrl = roomUrl,
+            IsLiveStreaming = null,
+        };
+
+        try
+        {
+            MainViewModel.ApplyRoomInfoResult(room, result);
+
+            Assert.Equal("confirmed live", room.LiveTitle);
+            Assert.Equal("https://example.test/original.m3u8", room.HlsUrl);
+            Assert.Equal("Referer: https://example.test/", room.Headers);
+            Assert.Equal(StreamStatus.Streaming, room.StreamStatus);
+        }
+        finally
+        {
+            _ = GlobalMonitor.RoomStatus.TryRemove(roomUrl, out _);
+        }
+    }
+
+    [Fact]
+    public void ApplyRoomInfoResult_ClearsStaleLiveDataWhenOffline()
+    {
+        const string roomUrl = "https://example.test/original-room";
+        RoomStatusReactive room = new()
+        {
+            RoomUrl = roomUrl,
+            StreamStatus = StreamStatus.Streaming,
+            LiveTitle = "old live",
+            HlsUrl = "https://example.test/old.m3u8",
+            Headers = "Referer: https://example.test/",
+            Quality = StreamQualityCatalog.BlueRay,
+            Resolution = "1920x1080",
+            Bitrate = "8 Mbps",
+        };
+        StreamResolverResult result = new()
+        {
+            IsLiveStreaming = false,
+        };
+
+        try
+        {
+            MainViewModel.ApplyRoomInfoResult(room, result);
+
+            Assert.Equal(StreamStatus.NotStreaming, room.StreamStatus);
+            Assert.Equal(string.Empty, room.LiveTitle);
+            Assert.Equal(string.Empty, room.HlsUrl);
+            Assert.Equal(string.Empty, room.Headers);
+            Assert.Equal(string.Empty, room.Quality);
+            Assert.Equal(string.Empty, room.Resolution);
+            Assert.Equal(string.Empty, room.Bitrate);
+            Assert.False(room.CanPreview);
         }
         finally
         {
