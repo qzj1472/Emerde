@@ -14,13 +14,15 @@ using Wpf.Ui.Violeta.Win32;
 
 namespace Emerde;
 
-internal class TrayIconManager
+internal sealed class TrayIconManager : IDisposable
 {
-    private static TrayIconManager _instance = null!;
+    private static TrayIconManager? _instance;
 
     private readonly TrayIconHost _icon = null!;
 
     private readonly TrayMenuItem? _itemAutoRun = null;
+
+    private bool isDisposed;
 
     public bool IsShutdownTriggered { get; private set; } = false;
 
@@ -83,21 +85,7 @@ internal class TrayIconManager
                 {
                     Header = "TrayMenuRestart".Tr(),
                     Tag = "TrayMenuRestart",
-                    Command = new RelayCommand(() =>
-                    {
-                        if (GlobalMonitor.RoomStatus.Values.ToArray().Any(roomStatus => roomStatus.RecordStatus == RecordStatus.Recording))
-                        {
-                            using DialogBlurScope blurScope = new(Application.Current.MainWindow);
-                            if (MessageBox.Question("SureOnRecording".Tr()) == MessageBoxResult.Yes)
-                            {
-                                RuntimeHelper.Restart(forced: true);
-                            }
-                        }
-                        else
-                        {
-                            RuntimeHelper.Restart(forced: true);
-                        }
-                    }),
+                    Command = new RelayCommand(() => RestartApplication()),
                 },
                 new TrayMenuItem()
                 {
@@ -164,23 +152,50 @@ internal class TrayIconManager
         _ = GetInstance();
     }
 
+    public static void Stop()
+    {
+        _instance?.Dispose();
+        _instance = null;
+    }
+
     public void ShutdownApplication()
     {
-        if (GlobalMonitor.RoomStatus.Values.ToArray().Any(roomStatus => roomStatus.RecordStatus == RecordStatus.Recording))
+        ShutdownApplication(confirmRecording: true);
+    }
+
+    public void ShutdownApplication(bool confirmRecording)
+    {
+        if (confirmRecording && !ConfirmRecordingInterruption())
         {
-            using DialogBlurScope blurScope = new(Application.Current.MainWindow);
-            if (MessageBox.Question("SureOnRecording".Tr()) != MessageBoxResult.Yes)
-            {
-                return;
-            }
+            return;
         }
 
         IsShutdownTriggered = true;
+        Dispose();
         Application.Current.Shutdown();
+    }
+
+    public void RestartApplication(bool confirmRecording = true)
+    {
+        if (confirmRecording && !ConfirmRecordingInterruption())
+        {
+            return;
+        }
+
+        _ = RuntimeHelper.Restart(forced: true, beforeExit: () =>
+        {
+            IsShutdownTriggered = true;
+            Dispose();
+        });
     }
 
     public void UpdateTrayIcon()
     {
+        if (isDisposed)
+        {
+            return;
+        }
+
         _icon.Icon = GetTrayIcon();
 
         static nint GetTrayIcon()
@@ -205,6 +220,28 @@ internal class TrayIconManager
             }
             return Icon.ExtractAssociatedIcon(Process.GetCurrentProcess().MainModule?.FileName!)!.Handle;
         }
+    }
+
+    public void Dispose()
+    {
+        if (isDisposed)
+        {
+            return;
+        }
+
+        isDisposed = true;
+        _icon.Dispose();
+    }
+
+    private static bool ConfirmRecordingInterruption()
+    {
+        if (!GlobalMonitor.RoomStatus.Values.ToArray().Any(roomStatus => roomStatus.RecordStatus == RecordStatus.Recording))
+        {
+            return true;
+        }
+
+        using DialogBlurScope blurScope = new(Application.Current.MainWindow);
+        return MessageBox.Question("SureOnRecording".Tr()) == MessageBoxResult.Yes;
     }
 
     /// <summary>

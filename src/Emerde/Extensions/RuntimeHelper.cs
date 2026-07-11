@@ -50,7 +50,7 @@ internal static class RuntimeHelper
         return string.Join(" ", args);
     }
 
-    public static void Restart(string fileName = null!, string dir = null!, string args = null!, int? exitCode = null, bool forced = false)
+    public static bool Restart(string fileName = null!, string dir = null!, string args = null!, int? exitCode = null, bool forced = false, Action? beforeExit = null)
     {
         _ = args;
 
@@ -69,13 +69,16 @@ internal static class RuntimeHelper
         }
         catch (Win32Exception)
         {
-            return;
+            return false;
         }
+
+        beforeExit?.Invoke();
         if (forced)
         {
             Process.GetCurrentProcess().Kill();
         }
         Environment.Exit(exitCode ?? 'r' + 'e' + 's' + 't' + 'a' + 'r' + 't');
+        return true;
 
         static string GetExecutablePath()
         {

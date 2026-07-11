@@ -40,4 +40,22 @@ public sealed class LogSanitizerTests
         Assert.Equal("[redacted]", sanitized?["headers"]?.GetValue<string>());
         Assert.Equal("https://room.example/123?[redacted]", sanitized?["room"]?["url"]?.GetValue<string>());
     }
+
+    [Fact]
+    public void SanitizeData_SanitizesStringValuesInsideArrays()
+    {
+        JsonSerializerOptions options = new();
+
+        JsonNode? sanitized = LogSanitizer.SanitizeData(new
+        {
+            values = new[]
+            {
+                "https://media.example/live.m3u8?token=secret",
+                "plain",
+            },
+        }, options);
+
+        Assert.Equal("https://media.example/live.m3u8?[redacted]", sanitized?["values"]?[0]?.GetValue<string>());
+        Assert.Equal("plain", sanitized?["values"]?[1]?.GetValue<string>());
+    }
 }

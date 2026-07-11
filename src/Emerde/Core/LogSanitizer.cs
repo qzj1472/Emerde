@@ -53,7 +53,7 @@ internal static partial class LogSanitizer
 
         if (node is JsonArray jsonArray)
         {
-            foreach (JsonNode? item in jsonArray)
+            foreach (JsonNode? item in jsonArray.ToArray())
             {
                 SanitizeNode(item);
             }

@@ -38,6 +38,31 @@ public partial class App : Application
             ExceptionReport.Show(e.Exception);
         };
 
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            if (e.ExceptionObject is Exception exception)
+            {
+                AppSessionLogger.Event("fatal", "exception", exception.GetType().Name, exception.Message, new
+                {
+                    type = exception.GetType().FullName,
+                    exception.Message,
+                    stackTrace = exception.ToString(),
+                    e.IsTerminating,
+                });
+            }
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            AppSessionLogger.Event("error", "exception", "unobserved_task_exception", e.Exception.Message, new
+            {
+                type = e.Exception.GetType().FullName,
+                e.Exception.Message,
+                stackTrace = e.Exception.ToString(),
+            });
+            e.SetObserved();
+        };
+
         if (Enum.TryParse(Configurations.Theme.Get(), out ApplicationTheme applicationTheme))
         {
             ThemeManager.Apply(applicationTheme);
@@ -68,6 +93,7 @@ public partial class App : Application
     /// </summary>
     protected override void OnExit(ExitEventArgs e)
     {
+        TrayIconManager.Stop();
         GlobalMonitor.Stop();
         GlobalMonitor.StopAllRecorders();
         RuntimeResourceLogger.Stop();
