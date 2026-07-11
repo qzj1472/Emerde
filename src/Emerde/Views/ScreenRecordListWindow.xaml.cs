@@ -59,7 +59,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     private readonly ObservableCollection<RecordedVideoItem> videos = [];
     private readonly SemaphoreSlim thumbnailLoadSemaphore = new(Math.Clamp(Environment.ProcessorCount, 2, 4));
-    private CancellationTokenSource? thumbnailLoadCancellationTokenSource;
+    private CancellationTokenSource? videoLoadCancellationTokenSource;
 
     public ICollectionView Videos { get; }
     public ObservableCollection<string> StreamerOptions { get; } = [AllStreamerOption];
@@ -574,23 +574,40 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     private async Task LoadVideosFromFolderAsync(string folder, bool replace)
     {
-        thumbnailLoadCancellationTokenSource?.Cancel();
-        thumbnailLoadCancellationTokenSource?.Dispose();
-        thumbnailLoadCancellationTokenSource = new CancellationTokenSource();
-        CancellationToken thumbnailToken = thumbnailLoadCancellationTokenSource.Token;
+        videoLoadCancellationTokenSource?.Cancel();
+        videoLoadCancellationTokenSource?.Dispose();
+        videoLoadCancellationTokenSource = new CancellationTokenSource();
+        CancellationToken loadToken = videoLoadCancellationTokenSource.Token;
 
         if (!Directory.Exists(folder))
         {
             Directory.CreateDirectory(folder);
         }
 
-        RecordedVideoItem[] items = await Task.Run(() =>
+        RecordedVideoItem[] items;
+        try
         {
-            return Directory.EnumerateFiles(folder, "*.*", System.IO.SearchOption.AllDirectories)
-                .Where(path => VideoExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
-                .Select(path => CreateRecordedVideoItem(path, folder))
-                .ToArray();
-        });
+            items = await Task.Run(() =>
+            {
+                return Directory.EnumerateFiles(folder, "*.*", System.IO.SearchOption.AllDirectories)
+                    .Where(path => VideoExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+                    .Select(path =>
+                    {
+                        loadToken.ThrowIfCancellationRequested();
+                        return CreateRecordedVideoItem(path, folder);
+                    })
+                    .ToArray();
+            }, loadToken);
+        }
+        catch (OperationCanceledException) when (loadToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        if (loadToken.IsCancellationRequested)
+        {
+            return;
+        }
 
         if (replace)
         {
@@ -613,7 +630,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         ApplySort();
         ApplyFilters();
         RefreshSelectionSummary();
-        QueueThumbnailLoading(videos.ToArray(), thumbnailToken);
+        QueueThumbnailLoading(videos.ToArray(), loadToken);
     }
 
     private static RecordedVideoItem CreateRecordedVideoItem(string path, string rootFolder)
