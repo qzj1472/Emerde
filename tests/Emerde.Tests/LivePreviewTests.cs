@@ -238,4 +238,14 @@ public sealed class LivePreviewTests
             _ = GlobalMonitor.RoomStatus.TryRemove(roomUrl, out _);
         }
     }
+
+    [Theory]
+    [InlineData(0x0100)]
+    [InlineData(0x0104)]
+    public void IsPreviewFullScreenExitMessage_AcceptsEscapeFromNativeChildWindow(int message)
+    {
+        Assert.True(MainWindow.IsPreviewFullScreenExitMessage(true, message, new IntPtr(0x1B)));
+        Assert.False(MainWindow.IsPreviewFullScreenExitMessage(false, message, new IntPtr(0x1B)));
+        Assert.False(MainWindow.IsPreviewFullScreenExitMessage(true, message, new IntPtr(0x0D)));
+    }
 }

@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
@@ -263,6 +264,7 @@ public partial class MainWindow : FluentWindow
         UpdateHomePreviewLayout();
         ViewModel.PropertyChanged += ViewModelPropertyChanged;
         PreviewKeyDown += MainWindowPreviewKeyDown;
+        ComponentDispatcher.ThreadPreprocessMessage += MainWindowThreadPreprocessMessage;
         AppSessionLogger.Write($"perf MainWindow initialized in {stopwatch.ElapsedMilliseconds} ms");
         Loaded += (_, _) =>
         {
@@ -291,6 +293,7 @@ public partial class MainWindow : FluentWindow
     protected override void OnClosed(EventArgs e)
     {
         PreviewKeyDown -= MainWindowPreviewKeyDown;
+        ComponentDispatcher.ThreadPreprocessMessage -= MainWindowThreadPreprocessMessage;
         ViewModel.PropertyChanged -= ViewModelPropertyChanged;
         base.OnClosed(e);
     }
@@ -304,6 +307,24 @@ public partial class MainWindow : FluentWindow
 
         ExitPreviewFullScreen();
         e.Handled = true;
+    }
+
+    private void MainWindowThreadPreprocessMessage(ref System.Windows.Interop.MSG msg, ref bool handled)
+    {
+        if (!IsPreviewFullScreenExitMessage(isPreviewFullScreen, msg.message, msg.wParam))
+        {
+            return;
+        }
+
+        ExitPreviewFullScreen();
+        handled = true;
+    }
+
+    internal static bool IsPreviewFullScreenExitMessage(bool isFullScreen, int message, IntPtr key)
+    {
+        return isFullScreen
+            && message is 0x0100 or 0x0104
+            && key == new IntPtr(0x1B);
     }
 
     private void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
