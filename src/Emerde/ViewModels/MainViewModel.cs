@@ -500,18 +500,23 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             await previewTransitionGate.WaitAsync(cancellation.Token);
             enteredGate = true;
             cancellation.Token.ThrowIfCancellationRequested();
+            await livePreviewPlayer.StopAsync();
 
             if (targetRoom == null)
             {
-                await livePreviewPlayer.StopAsync();
                 return;
             }
 
+            previewTransitionGate.Release();
+            enteredGate = false;
             await RefreshPreviewStreamQualityAsync(targetRoom, cancellation.Token);
+            cancellation.Token.ThrowIfCancellationRequested();
+
+            await previewTransitionGate.WaitAsync(cancellation.Token);
+            enteredGate = true;
             cancellation.Token.ThrowIfCancellationRequested();
             if (!targetRoom.CanPreview)
             {
-                await livePreviewPlayer.StopAsync();
                 ApplyPreviewClosedState();
                 LivePreviewStatus = LivePreviewStatus.Unavailable;
                 Toast.Warning("LivePreviewUnavailable".Tr());
@@ -522,7 +527,6 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             string previewUrl = GetPreviewPlaybackUrl(targetRoom);
             if (string.IsNullOrWhiteSpace(previewUrl))
             {
-                await livePreviewPlayer.StopAsync();
                 ApplyPreviewClosedState();
                 LivePreviewStatus = LivePreviewStatus.Unavailable;
                 Toast.Warning("LivePreviewUnavailable".Tr());
