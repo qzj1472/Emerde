@@ -132,12 +132,12 @@
             <Grid x:Name="PreviewViewport"
                   Grid.Row="1"
                   MinHeight="180"
-                  Background="#101010"
+                  Background="#1B2023"
                   ClipToBounds="True">
                 <Grid x:Name="VideoSurface"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Center"
-                      Background="#080808">
+                      Background="#1B2023">
                     <Grid x:Name="PreviewOverlayRoot"
                           HorizontalAlignment="Stretch"
                           VerticalAlignment="Stretch"
