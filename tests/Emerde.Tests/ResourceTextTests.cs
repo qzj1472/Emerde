@@ -114,6 +114,7 @@ public sealed class ResourceTextTests
             "SplitFailed", "SelectAtLeastTwoVideos", "MergeFormatsMustMatch", "MergingVideos", "MergeComplete",
             "MergeFailed", "ConfirmDeleteVideos", "MovingVideos", "CopyingVideos", "StreamerChip",
             "ResolutionChip", "BitrateChip", "QualityLabel", "QualitySelectionHint",
+            "PreviewPause", "PreviewMute", "PreviewUnmute", "PreviewFullScreen", "PreviewRestore",
         ];
 
         foreach (string key in keys)
@@ -131,7 +132,8 @@ public sealed class ResourceTextTests
             "MoveButton", "CopyButton", "SelectAll", "InvertSelection", "MultiSelect",
             "StreamerLabel", "TimeRangeLabel", "OpenVideo", "TranscodeVideo", "SplitButton",
             "SplitVideo", "SplitInterval", "Minutes", "Seconds", "Hours", "StartButton",
-            "QualityLabel", "QualitySelectionHint",
+            "QualityLabel", "QualitySelectionHint", "PreviewPause", "PreviewMute", "PreviewUnmute",
+            "PreviewFullScreen", "PreviewRestore",
         ];
 
         foreach (string key in keys)

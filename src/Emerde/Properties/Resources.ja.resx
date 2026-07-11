@@ -714,4 +714,9 @@
   <data name="BitrateChip" xml:space="preserve"><value>ビットレート {0}</value></data>
   <data name="QualityLabel" xml:space="preserve"><value>画質</value></data>
   <data name="QualitySelectionHint" xml:space="preserve"><value>対応プラットフォームでは選択した画質を使用し、その他では利用可能な最高画質を使用します。</value></data>
+  <data name="PreviewPause" xml:space="preserve"><value>一時停止</value></data>
+  <data name="PreviewMute" xml:space="preserve"><value>ミュート</value></data>
+  <data name="PreviewUnmute" xml:space="preserve"><value>ミュート解除</value></data>
+  <data name="PreviewFullScreen" xml:space="preserve"><value>全画面</value></data>
+  <data name="PreviewRestore" xml:space="preserve"><value>全画面を終了</value></data>
 </root>

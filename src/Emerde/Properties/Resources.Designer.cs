@@ -1753,5 +1753,25 @@ namespace Emerde.Properties {
         public static string QualitySelectionHint {
             get { return ResourceManager.GetString("QualitySelectionHint", resourceCulture); }
         }
+
+        public static string PreviewPause {
+            get { return ResourceManager.GetString("PreviewPause", resourceCulture); }
+        }
+
+        public static string PreviewMute {
+            get { return ResourceManager.GetString("PreviewMute", resourceCulture); }
+        }
+
+        public static string PreviewUnmute {
+            get { return ResourceManager.GetString("PreviewUnmute", resourceCulture); }
+        }
+
+        public static string PreviewFullScreen {
+            get { return ResourceManager.GetString("PreviewFullScreen", resourceCulture); }
+        }
+
+        public static string PreviewRestore {
+            get { return ResourceManager.GetString("PreviewRestore", resourceCulture); }
+        }
     }
 }

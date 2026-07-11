@@ -7,11 +7,11 @@
              xmlns:vio="http://schemas.lepo.co/wpfui/2022/xaml/violeta">
     <UserControl.Resources>
         <Style x:Key="PreviewControlButtonStyle" TargetType="{x:Type Button}">
-            <Setter Property="Width" Value="34" />
-            <Setter Property="Height" Value="34" />
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="32" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Background" Value="#2EFFFFFF" />
+            <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="White" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -29,7 +29,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ButtonChrome" Property="Background" Value="#42FFFFFF" />
+                                <Setter TargetName="ButtonChrome" Property="Background" Value="#28FFFFFF" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="ButtonChrome" Property="Background" Value="#55FFFFFF" />
@@ -151,20 +151,28 @@
                                 MouseMove="PreviewViewport_OnMouseActivity" />
                         <Border x:Name="PreviewControls"
                                 Panel.ZIndex="1"
-                                Margin="0,0,0,16"
-                                Padding="6"
-                                HorizontalAlignment="Center"
+                                Margin="12"
+                                Padding="8,6"
+                                HorizontalAlignment="Stretch"
                                 VerticalAlignment="Bottom"
-                                Background="#B8000000"
+                                Background="#D0111111"
                                 CornerRadius="{StaticResource Win11ControlCornerRadius}"
                                 IsHitTestVisible="False"
                                 Opacity="0"
                                 MouseEnter="PreviewControls_OnMouseEnter"
                                 MouseLeave="PreviewControls_OnMouseLeave">
-                            <ui:StackPanel Orientation="Horizontal" Spacing="6">
-                                <Button Style="{StaticResource PreviewControlButtonStyle}"
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0"
+                                        Style="{StaticResource PreviewControlButtonStyle}"
                                         Command="{Binding TogglePreviewPauseCommand}"
-                                        IsEnabled="{Binding PreviewingRoom.CanPreview}">
+                                        IsEnabled="{Binding PreviewingRoom.CanPreview}"
+                                        ToolTip="{Binding PreviewPlaybackToolTip}">
                                     <ContentControl>
                                         <c:If Condition="{Binding IsPreviewPlaying}">
                                             <c:If.TrueValue>
@@ -185,8 +193,11 @@
                                         </c:If>
                                     </ContentControl>
                                 </Button>
-                                <Button Style="{StaticResource PreviewControlButtonStyle}"
-                                        Command="{Binding TogglePreviewMuteCommand}">
+                                <Button Grid.Column="1"
+                                        Margin="4,0,0,0"
+                                        Style="{StaticResource PreviewControlButtonStyle}"
+                                        Command="{Binding TogglePreviewMuteCommand}"
+                                        ToolTip="{Binding PreviewMuteToolTip}">
                                     <ContentControl>
                                         <c:If Condition="{Binding IsPreviewMuted}">
                                             <c:If.TrueValue>
@@ -208,7 +219,29 @@
                                         </c:If>
                                     </ContentControl>
                                 </Button>
+                                <ui:StackPanel Grid.Column="2"
+                                               Margin="12,0"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Orientation="Horizontal"
+                                               Spacing="7">
+                                    <TextBlock VerticalAlignment="Center"
+                                               FontSize="12"
+                                               Foreground="White"
+                                               Text="{Binding LivePreviewStatusText}" />
+                                    <TextBlock VerticalAlignment="Center"
+                                               FontSize="12"
+                                               Foreground="#AFFFFFFF"
+                                               Text="·" />
+                                    <TextBlock MaxWidth="180"
+                                               VerticalAlignment="Center"
+                                               FontSize="12"
+                                               Foreground="#AFFFFFFF"
+                                               Text="{Binding PreviewingRoom.PreviewSourceText, Mode=OneWay}"
+                                               TextTrimming="CharacterEllipsis" />
+                                </ui:StackPanel>
                                 <Button x:Name="WindowSizeButton"
+                                        Grid.Column="3"
                                         Style="{StaticResource PreviewControlButtonStyle}"
                                         Click="ToggleWindowSize_OnClick">
                                     <Grid>
@@ -224,18 +257,7 @@
                                         </Viewbox>
                                     </Grid>
                                 </Button>
-                                <Button x:Name="OpenRoomButton"
-                                        Style="{StaticResource PreviewControlButtonStyle}"
-                                        Command="{Binding GotoRoomUrlCommand}"
-                                        CommandParameter="{Binding PreviewingRoom}"
-                                        Visibility="Collapsed">
-                                    <Viewbox Width="16" Height="16" Stretch="Uniform">
-                                        <Canvas Width="24" Height="24">
-                                            <Path Data="M5,6 L5,19 L18,19 L18,14 M12,5 L19,5 L19,12 M11,13 L19,5" Stroke="White" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent" />
-                                        </Canvas>
-                                    </Viewbox>
-                                </Button>
-                            </ui:StackPanel>
+                            </Grid>
                         </Border>
                     </Grid>
                 </Grid>

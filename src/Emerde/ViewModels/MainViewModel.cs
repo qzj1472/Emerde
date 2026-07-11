@@ -139,6 +139,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPreviewIdle))]
     [NotifyPropertyChangedFor(nameof(IsPreviewPlaying))]
+    [NotifyPropertyChangedFor(nameof(PreviewPlaybackToolTip))]
     private bool isPreviewing = false;
 
     [ObservableProperty]
@@ -148,10 +149,12 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private bool isPreviewDetached = false;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PreviewMuteToolTip))]
     private bool isPreviewMuted = true;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPreviewPlaying))]
+    [NotifyPropertyChangedFor(nameof(PreviewPlaybackToolTip))]
     private bool isPreviewPaused = false;
 
     [ObservableProperty]
@@ -168,6 +171,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     public bool IsPreviewPlaying => IsPreviewing && !IsPreviewPaused;
 
     public bool CanPreviewSelectedRoom => SelectedItem?.CanPreview ?? false;
+
+    public string PreviewPlaybackToolTip => IsPreviewPlaying ? "PreviewPause".Tr() : "ButtonOfPlay".Tr();
+
+    public string PreviewMuteToolTip => IsPreviewMuted ? "PreviewUnmute".Tr() : "PreviewMute".Tr();
 
     public string LivePreviewStatusText => LivePreviewStatus switch
     {
@@ -339,6 +346,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 roomStatusReactive.RefreshStatus();
             }
             OnPropertyChanged(nameof(PlatformSummaryText));
+            OnPropertyChanged(nameof(PreviewPlaybackToolTip));
+            OnPropertyChanged(nameof(PreviewMuteToolTip));
             if (!IsNetworkCapacityTesting && NetworkCapacityText == "NetworkCapacityIdle".Tr())
             {
                 NetworkCapacityText = "NetworkCapacityIdle".Tr();
