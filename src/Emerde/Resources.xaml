@@ -29,6 +29,7 @@
     <SolidColorBrush x:Key="EmerdeSurfaceBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="EmerdePanelBrush" Color="#F8F8F8" />
     <SolidColorBrush x:Key="EmerdeCardBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="EmerdePreviewCanvasBrush" Color="#E8ECEF" />
     <SolidColorBrush x:Key="ControlElevationBorderBrush" Color="#24000000" />
     <SolidColorBrush x:Key="CircleElevationBorderBrush" Color="#24000000" />
     <SolidColorBrush x:Key="AccentControlElevationBorderBrush" Color="Transparent" />
