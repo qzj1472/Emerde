@@ -648,6 +648,16 @@ public partial class MainWindow : FluentWindow
 
     internal bool IsPreviewFullScreenActive => isPreviewFullScreen;
 
+    internal void PrepareForTrayHide()
+    {
+        if (isPreviewFullScreen)
+        {
+            ExitPreviewFullScreen();
+        }
+
+        HomePreviewPanel.HidePreviewControlsImmediately();
+    }
+
     private void EnterPreviewFullScreen()
     {
         if (!ViewModel.IsPreviewing)
@@ -1168,6 +1178,7 @@ public partial class MainWindow : FluentWindow
         if (!TrayIconManager.GetInstance().IsShutdownTriggered)
         {
             e.Cancel = true;
+            PrepareForTrayHide();
             Hide();
 
             if (!Configurations.IsOffRemindCloseToTray.Get())

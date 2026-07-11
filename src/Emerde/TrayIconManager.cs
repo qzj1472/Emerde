@@ -118,6 +118,11 @@ internal class TrayIconManager
         {
             if (Application.Current.MainWindow.IsVisible)
             {
+                if (Application.Current.MainWindow is MainWindow mainWindow)
+                {
+                    mainWindow.PrepareForTrayHide();
+                }
+
                 Application.Current.MainWindow.Hide();
             }
             else
