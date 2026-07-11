@@ -130,7 +130,7 @@
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    Text="{Binding SelectedVideoSummary}" />
                         <Button Command="{Binding MergeSelectedCommand}"
-                                IsEnabled="{Binding HasSelectedVideos}"
+                                IsEnabled="{Binding CanMergeSelectedVideos}"
                                 Style="{StaticResource VideoListIconButtonStyle}"
                                 ToolTip="合并">
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"

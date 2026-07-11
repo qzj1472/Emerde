@@ -131,6 +131,8 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     public bool HasSelectedVideos => SelectedVideoCount > 0;
 
+    public bool CanMergeSelectedVideos => SelectedVideoCount >= 2;
+
     public string SelectedVideoSummary => $"已选 {SelectedVideoCount} 个";
 
     public bool IsModalOpen => IsSplitPanelOpen;
@@ -273,21 +275,34 @@ public partial class ScreenRecordListViewModel : ObservableObject
     [RelayCommand]
     private async Task TranscodeVideoAsync(RecordedVideoItem? item)
     {
-        if (item == null || !item.CanTranscode)
+        if (item == null || !item.CanTranscode || IsOperating)
         {
             return;
         }
 
-        bool converted = await new Converter().ExecuteAsync(item.FullPath, ".mp4");
-        if (converted)
+        IsOperating = true;
+        OperationProgressText = "正在转码...";
+        OnPropertyChanged(nameof(IsIdle));
+
+        try
         {
-            Toast.Success("转码完成");
+            bool converted = await new Converter().ExecuteAsync(item.FullPath, ".mp4");
+            if (converted)
+            {
+                Toast.Success("转码完成");
+            }
+            else
+            {
+                Toast.Warning("转码失败");
+            }
+            await RefreshAsync();
         }
-        else
+        finally
         {
-            Toast.Warning("转码失败");
+            IsOperating = false;
+            OperationProgressText = string.Empty;
+            OnPropertyChanged(nameof(IsIdle));
         }
-        await RefreshAsync();
     }
 
     [RelayCommand]
@@ -360,6 +375,11 @@ public partial class ScreenRecordListViewModel : ObservableObject
     [RelayCommand]
     private async Task MergeSelectedAsync()
     {
+        if (IsOperating)
+        {
+            return;
+        }
+
         RecordedVideoItem[] selected = GetSelectedVideos()
             .OrderBy(video => video.CreatedAt)
             .ToArray();
@@ -367,6 +387,15 @@ public partial class ScreenRecordListViewModel : ObservableObject
         if (selected.Length < 2)
         {
             Toast.Warning("至少选择 2 个视频");
+            return;
+        }
+
+        if (selected.Select(video => Path.GetExtension(video.FullPath))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Skip(1)
+            .Any())
+        {
+            Toast.Warning("只能合并相同格式的视频");
             return;
         }
 
@@ -421,6 +450,11 @@ public partial class ScreenRecordListViewModel : ObservableObject
     [RelayCommand]
     private async Task DeleteSelectedAsync()
     {
+        if (IsOperating)
+        {
+            return;
+        }
+
         RecordedVideoItem[] selected = GetSelectedVideos();
         if (selected.Length == 0)
         {
@@ -469,6 +503,11 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     private async Task CopyOrMoveSelectedAsync(bool move)
     {
+        if (IsOperating)
+        {
+            return;
+        }
+
         RecordedVideoItem[] selected = GetSelectedVideos();
         if (selected.Length == 0)
         {
@@ -485,27 +524,43 @@ public partial class ScreenRecordListViewModel : ObservableObject
             return;
         }
 
-        foreach (RecordedVideoItem item in selected)
-        {
-            try
-            {
-                string targetPath = Path.Combine(dialog.FileName, item.FileName);
-                if (move)
-                {
-                    File.Move(item.FullPath, targetPath, overwrite: true);
-                }
-                else
-                {
-                    File.Copy(item.FullPath, targetPath, overwrite: true);
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.WriteLine(e);
-            }
-        }
+        IsOperating = true;
+        OperationProgressText = move ? "正在移动..." : "正在复制...";
+        OnPropertyChanged(nameof(IsIdle));
 
-        await RefreshAsync();
+        try
+        {
+            foreach (RecordedVideoItem item in selected)
+            {
+                try
+                {
+                    string targetPath = Path.Combine(dialog.FileName, item.FileName);
+                    await Task.Run(() =>
+                    {
+                        if (move)
+                        {
+                            File.Move(item.FullPath, targetPath, overwrite: true);
+                        }
+                        else
+                        {
+                            File.Copy(item.FullPath, targetPath, overwrite: true);
+                        }
+                    });
+                }
+                catch (Exception e)
+                {
+                    Debug.WriteLine(e);
+                }
+            }
+
+            await RefreshAsync();
+        }
+        finally
+        {
+            IsOperating = false;
+            OperationProgressText = string.Empty;
+            OnPropertyChanged(nameof(IsIdle));
+        }
     }
 
     private async Task LoadVideosFromFolderAsync(string folder, bool replace)
@@ -1125,6 +1180,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedVideoCount));
         OnPropertyChanged(nameof(SelectedVideoSummary));
         OnPropertyChanged(nameof(HasSelectedVideos));
+        OnPropertyChanged(nameof(CanMergeSelectedVideos));
     }
 
     private RecordedVideoItem[] GetSelectedVideos()
@@ -1134,20 +1190,32 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     private bool TryGetSplitDurationSeconds(out int seconds)
     {
+        return TryConvertSplitDurationSeconds(SplitDurationValue, SplitDurationUnitIndex, out seconds);
+    }
+
+    internal static bool TryConvertSplitDurationSeconds(string? valueText, int unitIndex, out int seconds)
+    {
         seconds = 0;
-        if (!double.TryParse(SplitDurationValue, out double value) || value <= 0)
+        if (!double.TryParse(valueText, NumberStyles.Float, CultureInfo.CurrentCulture, out double value)
+            || !double.IsFinite(value)
+            || value <= 0)
         {
             return false;
         }
 
-        seconds = SplitDurationUnitIndex switch
+        double multiplier = unitIndex switch
         {
-            1 => (int)Math.Round(value),
-            2 => (int)Math.Round(value * 3600d),
-            0 or _ => (int)Math.Round(value * 60d),
+            1 => 1d,
+            2 => 3600d,
+            0 or _ => 60d,
         };
+        double totalSeconds = Math.Round(value * multiplier, MidpointRounding.AwayFromZero);
+        if (!double.IsFinite(totalSeconds) || totalSeconds < 1d || totalSeconds > int.MaxValue)
+        {
+            return false;
+        }
 
-        seconds = Math.Max(1, seconds);
+        seconds = (int)totalSeconds;
         return true;
     }
 

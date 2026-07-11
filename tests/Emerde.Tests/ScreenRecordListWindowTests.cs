@@ -254,4 +254,24 @@ public sealed class ScreenRecordListWindowTests
             }
         }
     }
+
+    [Theory]
+    [InlineData("30", 0, 1800)]
+    [InlineData("30", 1, 30)]
+    [InlineData("2", 2, 7200)]
+    public void TryConvertSplitDurationSeconds_ConvertsValidValues(string value, int unitIndex, int expected)
+    {
+        Assert.True(ScreenRecordListViewModel.TryConvertSplitDurationSeconds(value, unitIndex, out int seconds));
+        Assert.Equal(expected, seconds);
+    }
+
+    [Theory]
+    [InlineData("NaN", 0)]
+    [InlineData("Infinity", 0)]
+    [InlineData("-1", 0)]
+    [InlineData("999999999999", 2)]
+    public void TryConvertSplitDurationSeconds_RejectsInvalidValues(string value, int unitIndex)
+    {
+        Assert.False(ScreenRecordListViewModel.TryConvertSplitDurationSeconds(value, unitIndex, out _));
+    }
 }
