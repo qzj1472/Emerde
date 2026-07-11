@@ -274,4 +274,39 @@ public sealed class ScreenRecordListWindowTests
     {
         Assert.False(ScreenRecordListViewModel.TryConvertSplitDurationSeconds(value, unitIndex, out _));
     }
+
+    [Fact]
+    public void CopyAssociatedMetadata_PreservesSharedSegmentMetadata()
+    {
+        string sourceRoot = Path.Combine(Path.GetTempPath(), $"emerde-source-{Guid.NewGuid():N}");
+        string targetRoot = Path.Combine(Path.GetTempPath(), $"emerde-target-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(sourceRoot);
+        Directory.CreateDirectory(targetRoot);
+        string sourceVideo = Path.Combine(sourceRoot, "Host_2026-07-03_12-34-56_1000.ts");
+        string sourceMetadata = Path.Combine(sourceRoot, "Host_2026-07-03_12-34-56.mplr.json");
+        string targetVideo = Path.Combine(targetRoot, Path.GetFileName(sourceVideo));
+        string targetMetadata = Path.Combine(targetRoot, Path.GetFileName(sourceMetadata));
+
+        try
+        {
+            File.WriteAllText(sourceVideo, string.Empty);
+            File.WriteAllText(sourceMetadata, "{\"NickName\":\"Host\"}");
+
+            ScreenRecordListViewModel.CopyAssociatedMetadata(sourceVideo, targetVideo);
+
+            Assert.True(File.Exists(targetMetadata));
+            Assert.Equal(File.ReadAllText(sourceMetadata), File.ReadAllText(targetMetadata));
+        }
+        finally
+        {
+            if (Directory.Exists(sourceRoot))
+            {
+                Directory.Delete(sourceRoot, recursive: true);
+            }
+            if (Directory.Exists(targetRoot))
+            {
+                Directory.Delete(targetRoot, recursive: true);
+            }
+        }
+    }
 }

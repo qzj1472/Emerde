@@ -478,6 +478,8 @@ public partial class ScreenRecordListViewModel : ObservableObject
                 if (File.Exists(item.FullPath))
                 {
                     FileSystem.DeleteFile(item.FullPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
+                    VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(item.FullPath);
+                    DeleteThumbnailCache(item.FullPath);
                 }
             }
             catch (Exception e)
@@ -544,6 +546,13 @@ public partial class ScreenRecordListViewModel : ObservableObject
                         else
                         {
                             File.Copy(item.FullPath, targetPath, overwrite: true);
+                        }
+
+                        CopyAssociatedMetadata(item.FullPath, targetPath);
+                        if (move)
+                        {
+                            VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(item.FullPath);
+                            DeleteThumbnailCache(item.FullPath);
                         }
                     });
                 }
@@ -1045,6 +1054,36 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
         string cachePath = GetThumbnailCachePath(filePath);
         return File.Exists(cachePath) && new FileInfo(cachePath).Length > 0 ? cachePath : string.Empty;
+    }
+
+    internal static void CopyAssociatedMetadata(string sourceFilePath, string targetFilePath)
+    {
+        FileInfo source = new(sourceFilePath);
+        string[] sourceCandidates = VideoRecordingMetadataStore.GetMetadataCandidates(source).ToArray();
+        int sourceIndex = Array.FindIndex(sourceCandidates, File.Exists);
+        if (sourceIndex < 0)
+        {
+            return;
+        }
+
+        string[] targetCandidates = VideoRecordingMetadataStore.GetMetadataCandidates(new FileInfo(targetFilePath)).ToArray();
+        if (targetCandidates.Length == 0)
+        {
+            return;
+        }
+
+        string targetMetadataPath = targetCandidates[Math.Min(sourceIndex, targetCandidates.Length - 1)];
+        Directory.CreateDirectory(Path.GetDirectoryName(targetMetadataPath) ?? Environment.CurrentDirectory);
+        File.Copy(sourceCandidates[sourceIndex], targetMetadataPath, overwrite: true);
+    }
+
+    private static void DeleteThumbnailCache(string filePath)
+    {
+        string cachePath = GetThumbnailCachePath(filePath);
+        if (File.Exists(cachePath))
+        {
+            File.Delete(cachePath);
+        }
     }
 
     internal static string InferNickName(string filePath, string rootFolder)
