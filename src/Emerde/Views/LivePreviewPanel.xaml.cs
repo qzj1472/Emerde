@@ -28,7 +28,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     private System.Windows.Thickness normalPanelPadding;
     private System.Windows.Thickness normalPanelBorderThickness;
     private System.Windows.CornerRadius normalPanelCornerRadius;
-    private System.Windows.GridLength normalPlayerHeaderHeight;
     private LibVLCSharp.WPF.VideoView? previewVideoView;
 
     public bool IsEmbeddedMode
@@ -58,7 +57,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         normalPanelPadding = PanelChrome.Padding;
         normalPanelBorderThickness = PanelChrome.BorderThickness;
         normalPanelCornerRadius = PanelChrome.CornerRadius;
-        normalPlayerHeaderHeight = ((System.Windows.Controls.Grid)PanelChrome.Child).RowDefinitions[0].Height;
         Loaded += (_, _) =>
         {
             ApplyChromeState();
@@ -537,7 +535,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
 
     private void ApplyChromeState()
     {
-        System.Windows.Controls.Grid rootGrid = (System.Windows.Controls.Grid)PanelChrome.Child;
         bool compact = isFullScreen;
 
         if (compact)
@@ -548,8 +545,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             VideoSurface.Background = System.Windows.Media.Brushes.Black;
             PanelChrome.BorderThickness = new System.Windows.Thickness(0);
             PanelChrome.CornerRadius = isFullScreen ? new System.Windows.CornerRadius(0) : normalPanelCornerRadius;
-            PlayerHeader.Visibility = System.Windows.Visibility.Collapsed;
-            rootGrid.RowDefinitions[0].Height = new System.Windows.GridLength(0);
         }
         else
         {
@@ -559,8 +554,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             VideoSurface.Background = System.Windows.Media.Brushes.Transparent;
             PanelChrome.BorderThickness = normalPanelBorderThickness;
             PanelChrome.CornerRadius = normalPanelCornerRadius;
-            PlayerHeader.Visibility = System.Windows.Visibility.Visible;
-            rootGrid.RowDefinitions[0].Height = normalPlayerHeaderHeight;
         }
 
         UpdateVideoSurfaceSize();
