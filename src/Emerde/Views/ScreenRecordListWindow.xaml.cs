@@ -826,7 +826,13 @@ public partial class ScreenRecordListViewModel : ObservableObject
             Task<string> errorTask = process.StandardError.ReadToEndAsync();
             if (!process.WaitForExit(5000))
             {
-                process.Kill(entireProcessTree: true);
+                if (!process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+
+                process.WaitForExit();
+                Task.WaitAll([outputTask, errorTask]);
                 return VideoProbeInfo.Empty;
             }
 
@@ -1041,6 +1047,8 @@ public partial class ScreenRecordListViewModel : ObservableObject
                     process.Kill(entireProcessTree: true);
                 }
 
+                await process.WaitForExitAsync(CancellationToken.None);
+                await Task.WhenAll(outputTask, errorTask);
                 token.ThrowIfCancellationRequested();
                 return string.Empty;
             }
