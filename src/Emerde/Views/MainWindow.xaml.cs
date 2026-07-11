@@ -251,6 +251,7 @@ public partial class MainWindow : FluentWindow
     private double previewWidth;
     private double previewHeight;
     private bool isPreviewFullScreen;
+    private bool isPreviewPresentationSuspendedByOverlay;
     private bool previousPreviewingState;
 
     public MainWindow()
@@ -308,6 +309,12 @@ public partial class MainWindow : FluentWindow
 
     private void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(MainViewModel.IsHomePageSelected))
+        {
+            UpdatePreviewPresentationState();
+            return;
+        }
+
         if (e.PropertyName != nameof(MainViewModel.IsPreviewing))
         {
             return;
@@ -320,7 +327,7 @@ public partial class MainWindow : FluentWindow
             isPreviewRoomCardBaseWidthCaptured = false;
         }
 
-        HomePreviewPanel.SetVideoPresentationSuspended(!ViewModel.IsPreviewing);
+        UpdatePreviewPresentationState();
         Dispatcher.BeginInvoke(() =>
         {
             if (!ViewModel.IsPreviewing && isPreviewFullScreen)
@@ -359,7 +366,16 @@ public partial class MainWindow : FluentWindow
 
     internal void SetPreviewPresentationSuspended(bool isSuspended)
     {
-        HomePreviewPanel.SetVideoPresentationSuspended(isSuspended);
+        isPreviewPresentationSuspendedByOverlay = isSuspended;
+        UpdatePreviewPresentationState();
+    }
+
+    private void UpdatePreviewPresentationState()
+    {
+        HomePreviewPanel.SetVideoPresentationSuspended(
+            isPreviewPresentationSuspendedByOverlay
+            || !ViewModel.IsHomePageSelected
+            || !ViewModel.IsPreviewing);
     }
 
     private void UpdateHomePreviewLayout()
