@@ -12,6 +12,8 @@ namespace Emerde.Core;
 
 public sealed class Recorder
 {
+    private const int MaxRecordingAttempts = 4;
+
     public RecordStatus RecordStatus { get; internal set; } = RecordStatus.Initialized;
 
     public CancellationTokenSource? TokenSource { get; private set; } = null;
@@ -164,12 +166,25 @@ public sealed class Recorder
                 });
 
                 int exitCode = await ExecuteRecorderAsync(recorderPath, arguments, isUseProxy, httpProxy, startInfo, token);
+                DeleteMetadataIfNoOutput(FileName, MetadataPath);
                 if (token.IsCancellationRequested || stopRequested || exitCode == 0)
                 {
                     break;
                 }
 
                 attempt++;
+                if (!CanRetryRecording(attempt))
+                {
+                    AppSessionLogger.Event("error", "recorder", "record_reconnect_exhausted", "record reconnect attempts exhausted", new
+                    {
+                        startInfo.RoomUrl,
+                        startInfo.NickName,
+                        exitCode,
+                        attempt,
+                    });
+                    break;
+                }
+
                 TimeSpan delay = TimeSpan.FromSeconds(Math.Min(8, attempt switch
                 {
                     1 => 1,
@@ -526,13 +541,29 @@ public sealed class Recorder
             return [];
         }
 
-        string regexPattern = "^" + Regex.Escape(pattern).Replace("%03d", @"\d{3}") + "$";
+        string regexPattern = "^" + Regex.Escape(pattern).Replace("%03d", @"\d{3,}") + "$";
         Regex regex = new(regexPattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         return Directory.EnumerateFiles(directory)
             .Where(file => regex.IsMatch(Path.GetFileName(file)))
             .OrderBy(file => file, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static void DeleteMetadataIfNoOutput(string fileName, string? metadataPath)
+    {
+        if (GetRecordedSourceFilesForPattern(fileName).Length > 0 || string.IsNullOrWhiteSpace(metadataPath))
+        {
+            return;
+        }
+
+        try
+        {
+            File.Delete(metadataPath);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 
     private void RequestCurrentProcessExit()
@@ -613,6 +644,11 @@ public sealed class Recorder
     private static string FormatArguments(IEnumerable<string> arguments)
     {
         return string.Join(" ", arguments.Select(FormatArgument));
+    }
+
+    internal static bool CanRetryRecording(int completedAttempts)
+    {
+        return completedAttempts < MaxRecordingAttempts;
     }
 
     private static string FormatArgument(string argument)

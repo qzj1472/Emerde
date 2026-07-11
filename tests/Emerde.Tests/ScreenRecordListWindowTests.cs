@@ -80,6 +80,35 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
+    public void LoadMetadata_UsesSharedMetadataForFourDigitSegment()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"emerde-metadata-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        string videoPath = Path.Combine(root, "Host_2026-07-03_12-34-56_1000.ts");
+        string metadataPath = Path.Combine(root, "Host_2026-07-03_12-34-56.mplr.json");
+
+        try
+        {
+            File.WriteAllText(videoPath, string.Empty);
+            File.WriteAllText(metadataPath, JsonSerializer.Serialize(new VideoRecordingMetadata
+            {
+                NickName = "Host",
+            }));
+
+            VideoRecordingMetadata metadata = ScreenRecordListViewModel.LoadMetadata(new FileInfo(videoPath));
+
+            Assert.Equal("Host", metadata.NickName);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void NormalizeResolution_HidesMediaInfoLoadError()
     {
         string resolution = ScreenRecordListViewModel.NormalizeResolution("Unable to load MediaInfo library");

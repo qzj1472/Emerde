@@ -17,4 +17,14 @@ public sealed class RecorderTests
 
         Assert.Equal(Path.Combine("D:\\records", expectedFileName), result);
     }
+
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(3, true)]
+    [InlineData(4, false)]
+    [InlineData(5, false)]
+    public void CanRetryRecording_StopsAfterFourAttempts(int completedAttempts, bool expected)
+    {
+        Assert.Equal(expected, Recorder.CanRetryRecording(completedAttempts));
+    }
 }

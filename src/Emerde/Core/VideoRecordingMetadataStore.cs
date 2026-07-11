@@ -210,9 +210,12 @@ internal static class VideoRecordingMetadataStore
     private static bool TryGetSegmentBaseStem(FileInfo file, out string baseStem)
     {
         string stem = Path.GetFileNameWithoutExtension(file.Name);
-        if (stem.Length > 4 && stem[^4] == '_' && int.TryParse(stem[^3..], NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+        int separatorIndex = stem.LastIndexOf('_');
+        if (separatorIndex > 0
+            && separatorIndex < stem.Length - 1
+            && int.TryParse(stem[(separatorIndex + 1)..], NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
         {
-            baseStem = stem[..^4];
+            baseStem = stem[..separatorIndex];
             return true;
         }
 
