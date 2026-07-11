@@ -544,6 +544,8 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         {
             PanelChrome.Padding = new System.Windows.Thickness(0);
             PanelChrome.Background = System.Windows.Media.Brushes.Black;
+            PreviewViewport.Background = System.Windows.Media.Brushes.Black;
+            VideoSurface.Background = System.Windows.Media.Brushes.Black;
             PanelChrome.BorderThickness = new System.Windows.Thickness(0);
             PanelChrome.CornerRadius = isFullScreen ? new System.Windows.CornerRadius(0) : normalPanelCornerRadius;
             PlayerHeader.Visibility = System.Windows.Visibility.Collapsed;
@@ -553,6 +555,8 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         {
             PanelChrome.Padding = normalPanelPadding;
             PanelChrome.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "EmerdePanelBrush");
+            PreviewViewport.Background = System.Windows.Media.Brushes.Transparent;
+            VideoSurface.Background = System.Windows.Media.Brushes.Transparent;
             PanelChrome.BorderThickness = normalPanelBorderThickness;
             PanelChrome.CornerRadius = normalPanelCornerRadius;
             PlayerHeader.Visibility = System.Windows.Visibility.Visible;
