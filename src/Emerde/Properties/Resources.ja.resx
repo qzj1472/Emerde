@@ -661,4 +661,57 @@
   <data name="RefreshTooFrequently" xml:space="preserve">
     <value>更新の間隔を 5 秒以上空けてください。</value>
   </data>
+  <data name="VideoListTitle" xml:space="preserve"><value>動画一覧</value></data>
+  <data name="RefreshButton" xml:space="preserve"><value>更新</value></data>
+  <data name="ImportFolder" xml:space="preserve"><value>インポート</value></data>
+  <data name="MergeVideos" xml:space="preserve"><value>結合</value></data>
+  <data name="DeleteButton" xml:space="preserve"><value>削除</value></data>
+  <data name="MoveButton" xml:space="preserve"><value>移動</value></data>
+  <data name="CopyButton" xml:space="preserve"><value>コピー</value></data>
+  <data name="SelectAll" xml:space="preserve"><value>すべて選択</value></data>
+  <data name="InvertSelection" xml:space="preserve"><value>選択を反転</value></data>
+  <data name="MultiSelect" xml:space="preserve"><value>複数選択</value></data>
+  <data name="StreamerLabel" xml:space="preserve"><value>配信者</value></data>
+  <data name="TimeRangeLabel" xml:space="preserve"><value>期間</value></data>
+  <data name="OpenVideo" xml:space="preserve"><value>動画を開く</value></data>
+  <data name="TranscodeVideo" xml:space="preserve"><value>変換</value></data>
+  <data name="SplitButton" xml:space="preserve"><value>分割</value></data>
+  <data name="SplitVideo" xml:space="preserve"><value>動画を分割</value></data>
+  <data name="SplitInterval" xml:space="preserve"><value>分割間隔</value></data>
+  <data name="Minutes" xml:space="preserve"><value>分</value></data>
+  <data name="Seconds" xml:space="preserve"><value>秒</value></data>
+  <data name="Hours" xml:space="preserve"><value>時間</value></data>
+  <data name="StartButton" xml:space="preserve"><value>開始</value></data>
+  <data name="VideoAllStreamers" xml:space="preserve"><value>すべての配信者</value></data>
+  <data name="CommonUnknown" xml:space="preserve"><value>不明</value></data>
+  <data name="TimeRangeAll" xml:space="preserve"><value>全期間</value></data>
+  <data name="TimeRangeLast24Hours" xml:space="preserve"><value>24 時間以内</value></data>
+  <data name="TimeRangeLastWeek" xml:space="preserve"><value>1 週間以内</value></data>
+  <data name="TimeRangeLastMonth" xml:space="preserve"><value>1 か月以内</value></data>
+  <data name="TimeRangeLastThreeMonths" xml:space="preserve"><value>3 か月以内</value></data>
+  <data name="TimeRangeLastYear" xml:space="preserve"><value>1 年以内</value></data>
+  <data name="SortDescending" xml:space="preserve"><value>降順</value></data>
+  <data name="SortAscending" xml:space="preserve"><value>昇順</value></data>
+  <data name="VideoSelectedCount" xml:space="preserve"><value>{0} 件選択</value></data>
+  <data name="OpenVideoFailed" xml:space="preserve"><value>動画を開けませんでした</value></data>
+  <data name="TranscodingVideo" xml:space="preserve"><value>変換中...</value></data>
+  <data name="TranscodeComplete" xml:space="preserve"><value>変換が完了しました</value></data>
+  <data name="TranscodeFailed" xml:space="preserve"><value>変換に失敗しました</value></data>
+  <data name="SplitDurationInvalid" xml:space="preserve"><value>分割間隔が無効です</value></data>
+  <data name="SplittingVideo" xml:space="preserve"><value>分割中...</value></data>
+  <data name="SplitComplete" xml:space="preserve"><value>分割が完了しました</value></data>
+  <data name="SplitFailed" xml:space="preserve"><value>分割に失敗しました</value></data>
+  <data name="SelectAtLeastTwoVideos" xml:space="preserve"><value>2 件以上の動画を選択してください</value></data>
+  <data name="MergeFormatsMustMatch" xml:space="preserve"><value>同じ形式の動画のみ結合できます</value></data>
+  <data name="MergingVideos" xml:space="preserve"><value>結合中...</value></data>
+  <data name="MergeComplete" xml:space="preserve"><value>結合が完了しました</value></data>
+  <data name="MergeFailed" xml:space="preserve"><value>結合に失敗しました</value></data>
+  <data name="ConfirmDeleteVideos" xml:space="preserve"><value>{0} 件の動画ファイルを削除しますか？</value></data>
+  <data name="MovingVideos" xml:space="preserve"><value>移動中...</value></data>
+  <data name="CopyingVideos" xml:space="preserve"><value>コピー中...</value></data>
+  <data name="StreamerChip" xml:space="preserve"><value>配信者 {0}</value></data>
+  <data name="ResolutionChip" xml:space="preserve"><value>解像度 {0}</value></data>
+  <data name="BitrateChip" xml:space="preserve"><value>ビットレート {0}</value></data>
+  <data name="QualityLabel" xml:space="preserve"><value>画質</value></data>
+  <data name="QualitySelectionHint" xml:space="preserve"><value>対応プラットフォームでは選択した画質を使用し、その他では利用可能な最高画質を使用します。</value></data>
 </root>

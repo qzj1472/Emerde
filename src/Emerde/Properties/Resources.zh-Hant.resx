@@ -658,4 +658,57 @@
   <data name="RefreshTooFrequently" xml:space="preserve">
     <value>重新整理過於頻繁，請等待 5 秒後再試。</value>
   </data>
+  <data name="VideoListTitle" xml:space="preserve"><value>影片列表</value></data>
+  <data name="RefreshButton" xml:space="preserve"><value>重新整理</value></data>
+  <data name="ImportFolder" xml:space="preserve"><value>匯入</value></data>
+  <data name="MergeVideos" xml:space="preserve"><value>合併</value></data>
+  <data name="DeleteButton" xml:space="preserve"><value>刪除</value></data>
+  <data name="MoveButton" xml:space="preserve"><value>移動</value></data>
+  <data name="CopyButton" xml:space="preserve"><value>複製</value></data>
+  <data name="SelectAll" xml:space="preserve"><value>全選</value></data>
+  <data name="InvertSelection" xml:space="preserve"><value>反向選取</value></data>
+  <data name="MultiSelect" xml:space="preserve"><value>多選</value></data>
+  <data name="StreamerLabel" xml:space="preserve"><value>主播</value></data>
+  <data name="TimeRangeLabel" xml:space="preserve"><value>時間</value></data>
+  <data name="OpenVideo" xml:space="preserve"><value>開啟影片</value></data>
+  <data name="TranscodeVideo" xml:space="preserve"><value>轉碼</value></data>
+  <data name="SplitButton" xml:space="preserve"><value>分割</value></data>
+  <data name="SplitVideo" xml:space="preserve"><value>分割影片</value></data>
+  <data name="SplitInterval" xml:space="preserve"><value>分割間隔</value></data>
+  <data name="Minutes" xml:space="preserve"><value>分鐘</value></data>
+  <data name="Seconds" xml:space="preserve"><value>秒</value></data>
+  <data name="Hours" xml:space="preserve"><value>小時</value></data>
+  <data name="StartButton" xml:space="preserve"><value>開始</value></data>
+  <data name="VideoAllStreamers" xml:space="preserve"><value>全部主播</value></data>
+  <data name="CommonUnknown" xml:space="preserve"><value>未知</value></data>
+  <data name="TimeRangeAll" xml:space="preserve"><value>全部時間</value></data>
+  <data name="TimeRangeLast24Hours" xml:space="preserve"><value>24 小時內</value></data>
+  <data name="TimeRangeLastWeek" xml:space="preserve"><value>一週內</value></data>
+  <data name="TimeRangeLastMonth" xml:space="preserve"><value>一個月內</value></data>
+  <data name="TimeRangeLastThreeMonths" xml:space="preserve"><value>三個月內</value></data>
+  <data name="TimeRangeLastYear" xml:space="preserve"><value>一年內</value></data>
+  <data name="SortDescending" xml:space="preserve"><value>倒序</value></data>
+  <data name="SortAscending" xml:space="preserve"><value>正序</value></data>
+  <data name="VideoSelectedCount" xml:space="preserve"><value>已選 {0} 個</value></data>
+  <data name="OpenVideoFailed" xml:space="preserve"><value>開啟影片失敗</value></data>
+  <data name="TranscodingVideo" xml:space="preserve"><value>正在轉碼...</value></data>
+  <data name="TranscodeComplete" xml:space="preserve"><value>轉碼完成</value></data>
+  <data name="TranscodeFailed" xml:space="preserve"><value>轉碼失敗</value></data>
+  <data name="SplitDurationInvalid" xml:space="preserve"><value>分割時間無效</value></data>
+  <data name="SplittingVideo" xml:space="preserve"><value>正在分割...</value></data>
+  <data name="SplitComplete" xml:space="preserve"><value>分割完成</value></data>
+  <data name="SplitFailed" xml:space="preserve"><value>分割失敗</value></data>
+  <data name="SelectAtLeastTwoVideos" xml:space="preserve"><value>至少選擇 2 個影片</value></data>
+  <data name="MergeFormatsMustMatch" xml:space="preserve"><value>只能合併相同格式的影片</value></data>
+  <data name="MergingVideos" xml:space="preserve"><value>正在合併...</value></data>
+  <data name="MergeComplete" xml:space="preserve"><value>合併完成</value></data>
+  <data name="MergeFailed" xml:space="preserve"><value>合併失敗</value></data>
+  <data name="ConfirmDeleteVideos" xml:space="preserve"><value>確定刪除 {0} 個影片檔案？</value></data>
+  <data name="MovingVideos" xml:space="preserve"><value>正在移動...</value></data>
+  <data name="CopyingVideos" xml:space="preserve"><value>正在複製...</value></data>
+  <data name="StreamerChip" xml:space="preserve"><value>主播 {0}</value></data>
+  <data name="ResolutionChip" xml:space="preserve"><value>解析度 {0}</value></data>
+  <data name="BitrateChip" xml:space="preserve"><value>位元率 {0}</value></data>
+  <data name="QualityLabel" xml:space="preserve"><value>畫質</value></data>
+  <data name="QualitySelectionHint" xml:space="preserve"><value>支援的平台依所選畫質取流，其餘平台使用可用的最高畫質。</value></data>
 </root>

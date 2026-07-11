@@ -63,13 +63,13 @@
                                VerticalAlignment="Center"
                                FontSize="22"
                                FontWeight="SemiBold"
-                               Text="视频列表" />
+                               Text="{I18N VideoListTitle}" />
                     <Button Command="{Binding RefreshCommand}"
                             Style="{StaticResource VideoListToolbarButtonStyle}">
                         <ui:StackPanel Orientation="Horizontal" Spacing="7">
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          Glyph="{x:Static ui:FontSymbols.Sync}" />
-                            <TextBlock Text="刷新" />
+                            <TextBlock Text="{I18N RefreshButton}" />
                         </ui:StackPanel>
                     </Button>
                     <Button Command="{Binding ToggleSortCommand}"
@@ -95,7 +95,7 @@
                         <ui:StackPanel Orientation="Horizontal" Spacing="7">
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          Glyph="{x:Static ui:FontSymbols.FolderOpen}" />
-                            <TextBlock Text="导入" />
+                            <TextBlock Text="{I18N ImportFolder}" />
                         </ui:StackPanel>
                     </Button>
                     <Button Command="{Binding OpenSaveFolderCommand}"
@@ -132,46 +132,46 @@
                         <Button Command="{Binding MergeSelectedCommand}"
                                 IsEnabled="{Binding CanMergeSelectedVideos}"
                                 Style="{StaticResource VideoListIconButtonStyle}"
-                                ToolTip="合并">
+                                ToolTip="{I18N MergeVideos}">
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          Glyph="{x:Static ui:FontSymbols.Link}" />
                         </Button>
                         <Button Command="{Binding DeleteSelectedCommand}"
                                 IsEnabled="{Binding HasSelectedVideos}"
                                 Style="{StaticResource VideoListIconButtonStyle}"
-                                ToolTip="删除">
+                                ToolTip="{I18N DeleteButton}">
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          Glyph="{x:Static ui:FontSymbols.Delete}" />
                         </Button>
                         <Button Command="{Binding MoveSelectedCommand}"
                                 IsEnabled="{Binding HasSelectedVideos}"
                                 Style="{StaticResource VideoListIconButtonStyle}"
-                                ToolTip="移动">
+                                ToolTip="{I18N MoveButton}">
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          Glyph="{x:Static ui:FontSymbols.FolderOpen}" />
                         </Button>
                         <Button Command="{Binding CopySelectedCommand}"
                                 IsEnabled="{Binding HasSelectedVideos}"
                                 Style="{StaticResource VideoListIconButtonStyle}"
-                                ToolTip="复制">
+                                ToolTip="{I18N CopyButton}">
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          Glyph="{x:Static ui:FontSymbols.Copy}" />
                         </Button>
                         <Button Command="{Binding SelectAllCommand}"
                                 Style="{StaticResource VideoListIconButtonStyle}"
-                                ToolTip="全选">
+                                ToolTip="{I18N SelectAll}">
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          Glyph="{x:Static ui:FontSymbols.Accept}" />
                         </Button>
                         <Button Command="{Binding InvertSelectionCommand}"
                                 Style="{StaticResource VideoListIconButtonStyle}"
-                                ToolTip="反选">
+                                ToolTip="{I18N InvertSelection}">
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          Glyph="{x:Static ui:FontSymbols.Switch}" />
                         </Button>
                         <Button Command="{Binding CancelMultiSelectCommand}"
                                 Style="{StaticResource VideoListIconButtonStyle}"
-                                ToolTip="取消">
+                                ToolTip="{I18N ButtonOfCancel}">
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          Glyph="{x:Static ui:FontSymbols.CalculatorMultiply}" />
                         </Button>
@@ -190,7 +190,7 @@
                         <ui:StackPanel Orientation="Horizontal" Spacing="7">
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          Glyph="{x:Static ui:FontSymbols.Accept}" />
-                            <TextBlock Text="多选" />
+                            <TextBlock Text="{I18N MultiSelect}" />
                         </ui:StackPanel>
                     </Button>
                 </ui:StackPanel>
@@ -209,7 +209,7 @@
                                Spacing="8">
                     <TextBlock VerticalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                               Text="主播" />
+                               Text="{I18N StreamerLabel}" />
                     <ComboBox MinWidth="200"
                               ItemsSource="{Binding StreamerOptions}"
                               SelectedItem="{Binding SelectedStreamer, Mode=TwoWay}" />
@@ -222,7 +222,7 @@
                                Spacing="8">
                     <TextBlock VerticalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                               Text="时间" />
+                               Text="{I18N TimeRangeLabel}" />
                     <ComboBox MinWidth="160"
                               ItemsSource="{Binding TimeRangeOptions}"
                               SelectedIndex="{Binding SelectedTimeRangeIndex, Mode=TwoWay}" />
@@ -348,11 +348,11 @@
                                     <Button Margin="0,0,8,0"
                                             Command="{Binding DataContext.OpenVideoCommand, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
                                             CommandParameter="{Binding}"
-                                            Content="打开视频" />
+                                            Content="{I18N OpenVideo}" />
                                     <Button Margin="0,0,8,0"
                                             Command="{Binding DataContext.TranscodeVideoCommand, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
                                             CommandParameter="{Binding}"
-                                            Content="转码">
+                                            Content="{I18N TranscodeVideo}">
                                         <Button.Style>
                                             <Style TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
                                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -367,10 +367,10 @@
                                     <Button Margin="0,0,8,0"
                                             Command="{Binding DataContext.SplitVideoCommand, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
                                             CommandParameter="{Binding}"
-                                            Content="分割" />
+                                            Content="{I18N SplitButton}" />
                                     <Button Command="{Binding DataContext.OpenDirectoryCommand, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
                                             CommandParameter="{Binding}"
-                                            Content="打开目录" />
+                                            Content="{I18N OpenFolder}" />
                                 </StackPanel>
 
                                 <CheckBox Grid.Column="3"
@@ -445,7 +445,7 @@
                         <StackPanel Grid.Column="1">
                             <TextBlock FontSize="16"
                                        FontWeight="SemiBold"
-                                       Text="分割视频" />
+                                       Text="{I18N SplitVideo}" />
                             <TextBlock Margin="0,4,0,0"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        Text="{Binding SplitTargetFileName}"
@@ -458,7 +458,7 @@
                              ColumnDefinitions="Auto,*,Auto">
                         <TextBlock Grid.Column="0"
                                    VerticalAlignment="Center"
-                                   Text="分割间隔" />
+                                   Text="{I18N SplitInterval}" />
                         <ui:TextBox Grid.Column="1"
                                     Margin="12,0,0,0"
                                     Text="{Binding SplitDurationValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -466,9 +466,9 @@
                                   Width="92"
                                   Margin="8,0,0,0"
                                   SelectedIndex="{Binding SplitDurationUnitIndex, Mode=TwoWay}">
-                            <ComboBoxItem Content="分钟" />
-                            <ComboBoxItem Content="秒" />
-                            <ComboBoxItem Content="小时" />
+                            <ComboBoxItem Content="{I18N Minutes}" />
+                            <ComboBoxItem Content="{I18N Seconds}" />
+                            <ComboBoxItem Content="{I18N Hours}" />
                         </ComboBox>
                     </ui:Grid>
 
@@ -483,11 +483,11 @@
                         <Button Grid.Column="1"
                                 Margin="0,0,8,0"
                                 Command="{Binding CloseModalCommand}"
-                                Content="取消"
+                                Content="{I18N ButtonOfCancel}"
                                 IsEnabled="{Binding IsIdle}" />
                         <Button Grid.Column="2"
                                 Command="{Binding ConfirmSplitCommand}"
-                                Content="开始"
+                                Content="{I18N StartButton}"
                                 IsEnabled="{Binding IsIdle}" />
                     </ui:Grid>
                 </ui:Grid>

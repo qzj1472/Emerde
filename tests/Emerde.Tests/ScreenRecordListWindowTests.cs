@@ -113,7 +113,7 @@ public sealed class ScreenRecordListWindowTests
     {
         string resolution = ScreenRecordListViewModel.NormalizeResolution("Unable to load MediaInfo library");
 
-        Assert.Equal("未知", resolution);
+        Assert.Equal(ScreenRecordListViewModel.GetResourceText("CommonUnknown", "Unknown"), resolution);
     }
 
     [Theory]

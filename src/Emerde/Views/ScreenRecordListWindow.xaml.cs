@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.Input;
 using Emerde.Core;
 using Emerde.Extensions;
+using Emerde.Properties;
 using Emerde.Threading;
 using MediaInfoLib;
 using Microsoft.VisualBasic.FileIO;
@@ -51,11 +52,19 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
 public partial class ScreenRecordListViewModel : ObservableObject
 {
     private static readonly string[] VideoExtensions = [".mp4", ".mkv", ".flv", ".ts", ".mov", ".webm"];
-    private const string AllStreamerOption = "全部主播";
-    private const string UnknownStreamerText = "未知";
-    private const string UnknownResolutionText = "未知";
-    private const string UnknownBitrateText = "未知";
-    private static readonly string[] TimeRangeOptionsInternal = ["全部时间", "24 小时内", "一周内", "一个月内", "三个月内", "一年内"];
+    private static readonly string AllStreamerOption = GetResourceText("VideoAllStreamers", "All streamers");
+    private static readonly string UnknownStreamerText = GetResourceText("CommonUnknown", "Unknown");
+    private static readonly string UnknownResolutionText = GetResourceText("CommonUnknown", "Unknown");
+    private static readonly string UnknownBitrateText = GetResourceText("CommonUnknown", "Unknown");
+    private static readonly string[] TimeRangeOptionsInternal =
+    [
+        GetResourceText("TimeRangeAll", "All time"),
+        GetResourceText("TimeRangeLast24Hours", "Last 24 hours"),
+        GetResourceText("TimeRangeLastWeek", "Last week"),
+        GetResourceText("TimeRangeLastMonth", "Last month"),
+        GetResourceText("TimeRangeLastThreeMonths", "Last 3 months"),
+        GetResourceText("TimeRangeLastYear", "Last year"),
+    ];
 
     private readonly ObservableCollection<RecordedVideoItem> videos = [];
     private readonly SemaphoreSlim thumbnailLoadSemaphore = new(Math.Clamp(Environment.ProcessorCount, 2, 4));
@@ -75,7 +84,9 @@ public partial class ScreenRecordListViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(SortDirectionText))]
     private bool isSortDescending = true;
 
-    public string SortDirectionText => IsSortDescending ? "倒序" : "正序";
+    public string SortDirectionText => IsSortDescending
+        ? GetResourceText("SortDescending", "Descending")
+        : GetResourceText("SortAscending", "Ascending");
 
     [ObservableProperty]
     private string selectedStreamer = AllStreamerOption;
@@ -133,7 +144,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     public bool CanMergeSelectedVideos => SelectedVideoCount >= 2;
 
-    public string SelectedVideoSummary => $"已选 {SelectedVideoCount} 个";
+    public string SelectedVideoSummary => FormatResourceText("VideoSelectedCount", "{0} selected", SelectedVideoCount);
 
     public bool IsModalOpen => IsSplitPanelOpen;
 
@@ -240,7 +251,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         catch (Exception e)
         {
             Debug.WriteLine(e);
-            Toast.Warning("打开视频失败");
+            Toast.Warning(GetResourceText("OpenVideoFailed", "Failed to open video"));
         }
     }
 
@@ -281,7 +292,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
 
         IsOperating = true;
-        OperationProgressText = "正在转码...";
+        OperationProgressText = GetResourceText("TranscodingVideo", "Transcoding...");
         OnPropertyChanged(nameof(IsIdle));
 
         try
@@ -289,11 +300,11 @@ public partial class ScreenRecordListViewModel : ObservableObject
             bool converted = await new Converter().ExecuteAsync(item.FullPath, ".mp4");
             if (converted)
             {
-                Toast.Success("转码完成");
+                Toast.Success(GetResourceText("TranscodeComplete", "Transcoding complete"));
             }
             else
             {
-                Toast.Warning("转码失败");
+                Toast.Warning(GetResourceText("TranscodeFailed", "Transcoding failed"));
             }
             await RefreshAsync();
         }
@@ -342,27 +353,29 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
         if (!TryGetSplitDurationSeconds(out int seconds))
         {
-            Toast.Warning("分割时间无效");
+            Toast.Warning(GetResourceText("SplitDurationInvalid", "Invalid split interval"));
             return;
         }
 
         IsOperating = true;
-        OperationProgressText = "正在分割...";
+        OperationProgressText = GetResourceText("SplittingVideo", "Splitting...");
         OnPropertyChanged(nameof(IsIdle));
 
         try
         {
             bool result = await ExecuteFfmpegAsync(BuildSplitArguments(splitTargetItem.FullPath, seconds));
-            OperationProgressText = result ? "分割完成" : "分割失败";
+            OperationProgressText = result
+                ? GetResourceText("SplitComplete", "Split complete")
+                : GetResourceText("SplitFailed", "Split failed");
             if (result)
             {
-                Toast.Success("分割完成");
+                Toast.Success(GetResourceText("SplitComplete", "Split complete"));
                 IsSplitPanelOpen = false;
                 await RefreshAsync();
             }
             else
             {
-                Toast.Warning("分割失败");
+                Toast.Warning(GetResourceText("SplitFailed", "Split failed"));
             }
         }
         finally
@@ -386,7 +399,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
         if (selected.Length < 2)
         {
-            Toast.Warning("至少选择 2 个视频");
+            Toast.Warning(GetResourceText("SelectAtLeastTwoVideos", "Select at least two videos"));
             return;
         }
 
@@ -395,7 +408,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
             .Skip(1)
             .Any())
         {
-            Toast.Warning("只能合并相同格式的视频");
+            Toast.Warning(GetResourceText("MergeFormatsMustMatch", "Only videos with the same format can be merged"));
             return;
         }
 
@@ -410,7 +423,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
 
         IsOperating = true;
-        OperationProgressText = "正在合并...";
+        OperationProgressText = GetResourceText("MergingVideos", "Merging...");
         OnPropertyChanged(nameof(IsIdle));
 
         try
@@ -426,12 +439,12 @@ public partial class ScreenRecordListViewModel : ObservableObject
                 bool result = await ExecuteFfmpegAsync($"-y -f concat -safe 0 -i \"{listPath}\" -c copy \"{outputPath}\"");
                 if (result)
                 {
-                    Toast.Success("合并完成");
+                    Toast.Success(GetResourceText("MergeComplete", "Merge complete"));
                     await RefreshAsync();
                 }
                 else
                 {
-                    Toast.Warning("合并失败");
+                    Toast.Warning(GetResourceText("MergeFailed", "Merge failed"));
                 }
             }
             finally
@@ -464,7 +477,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         System.Windows.MessageBoxResult result;
         using (DialogBlurScope blurScope = new())
         {
-            result = await MessageBox.QuestionAsync($"确定删除 {selected.Length} 个视频文件？");
+            result = await MessageBox.QuestionAsync(FormatResourceText("ConfirmDeleteVideos", "Delete {0} video files?", selected.Length));
         }
         if (result != System.Windows.MessageBoxResult.Yes)
         {
@@ -527,7 +540,9 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
 
         IsOperating = true;
-        OperationProgressText = move ? "正在移动..." : "正在复制...";
+        OperationProgressText = move
+            ? GetResourceText("MovingVideos", "Moving...")
+            : GetResourceText("CopyingVideos", "Copying...");
         OnPropertyChanged(nameof(IsIdle));
 
         try
@@ -1089,6 +1104,16 @@ public partial class ScreenRecordListViewModel : ObservableObject
         return IsThumbnailCacheCurrent(filePath, cachePath) ? cachePath : string.Empty;
     }
 
+    internal static string GetResourceText(string key, string fallback)
+    {
+        return Resources.ResourceManager.GetString(key, Resources.Culture ?? CultureInfo.CurrentUICulture) ?? fallback;
+    }
+
+    internal static string FormatResourceText(string key, string fallback, params object[] values)
+    {
+        return string.Format(CultureInfo.CurrentCulture, GetResourceText(key, fallback), values);
+    }
+
     private static bool IsThumbnailCacheCurrent(string filePath, string cachePath)
     {
         if (!File.Exists(filePath) || !File.Exists(cachePath))
@@ -1402,9 +1427,18 @@ public partial class RecordedVideoItem : ObservableObject
 
     public bool HasThumbnail => !string.IsNullOrWhiteSpace(ThumbnailPath) && File.Exists(ThumbnailPath);
 
-    public string StreamerChipText => string.IsNullOrWhiteSpace(NickName) ? "主播 未知" : $"主播 {NickName}";
+    public string StreamerChipText => ScreenRecordListViewModel.FormatResourceText(
+        "StreamerChip",
+        "Streamer {0}",
+        string.IsNullOrWhiteSpace(NickName) ? ScreenRecordListViewModel.GetResourceText("CommonUnknown", "Unknown") : NickName);
 
-    public string ResolutionChipText => string.IsNullOrWhiteSpace(Resolution) ? "分辨率 未知" : $"分辨率 {Resolution}";
+    public string ResolutionChipText => ScreenRecordListViewModel.FormatResourceText(
+        "ResolutionChip",
+        "Resolution {0}",
+        string.IsNullOrWhiteSpace(Resolution) ? ScreenRecordListViewModel.GetResourceText("CommonUnknown", "Unknown") : Resolution);
 
-    public string BitrateChipText => string.IsNullOrWhiteSpace(Bitrate) ? "码率 未知" : $"码率 {Bitrate}";
+    public string BitrateChipText => ScreenRecordListViewModel.FormatResourceText(
+        "BitrateChip",
+        "Bitrate {0}",
+        string.IsNullOrWhiteSpace(Bitrate) ? ScreenRecordListViewModel.GetResourceText("CommonUnknown", "Unknown") : Bitrate);
 }

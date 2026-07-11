@@ -92,4 +92,51 @@ public sealed class ResourceTextTests
             Resources.Culture = previousCulture;
         }
     }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("zh-Hans")]
+    [InlineData("zh-Hant")]
+    [InlineData("ja")]
+    public void VideoLibraryUiKeys_ArePresent(string cultureName)
+    {
+        CultureInfo? culture = string.IsNullOrEmpty(cultureName) ? null : new CultureInfo(cultureName);
+        string[] keys =
+        [
+            "VideoListTitle", "RefreshButton", "ImportFolder", "MergeVideos", "DeleteButton",
+            "MoveButton", "CopyButton", "SelectAll", "InvertSelection", "MultiSelect",
+            "StreamerLabel", "TimeRangeLabel", "OpenVideo", "TranscodeVideo", "SplitButton",
+            "SplitVideo", "SplitInterval", "Minutes", "Seconds", "Hours", "StartButton",
+            "VideoAllStreamers", "CommonUnknown", "TimeRangeAll", "TimeRangeLast24Hours",
+            "TimeRangeLastWeek", "TimeRangeLastMonth", "TimeRangeLastThreeMonths", "TimeRangeLastYear",
+            "SortDescending", "SortAscending", "VideoSelectedCount", "OpenVideoFailed", "TranscodingVideo",
+            "TranscodeComplete", "TranscodeFailed", "SplitDurationInvalid", "SplittingVideo", "SplitComplete",
+            "SplitFailed", "SelectAtLeastTwoVideos", "MergeFormatsMustMatch", "MergingVideos", "MergeComplete",
+            "MergeFailed", "ConfirmDeleteVideos", "MovingVideos", "CopyingVideos", "StreamerChip",
+            "ResolutionChip", "BitrateChip", "QualityLabel", "QualitySelectionHint",
+        ];
+
+        foreach (string key in keys)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(Resources.ResourceManager.GetString(key, culture)), key);
+        }
+    }
+
+    [Fact]
+    public void XamlResourceProperties_ArePresent()
+    {
+        string[] keys =
+        [
+            "VideoListTitle", "RefreshButton", "ImportFolder", "MergeVideos", "DeleteButton",
+            "MoveButton", "CopyButton", "SelectAll", "InvertSelection", "MultiSelect",
+            "StreamerLabel", "TimeRangeLabel", "OpenVideo", "TranscodeVideo", "SplitButton",
+            "SplitVideo", "SplitInterval", "Minutes", "Seconds", "Hours", "StartButton",
+            "QualityLabel", "QualitySelectionHint",
+        ];
+
+        foreach (string key in keys)
+        {
+            Assert.NotNull(typeof(Resources).GetProperty(key));
+        }
+    }
 }

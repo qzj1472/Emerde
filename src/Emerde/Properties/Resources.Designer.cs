@@ -1661,5 +1661,97 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("Version", resourceCulture);
             }
         }
+
+        public static string VideoListTitle {
+            get { return ResourceManager.GetString("VideoListTitle", resourceCulture); }
+        }
+
+        public static string RefreshButton {
+            get { return ResourceManager.GetString("RefreshButton", resourceCulture); }
+        }
+
+        public static string ImportFolder {
+            get { return ResourceManager.GetString("ImportFolder", resourceCulture); }
+        }
+
+        public static string MergeVideos {
+            get { return ResourceManager.GetString("MergeVideos", resourceCulture); }
+        }
+
+        public static string DeleteButton {
+            get { return ResourceManager.GetString("DeleteButton", resourceCulture); }
+        }
+
+        public static string MoveButton {
+            get { return ResourceManager.GetString("MoveButton", resourceCulture); }
+        }
+
+        public static string CopyButton {
+            get { return ResourceManager.GetString("CopyButton", resourceCulture); }
+        }
+
+        public static string SelectAll {
+            get { return ResourceManager.GetString("SelectAll", resourceCulture); }
+        }
+
+        public static string InvertSelection {
+            get { return ResourceManager.GetString("InvertSelection", resourceCulture); }
+        }
+
+        public static string MultiSelect {
+            get { return ResourceManager.GetString("MultiSelect", resourceCulture); }
+        }
+
+        public static string StreamerLabel {
+            get { return ResourceManager.GetString("StreamerLabel", resourceCulture); }
+        }
+
+        public static string TimeRangeLabel {
+            get { return ResourceManager.GetString("TimeRangeLabel", resourceCulture); }
+        }
+
+        public static string OpenVideo {
+            get { return ResourceManager.GetString("OpenVideo", resourceCulture); }
+        }
+
+        public static string TranscodeVideo {
+            get { return ResourceManager.GetString("TranscodeVideo", resourceCulture); }
+        }
+
+        public static string SplitButton {
+            get { return ResourceManager.GetString("SplitButton", resourceCulture); }
+        }
+
+        public static string SplitVideo {
+            get { return ResourceManager.GetString("SplitVideo", resourceCulture); }
+        }
+
+        public static string SplitInterval {
+            get { return ResourceManager.GetString("SplitInterval", resourceCulture); }
+        }
+
+        public static string Minutes {
+            get { return ResourceManager.GetString("Minutes", resourceCulture); }
+        }
+
+        public static string Seconds {
+            get { return ResourceManager.GetString("Seconds", resourceCulture); }
+        }
+
+        public static string Hours {
+            get { return ResourceManager.GetString("Hours", resourceCulture); }
+        }
+
+        public static string StartButton {
+            get { return ResourceManager.GetString("StartButton", resourceCulture); }
+        }
+
+        public static string QualityLabel {
+            get { return ResourceManager.GetString("QualityLabel", resourceCulture); }
+        }
+
+        public static string QualitySelectionHint {
+            get { return ResourceManager.GetString("QualitySelectionHint", resourceCulture); }
+        }
     }
 }

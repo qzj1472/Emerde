@@ -497,11 +497,11 @@
                                            Text="{x:Static ui:FontSymbols.Video}" />
                             </Grid>
                             <ui:Grid Grid.Column="1" RowDefinitions="Auto,Auto">
-                                <TextBlock Grid.Row="0" Text="画质" />
+                                <TextBlock Grid.Row="0" Text="{I18N QualityLabel}" />
                                 <TextBlock Grid.Row="1"
                                            FontSize="11"
                                            Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
-                                           Text="支持的平台按所选档位取流，其余平台使用可用最高画质。" />
+                                           Text="{I18N QualitySelectionHint}" />
                             </ui:Grid>
                             <ComboBox Grid.Column="2"
                                       MinWidth="150"
