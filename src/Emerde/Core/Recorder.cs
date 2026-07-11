@@ -373,7 +373,6 @@ public sealed class Recorder
         {
             startInfo.PlatformName,
             FileName,
-            inputUrl = Url ?? string.Empty,
         });
 
         lock (processLock)

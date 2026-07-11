@@ -83,7 +83,13 @@ internal static class AppSessionLogger
 
             Enqueue(BuildEvent("info", "application", "stop", reason));
             queue?.CompleteAdding();
-            worker?.Wait(TimeSpan.FromSeconds(2));
+            try
+            {
+                worker?.GetAwaiter().GetResult();
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or ObjectDisposedException)
+            {
+            }
             writer.Dispose();
             errorWriter?.Dispose();
             writer = null;
@@ -121,11 +127,11 @@ internal static class AppSessionLogger
             level,
             category,
             action,
-            message,
+            message = LogSanitizer.SanitizeText(message),
             processId = Environment.ProcessId,
             threadId = Environment.CurrentManagedThreadId,
             file = CurrentFilePath,
-            data,
+            data = LogSanitizer.SanitizeData(data, JsonOptions),
         };
 
         return new LogLine(level, JsonSerializer.Serialize(payload, JsonOptions));
