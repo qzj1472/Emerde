@@ -1501,9 +1501,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         return value;
     }
 
-    private static void ApplyRoomInfoResult(RoomStatusReactive room, ISpiderResult result)
+    internal static void ApplyRoomInfoResult(RoomStatusReactive room, ISpiderResult result)
     {
-        string oldRoomUrl = room.RoomUrl;
         string? title = SpiderResultMetadata.GetTitle(result);
         string? quality = SpiderResultMetadata.GetQuality(result);
         string? resolution = SpiderResultMetadata.GetResolution(result);
@@ -1513,15 +1512,6 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         if (!string.IsNullOrWhiteSpace(result.Nickname))
         {
             room.NickName = result.Nickname;
-        }
-
-        if (!string.IsNullOrWhiteSpace(result.RoomUrl))
-        {
-            string normalizedRoomUrl = NormalizeRoomUrl(result.RoomUrl);
-            if (!string.IsNullOrWhiteSpace(normalizedRoomUrl))
-            {
-                room.RoomUrl = normalizedRoomUrl;
-            }
         }
 
         if (!string.IsNullOrWhiteSpace(result.AvatarThumbUrl))
@@ -1554,22 +1544,33 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             room.Bitrate = bitrate ?? string.Empty;
         }
 
-        room.FlvUrl = result.FlvUrl ?? string.Empty;
-        room.HlsUrl = result.HlsUrl ?? string.Empty;
-        room.RecordUrl = result.RecordUrl ?? string.Empty;
-        room.Headers = headers ?? string.Empty;
-        room.Uid = result.Uid ?? string.Empty;
+        bool hasStreamUrl = !string.IsNullOrWhiteSpace(result.RecordUrl)
+            || !string.IsNullOrWhiteSpace(result.FlvUrl)
+            || !string.IsNullOrWhiteSpace(result.HlsUrl);
+        if (result.IsLiveStreaming.HasValue || hasStreamUrl)
+        {
+            room.FlvUrl = result.FlvUrl ?? string.Empty;
+            room.HlsUrl = result.HlsUrl ?? string.Empty;
+            room.RecordUrl = result.RecordUrl ?? string.Empty;
+        }
+        if (result.IsLiveStreaming.HasValue)
+        {
+            room.Headers = headers ?? string.Empty;
+        }
+        else if (!string.IsNullOrWhiteSpace(headers))
+        {
+            room.Headers = headers;
+        }
+        if (!string.IsNullOrWhiteSpace(result.Uid))
+        {
+            room.Uid = result.Uid;
+        }
         room.StreamStatus = result.IsLiveStreaming switch
         {
             true => StreamStatus.Streaming,
             false => StreamStatus.NotStreaming,
             _ => room.StreamStatus,
         };
-
-        if (!string.Equals(oldRoomUrl, room.RoomUrl, StringComparison.OrdinalIgnoreCase))
-        {
-            _ = GlobalMonitor.RoomStatus.TryRemove(oldRoomUrl, out _);
-        }
 
         RoomStatus status = GlobalMonitor.RoomStatus.GetOrAdd(room.RoomUrl, _ => new RoomStatus()
         {

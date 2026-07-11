@@ -93,4 +93,39 @@ public sealed class LivePreviewTests
 
         Assert.Equal(expected, room.IsRecording);
     }
+
+    [Fact]
+    public void ApplyRoomInfoResult_PreservesStableIdentityAndPartialStreamData()
+    {
+        const string roomUrl = "https://example.test/original-room";
+        RoomStatusReactive room = new()
+        {
+            RoomUrl = roomUrl,
+            HlsUrl = "https://example.test/original.m3u8",
+            Headers = "Referer: https://example.test/",
+            Uid = "original-uid",
+            StreamStatus = StreamStatus.Streaming,
+        };
+        StreamResolverResult result = new()
+        {
+            RoomUrl = "https://example.test/canonical-room",
+            PlatformName = "Direct",
+            IsLiveStreaming = null,
+        };
+
+        try
+        {
+            MainViewModel.ApplyRoomInfoResult(room, result);
+
+            Assert.Equal(roomUrl, room.RoomUrl);
+            Assert.Equal("https://example.test/original.m3u8", room.HlsUrl);
+            Assert.Equal("Referer: https://example.test/", room.Headers);
+            Assert.Equal("original-uid", room.Uid);
+            Assert.Equal(StreamStatus.Streaming, room.StreamStatus);
+        }
+        finally
+        {
+            _ = GlobalMonitor.RoomStatus.TryRemove(roomUrl, out _);
+        }
+    }
 }
