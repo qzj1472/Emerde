@@ -245,6 +245,7 @@ public partial class MainWindow : FluentWindow
     private WindowStyle previewWindowStyle;
     private ResizeMode previewResizeMode;
     private bool previewTopmost;
+    private bool previewExtendsContentIntoTitleBar;
     private double previewLeft;
     private double previewTop;
     private double previewWidth;
@@ -812,6 +813,7 @@ public partial class MainWindow : FluentWindow
         previewWindowStyle = WindowStyle;
         previewResizeMode = ResizeMode;
         previewTopmost = Topmost;
+        previewExtendsContentIntoTitleBar = ExtendsContentIntoTitleBar;
         Rect restoreBounds = WindowState == WindowState.Normal
             ? new Rect(Left, Top, Width, Height)
             : RestoreBounds;
@@ -844,7 +846,9 @@ public partial class MainWindow : FluentWindow
         Top = previewTop;
         Width = previewWidth;
         Height = previewHeight;
-        WindowState = previewWindowState;
+        ExtendsContentIntoTitleBar = !previewExtendsContentIntoTitleBar;
+        ExtendsContentIntoTitleBar = previewExtendsContentIntoTitleBar;
+        _ = Dispatcher.BeginInvoke(() => WindowState = previewWindowState, DispatcherPriority.Loaded);
     }
 
     private Rect GetCurrentScreenBounds()
