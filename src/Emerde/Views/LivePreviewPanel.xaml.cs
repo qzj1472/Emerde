@@ -19,6 +19,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     };
 
     private int pendingVideoLayoutRefreshes;
+    private bool isVideoLayoutRefreshRunning;
     private System.Windows.Point? lastTrackedPointerPosition;
     private System.Windows.Window? attachedWindow;
     private ViewModels.MainViewModel? attachedViewModel;
@@ -268,23 +269,34 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         }
 
         pendingVideoLayoutRefreshes = 12;
-        _ = Dispatcher.BeginInvoke(RefreshVideoSurfaceSize);
+        if (isVideoLayoutRefreshRunning)
+        {
+            return;
+        }
+
+        isVideoLayoutRefreshRunning = true;
+        _ = Dispatcher.BeginInvoke(RefreshVideoSurfaceSize, System.Windows.Threading.DispatcherPriority.Render);
     }
 
     private async void RefreshVideoSurfaceSize()
     {
-        while (pendingVideoLayoutRefreshes > 0)
+        try
         {
-            pendingVideoLayoutRefreshes--;
-            UpdateVideoSurfaceSize();
-
-            if (TryGetVideoAspectRatio(out _))
+            while (pendingVideoLayoutRefreshes > 0 && CanPresentVideo())
             {
-                pendingVideoLayoutRefreshes = 0;
-                return;
-            }
+                pendingVideoLayoutRefreshes--;
+                PreviewViewport.UpdateLayout();
+                UpdateVideoSurfaceSize();
 
-            await Task.Delay(250);
+                if (pendingVideoLayoutRefreshes > 0)
+                {
+                    await Task.Delay(250);
+                }
+            }
+        }
+        finally
+        {
+            isVideoLayoutRefreshRunning = false;
         }
     }
 
@@ -314,6 +326,8 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
 
         PreviewOverlayRoot.Width = VideoSurface.Width;
         PreviewOverlayRoot.Height = VideoSurface.Height;
+        VideoSurface.UpdateLayout();
+        previewVideoView?.UpdateLayout();
     }
 
     private bool TryGetVideoAspectRatio(out double aspectRatio)
