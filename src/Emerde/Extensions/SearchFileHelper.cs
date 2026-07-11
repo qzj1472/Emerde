@@ -36,6 +36,12 @@ internal static class SearchFileHelper
 
         foreach (string directory in localDirectories.Where(directory => !string.IsNullOrWhiteSpace(directory)).Distinct(StringComparer.OrdinalIgnoreCase))
         {
+            string candidate = Path.Combine(directory, executableName);
+            if (File.Exists(candidate))
+            {
+                return Path.GetFullPath(candidate);
+            }
+
             string? localPath = SearchFiles(directory, $"^{Regex.Escape(executableName)}$").FirstOrDefault();
 
             if (!string.IsNullOrWhiteSpace(localPath))

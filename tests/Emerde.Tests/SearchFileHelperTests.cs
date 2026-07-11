@@ -25,6 +25,29 @@ public sealed class SearchFileHelperTests
     }
 
     [Fact]
+    public void SearchExecutable_PrefersTopLevelExecutableOverNestedCopy()
+    {
+        string directory = CreateTempDirectory();
+        string nestedDirectory = Path.Combine(directory, "tools");
+        Directory.CreateDirectory(nestedDirectory);
+
+        try
+        {
+            string expectedPath = Path.Combine(directory, "ffmpeg.exe");
+            File.WriteAllText(expectedPath, string.Empty);
+            File.WriteAllText(Path.Combine(nestedDirectory, "ffmpeg.exe"), string.Empty);
+
+            string? result = SearchFileHelper.SearchExecutable("ffmpeg.exe", [directory], string.Empty);
+
+            Assert.Equal(Path.GetFullPath(expectedPath), result);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
     public void SearchExecutable_UsesPathValue()
     {
         string directory = CreateTempDirectory();
