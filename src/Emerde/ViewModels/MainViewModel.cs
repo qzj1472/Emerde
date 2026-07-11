@@ -423,6 +423,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         StatusOfRecordFormat = Configurations.RecordFormat.Get();
         StatusOfRoutineInterval = Configurations.RoutineInterval.Get();
         OnPropertyChanged(nameof(CanPreviewSelectedRoom));
+        ClosePreviewIfCurrentRoomUnavailable();
 
         if (StatusOfIsUseAutoShutdown && TimeSpan.TryParse(StatusOfAutoShutdownTime, out TimeSpan targetTime))
         {
@@ -639,6 +640,22 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         LivePreviewStatus = CanPreviewSelectedRoom ? LivePreviewStatus.Ready : LivePreviewStatus.Idle;
     }
 
+    private void ClosePreviewIfCurrentRoomUnavailable()
+    {
+        if (!IsPreviewing || IsPreviewTransitioning || PreviewingRoom == null || PreviewingRoom.CanPreview)
+        {
+            return;
+        }
+
+        AppSessionLogger.Event("info", "preview", "preview_auto_closed_unavailable", "active preview room became unavailable", new
+        {
+            PreviewingRoom.RoomUrl,
+            PreviewingRoom.NickName,
+            PreviewingRoom.StreamStatus,
+        });
+        _ = RequestPreviewTransitionAsync(null);
+    }
+
     private void OnLivePreviewPlaybackFailed(object? sender, EventArgs e)
     {
         HandleLivePreviewPlaybackTerminated(LivePreviewStatus.Error, "LivePreviewError");
@@ -700,11 +717,22 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return;
         }
 
-        ISpiderResult? result;
+        bool refreshed;
         try
         {
-            result = await Task.Run(() => Spider.GetResult(roomUrl, preferredQuality), cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
+            refreshed = await GlobalMonitor.RunRoomUpdateAsync(roomUrl, async () =>
+            {
+                ISpiderResult? result = await Task.Run(() => Spider.GetResult(roomUrl, preferredQuality), cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!HasPreviewRefreshResult(result))
+                {
+                    return false;
+                }
+
+                previewQualityRefreshTimestamps[roomUrl] = Environment.TickCount64;
+                ApplyRoomInfoResult(targetRoom, result!);
+                return true;
+            }, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -716,16 +744,15 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return;
         }
 
-        if (!HasPreviewRefreshResult(result))
+        if (!refreshed)
         {
             return;
         }
 
-        previewQualityRefreshTimestamps[roomUrl] = Environment.TickCount64;
-        ApplyRoomInfoResult(targetRoom, result!);
         RoomStatusesView.Refresh();
         OnPropertyChanged(nameof(CanPreviewSelectedRoom));
         OnPropertyChanged(nameof(PlatformSummaryText));
+        ClosePreviewIfCurrentRoomUnavailable();
     }
 
     private bool ShouldRefreshPreviewStreamQuality(RoomStatusReactive room, string preferredQuality)
@@ -1151,14 +1178,23 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             try
             {
                 string preferredQuality = RoomRecordingSettings.GetPreferredStreamQuality(room.RoomUrl);
-                ISpiderResult? result = await Task.Run(() => Spider.GetResult(room.RoomUrl, preferredQuality));
-                if (result != null)
+                bool updated = await GlobalMonitor.RunRoomUpdateAsync(room.RoomUrl, async () =>
                 {
+                    ISpiderResult? result = await Task.Run(() => Spider.GetResult(room.RoomUrl, preferredQuality));
+                    if (result == null)
+                    {
+                        return false;
+                    }
+
                     Application.Current.Dispatcher.Invoke(() =>
                     {
                         ApplyRoomInfoResult(room, result);
-                        hasUpdated = true;
                     });
+                    return true;
+                });
+                if (updated)
+                {
+                    hasUpdated = true;
                 }
             }
             finally
@@ -1171,6 +1207,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         SaveRoomOrder();
         RoomStatusesView.Refresh();
         OnPropertyChanged(nameof(PlatformSummaryText));
+        OnPropertyChanged(nameof(CanPreviewSelectedRoom));
+        ClosePreviewIfCurrentRoomUnavailable();
         Toast.Success(hasUpdated ? "SuccOp".Tr() : "FailOp".Tr());
     }
 
@@ -1192,18 +1230,28 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         try
         {
             string preferredQuality = RoomRecordingSettings.GetPreferredStreamQuality(SelectedItem.RoomUrl);
-            ISpiderResult? result = await Task.Run(() => Spider.GetResult(SelectedItem.RoomUrl, preferredQuality));
-            if (result == null)
+            bool updated = await GlobalMonitor.RunRoomUpdateAsync(SelectedItem.RoomUrl, async () =>
+            {
+                ISpiderResult? result = await Task.Run(() => Spider.GetResult(SelectedItem.RoomUrl, preferredQuality));
+                if (result == null)
+                {
+                    return false;
+                }
+
+                ApplyRoomInfoResult(SelectedItem, result);
+                return true;
+            });
+            if (!updated)
             {
                 Toast.Error("GetRoomInfoError".Tr());
                 return;
             }
 
-            ApplyRoomInfoResult(SelectedItem, result);
             SaveRoomOrder();
             RoomStatusesView.Refresh();
             OnPropertyChanged(nameof(PlatformSummaryText));
             OnPropertyChanged(nameof(CanPreviewSelectedRoom));
+            ClosePreviewIfCurrentRoomUnavailable();
             Toast.Success("SuccOp".Tr());
         }
         finally

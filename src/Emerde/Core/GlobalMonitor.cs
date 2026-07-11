@@ -225,6 +225,21 @@ internal static class GlobalMonitor
         await RunRoomsAsync(rooms, token, force: true);
     }
 
+    internal static async Task<T> RunRoomUpdateAsync<T>(string roomUrl, Func<Task<T>> update, CancellationToken token = default)
+    {
+        SemaphoreSlim roomLock = RoomCheckLocks.GetOrAdd(roomUrl, _ => new SemaphoreSlim(1, 1));
+        await roomLock.WaitAsync(token);
+
+        try
+        {
+            return await update();
+        }
+        finally
+        {
+            roomLock.Release();
+        }
+    }
+
     public static async Task StartAsync(CancellationToken token = default)
     {
         await StartAsync(token, Volatile.Read(ref monitorGeneration), RoutinePeriodicWait);
