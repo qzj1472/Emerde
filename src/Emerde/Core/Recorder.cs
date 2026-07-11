@@ -1,6 +1,4 @@
 using CommunityToolkit.Mvvm.Messaging;
-using Flucli;
-using Flucli.Utils.Extensions;
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -13,6 +11,8 @@ namespace Emerde.Core;
 public sealed class Recorder
 {
     private const int MaxRecordingAttempts = 4;
+    private const int ProcessOutputTailLimit = 8192;
+    private const string OptimizedAudioFilter = "[0:a:0]volume=30dB,acompressor=threshold=-10dB:ratio=3,alimiter=limit=0.316227766:level=false[aopt]";
 
     public RecordStatus RecordStatus { get; internal set; } = RecordStatus.Initialized;
 
@@ -27,6 +27,8 @@ public sealed class Recorder
     private Task? recordingTask;
 
     private bool stopRequested;
+
+    private string lastProcessErrorOutput = string.Empty;
 
     private readonly List<string> recordedFilePatterns = [];
 
@@ -117,6 +119,9 @@ public sealed class Recorder
             }
 
             bool isHls = IsHlsUrl(Url, startInfo);
+            string? targetFormat = GetTargetFormat(recordingOptions.RecordFormat);
+            bool useTransportStream = ShouldUseTransportStream(isHls, isToSegment, targetFormat);
+            bool disableOptimizedAudio = false;
 
             if (string.IsNullOrWhiteSpace(userAgent))
             {
@@ -134,10 +139,11 @@ public sealed class Recorder
             {
                 DateTime now = DateTime.Now;
                 string baseFileName = BuildBaseFileName(startInfo, now).SanitizeFileName();
-                FileName = BuildOutputFileName(saveFolder, baseFileName, isToSegment, isHls);
-                VideoRecordingMetadata metadata = BuildMetadata(baseFileName, isHls ? "ts" : "flv", startInfo, now);
+                FileName = BuildOutputFileName(saveFolder, baseFileName, isToSegment, useTransportStream);
+                VideoRecordingMetadata metadata = BuildMetadata(baseFileName, useTransportStream ? "ts" : "flv", startInfo, now);
                 MetadataPath = VideoRecordingMetadataStore.WriteSidecar(saveFolder, baseFileName, metadata);
                 recordedFilePatterns.Add(FileName);
+                bool useOptimizedAudio = useTransportStream && !disableOptimizedAudio;
 
                 List<string> arguments = BuildArguments(
                     FileName,
@@ -149,7 +155,8 @@ public sealed class Recorder
                     isToSegmentBySize,
                     segmentTime,
                     segmentTimeUnit,
-                    metadata);
+                    metadata,
+                    useOptimizedAudio);
 
                 Parameters = FormatArguments(arguments);
                 AppSessionLogger.Event("info", "recorder", "record_process_starting", "ffmpeg recording process is starting", new
@@ -161,6 +168,7 @@ public sealed class Recorder
                     hasHeaders = !string.IsNullOrWhiteSpace(headers),
                     FileName,
                     isToSegment,
+                    useOptimizedAudio,
                     isUseProxy,
                     attempt,
                 });
@@ -170,6 +178,19 @@ public sealed class Recorder
                 if (token.IsCancellationRequested || stopRequested || exitCode == 0)
                 {
                     break;
+                }
+
+                if (useOptimizedAudio && IsMissingAudioError(lastProcessErrorOutput))
+                {
+                    disableOptimizedAudio = true;
+                    DeleteFailedOutputFiles(FileName, MetadataPath);
+                    AppSessionLogger.Event("warn", "recorder", "optimized_audio_unavailable", "recording source has no audio stream and will retry without audio processing", new
+                    {
+                        startInfo.RoomUrl,
+                        startInfo.NickName,
+                        FileName,
+                    });
+                    continue;
                 }
 
                 attempt++;
@@ -276,7 +297,8 @@ public sealed class Recorder
         bool isToSegmentBySize,
         int segmentTime,
         int segmentTimeUnit,
-        VideoRecordingMetadata metadata)
+        VideoRecordingMetadata metadata,
+        bool useOptimizedAudio)
     {
         List<string> arguments =
         [
@@ -309,10 +331,7 @@ public sealed class Recorder
                 "-reconnect_on_http_error", "4xx,5xx",
                 "-max_muxing_queue_size", "1024",
                 "-correct_ts_overflow", "1",
-                "-avoid_negative_ts", "1",
-                "-map", "0",
-                "-c:v", "copy",
-                "-c:a", "copy"
+                "-avoid_negative_ts", "1"
             )
             .AddIf(isToSegment && !isToSegmentBySize,
                 "-f", "segment",
@@ -329,6 +348,8 @@ public sealed class Recorder
             .AddIf(isToSegment,
                 "-reset_timestamps", "1"
             );
+
+        arguments.AddRange(BuildAudioMappingArguments(useOptimizedAudio));
 
         arguments.AddRange(VideoRecordingMetadataStore.BuildFfmpegMetadataArguments(metadata));
         if (VideoRecordingMetadataStore.UsesMovMetadataTags(outputFileName))
@@ -380,7 +401,12 @@ public sealed class Recorder
             currentProcess = process;
         }
 
-        Task errorTask = ReadPipeAsync(process.StandardError, OnStandardErrorReceived, CancellationToken.None);
+        StringBuilder errorTail = new();
+        Task errorTask = ReadPipeAsync(process.StandardError, async (data, readToken) =>
+        {
+            AppendOutputTail(errorTail, data);
+            await OnStandardErrorReceived(data, readToken);
+        }, CancellationToken.None);
         Task outputTask = ReadPipeAsync(process.StandardOutput, OnStandardOutputReceived, CancellationToken.None);
         bool wasCanceled = false;
 
@@ -412,6 +438,7 @@ public sealed class Recorder
         }
 
         await Task.WhenAll(errorTask, outputTask);
+        lastProcessErrorOutput = errorTail.ToString();
         AppSessionLogger.Event(process.ExitCode == 0 ? "info" : "warn", "recorder", "record_process_exited", "ffmpeg recording process exited", new
         {
             startInfo.RoomUrl,
@@ -420,6 +447,7 @@ public sealed class Recorder
             process.ExitCode,
             wasCanceled,
             FileName,
+            errorOutput = process.ExitCode == 0 ? string.Empty : lastProcessErrorOutput,
         });
 
         if (wasCanceled)
@@ -695,13 +723,99 @@ public sealed class Recorder
             || url == startInfo.HlsUrl;
     }
 
+    private static void DeleteFailedOutputFiles(string fileName, string? metadataPath)
+    {
+        foreach (string outputFile in GetRecordedSourceFilesForPattern(fileName))
+        {
+            try
+            {
+                File.Delete(outputFile);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(metadataPath))
+        {
+            return;
+        }
+
+        try
+        {
+            File.Delete(metadataPath);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
+    internal static IReadOnlyList<string> BuildAudioMappingArguments(bool useOptimizedAudio)
+    {
+        return useOptimizedAudio
+            ? [
+                "-filter_complex", OptimizedAudioFilter,
+                "-map", "0:v?",
+                "-map", "0:a:0?",
+                "-map", "[aopt]",
+                "-c:v", "copy",
+                "-c:a:0", "copy",
+                "-c:a:1", "aac",
+                "-metadata:s:a:0", "title=原音频",
+                "-metadata:s:a:0", "handler_name=原音频",
+                "-metadata:s:a:1", "title=优化音频",
+                "-metadata:s:a:1", "handler_name=优化音频",
+            ]
+            : [
+                "-map", "0",
+                "-c:v", "copy",
+                "-c:a", "copy",
+            ];
+    }
+
+    internal static bool ShouldUseTransportStream(bool isHls, bool isToSegment, string? targetFormat)
+    {
+        return isHls || isToSegment || IsOptimizedTargetFormat(targetFormat);
+    }
+
+    internal static bool IsMissingAudioError(string? errorOutput)
+    {
+        return !string.IsNullOrWhiteSpace(errorOutput)
+            && (errorOutput.Contains("matches no streams", StringComparison.OrdinalIgnoreCase)
+                || errorOutput.Contains("does not contain any stream", StringComparison.OrdinalIgnoreCase)
+                || errorOutput.Contains("cannot find a matching stream", StringComparison.OrdinalIgnoreCase)
+                || errorOutput.Contains("streamcopy requested for output stream fed from a complex filtergraph", StringComparison.OrdinalIgnoreCase)
+                || errorOutput.Contains("stream specifier ':a", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string? GetTargetFormat(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || !value.Contains("->", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        string target = value.Split("->", StringSplitOptions.TrimEntries).LastOrDefault() ?? string.Empty;
+        return string.IsNullOrWhiteSpace(target) ? null : "." + target.TrimStart('.').ToLowerInvariant();
+    }
+
+    private static bool IsOptimizedTargetFormat(string? targetFormat)
+    {
+        return targetFormat is ".mkv" or ".mp4";
+    }
+
+    private static void AppendOutputTail(StringBuilder output, string data)
+    {
+        output.AppendLine(data);
+        if (output.Length > ProcessOutputTailLimit)
+        {
+            output.Remove(0, output.Length - ProcessOutputTailLimit);
+        }
+    }
+
     private Task OnStandardErrorReceived(string data, CancellationToken token)
     {
         Debug.WriteLine(data);
-        AppSessionLogger.Event("debug", "recorder", "ffmpeg_stderr", data, new
-        {
-            FileName,
-        });
         _ = WeakReferenceMessenger.Default.Send(new RecorderMessage()
         {
             DataType = StandardData.StandardError,
@@ -713,10 +827,6 @@ public sealed class Recorder
     private Task OnStandardOutputReceived(string data, CancellationToken token)
     {
         Debug.WriteLine(data);
-        AppSessionLogger.Event("debug", "recorder", "ffmpeg_stdout", data, new
-        {
-            FileName,
-        });
         _ = WeakReferenceMessenger.Default.Send(new RecorderMessage()
         {
             DataType = StandardData.StandardOutput,
