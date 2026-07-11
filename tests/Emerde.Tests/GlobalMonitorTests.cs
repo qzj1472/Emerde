@@ -123,4 +123,37 @@ public sealed class GlobalMonitorTests
             Configurations.IsToMonitor.Set(oldIsToMonitor);
         }
     }
+
+    [Fact]
+    public void TemporaryRoomOverrides_AreRemovedTogether()
+    {
+        const string roomUrl = "https://example.test/temporary-room";
+        bool oldIsToRecord = Configurations.IsToRecord.Get();
+        bool oldIsToMonitor = Configurations.IsToMonitor.Get();
+        bool oldIsMonitorRunning = Configurations.IsMonitorRunning.Get();
+
+        try
+        {
+            Configurations.IsToRecord.Set(false);
+            Configurations.IsToMonitor.Set(false);
+            Configurations.IsMonitorRunning.Set(false);
+            GlobalMonitor.SetTemporaryRoomRecord(roomUrl, true);
+            GlobalMonitor.SetTemporaryRoomMonitor(roomUrl, true);
+
+            Assert.True(GlobalMonitor.GetEffectiveRoomRecord(roomUrl, false, true));
+            Assert.True(GlobalMonitor.GetEffectiveRoomMonitor(roomUrl, false, true));
+
+            GlobalMonitor.ClearTemporaryRoomOverrides(roomUrl);
+
+            Assert.False(GlobalMonitor.GetEffectiveRoomRecord(roomUrl, false, true));
+            Assert.False(GlobalMonitor.GetEffectiveRoomMonitor(roomUrl, false, true));
+        }
+        finally
+        {
+            GlobalMonitor.ClearTemporaryRoomOverrides(roomUrl);
+            Configurations.IsToRecord.Set(oldIsToRecord);
+            Configurations.IsToMonitor.Set(oldIsToMonitor);
+            Configurations.IsMonitorRunning.Set(oldIsMonitorRunning);
+        }
+    }
 }
