@@ -91,7 +91,7 @@ public sealed class Recorder
             Directory.CreateDirectory(saveFolder);
 
             string userAgent = Configurations.UserAgent.Get();
-            string httpProxy = Configurations.ProxyUrl.Get();
+            string httpProxy = ProxyAddress.Normalize(Configurations.ProxyUrl.Get());
             bool isUseProxy = Configurations.IsUseProxy.Get() && !string.IsNullOrWhiteSpace(httpProxy);
             int segmentTime = Math.Max(1, recordingOptions.SegmentTime);
             int segmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(recordingOptions.SegmentTimeUnit);
@@ -362,8 +362,8 @@ public sealed class Recorder
 
         if (isUseProxy)
         {
-            processStartInfo.Environment["http_proxy"] = "http://" + httpProxy;
-            processStartInfo.Environment["https_proxy"] = "http://" + httpProxy;
+            processStartInfo.Environment["http_proxy"] = httpProxy;
+            processStartInfo.Environment["https_proxy"] = httpProxy;
         }
 
         using Process process = new() { StartInfo = processStartInfo };

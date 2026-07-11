@@ -1046,10 +1046,9 @@ public partial class SettingsViewModel : ReactiveObject
             return false;
         }
 
-        string input = value.Trim();
-        string url = input.Contains("://", StringComparison.Ordinal) ? input : $"http://{input}";
+        string url = ProxyAddress.Normalize(value);
 
-        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) || string.IsNullOrWhiteSpace(uri.Host))
+        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out Uri? uri))
         {
             errorKey = "ProxyErrorOfFormat";
             return false;

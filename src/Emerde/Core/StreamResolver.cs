@@ -422,8 +422,9 @@ internal static partial class StreamResolver
             string proxyUrl = Configurations.ProxyUrl.Get();
             if (!string.IsNullOrWhiteSpace(proxyUrl))
             {
-                handler.Proxy = new WebProxy(proxyUrl.Contains("://", StringComparison.Ordinal) ? proxyUrl : $"http://{proxyUrl}");
-                handler.UseProxy = true;
+                WebProxy? proxy = ProxyAddress.Create(proxyUrl);
+                handler.Proxy = proxy;
+                handler.UseProxy = proxy != null;
             }
         }
 

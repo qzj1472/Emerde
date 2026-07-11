@@ -45,9 +45,10 @@ public sealed class LivePreviewPlayer : IDisposable
             media.AddOption($":http-cookie={cookie}");
         }
 
-        if (!string.IsNullOrWhiteSpace(proxyUrl))
+        string normalizedProxy = ProxyAddress.Normalize(proxyUrl);
+        if (!string.IsNullOrWhiteSpace(normalizedProxy))
         {
-            media.AddOption($":http-proxy=http://{proxyUrl}");
+            media.AddOption($":http-proxy={normalizedProxy}");
         }
 
         MediaPlayer.AspectRatio = null;

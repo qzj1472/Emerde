@@ -220,7 +220,7 @@ public sealed partial class XiaohongshuSpider : ISpider
 
             if (!string.IsNullOrWhiteSpace(proxyUrl))
             {
-                options.Proxy = new WebProxy($"http://{proxyUrl}");
+                options.Proxy = ProxyAddress.Create(proxyUrl);
             }
         }
 
