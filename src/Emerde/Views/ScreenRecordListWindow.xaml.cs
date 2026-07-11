@@ -977,7 +977,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         Directory.CreateDirectory(cacheDir);
         string imagePath = GetThumbnailCachePath(filePath);
 
-        if (File.Exists(imagePath) && new FileInfo(imagePath).Length > 0)
+        if (IsThumbnailCacheCurrent(filePath, imagePath))
         {
             return imagePath;
         }
@@ -1037,7 +1037,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     private static string GetThumbnailCacheDirectory()
     {
-        return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "video_thumbnails");
+        return Path.Combine(AppPaths.ConfigDirectory, "video_thumbnails");
     }
 
     internal static string GetThumbnailCachePath(string filePath)
@@ -1053,7 +1053,19 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
 
         string cachePath = GetThumbnailCachePath(filePath);
-        return File.Exists(cachePath) && new FileInfo(cachePath).Length > 0 ? cachePath : string.Empty;
+        return IsThumbnailCacheCurrent(filePath, cachePath) ? cachePath : string.Empty;
+    }
+
+    private static bool IsThumbnailCacheCurrent(string filePath, string cachePath)
+    {
+        if (!File.Exists(filePath) || !File.Exists(cachePath))
+        {
+            return false;
+        }
+
+        FileInfo video = new(filePath);
+        FileInfo thumbnail = new(cachePath);
+        return thumbnail.Length > 0 && thumbnail.LastWriteTimeUtc >= video.LastWriteTimeUtc;
     }
 
     internal static void CopyAssociatedMetadata(string sourceFilePath, string targetFilePath)

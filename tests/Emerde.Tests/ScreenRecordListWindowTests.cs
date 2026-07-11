@@ -240,7 +240,9 @@ public sealed class ScreenRecordListWindowTests
 
         try
         {
+            File.WriteAllText(videoPath, "video");
             File.WriteAllText(thumbnailPath, "fake");
+            File.SetLastWriteTimeUtc(thumbnailPath, File.GetLastWriteTimeUtc(videoPath).AddSeconds(1));
 
             string result = ScreenRecordListViewModel.GetExistingThumbnailPath(videoPath, string.Empty);
 
@@ -248,6 +250,41 @@ public sealed class ScreenRecordListWindowTests
         }
         finally
         {
+            if (File.Exists(videoPath))
+            {
+                File.Delete(videoPath);
+            }
+            if (File.Exists(thumbnailPath))
+            {
+                File.Delete(thumbnailPath);
+            }
+        }
+    }
+
+    [Fact]
+    public void GetExistingThumbnailPath_RejectsThumbnailOlderThanVideo()
+    {
+        string videoPath = Path.Combine(Path.GetTempPath(), $"record-{Guid.NewGuid():N}.mp4");
+        string thumbnailPath = ScreenRecordListViewModel.GetThumbnailCachePath(videoPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(thumbnailPath)!);
+
+        try
+        {
+            File.WriteAllText(thumbnailPath, "fake");
+            File.WriteAllText(videoPath, "video");
+            File.SetLastWriteTimeUtc(thumbnailPath, DateTime.UtcNow.AddMinutes(-1));
+            File.SetLastWriteTimeUtc(videoPath, DateTime.UtcNow);
+
+            string result = ScreenRecordListViewModel.GetExistingThumbnailPath(videoPath, string.Empty);
+
+            Assert.Empty(result);
+        }
+        finally
+        {
+            if (File.Exists(videoPath))
+            {
+                File.Delete(videoPath);
+            }
             if (File.Exists(thumbnailPath))
             {
                 File.Delete(thumbnailPath);
