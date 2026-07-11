@@ -19,6 +19,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     };
 
     private int pendingVideoLayoutRefreshes;
+    private System.Windows.Point? lastTrackedPointerPosition;
     private System.Windows.Window? attachedWindow;
     private ViewModels.MainViewModel? attachedViewModel;
     private bool isVideoPresentationSuspended;
@@ -94,6 +95,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             pointerTrackingTimer.Stop();
             controlsIdleTimer.Stop();
             pendingVideoLayoutRefreshes = 0;
+            lastTrackedPointerPosition = null;
             HidePreviewControlsImmediately();
             DetachMediaPlayerEvents();
             DetachWindowEvents();
@@ -337,6 +339,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
 
     private void PreviewViewport_OnMouseActivity(object sender, System.Windows.Input.MouseEventArgs e)
     {
+        lastTrackedPointerPosition = System.Windows.Input.Mouse.GetPosition(VideoSurface);
         ShowPreviewControls();
     }
 
@@ -425,26 +428,41 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     {
         if (!CanUsePreviewControls())
         {
+            lastTrackedPointerPosition = null;
             HidePreviewControlsImmediately();
             return;
         }
 
-        if (!IsPointerInsideVideoSurface() && !PreviewControls.IsMouseOver)
+        System.Windows.Point pointerPosition = System.Windows.Input.Mouse.GetPosition(VideoSurface);
+        if (!IsPointerInsideVideoSurface(pointerPosition))
+        {
+            lastTrackedPointerPosition = null;
+            return;
+        }
+
+        if (!HasPointerMoved(lastTrackedPointerPosition, pointerPosition))
         {
             return;
         }
 
+        lastTrackedPointerPosition = pointerPosition;
         ShowPreviewControls();
     }
 
-    private bool IsPointerInsideVideoSurface()
+    internal static bool HasPointerMoved(System.Windows.Point? previousPosition, System.Windows.Point currentPosition)
+    {
+        return previousPosition == null
+            || Math.Abs(previousPosition.Value.X - currentPosition.X) >= 1d
+            || Math.Abs(previousPosition.Value.Y - currentPosition.Y) >= 1d;
+    }
+
+    private bool IsPointerInsideVideoSurface(System.Windows.Point position)
     {
         if (VideoSurface.ActualWidth <= 0d || VideoSurface.ActualHeight <= 0d)
         {
             return false;
         }
 
-        System.Windows.Point position = System.Windows.Input.Mouse.GetPosition(VideoSurface);
         return position.X >= 0d
             && position.X <= VideoSurface.ActualWidth
             && position.Y >= 0d

@@ -1,11 +1,23 @@
 using Emerde.Core;
 using Emerde.Models;
 using Emerde.ViewModels;
+using Emerde.Views;
 
 namespace Emerde.Tests;
 
 public sealed class LivePreviewTests
 {
+    [Fact]
+    public void HasPointerMoved_RequiresActualPointerMovement()
+    {
+        System.Windows.Point position = new(120, 80);
+
+        Assert.True(LivePreviewPanel.HasPointerMoved(null, position));
+        Assert.False(LivePreviewPanel.HasPointerMoved(position, position));
+        Assert.False(LivePreviewPanel.HasPointerMoved(position, new System.Windows.Point(120.5, 80.5)));
+        Assert.True(LivePreviewPanel.HasPointerMoved(position, new System.Windows.Point(121, 80)));
+    }
+
     [Fact]
     public void PreviewUrl_UsesHlsBeforeFlv()
     {
