@@ -57,6 +57,8 @@ internal static class ConfigFileManager
         nameof(Configurations.IsUseKeepAwake),
         nameof(Configurations.IsUseAutoShutdown),
         nameof(Configurations.AutoShutdownTime),
+        nameof(Configurations.IsAutoShutdownAfterTranscode),
+        nameof(Configurations.IsAutoShutdownComputer),
         nameof(Configurations.IsUseProxy),
         nameof(Configurations.ProxyUrl),
         nameof(Configurations.PlatformCookies),

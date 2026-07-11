@@ -1361,7 +1361,7 @@
                         </Button>
                         <Button Command="{Binding ToggleStatusAutoShutdownCommand}"
                                 Style="{StaticResource StatusTrayButtonStyle}"
-                                ToolTip="{I18N AutoShutdown}">
+                                ToolTip="定时关闭">
                             <c:If Condition="{Binding StatusOfIsUseAutoShutdown, Mode=OneWay}">
                                 <c:If.TrueValue>
                                     <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
@@ -1377,8 +1377,8 @@
                         </Button>
                         <TextBlock Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                    Style="{StaticResource StatusTrayTextBlockStyle}"
-                                   Text="{Binding StatusOfAutoShutdownTime}"
-                                   ToolTip="{I18N AutoShutdown}"
+                                   Text="{Binding StatusOfAutoShutdownCountdown}"
+                                   ToolTip="{Binding StatusOfAutoShutdownCountdownToolTip}"
                                    Visibility="{Binding StatusOfIsUseAutoShutdown, Converter={x:Static c:BoolToVisibilityConverter.Instance}}" />
                         <Border Width="1"
                                 Height="14"

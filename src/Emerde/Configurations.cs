@@ -55,6 +55,8 @@ public static class Configurations
     public static ConfigurationDefinition<bool> IsUseKeepAwake { get; } = new(nameof(IsUseKeepAwake), false);
     public static ConfigurationDefinition<bool> IsUseAutoShutdown { get; } = new(nameof(IsUseAutoShutdown), false);
     public static ConfigurationDefinition<string> AutoShutdownTime { get; } = new(nameof(AutoShutdownTime), "00:00");
+    public static ConfigurationDefinition<bool> IsAutoShutdownAfterTranscode { get; } = new(nameof(IsAutoShutdownAfterTranscode), false);
+    public static ConfigurationDefinition<bool> IsAutoShutdownComputer { get; } = new(nameof(IsAutoShutdownComputer), false);
     public static ConfigurationDefinition<bool> IsUseProxy { get; } = new(nameof(IsUseProxy), false);
     public static ConfigurationDefinition<string> ProxyUrl { get; } = new(nameof(ProxyUrl), string.Empty);
     public static ConfigurationDefinition<string> PlatformCookies { get; } = new(nameof(PlatformCookies), string.Empty);

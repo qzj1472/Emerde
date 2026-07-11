@@ -158,6 +158,34 @@ public sealed class GlobalMonitorTests
         }
     }
 
+    [Fact]
+    public void RecordStartBlock_IsReferenceCountedByReason()
+    {
+        const string firstReason = "test-first";
+        const string secondReason = "test-second";
+
+        try
+        {
+            GlobalMonitor.SetRecordStartBlock(firstReason, true);
+            GlobalMonitor.SetRecordStartBlock(secondReason, true);
+
+            Assert.True(GlobalMonitor.IsRecordStartBlocked);
+
+            GlobalMonitor.SetRecordStartBlock(firstReason, false);
+
+            Assert.True(GlobalMonitor.IsRecordStartBlocked);
+
+            GlobalMonitor.SetRecordStartBlock(secondReason, false);
+
+            Assert.False(GlobalMonitor.IsRecordStartBlocked);
+        }
+        finally
+        {
+            GlobalMonitor.SetRecordStartBlock(firstReason, false);
+            GlobalMonitor.SetRecordStartBlock(secondReason, false);
+        }
+    }
+
     [Theory]
     [InlineData(StreamStatus.Streaming, null, false, StreamStatus.Streaming)]
     [InlineData(StreamStatus.NotStreaming, null, false, StreamStatus.NotStreaming)]

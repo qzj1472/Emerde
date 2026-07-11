@@ -970,20 +970,52 @@ public partial class SettingsViewModel : ReactiveObject
     }
 
     [ObservableProperty]
-    private int autoShutdownTimeHour = Configurations.AutoShutdownTime.Get().Split(':')[0].IntParse(fallback: 0);
+    private int autoShutdownTimeHour = AutoShutdownSchedule.GetTimePart(Configurations.AutoShutdownTime.Get(), 0, 23);
 
     partial void OnAutoShutdownTimeHourChanged(int value)
     {
-        Configurations.AutoShutdownTime.Set($"{value:D2}:{AutoShutdownTimeMinute:D2}");
+        int normalized = Math.Clamp(value, 0, 23);
+        if (normalized != value)
+        {
+            AutoShutdownTimeHour = normalized;
+            return;
+        }
+
+        Configurations.AutoShutdownTime.Set($"{normalized:D2}:{AutoShutdownTimeMinute:D2}");
         ConfigurationManager.Save();
     }
 
     [ObservableProperty]
-    private int autoShutdownTimeMinute = Configurations.AutoShutdownTime.Get().Split(':')[1].IntParse(fallback: 0);
+    private int autoShutdownTimeMinute = AutoShutdownSchedule.GetTimePart(Configurations.AutoShutdownTime.Get(), 1, 59);
 
     partial void OnAutoShutdownTimeMinuteChanged(int value)
     {
-        Configurations.AutoShutdownTime.Set($"{AutoShutdownTimeHour:D2}:{value:D2}");
+        int normalized = Math.Clamp(value, 0, 59);
+        if (normalized != value)
+        {
+            AutoShutdownTimeMinute = normalized;
+            return;
+        }
+
+        Configurations.AutoShutdownTime.Set($"{AutoShutdownTimeHour:D2}:{normalized:D2}");
+        ConfigurationManager.Save();
+    }
+
+    [ObservableProperty]
+    private bool isAutoShutdownAfterTranscode = Configurations.IsAutoShutdownAfterTranscode.Get();
+
+    partial void OnIsAutoShutdownAfterTranscodeChanged(bool value)
+    {
+        Configurations.IsAutoShutdownAfterTranscode.Set(value);
+        ConfigurationManager.Save();
+    }
+
+    [ObservableProperty]
+    private bool isAutoShutdownComputer = Configurations.IsAutoShutdownComputer.Get();
+
+    partial void OnIsAutoShutdownComputerChanged(bool value)
+    {
+        Configurations.IsAutoShutdownComputer.Set(value);
         ConfigurationManager.Save();
     }
 
@@ -1327,7 +1359,7 @@ public partial class SettingsViewModel : ReactiveObject
 
         if (result == ContentDialogResult.Primary)
         {
-            RuntimeHelper.Restart(forced: true);
+            TrayIconManager.GetInstance().RestartApplication(confirmRecording: false);
         }
     }
 

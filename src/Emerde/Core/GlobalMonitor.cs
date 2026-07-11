@@ -29,6 +29,8 @@ internal static class GlobalMonitor
 
     private static readonly ConcurrentDictionary<string, DateTime> LastRoomCheckTimes = new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly ConcurrentDictionary<string, byte> RecordStartBlocks = new(StringComparer.OrdinalIgnoreCase);
+
     public static PeriodicWait RoutinePeriodicWait = new(GetRoutinePeriod(), TimeSpan.Zero);
 
     public static CancellationTokenSource? TokenSource { get; private set; } = null;
@@ -102,6 +104,11 @@ internal static class GlobalMonitor
                 TaskCreationOptions.LongRunning,
                 TaskScheduler.Default
             ).Unwrap();
+            AppSessionLogger.Event("info", "monitor", "monitor_started", "global monitor started", new
+            {
+                generation,
+                routineMilliseconds = periodicWait.Period.TotalMilliseconds,
+            });
         }
     }
 
@@ -112,15 +119,48 @@ internal static class GlobalMonitor
             Interlocked.Increment(ref monitorGeneration);
             TokenSource?.Cancel();
             TokenSource = null;
+            AppSessionLogger.Event("info", "monitor", "monitor_stopped", "global monitor stopped");
         }
     }
 
     public static void StopAllRecorders()
     {
-        foreach (RoomStatus roomStatus in RoomStatus.Values)
+        RoomStatus[] roomStatuses = RoomStatus.Values.ToArray();
+        foreach (RoomStatus roomStatus in roomStatuses)
         {
             roomStatus.Recorder.Stop();
         }
+
+        AppSessionLogger.Event("info", "monitor", "all_recorders_stopped", "all active recorders were asked to stop", new
+        {
+            recorderCount = roomStatuses.Count(roomStatus => roomStatus.Recorder.IsBusy),
+        });
+    }
+
+    public static bool HasActiveRecorders => RoomStatus.Values.Any(roomStatus => roomStatus.Recorder.IsBusy);
+
+    public static bool IsRecordStartBlocked => !RecordStartBlocks.IsEmpty;
+
+    public static void SetRecordStartBlock(string reason, bool blocked)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            return;
+        }
+
+        bool changed = blocked
+            ? RecordStartBlocks.TryAdd(reason, 1)
+            : RecordStartBlocks.TryRemove(reason, out _);
+        if (!changed)
+        {
+            return;
+        }
+
+        AppSessionLogger.Event("info", "monitor", blocked ? "record_start_blocked" : "record_start_unblocked", reason, new
+        {
+            reason,
+            activeBlocks = RecordStartBlocks.Keys.OrderBy(static value => value).ToArray(),
+        });
     }
 
     public static bool GetEffectiveRoomRecord(Room room)
@@ -282,7 +322,7 @@ internal static class GlobalMonitor
 
                 RoomRecordingOptions settings = RoomRecordingSettings.Get(room);
                 bool shouldNotify = isGlobalToNotify && room.IsToNotify;
-                bool shouldRecord = GetEffectiveRoomRecord(room);
+                bool shouldRecord = GetEffectiveRoomRecord(room) && !IsRecordStartBlocked;
                 bool shouldMonitor = GetEffectiveRoomMonitor(room) && IsRoutineScheduleActive(now, settings);
 
                 if (shouldMonitor)
@@ -354,7 +394,7 @@ internal static class GlobalMonitor
     {
         SyncRecordStatus(roomStatus);
         ISpiderResult? spiderResult = await Task.Run(() => Spider.GetResult(room.RoomUrl, settings.PreferredStreamQuality), token);
-        shouldRecord = GetEffectiveRoomRecord(room);
+        shouldRecord = GetEffectiveRoomRecord(room) && !IsRecordStartBlocked;
 
         if (!GetEffectiveRoomMonitor(room))
         {
@@ -384,6 +424,7 @@ internal static class GlobalMonitor
                 roomStatus.PlatformName,
                 roomStatus.StreamStatus,
                 roomStatus.RecordStatus,
+                resolverError = StreamResolver.GetLastError(room.RoomUrl),
             });
             return;
         }
