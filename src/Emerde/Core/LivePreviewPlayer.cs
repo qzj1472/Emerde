@@ -4,9 +4,19 @@ namespace Emerde.Core;
 
 public sealed class LivePreviewPlayer : IDisposable
 {
+    private static readonly TimeSpan PlaybackStartTimeout = TimeSpan.FromSeconds(8);
     private readonly LibVLC libVlc;
+    private Media? currentMedia;
+    private EventHandler<EventArgs>? currentPlayingHandler;
+    private EventHandler<EventArgs>? currentErrorHandler;
+    private EventHandler<EventArgs>? currentEndReachedHandler;
+    private bool playbackStarted;
 
     public MediaPlayer MediaPlayer { get; }
+
+    public event EventHandler? PlaybackFailed;
+
+    public event EventHandler? PlaybackEnded;
 
     public LivePreviewPlayer()
     {
@@ -24,40 +34,41 @@ public sealed class LivePreviewPlayer : IDisposable
         await StopAsync();
         cancellationToken.ThrowIfCancellationRequested();
 
-        using Media media = new(libVlc, new Uri(url));
-        media.AddOption(":adaptive-logic=highest");
-
-        string effectiveUserAgent = GetHeaderValue(headers, "User-Agent") ?? userAgent;
-        if (!string.IsNullOrWhiteSpace(effectiveUserAgent))
-        {
-            media.AddOption($":http-user-agent={effectiveUserAgent}");
-        }
-
-        string? referer = GetHeaderValue(headers, "Referer");
-        if (!string.IsNullOrWhiteSpace(referer))
-        {
-            media.AddOption($":http-referrer={referer}");
-        }
-
-        string? cookie = GetHeaderValue(headers, "Cookie");
-        if (!string.IsNullOrWhiteSpace(cookie))
-        {
-            media.AddOption($":http-cookie={cookie}");
-        }
-
-        string normalizedProxy = ProxyAddress.Normalize(proxyUrl);
-        if (!string.IsNullOrWhiteSpace(normalizedProxy))
-        {
-            media.AddOption($":http-proxy={normalizedProxy}");
-        }
+        Media media = CreateMedia(url, userAgent, proxyUrl, headers);
+        currentMedia = media;
 
         MediaPlayer.AspectRatio = null;
         MediaPlayer.Scale = 0;
         TaskCompletionSource playbackStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        EventHandler<EventArgs> playingHandler = (_, _) => playbackStarted.TrySetResult();
-        EventHandler<EventArgs> errorHandler = (_, _) => playbackStarted.TrySetException(new InvalidOperationException("Live preview playback failed."));
-        MediaPlayer.Playing += playingHandler;
-        MediaPlayer.EncounteredError += errorHandler;
+        this.playbackStarted = false;
+        currentPlayingHandler = (_, _) =>
+        {
+            this.playbackStarted = true;
+            playbackStarted.TrySetResult();
+        };
+        currentErrorHandler = (_, _) =>
+        {
+            if (!this.playbackStarted)
+            {
+                playbackStarted.TrySetException(new InvalidOperationException("Live preview playback failed."));
+                return;
+            }
+
+            PlaybackFailed?.Invoke(this, EventArgs.Empty);
+        };
+        currentEndReachedHandler = (_, _) =>
+        {
+            if (!this.playbackStarted)
+            {
+                playbackStarted.TrySetException(new InvalidOperationException("Live preview playback ended before it started."));
+                return;
+            }
+
+            PlaybackEnded?.Invoke(this, EventArgs.Empty);
+        };
+        MediaPlayer.Playing += currentPlayingHandler;
+        MediaPlayer.EncounteredError += currentErrorHandler;
+        MediaPlayer.EndReached += currentEndReachedHandler;
 
         try
         {
@@ -67,48 +78,55 @@ public sealed class LivePreviewPlayer : IDisposable
                 throw new InvalidOperationException("Live preview playback could not start.");
             }
 
-            Task completed = await Task.WhenAny(playbackStarted.Task, Task.Delay(TimeSpan.FromSeconds(3), cancellationToken));
+            Task completed = await Task.WhenAny(playbackStarted.Task, Task.Delay(PlaybackStartTimeout, cancellationToken));
             cancellationToken.ThrowIfCancellationRequested();
-            if (ReferenceEquals(completed, playbackStarted.Task))
+            if (!ReferenceEquals(completed, playbackStarted.Task))
             {
-                await playbackStarted.Task;
+                throw new TimeoutException("Live preview playback did not start in time.");
             }
+
+            await playbackStarted.Task;
         }
-        finally
+        catch
         {
-            MediaPlayer.Playing -= playingHandler;
-            MediaPlayer.EncounteredError -= errorHandler;
+            await StopAsync();
+            throw;
         }
     }
 
     public void Stop()
     {
+        DetachPlaybackEvents();
         if (MediaPlayer.State is not VLCState.Stopped and not VLCState.NothingSpecial)
         {
             MediaPlayer.Stop();
         }
+
+        DisposeCurrentMedia();
     }
 
     public async Task StopAsync()
     {
-        if (MediaPlayer.State is VLCState.Stopped or VLCState.NothingSpecial)
+        DetachPlaybackEvents();
+
+        if (MediaPlayer.State is not VLCState.Stopped and not VLCState.NothingSpecial)
         {
-            return;
+            TaskCompletionSource playbackStopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            EventHandler<EventArgs> stoppedHandler = (_, _) => playbackStopped.TrySetResult();
+            MediaPlayer.Stopped += stoppedHandler;
+
+            try
+            {
+                await Task.Run(() => MediaPlayer.Stop());
+                await Task.WhenAny(playbackStopped.Task, Task.Delay(TimeSpan.FromSeconds(1)));
+            }
+            finally
+            {
+                MediaPlayer.Stopped -= stoppedHandler;
+            }
         }
 
-        TaskCompletionSource playbackStopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        EventHandler<EventArgs> stoppedHandler = (_, _) => playbackStopped.TrySetResult();
-        MediaPlayer.Stopped += stoppedHandler;
-
-        try
-        {
-            await Task.Run(() => MediaPlayer.Stop());
-            await Task.WhenAny(playbackStopped.Task, Task.Delay(TimeSpan.FromSeconds(1)));
-        }
-        finally
-        {
-            MediaPlayer.Stopped -= stoppedHandler;
-        }
+        DisposeCurrentMedia();
     }
 
     public void SetPaused(bool isPaused)
@@ -126,6 +144,73 @@ public sealed class LivePreviewPlayer : IDisposable
         Stop();
         MediaPlayer.Dispose();
         libVlc.Dispose();
+    }
+
+    private void DetachPlaybackEvents()
+    {
+        if (currentPlayingHandler != null)
+        {
+            MediaPlayer.Playing -= currentPlayingHandler;
+            currentPlayingHandler = null;
+        }
+        if (currentErrorHandler != null)
+        {
+            MediaPlayer.EncounteredError -= currentErrorHandler;
+            currentErrorHandler = null;
+        }
+        if (currentEndReachedHandler != null)
+        {
+            MediaPlayer.EndReached -= currentEndReachedHandler;
+            currentEndReachedHandler = null;
+        }
+
+        playbackStarted = false;
+    }
+
+    private void DisposeCurrentMedia()
+    {
+        currentMedia?.Dispose();
+        currentMedia = null;
+    }
+
+    private Media CreateMedia(string url, string userAgent, string proxyUrl, string headers)
+    {
+        Media media = new(libVlc, new Uri(url));
+        try
+        {
+            media.AddOption(":adaptive-logic=highest");
+
+            string effectiveUserAgent = GetHeaderValue(headers, "User-Agent") ?? userAgent;
+            if (!string.IsNullOrWhiteSpace(effectiveUserAgent))
+            {
+                media.AddOption($":http-user-agent={effectiveUserAgent}");
+            }
+
+            string? referer = GetHeaderValue(headers, "Referer");
+            if (!string.IsNullOrWhiteSpace(referer))
+            {
+                media.AddOption($":http-referrer={referer}");
+            }
+
+            string? cookie = GetHeaderValue(headers, "Cookie");
+            if (!string.IsNullOrWhiteSpace(cookie))
+            {
+                media.AddOption($":http-cookie={cookie}");
+            }
+
+            string normalizedProxy = ProxyAddress.Normalize(proxyUrl);
+            if (!string.IsNullOrWhiteSpace(normalizedProxy))
+            {
+                media.AddOption($":http-proxy={normalizedProxy}");
+            }
+
+            return media;
+        }
+        catch
+        {
+            media.Dispose();
+            throw;
+        }
     }
 
     private static string? GetHeaderValue(string headers, string name)

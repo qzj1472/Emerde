@@ -302,6 +302,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     public MainViewModel()
     {
+        livePreviewPlayer.PlaybackFailed += OnLivePreviewPlaybackFailed;
+        livePreviewPlayer.PlaybackEnded += OnLivePreviewPlaybackEnded;
         DispatcherTimer = new(TimeSpan.FromSeconds(3), ReloadRoomStatus);
         Room[] configuredRooms = NormalizeStoredRooms(Configurations.Rooms.Get());
 
@@ -622,6 +624,43 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         IsPreviewing = false;
         IsPreviewPaused = false;
         LivePreviewStatus = CanPreviewSelectedRoom ? LivePreviewStatus.Ready : LivePreviewStatus.Idle;
+    }
+
+    private void OnLivePreviewPlaybackFailed(object? sender, EventArgs e)
+    {
+        HandleLivePreviewPlaybackTerminated(LivePreviewStatus.Error, "LivePreviewError");
+    }
+
+    private void OnLivePreviewPlaybackEnded(object? sender, EventArgs e)
+    {
+        HandleLivePreviewPlaybackTerminated(LivePreviewStatus.Unavailable, "LivePreviewUnavailable");
+    }
+
+    private void HandleLivePreviewPlaybackTerminated(LivePreviewStatus status, string messageKey)
+    {
+        ApplicationDispatcher.BeginInvoke(async () =>
+        {
+            if (!IsPreviewing)
+            {
+                return;
+            }
+
+            await RequestPreviewTransitionAsync(null);
+            if (IsPreviewing)
+            {
+                return;
+            }
+
+            LivePreviewStatus = status;
+            if (status == LivePreviewStatus.Error)
+            {
+                Toast.Error(messageKey.Tr());
+            }
+            else
+            {
+                Toast.Warning(messageKey.Tr());
+            }
+        });
     }
 
     private static bool IsSameRoom(RoomStatusReactive? current, RoomStatusReactive? next)
@@ -2330,6 +2369,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             previewTransitionCancellation = null;
         }
 
+        livePreviewPlayer.PlaybackFailed -= OnLivePreviewPlaybackFailed;
+        livePreviewPlayer.PlaybackEnded -= OnLivePreviewPlaybackEnded;
         livePreviewPlayer.Dispose();
     }
 }
