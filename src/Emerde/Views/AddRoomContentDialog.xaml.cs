@@ -81,7 +81,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
                     if (string.IsNullOrWhiteSpace(spider?.Nickname))
                     {
                         e.Cancel = true;
-                        Toast.Error("GetRoomInfoError".Tr());
+                        Toast.Error(GetRoomInfoErrorMessage(Url));
                         return;
                     }
 
@@ -98,12 +98,20 @@ public sealed partial class AddRoomContentDialog : ContentDialog
 
                     Toast.Success("AddRoomSucc".Tr(NickName));
                 }
-                catch
+                catch (Exception exception)
                 {
                     e.Cancel = true;
-                    Toast.Error("ErrorRoomUrl".Tr());
+                    Toast.Error(GetRoomInfoErrorMessage(Url, exception.Message));
                 }
             }
         }
+    }
+
+    internal static string GetRoomInfoErrorMessage(string? roomUrl, string? fallback = null)
+    {
+        string error = string.IsNullOrWhiteSpace(roomUrl) ? string.Empty : StreamResolver.GetLastError(roomUrl);
+        string detail = string.IsNullOrWhiteSpace(error) ? fallback ?? string.Empty : error;
+        string message = "GetRoomInfoError".Tr();
+        return string.IsNullOrWhiteSpace(detail) ? message : $"{message}: {detail}";
     }
 }
