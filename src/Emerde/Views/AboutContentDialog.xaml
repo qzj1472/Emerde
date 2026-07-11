@@ -61,7 +61,7 @@
                         <TextBlock FontWeight="SemiBold" Text="快速开始" />
                         <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    LineHeight="20"
-                                   Text="解压后即可使用，不建议放在 C 盘。&#x0a;在首页点击新建，添加直播间链接。&#x0a;软件会按监控周期检查直播状态，判断开播后自动录制。"
+                                   Text="1. 将整个软件文件夹解压到固定位置，建议使用非系统盘。&#x0a;2. 在首页点击“新建”，粘贴直播间链接并确认主播信息。&#x0a;3. 打开顶部“监控”和“录制”，软件会检查直播状态并自动开始录制。"
                                    TextWrapping="Wrap" />
                     </ui:StackPanel>
                 </Border>
@@ -74,7 +74,7 @@
                         <TextBlock FontWeight="SemiBold" Text="监控与录制" />
                         <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    LineHeight="20"
-                                   Text="顶部监控和录制是总开关。&#x0a;单个直播间可以在局部设置中覆盖全局设置。&#x0a;默认循环周期为 3 秒，可在设置页调整。"
+                                   Text="顶部“监控”控制是否检查直播状态，“录制”控制是否允许开始录制。&#x0a;跟随全局的直播间使用顶部和全局设置；关闭跟随全局后，局部设置优先。&#x0a;只打开录制但没有开启监控时，软件不会主动发现开播。"
                                    TextWrapping="Wrap" />
                     </ui:StackPanel>
                 </Border>
@@ -100,11 +100,116 @@
                         <TextBlock FontWeight="SemiBold" Text="网络与格式" />
                         <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    LineHeight="20"
-                                   Text="单路直播通常约需要 10 Mbps，网络不足时不要同时添加过多直播间。&#x0a;左下角测速会估算可同时录制路数。&#x0a;录制格式默认使用 TS/FLV 转 MKV，如需兼容性可选择转 MP4。"
+                                   Text="单路直播通常需要约 10 Mbps，实际取决于平台画质和码率。&#x0a;默认直接保存 TS/FLV；选择转 MP4 或 MKV 时，会保留原音频并生成优化音频。&#x0a;网络不稳定时应减少同时监控和录制的直播间数量。"
                                    TextWrapping="Wrap" />
                     </ui:StackPanel>
                 </Border>
             </UniformGrid>
+
+            <TextBlock Margin="0,8,0,0"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Text="完整使用手册" />
+
+            <UniformGrid MaxWidth="1040"
+                         HorizontalAlignment="Left"
+                         Columns="2">
+                <Border Margin="0,0,10,10"
+                        Padding="18"
+                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                        CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                    <ui:StackPanel Spacing="8">
+                        <TextBlock FontWeight="SemiBold" Text="录制文件与音频" />
+                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   LineHeight="20"
+                                   Text="TS/FLV 适合稳定保存直播原始数据，录制中断时通常更容易保留已写入内容。&#x0a;转 MP4/MKV 会在录制结束后运行 FFmpeg，请等待转码完成再关闭软件。&#x0a;带音轨的视频会包含“原音频”和“优化音频”，播放器中可自行切换。"
+                                   TextWrapping="Wrap" />
+                    </ui:StackPanel>
+                </Border>
+
+                <Border Margin="10,0,0,10"
+                        Padding="18"
+                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                        CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                    <ui:StackPanel Spacing="8">
+                        <TextBlock FontWeight="SemiBold" Text="视频列表" />
+                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   LineHeight="20"
+                                   Text="刷新会扫描当前保存目录和已导入目录中的视频。&#x0a;卡片可直接打开、分割、转码或打开目录，右键可删除、重命名和另存为。&#x0a;多选模式支持合并、删除、移动、复制、全选和反选；合并时视频格式必须一致。"
+                                   TextWrapping="Wrap" />
+                    </ui:StackPanel>
+                </Border>
+
+                <Border Margin="0,10,10,10"
+                        Padding="18"
+                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                        CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                    <ui:StackPanel Spacing="8">
+                        <TextBlock FontWeight="SemiBold" Text="预览与全屏" />
+                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   LineHeight="20"
+                                   Text="在直播间信息栏点击预览可打开画面；点击其他直播间的预览会切换画面。&#x0a;同一直播间再次点击预览会关闭画面。&#x0a;全屏时移动鼠标可显示视频控件，按 Esc 或点击全屏按钮可退出。"
+                                   TextWrapping="Wrap" />
+                    </ui:StackPanel>
+                </Border>
+
+                <Border Margin="10,10,0,10"
+                        Padding="18"
+                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                        CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                    <ui:StackPanel Spacing="8">
+                        <TextBlock FontWeight="SemiBold" Text="保存目录与备份" />
+                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   LineHeight="20"
+                                   Text="保存目录应放在空间充足且不会被清理软件自动删除的位置。&#x0a;更换软件版本时不要删除 downloads、video_thumbnails、日志和配置文件。&#x0a;重要录制建议定期复制到其他磁盘，软件的删除操作会发送到回收站，但仍不应代替备份。"
+                                   TextWrapping="Wrap" />
+                    </ui:StackPanel>
+                </Border>
+
+                <Border Margin="0,10,10,0"
+                        Padding="18"
+                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                        CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                    <ui:StackPanel Spacing="8">
+                        <TextBlock FontWeight="SemiBold" Text="定时关闭" />
+                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   LineHeight="20"
+                                   Text="定时关闭默认只退出 Emerde，不会关闭电脑。&#x0a;勾选“关闭电脑”后才会请求系统关机；勾选“转码完成后再关闭”会等待录制清理和转码结束。&#x0a;触发前一分钟会停止新录制并显示提示，可取消本次计划。"
+                                   TextWrapping="Wrap" />
+                    </ui:StackPanel>
+                </Border>
+
+                <Border Margin="10,10,0,0"
+                        Padding="18"
+                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                        CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                    <ui:StackPanel Spacing="8">
+                        <TextBlock FontWeight="SemiBold" Text="问题排查" />
+                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   LineHeight="20"
+                                   Text="无法录制时先确认监控、录制、直播间局部设置和保存目录权限。&#x0a;预览或录制画质取决于平台实际返回的可用直播流，登录 Cookie 可能影响最高画质。&#x0a;反馈问题时请提供日志、直播间链接、发生时间、操作步骤和截图。"
+                                   TextWrapping="Wrap" />
+                    </ui:StackPanel>
+                </Border>
+            </UniformGrid>
+
+            <Border MaxWidth="1040"
+                    Padding="18"
+                    HorizontalAlignment="Left"
+                    Background="#18D83B01"
+                    BorderBrush="#66D83B01"
+                    BorderThickness="1"
+                    CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                <ui:StackPanel Spacing="8">
+                    <TextBlock FontWeight="SemiBold"
+                               Foreground="#D83B01"
+                               Text="重要注意事项" />
+                    <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               LineHeight="21"
+                               Text="不要在正在录制或转码时强制结束进程、断电或直接删除软件目录。&#x0a;不要删除或单独移动 ffmpeg.exe、ffprobe.exe 以及软件依赖文件，否则录制、分割、转码和视频信息读取会失败。&#x0a;不要短时间连续刷新或频繁开关预览；平台可能限制请求频率，软件也需要时间释放播放器和网络资源。&#x0a;关闭电脑功能会真正请求系统关机，启用前请先保存其他软件中的工作。&#x0a;直播平台接口随时可能变化；某个平台突然无法解析时，请保留日志，不要反复删除配置。"
+                               TextWrapping="Wrap" />
+                </ui:StackPanel>
+            </Border>
             </ui:StackPanel>
             </Border>
         </ScrollViewer>
