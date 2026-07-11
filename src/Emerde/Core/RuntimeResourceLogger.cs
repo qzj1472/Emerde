@@ -31,11 +31,36 @@ internal static class RuntimeResourceLogger
 
     public static void Stop()
     {
+        CancellationTokenSource? stoppingTokenSource;
+        Task? stoppingWorkerTask;
+
         lock (SyncRoot)
         {
-            tokenSource?.Cancel();
-            tokenSource = null;
+            stoppingTokenSource = tokenSource;
+            stoppingWorkerTask = workerTask;
+            stoppingTokenSource?.Cancel();
         }
+
+        stoppingWorkerTask?.GetAwaiter().GetResult();
+
+        lock (SyncRoot)
+        {
+            if (ReferenceEquals(tokenSource, stoppingTokenSource))
+            {
+                tokenSource = null;
+            }
+            if (ReferenceEquals(workerTask, stoppingWorkerTask))
+            {
+                workerTask = null;
+            }
+
+            Processes.Clear();
+            lastNetworkSampleAt = DateTime.MinValue;
+            lastNetworkReceivedBytes = 0;
+            lastNetworkSentBytes = 0;
+        }
+
+        stoppingTokenSource?.Dispose();
     }
 
     public static void Register(Process process, string processKind, string purpose, string roomUrl = "", string? nickName = null, object? extra = null)
