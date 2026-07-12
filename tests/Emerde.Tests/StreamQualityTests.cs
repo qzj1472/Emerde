@@ -142,6 +142,38 @@ public sealed class StreamQualityTests
       }
 
     [Fact]
+    public void HlsMasterPlaylist_RelativeVariantInheritsMasterQuery()
+    {
+        const string playlist = """
+          #EXTM3U
+          #EXT-X-STREAM-INF:BANDWIDTH=6500000,RESOLUTION=1920x1080
+          1080/index.m3u8
+          """;
+
+        HlsVariant result = StreamResolver.ParseHighestHlsVariant(
+            "https://cdn.example.test/live/master.m3u8?token=abc&expires=123",
+            playlist);
+
+        Assert.Equal("https://cdn.example.test/live/1080/index.m3u8?token=abc&expires=123", result.Url);
+    }
+
+    [Fact]
+    public void HlsMasterPlaylist_RelativeVariantPreservesOwnQuery()
+    {
+        const string playlist = """
+          #EXTM3U
+          #EXT-X-STREAM-INF:BANDWIDTH=6500000,RESOLUTION=1920x1080
+          1080/index.m3u8?token=child
+          """;
+
+        HlsVariant result = StreamResolver.ParseHighestHlsVariant(
+            "https://cdn.example.test/live/master.m3u8?token=master",
+            playlist);
+
+        Assert.Equal("https://cdn.example.test/live/1080/index.m3u8?token=child", result.Url);
+    }
+
+    [Fact]
     public void PlatformQualityOptions_OnlyExposeSupportedChoices()
     {
         Assert.Equal(6, StreamQualityCatalog.GetOptions("Douyin").Count);

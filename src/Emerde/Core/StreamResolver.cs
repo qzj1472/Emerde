@@ -521,7 +521,8 @@ internal static partial class StreamResolver
             }
 
             string? variantPath = lines.Skip(index + 1).Select(value => value.Trim()).FirstOrDefault(value => value.Length > 0 && !value.StartsWith('#'));
-            if (string.IsNullOrWhiteSpace(variantPath) || !Uri.TryCreate(baseUri, variantPath, out Uri? variantUri))
+            Uri? variantUri = string.IsNullOrWhiteSpace(variantPath) ? null : ResolveHlsVariantUri(baseUri, variantPath);
+            if (variantUri == null)
             {
                 continue;
             }
@@ -537,6 +538,32 @@ internal static partial class StreamResolver
             .OrderByDescending(variant => variant.Height)
             .ThenByDescending(variant => variant.Bandwidth)
             .FirstOrDefault();
+    }
+
+    private static Uri? ResolveHlsVariantUri(Uri baseUri, string variantPath)
+    {
+        if (!Uri.TryCreate(baseUri, variantPath, out Uri? variantUri))
+        {
+            return null;
+        }
+
+        bool isAbsoluteVariant = Uri.TryCreate(variantPath, UriKind.Absolute, out _);
+        bool hasSameOrigin = variantUri.Scheme.Equals(baseUri.Scheme, StringComparison.OrdinalIgnoreCase)
+            && variantUri.Host.Equals(baseUri.Host, StringComparison.OrdinalIgnoreCase)
+            && variantUri.Port == baseUri.Port;
+        if (isAbsoluteVariant
+            || !hasSameOrigin
+            || string.IsNullOrWhiteSpace(baseUri.Query)
+            || !string.IsNullOrWhiteSpace(variantUri.Query))
+        {
+            return variantUri;
+        }
+
+        UriBuilder builder = new(variantUri)
+        {
+            Query = baseUri.Query.TrimStart('?'),
+        };
+        return builder.Uri;
     }
 
     private static double? ParseHlsAttributeNumber(string line, string attribute)
