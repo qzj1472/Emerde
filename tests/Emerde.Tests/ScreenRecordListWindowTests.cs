@@ -23,6 +23,14 @@ public sealed class ScreenRecordListWindowTests
         Assert.NotNull(viewModel.ConfirmMergeSelectedCommand);
     }
 
+    [Fact]
+    public void EnumerateVideoFiles_ReturnsEmptyWhenFolderDoesNotExist()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), $"emerde-missing-{Guid.NewGuid():N}");
+
+        Assert.Empty(ScreenRecordListViewModel.EnumerateVideoFiles(folder));
+    }
+
     [Theory]
     [InlineData(@"主播A\2026-07\03\record.mp4", "主播A")]
     [InlineData(@"主播A\2026-07\record.mp4", "主播A")]

@@ -1,6 +1,7 @@
 using Microsoft.Toolkit.Uwp.Notifications;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -311,7 +312,8 @@ public partial class MainWindow : FluentWindow
 
     private void MainWindowThreadPreprocessMessage(ref System.Windows.Interop.MSG msg, ref bool handled)
     {
-        if (!IsPreviewFullScreenExitMessage(isPreviewFullScreen, msg.message, msg.wParam))
+        IntPtr windowHandle = new WindowInteropHelper(this).Handle;
+        if (handled || !IsPreviewFullScreenExitMessage(isPreviewFullScreen, msg.message, msg.wParam, msg.hwnd, windowHandle))
         {
             return;
         }
@@ -320,12 +322,16 @@ public partial class MainWindow : FluentWindow
         handled = true;
     }
 
-    internal static bool IsPreviewFullScreenExitMessage(bool isFullScreen, int message, IntPtr key)
+    internal static bool IsPreviewFullScreenExitMessage(bool isFullScreen, int message, IntPtr key, IntPtr sourceWindow = default, IntPtr ownerWindow = default)
     {
         return isFullScreen
             && message is 0x0100 or 0x0104
-            && key == new IntPtr(0x1B);
+            && key == new IntPtr(0x1B)
+            && (sourceWindow == IntPtr.Zero || ownerWindow == IntPtr.Zero || GetAncestor(sourceWindow, 2) == ownerWindow);
     }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetAncestor(IntPtr window, uint flags);
 
     private void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

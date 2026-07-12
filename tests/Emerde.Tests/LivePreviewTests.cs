@@ -248,4 +248,10 @@ public sealed class LivePreviewTests
         Assert.False(MainWindow.IsPreviewFullScreenExitMessage(false, message, new IntPtr(0x1B)));
         Assert.False(MainWindow.IsPreviewFullScreenExitMessage(true, message, new IntPtr(0x0D)));
     }
+
+    [Fact]
+    public void IsPreviewFullScreenExitMessage_RejectsOtherTopLevelWindow()
+    {
+        Assert.False(MainWindow.IsPreviewFullScreenExitMessage(true, 0x0100, new IntPtr(0x1B), new IntPtr(10), new IntPtr(20)));
+    }
 }

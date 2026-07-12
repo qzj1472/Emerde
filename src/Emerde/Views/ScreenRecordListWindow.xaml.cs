@@ -185,6 +185,13 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
 
 public partial class ScreenRecordListViewModel : ObservableObject
 {
+    private static readonly EnumerationOptions RecursiveEnumerationOptions = new()
+    {
+        IgnoreInaccessible = true,
+        RecurseSubdirectories = true,
+        AttributesToSkip = FileAttributes.ReparsePoint,
+    };
+
     private static readonly string[] VideoExtensions = [".mp4", ".mkv", ".flv", ".ts", ".mov", ".webm"];
     private static readonly string AllStreamerOption = GetResourceText("VideoAllStreamers", "All streamers");
     private static readonly string UnknownStreamerText = GetResourceText("CommonUnknown", "Unknown");
@@ -1032,7 +1039,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         {
             items = await Task.Run(() =>
             {
-                return Directory.EnumerateFiles(folder, "*.*", System.IO.SearchOption.AllDirectories)
+                return EnumerateVideoFiles(folder)
                     .Where(path => VideoExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
                     .Select(path =>
                     {
@@ -1397,7 +1404,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }, CancellationToken.None);
     }
 
-    private static async Task EnrichVideoAsync(RecordedVideoItem item, CancellationToken token)
+    private async Task EnrichVideoAsync(RecordedVideoItem item, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         if (!File.Exists(item.FullPath))
@@ -1431,6 +1438,9 @@ public partial class ScreenRecordListViewModel : ObservableObject
                 item.CreatedAt = createdAt;
                 item.Title = BuildDisplayTitle(metadata.Title, createdAt, file);
                 item.IsEnriched = true;
+                Videos.Refresh();
+                RefreshSelectionSummary();
+                VisibleItemsChanged?.Invoke(this, EventArgs.Empty);
             }
         });
     }
@@ -1718,7 +1728,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         Directory.CreateDirectory(root);
         int succeeded = 0;
         int failed = 0;
-        foreach (string path in Directory.EnumerateFiles(sourceFolder, "*.*", System.IO.SearchOption.AllDirectories).Where(IsVideoFile))
+        foreach (string path in EnumerateVideoFiles(sourceFolder).Where(IsVideoFile))
         {
             try
             {
@@ -1738,6 +1748,26 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
 
         return (succeeded, failed);
+    }
+
+    internal static IEnumerable<string> EnumerateVideoFiles(string folder)
+    {
+        try
+        {
+            return Directory.EnumerateFiles(folder, "*.*", RecursiveEnumerationOptions).ToArray();
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return [];
+        }
+        catch (IOException)
+        {
+            return [];
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return [];
+        }
     }
 
     internal static string BuildClassifiedFolder(string root, VideoRecordingMetadata metadata, FileInfo file, string sourceRoot, int? pathLevel = null)
@@ -1882,12 +1912,6 @@ public partial class ScreenRecordListViewModel : ObservableObject
             StreamerOptions.Add(streamer);
         }
 
-        if (!StreamerOptions.Contains(currentSelection))
-        {
-            SelectedStreamer = AllStreamerOption;
-            return;
-        }
-
         SelectedStreamer = currentSelection;
     }
 
@@ -1900,6 +1924,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         else if (e.PropertyName == nameof(RecordedVideoItem.NickName))
         {
             UpdateStreamerOptions();
+            ApplyFilters();
         }
     }
 
