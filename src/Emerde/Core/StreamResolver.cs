@@ -11,9 +11,11 @@ internal static partial class StreamResolver
 {
     private const int RequestTimeoutSeconds = 5;
     private const int RedirectTimeoutSeconds = 3;
+    private const int PlaylistTimeoutSeconds = 2;
     private const string DouyinDefaultCookie = "ttwid=1%7C2iDIYVmjzMcpZ20fcaFde0VghXAA3NaNXE_SLR68IyE%7C1761045455%7Cab35197d5cfb21df6cbb2fa7ef1c9262206b062c315b9d04da746d0b37dfbc7d";
     private const string DouyinWebUserAgent = "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.5845.97 Safari/537.36 Core/1.116.567.400 QQBrowser/19.7.6764.400";
     private static readonly ConcurrentDictionary<string, string> LastErrors = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, HlsVariant> HlsVariantCache = new(StringComparer.OrdinalIgnoreCase);
 
     public static string GetLastError(string url)
     {
@@ -113,7 +115,9 @@ internal static partial class StreamResolver
 
             if (IsDirectStream(uri))
             {
-                return CreateDirectResult(resolverUrl);
+                StreamResolverResult directResult = CreateDirectResult(resolverUrl);
+                EnrichHighestHlsVariant(directResult, preferredQuality, resolverUrl, null, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+                return directResult;
             }
 
             string host = uri.Host.ToLowerInvariant();
@@ -284,6 +288,7 @@ internal static partial class StreamResolver
         StreamResolverResult? webEnterResult = ResolveDouyinWebEnter(roomUrl, preferredQuality);
         if (HasUsableData(webEnterResult))
         {
+            EnrichHighestHlsVariant(webEnterResult!, preferredQuality, roomUrl, PlatformCookieStore.GetCookie("Douyin", Configurations.CookieChina.Get()), DouyinWebUserAgent);
             LastErrors.TryRemove(roomUrl, out _);
             return webEnterResult;
         }
@@ -298,6 +303,7 @@ internal static partial class StreamResolver
 
         if (HasUsableData(result))
         {
+            EnrichHighestHlsVariant(result, preferredQuality, roomUrl, PlatformCookieStore.GetCookie("Douyin", Configurations.CookieChina.Get()), DouyinWebUserAgent);
             LastErrors.TryRemove(roomUrl, out _);
             return result;
         }
@@ -360,6 +366,7 @@ internal static partial class StreamResolver
 
         if (HasUsableData(result))
         {
+            EnrichHighestHlsVariant(result, preferredQuality, roomUrl, PlatformCookieStore.GetCookie("TikTok", Configurations.CookieOversea.Get()), "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0");
             LastErrors.TryRemove(roomUrl, out _);
             return result;
         }
@@ -432,6 +439,112 @@ internal static partial class StreamResolver
         {
             Timeout = TimeSpan.FromSeconds(timeoutSeconds),
         };
+    }
+
+    private static void EnrichHighestHlsVariant(StreamResolverResult result, string? preferredQuality, string referer, string? cookie, string userAgent)
+    {
+        if (StreamQualityCatalog.NormalizePreference(preferredQuality) != StreamQualityCatalog.Original
+            || string.IsNullOrWhiteSpace(result.HlsUrl))
+        {
+            return;
+        }
+
+        if (!HlsVariantCache.TryGetValue(result.HlsUrl, out HlsVariant variant))
+        {
+            variant = ProbeHighestHlsVariant(result.HlsUrl, referer, cookie, userAgent);
+            if (!string.IsNullOrWhiteSpace(variant.Url))
+            {
+                HlsVariantCache[result.HlsUrl] = variant;
+            }
+        }
+        if (string.IsNullOrWhiteSpace(variant.Url))
+        {
+            return;
+        }
+
+        result.HlsUrl = variant.Url;
+        if (variant.Height > 0)
+        {
+            result.Resolution = variant.Width > 0 ? $"{variant.Width}x{variant.Height}" : $"{variant.Height}p";
+        }
+        if (variant.Bandwidth > 0)
+        {
+            result.Bitrate = StreamQualityCatalog.FormatBitrate(variant.Bandwidth);
+        }
+    }
+
+    private static HlsVariant ProbeHighestHlsVariant(string playlistUrl, string referer, string? cookie, string userAgent)
+    {
+        try
+        {
+            using HttpClient client = CreateHttpClient(timeoutSeconds: PlaylistTimeoutSeconds);
+            using HttpRequestMessage request = new(HttpMethod.Get, playlistUrl);
+            request.Headers.TryAddWithoutValidation("User-Agent", string.IsNullOrWhiteSpace(Configurations.UserAgent.Get()) ? userAgent : Configurations.UserAgent.Get());
+            request.Headers.TryAddWithoutValidation("Accept", "application/vnd.apple.mpegurl,application/x-mpegURL,*/*");
+            request.Headers.TryAddWithoutValidation("Referer", referer);
+            if (!string.IsNullOrWhiteSpace(cookie))
+            {
+                request.Headers.TryAddWithoutValidation("Cookie", cookie);
+            }
+
+            using HttpResponseMessage response = client.Send(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                return default;
+            }
+
+            string playlist = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            return ParseHighestHlsVariant(playlistUrl, playlist);
+        }
+        catch
+        {
+            return default;
+        }
+    }
+
+    internal static HlsVariant ParseHighestHlsVariant(string playlistUrl, string? playlist)
+    {
+        if (string.IsNullOrWhiteSpace(playlist)
+            || !Uri.TryCreate(playlistUrl, UriKind.Absolute, out Uri? baseUri))
+        {
+            return default;
+        }
+
+        string[] lines = playlist.Replace("\r", string.Empty, StringComparison.Ordinal).Split('\n');
+        List<HlsVariant> variants = [];
+        for (int index = 0; index < lines.Length; index++)
+        {
+            string line = lines[index].Trim();
+            if (!line.StartsWith("#EXT-X-STREAM-INF:", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string? variantPath = lines.Skip(index + 1).Select(value => value.Trim()).FirstOrDefault(value => value.Length > 0 && !value.StartsWith('#'));
+            if (string.IsNullOrWhiteSpace(variantPath) || !Uri.TryCreate(baseUri, variantPath, out Uri? variantUri))
+            {
+                continue;
+            }
+
+            double bandwidth = ParseHlsAttributeNumber(line, "AVERAGE-BANDWIDTH") ?? ParseHlsAttributeNumber(line, "BANDWIDTH") ?? 0;
+            Match resolution = Regex.Match(line, @"(?:^|,)RESOLUTION=(\d+)x(\d+)", RegexOptions.IgnoreCase);
+            int width = resolution.Success && int.TryParse(resolution.Groups[1].Value, out int parsedWidth) ? parsedWidth : 0;
+            int height = resolution.Success && int.TryParse(resolution.Groups[2].Value, out int parsedHeight) ? parsedHeight : 0;
+            variants.Add(new HlsVariant(variantUri.ToString(), width, height, bandwidth));
+        }
+
+        return variants
+            .OrderByDescending(variant => variant.Height)
+            .ThenByDescending(variant => variant.Bandwidth)
+            .FirstOrDefault();
+    }
+
+    private static double? ParseHlsAttributeNumber(string line, string attribute)
+    {
+        Match match = Regex.Match(line, $@"(?:^|[:,]){Regex.Escape(attribute)}=(\d+(?:\.\d+)?)", RegexOptions.IgnoreCase);
+        return match.Success && double.TryParse(match.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double value)
+            ? value
+            : null;
     }
 
     private static bool TryResolveRedirect(string url, out string? redirected)
@@ -773,6 +886,12 @@ internal static partial class StreamResolver
             }
         }
 
+        StreamCandidate highestQuality = SelectHighestObservableQuality(urls, preferredQuality);
+        if (!string.IsNullOrWhiteSpace(highestQuality.Url))
+        {
+            return highestQuality;
+        }
+
         foreach (string key in StreamQualityCatalog.GetStreamKeyOrder(preferredQuality).Concat([streamKind, string.Empty]))
         {
             if (urls.TryGetValue(key, out string? url))
@@ -805,6 +924,13 @@ internal static partial class StreamResolver
             }
         }
 
+
+        StreamCandidate highestQuality = SelectHighestObservableQuality(urls, preferredQuality);
+        if (!string.IsNullOrWhiteSpace(highestQuality.Url))
+        {
+            return highestQuality;
+        }
+
         foreach (string key in StreamQualityCatalog.GetStreamKeyOrder(preferredQuality).Append(string.Empty))
         {
             if (urls.TryGetValue(key, out string? url))
@@ -817,6 +943,30 @@ internal static partial class StreamResolver
         return string.IsNullOrWhiteSpace(first.Value)
             ? default
             : new StreamCandidate(first.Value, first.Key);
+    }
+
+    private static StreamCandidate SelectHighestObservableQuality(IReadOnlyDictionary<string, string> urls, string? preferredQuality)
+    {
+        if (StreamQualityCatalog.NormalizePreference(preferredQuality) != StreamQualityCatalog.Original)
+        {
+            return default;
+        }
+
+        var candidates = urls
+            .Select(pair =>
+            {
+                (int height, double bitrate) = StreamMetadataParser.GetQualityMetrics(pair.Value);
+                return new { pair.Key, Url = pair.Value, Height = height, Bitrate = bitrate };
+            })
+            .Where(candidate => candidate.Height > 0 || candidate.Bitrate > 0)
+            .OrderByDescending(candidate => candidate.Height)
+            .ThenByDescending(candidate => candidate.Bitrate)
+            .ThenBy(candidate => Array.IndexOf(StreamQualityCatalog.GetStreamKeyOrder(StreamQualityCatalog.Original).ToArray(), candidate.Key))
+            .FirstOrDefault();
+
+        return candidates == null
+            ? default
+            : new StreamCandidate(candidates.Url, string.IsNullOrWhiteSpace(candidates.Key) ? null : candidates.Key);
     }
 
     private static string? ExtractFirstUrlFromList(JToken? token)
@@ -979,6 +1129,8 @@ internal static partial class StreamResolver
 
     private readonly record struct StreamCandidate(string? Url, string? Quality);
 }
+
+internal readonly record struct HlsVariant(string? Url, int Width, int Height, double Bandwidth);
 
 internal interface IStreamMetadataResult
 {

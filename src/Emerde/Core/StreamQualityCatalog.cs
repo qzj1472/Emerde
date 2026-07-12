@@ -316,6 +316,19 @@ internal static partial class StreamMetadataParser
         return vertical.Success && int.TryParse(vertical.Groups[1].Value, out height) ? height : null;
     }
 
+    public static (int Height, double Bitrate) GetQualityMetrics(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return default;
+        }
+
+        int height = ParseResolutionHeight(GetResolution(url)) ?? 0;
+        NameValueCollection? query = ParseQuery(url);
+        double bitrate = query == null ? 0 : GetBitrateBitsPerSecond(query);
+        return (height, bitrate);
+    }
+
     private static NameValueCollection? ParseQuery(string? url)
     {
         return Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) ? HttpUtility.ParseQueryString(uri.Query) : null;
@@ -332,6 +345,39 @@ internal static partial class StreamMetadataParser
         }
 
         return null;
+    }
+
+    private static double GetBitrateBitsPerSecond(NameValueCollection query)
+    {
+        foreach (string key in BitrateKeys.Concat(["bandwidth", "average_bandwidth", "origin_bitrate"]))
+        {
+            string? value = query[key];
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            Match match = NumberRegex().Match(value.Replace(',', '.'));
+            if (!match.Success || !double.TryParse(match.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double number) || number <= 0)
+            {
+                continue;
+            }
+
+            string normalized = value.Trim().ToLowerInvariant();
+            if (normalized.Contains("mb", StringComparison.Ordinal))
+            {
+                return number * 1_000_000d;
+            }
+
+            if (normalized.Contains("kb", StringComparison.Ordinal))
+            {
+                return number * 1_000d;
+            }
+
+            return number >= 100_000d ? number : number * 1_000d;
+        }
+
+        return 0;
     }
 
     private static string? NormalizeResolution(string? value)

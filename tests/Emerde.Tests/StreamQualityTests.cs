@@ -41,6 +41,41 @@ public sealed class StreamQualityTests
     }
 
     [Fact]
+    public void DouyinResolver_OriginalSelectsHighestObservableQuality()
+    {
+        string json = """
+            {
+              "data": {
+                "data": [{
+                  "status": 2,
+                  "stream_url": {
+                    "hls_pull_url_map": {
+                      "ORIGIN": "https://example.test/origin.m3u8?resolution=1280x720&bitrate=1800",
+                      "FULL_HD1": "https://example.test/full.m3u8?resolution=1920x1080&bitrate=6000"
+                    },
+                    "flv_pull_url": {
+                      "ORIGIN": "https://example.test/origin.flv?resolution=1280x720&bitrate=1800",
+                      "FULL_HD1": "https://example.test/full.flv?resolution=1920x1080&bitrate=6000"
+                    }
+                  }
+                }]
+              }
+            }
+            """;
+
+        StreamResolverResult result = StreamResolver.ExtractDouyinWebEnterData(
+            "https://live.douyin.com/123456",
+            json,
+            StreamQualityCatalog.Original);
+
+        Assert.Contains("full.m3u8", result.HlsUrl);
+        Assert.Contains("full.flv", result.FlvUrl);
+        Assert.Equal("FULL_HD1", result.Quality);
+        Assert.Equal("1920x1080", SpiderResultMetadata.GetResolution(result));
+        Assert.Equal("6 Mbps", SpiderResultMetadata.GetBitrate(result));
+    }
+
+    [Fact]
     public void KuaishouResolver_SelectsRequestedVariantAndMetadata()
     {
         string json = """
@@ -84,6 +119,27 @@ public sealed class StreamQualityTests
         Assert.Equal("4.5 Mbps", SpiderResultMetadata.GetBitrate(result));
         Assert.Equal("FULL_HD1", SpiderResultMetadata.GetQuality(result));
     }
+
+      [Fact]
+      public void HlsMasterPlaylist_SelectsHighestResolutionAndAverageBandwidth()
+      {
+        const string playlist = """
+          #EXTM3U
+          #EXT-X-STREAM-INF:BANDWIDTH=2500000,AVERAGE-BANDWIDTH=1800000,RESOLUTION=1280x720
+          720/index.m3u8
+          #EXT-X-STREAM-INF:BANDWIDTH=6500000,AVERAGE-BANDWIDTH=5200000,RESOLUTION=1920x1080
+          1080/index.m3u8
+          #EXT-X-STREAM-INF:BANDWIDTH=9000000,RESOLUTION=1920x1080
+          https://cdn.example.test/1080-high/index.m3u8
+          """;
+
+        HlsVariant result = StreamResolver.ParseHighestHlsVariant("https://example.test/live/master.m3u8", playlist);
+
+        Assert.Equal("https://cdn.example.test/1080-high/index.m3u8", result.Url);
+        Assert.Equal(1920, result.Width);
+        Assert.Equal(1080, result.Height);
+        Assert.Equal(9000000, result.Bandwidth);
+      }
 
     [Fact]
     public void PlatformQualityOptions_OnlyExposeSupportedChoices()
