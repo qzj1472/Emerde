@@ -1633,17 +1633,33 @@ public partial class ScreenRecordListViewModel : ObservableObject
     {
         VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(new FileInfo(sourceFilePath));
         File.Move(sourceFilePath, targetFilePath);
-        if (VideoRecordingMetadataStore.HasAnyMetadata(metadata))
+        try
         {
-            string directory = Path.GetDirectoryName(targetFilePath) ?? Environment.CurrentDirectory;
-            _ = VideoRecordingMetadataStore.WriteSidecar(
-                directory,
-                Path.GetFileNameWithoutExtension(targetFilePath),
-                VideoRecordingMetadataStore.WithFileName(metadata, Path.GetFileName(targetFilePath)));
-        }
+            if (VideoRecordingMetadataStore.HasAnyMetadata(metadata))
+            {
+                string directory = Path.GetDirectoryName(targetFilePath) ?? Environment.CurrentDirectory;
+                string? metadataPath = VideoRecordingMetadataStore.WriteSidecar(
+                    directory,
+                    Path.GetFileNameWithoutExtension(targetFilePath),
+                    VideoRecordingMetadataStore.WithFileName(metadata, Path.GetFileName(targetFilePath)));
+                if (metadataPath == null)
+                {
+                    throw new IOException("Failed to write recording metadata after renaming the video.");
+                }
+            }
 
-        VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(sourceFilePath);
-        DeleteThumbnailCache(sourceFilePath);
+            VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(sourceFilePath);
+            DeleteThumbnailCache(sourceFilePath);
+        }
+        catch
+        {
+            VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(targetFilePath);
+            if (File.Exists(targetFilePath) && !File.Exists(sourceFilePath))
+            {
+                File.Move(targetFilePath, sourceFilePath);
+            }
+            throw;
+        }
     }
 
     private static void DeleteThumbnailCache(string filePath)

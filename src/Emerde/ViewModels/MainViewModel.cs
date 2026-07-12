@@ -1408,7 +1408,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     [RelayCommand]
     private async Task RefreshSelectedRoomInfoAsync()
     {
-        if (SelectedItem == null || string.IsNullOrWhiteSpace(SelectedItem.RoomUrl) || IsRefreshingSelectedRoomInfo)
+        RoomStatusReactive? selectedRoom = SelectedItem;
+        if (selectedRoom == null || string.IsNullOrWhiteSpace(selectedRoom.RoomUrl) || IsRefreshingSelectedRoomInfo)
         {
             return;
         }
@@ -1422,16 +1423,17 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         IsRefreshingSelectedRoomInfo = true;
         try
         {
-            string preferredQuality = RoomRecordingSettings.GetPreferredStreamQuality(SelectedItem.RoomUrl);
-            bool updated = await GlobalMonitor.RunRoomUpdateAsync(SelectedItem.RoomUrl, async () =>
+            string roomUrl = selectedRoom.RoomUrl;
+            string preferredQuality = RoomRecordingSettings.GetPreferredStreamQuality(roomUrl);
+            bool updated = await GlobalMonitor.RunRoomUpdateAsync(roomUrl, async () =>
             {
-                ISpiderResult? result = await Task.Run(() => Spider.GetResult(SelectedItem.RoomUrl, preferredQuality));
+                ISpiderResult? result = await Task.Run(() => Spider.GetResult(roomUrl, preferredQuality));
                 if (result == null)
                 {
                     return false;
                 }
 
-                ApplyRoomInfoResult(SelectedItem, result);
+                ApplyRoomInfoResult(selectedRoom, result);
                 return true;
             });
             if (!updated)

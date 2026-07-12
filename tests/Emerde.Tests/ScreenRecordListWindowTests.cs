@@ -540,4 +540,42 @@ public sealed class ScreenRecordListWindowTests
             }
         }
     }
+
+    [Fact]
+    public void RenameVideoFile_RollsBackWhenTargetMetadataCannotBeWritten()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"emerde-rename-failure-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        string sourceVideo = Path.Combine(root, "old-name.mkv");
+        string sourceMetadata = Path.Combine(root, "old-name.mplr.json");
+        string targetVideo = Path.Combine(root, "new-name.mkv");
+        string targetMetadata = Path.Combine(root, "new-name.mplr.json");
+
+        try
+        {
+            File.WriteAllText(sourceVideo, "video");
+            File.WriteAllText(sourceMetadata, JsonSerializer.Serialize(new VideoRecordingMetadata
+            {
+                FileName = "old-name.mkv",
+                NickName = "Host",
+            }));
+            Directory.CreateDirectory(targetMetadata);
+
+            Assert.Throws<IOException>(() => ScreenRecordListViewModel.RenameVideoFile(sourceVideo, targetVideo));
+
+            Assert.True(File.Exists(sourceVideo));
+            Assert.True(File.Exists(sourceMetadata));
+            Assert.False(File.Exists(targetVideo));
+            VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(new FileInfo(sourceVideo));
+            Assert.Equal("old-name.mkv", metadata.FileName);
+            Assert.Equal("Host", metadata.NickName);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
 }
