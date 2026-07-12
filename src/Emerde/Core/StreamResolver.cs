@@ -12,10 +12,12 @@ internal static partial class StreamResolver
     private const int RequestTimeoutSeconds = 5;
     private const int RedirectTimeoutSeconds = 3;
     private const int PlaylistTimeoutSeconds = 2;
+    private const int HlsVariantCacheLimit = 256;
     private const string DouyinDefaultCookie = "ttwid=1%7C2iDIYVmjzMcpZ20fcaFde0VghXAA3NaNXE_SLR68IyE%7C1761045455%7Cab35197d5cfb21df6cbb2fa7ef1c9262206b062c315b9d04da746d0b37dfbc7d";
     private const string DouyinWebUserAgent = "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.5845.97 Safari/537.36 Core/1.116.567.400 QQBrowser/19.7.6764.400";
+    private static readonly TimeSpan HlsVariantCacheDuration = TimeSpan.FromSeconds(30);
     private static readonly ConcurrentDictionary<string, string> LastErrors = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly ConcurrentDictionary<string, HlsVariant> HlsVariantCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, HlsVariantCacheEntry> HlsVariantCache = new(StringComparer.OrdinalIgnoreCase);
 
     public static string GetLastError(string url)
     {
@@ -449,12 +451,12 @@ internal static partial class StreamResolver
             return;
         }
 
-        if (!HlsVariantCache.TryGetValue(result.HlsUrl, out HlsVariant variant))
+        if (!TryGetCachedHlsVariant(result.HlsUrl, out HlsVariant variant))
         {
             variant = ProbeHighestHlsVariant(result.HlsUrl, referer, cookie, userAgent);
             if (!string.IsNullOrWhiteSpace(variant.Url))
             {
-                HlsVariantCache[result.HlsUrl] = variant;
+                CacheHlsVariant(result.HlsUrl, variant, HlsVariantCacheDuration);
             }
         }
         if (string.IsNullOrWhiteSpace(variant.Url))
@@ -470,6 +472,46 @@ internal static partial class StreamResolver
         if (variant.Bandwidth > 0)
         {
             result.Bitrate = StreamQualityCatalog.FormatBitrate(variant.Bandwidth);
+        }
+    }
+
+    private static bool TryGetCachedHlsVariant(string playlistUrl, out HlsVariant variant)
+    {
+        variant = default;
+        if (!HlsVariantCache.TryGetValue(playlistUrl, out HlsVariantCacheEntry entry))
+        {
+            return false;
+        }
+
+        if (entry.ExpiresAt <= DateTimeOffset.UtcNow)
+        {
+            HlsVariantCache.TryRemove(playlistUrl, out _);
+            return false;
+        }
+
+        variant = entry.Variant;
+        return true;
+    }
+
+    private static void CacheHlsVariant(string playlistUrl, HlsVariant variant, TimeSpan duration)
+    {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        HlsVariantCache[playlistUrl] = new HlsVariantCacheEntry(variant, now.Add(duration));
+
+        foreach (KeyValuePair<string, HlsVariantCacheEntry> expired in HlsVariantCache.Where(pair => pair.Value.ExpiresAt <= now))
+        {
+            HlsVariantCache.TryRemove(expired.Key, out _);
+        }
+
+        int excess = HlsVariantCache.Count - HlsVariantCacheLimit;
+        if (excess <= 0)
+        {
+            return;
+        }
+
+        foreach (KeyValuePair<string, HlsVariantCacheEntry> oldest in HlsVariantCache.OrderBy(pair => pair.Value.ExpiresAt).Take(excess))
+        {
+            HlsVariantCache.TryRemove(oldest.Key, out _);
         }
     }
 
@@ -1158,6 +1200,8 @@ internal static partial class StreamResolver
 }
 
 internal readonly record struct HlsVariant(string? Url, int Width, int Height, double Bandwidth);
+
+internal readonly record struct HlsVariantCacheEntry(HlsVariant Variant, DateTimeOffset ExpiresAt);
 
 internal interface IStreamMetadataResult
 {
