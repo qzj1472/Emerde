@@ -105,9 +105,11 @@ internal sealed class AutoShutdownSchedule
     public void Cancel(DateTime now, string configuredTime)
     {
         string currentTime = configuredTime ?? string.Empty;
-        cancelledTarget = TryParseTime(currentTime, out TimeSpan targetTime)
-            ? ResolveTarget(now, targetTime)
-            : null;
+        cancelledTarget = readyTarget;
+        if (cancelledTarget == null && TryParseTime(currentTime, out TimeSpan targetTime))
+        {
+            cancelledTarget = ResolveTarget(now, targetTime);
+        }
         scheduleTime = currentTime;
         ResetReadiness();
     }

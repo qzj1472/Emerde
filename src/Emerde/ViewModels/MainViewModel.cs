@@ -557,15 +557,16 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     public void ShutdownNowFromPrompt()
     {
         ShutdownCancellationTokenSource?.Cancel();
-        autoShutdownSchedule.CompleteCurrent();
-        ExecuteScheduledClose();
+        if (ExecuteScheduledClose())
+        {
+            autoShutdownSchedule.CompleteCurrent();
+        }
     }
 
     public void ShutdownAfterTranscodeFromPrompt()
     {
         forceShutdownAfterTranscode = true;
         ShutdownCancellationTokenSource?.Cancel();
-        autoShutdownSchedule.CompleteCurrent();
         CancellationTokenSource source = new();
         ShutdownCancellationTokenSource = source;
         _ = ShutdownAfterTranscodeAndFinalizeAsync(source);
@@ -609,32 +610,36 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         if (!token.IsCancellationRequested)
         {
-            autoShutdownSchedule.CompleteCurrent();
-            ExecuteScheduledClose();
+            if (ExecuteScheduledClose())
+            {
+                autoShutdownSchedule.CompleteCurrent();
+            }
         }
     }
 
-    private static void ExecuteScheduledClose()
+    private bool ExecuteScheduledClose()
     {
         ScheduledCloseTarget closeTarget = AutoShutdownSchedule.ResolveCloseTarget(Configurations.IsAutoShutdownComputer.Get());
         AppSessionLogger.Event("info", "shutdown", closeTarget == ScheduledCloseTarget.Computer ? "system_shutdown_requested" : "application_shutdown_requested", closeTarget == ScheduledCloseTarget.Computer ? "system shutdown was requested" : "application shutdown was requested");
         if (closeTarget == ScheduledCloseTarget.Application)
         {
             ApplicationDispatcher.BeginInvoke(() => TrayIconManager.GetInstance().ShutdownApplication(confirmRecording: false));
-            return;
+            return true;
         }
 
         if (Debugger.IsAttached)
         {
             _ = MessageBox.Information("已触发关闭电脑  调试模式不会执行系统关机");
-            return;
+            return true;
         }
 
         bool succeeded = Interop.ExitWindowsEx(User32.ExitWindowsFlags.EWX_SHUTDOWN | User32.ExitWindowsFlags.EWX_FORCE);
         if (!succeeded)
         {
             AppSessionLogger.Event("error", "shutdown", "system_shutdown_failed", "system shutdown request failed");
+            Toast.Error("系统关机请求失败  请检查权限或手动关闭电脑");
         }
+        return succeeded;
     }
 
     private void ResetAutoShutdownReadiness()

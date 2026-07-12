@@ -37,6 +37,18 @@ public sealed class AutoShutdownScheduleTests
     }
 
     [Fact]
+    public void CancelAfterTarget_SuppressesReadyTargetWithoutCancellingNextDay()
+    {
+        AutoShutdownSchedule schedule = new();
+        DateTime promptTime = new(2026, 7, 12, 21, 59, 30);
+
+        Assert.True(schedule.ShouldStartPrompt(promptTime, true, "22:00"));
+        schedule.Cancel(promptTime.AddSeconds(31), "22:00");
+
+        Assert.True(schedule.ShouldStartPrompt(promptTime.AddDays(1), true, "22:00"));
+    }
+
+    [Fact]
     public void ScheduleChange_ClearsPreviousCancellation()
     {
         AutoShutdownSchedule schedule = new();
