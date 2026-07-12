@@ -955,11 +955,11 @@
                                                Text="{x:Static ui:FontSymbols.PowerButton}" />
                                 </Grid>
                                 <ui:Grid Grid.Column="1" RowDefinitions="Auto,Auto">
-                                    <TextBlock Grid.Row="0" Text="定时关闭" />
+                                    <TextBlock Grid.Row="0" Text="{I18N AutoShutdown}" />
                                     <TextBlock Grid.Row="1"
                                                FontSize="11"
                                                Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
-                                               Text="在指定时间关闭软件  可选择关闭电脑" />
+                                               Text="{I18N AutoShutdownHint}" />
                                 </ui:Grid>
                                 <Grid Grid.Column="2" Margin="0,0,12,0">
                                     <ui:ToggleSwitch IsChecked="{Binding IsUseAutoShutdown, Mode=TwoWay}" />
@@ -982,7 +982,7 @@
                                 </Style>
                             </controls:AdaptiveSplitPanel.Style>
                             <ui:StackPanel Orientation="Horizontal">
-                                <TextBlock VerticalAlignment="Center" Text="定时时间" />
+                                <TextBlock VerticalAlignment="Center" Text="{I18N AutoShutdownTime}" />
                                 <ui:StackPanel Margin="16,0,0,0"
                                                Orientation="Horizontal"
                                                Spacing="8">
@@ -1000,10 +1000,10 @@
                                 </ui:StackPanel>
                             </ui:StackPanel>
                             <CheckBox VerticalAlignment="Center"
-                                      Content="转码完成后再关闭"
+                                      Content="{I18N AutoShutdownAfterTranscode}"
                                       IsChecked="{Binding IsAutoShutdownAfterTranscode, Mode=TwoWay}" />
                             <CheckBox VerticalAlignment="Center"
-                                      Content="关闭电脑"
+                                      Content="{I18N AutoShutdownComputer}"
                                       IsChecked="{Binding IsAutoShutdownComputer, Mode=TwoWay}" />
                         </controls:AdaptiveSplitPanel>
                     </ui:CardExpander>

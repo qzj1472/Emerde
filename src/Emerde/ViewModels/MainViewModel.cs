@@ -637,7 +637,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         if (!succeeded)
         {
             AppSessionLogger.Event("error", "shutdown", "system_shutdown_failed", "system shutdown request failed");
-            Toast.Error("系统关机请求失败  请检查权限或手动关闭电脑");
+            Toast.Error("AutoShutdownComputerFailed".Tr());
         }
         return succeeded;
     }

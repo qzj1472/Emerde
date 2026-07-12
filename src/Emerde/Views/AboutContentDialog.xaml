@@ -135,7 +135,7 @@
                         <TextBlock FontWeight="SemiBold" Text="视频列表" />
                         <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    LineHeight="20"
-                                   Text="刷新会扫描当前保存目录和已导入目录中的视频。&#x0a;卡片可直接打开、分割、转码或打开目录，右键可删除、重命名和另存为。&#x0a;多选模式支持合并、删除、移动、复制、全选和反选；合并时视频格式必须一致。"
+                                   Text="刷新会扫描当前保存目录中的视频；导入文件夹会复制导入时已有的视频，不会持续监控原目录。&#x0a;卡片可直接打开、分割、转码或打开目录，右键可删除、重命名和另存为。&#x0a;多选模式支持合并、删除、移动、复制、全选和反选；合并要求视频格式和媒体流参数一致。"
                                    TextWrapping="Wrap" />
                     </ui:StackPanel>
                 </Border>
@@ -161,7 +161,7 @@
                         <TextBlock FontWeight="SemiBold" Text="保存目录与备份" />
                         <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    LineHeight="20"
-                                   Text="保存目录应放在空间充足且不会被清理软件自动删除的位置。&#x0a;更换软件版本时不要删除 downloads、video_thumbnails、日志和配置文件。&#x0a;重要录制建议定期复制到其他磁盘，软件的删除操作会发送到回收站，但仍不应代替备份。"
+                                   Text="保存目录应放在空间充足且不会被清理软件自动删除的位置。&#x0a;更换软件版本时不要删除 downloads、video_thumbnails、日志和配置文件。&#x0a;录像列表中的手动删除会发送到回收站；保留期清理和转码后删除源文件属于永久删除。重要录制应定期备份到其他磁盘。"
                                    TextWrapping="Wrap" />
                     </ui:StackPanel>
                 </Border>

@@ -526,6 +526,15 @@
   <data name="AutoShutdownInTime" xml:space="preserve">
     <value>System will be auto shutdown in 1 minute</value>
   </data>
+  <data name="AutoShutdownAfterTranscode" xml:space="preserve"><value>Close after transcoding</value></data>
+  <data name="AutoShutdownComputer" xml:space="preserve"><value>Shut down computer</value></data>
+  <data name="AutoShutdownCancel" xml:space="preserve"><value>Cancel close</value></data>
+  <data name="AutoShutdownNow" xml:space="preserve"><value>Close now</value></data>
+  <data name="AutoShutdownAfterTranscodeNow" xml:space="preserve"><value>Close after transcoding</value></data>
+  <data name="ButtonOfAcknowledge" xml:space="preserve"><value>Got it</value></data>
+  <data name="AutoShutdownComputerDescription" xml:space="preserve"><value>Recording has stopped. The computer will shut down at the scheduled time. To wait for all conversions, choose close after transcoding or enable that option in settings.</value></data>
+  <data name="AutoShutdownApplicationDescription" xml:space="preserve"><value>Recording has stopped. Only Emerde will close at the scheduled time; the computer will remain on. To wait for all conversions, choose close after transcoding or enable that option in settings.</value></data>
+  <data name="AutoShutdownComputerFailed" xml:space="preserve"><value>The system shutdown request failed. Check permissions or shut down the computer manually.</value></data>
   <data name="StatusOn" xml:space="preserve">
     <value>Enabled</value>
   </data>

@@ -96,14 +96,17 @@ public sealed class AdaptiveSplitPanel : WpfPanel
         double horizontalGap = Math.Max(0, horizontalSpacing);
         double verticalGap = Math.Max(0, verticalSpacing);
         double childrenWidth = firstSize.Width + secondSize.Width + thirdSize.Width;
+        WpfSize arrangedFirstSize = new(Math.Min(firstSize.Width, width), firstSize.Height);
+        WpfSize arrangedSecondSize = new(Math.Min(secondSize.Width, width), secondSize.Height);
+        WpfSize arrangedThirdSize = new(Math.Min(thirdSize.Width, width), thirdSize.Height);
 
         if (childrenWidth + horizontalGap * 2 <= width)
         {
             double equalGap = (width - childrenWidth) / 2;
             return new AdaptiveSplitLayout(
-                new Rect(0, 0, firstSize.Width, firstSize.Height),
-                new Rect(firstSize.Width + equalGap, 0, secondSize.Width, secondSize.Height),
-                new Rect(Math.Max(0, width - thirdSize.Width), 0, thirdSize.Width, thirdSize.Height),
+            new Rect(0, 0, arrangedFirstSize.Width, arrangedFirstSize.Height),
+            new Rect(firstSize.Width + equalGap, 0, arrangedSecondSize.Width, arrangedSecondSize.Height),
+            new Rect(Math.Max(0, width - arrangedThirdSize.Width), 0, arrangedThirdSize.Width, arrangedThirdSize.Height),
                 Math.Max(firstSize.Height, Math.Max(secondSize.Height, thirdSize.Height)),
                 1);
         }
@@ -114,18 +117,18 @@ public sealed class AdaptiveSplitPanel : WpfPanel
         {
             double secondRowHeight = Math.Max(secondSize.Height, thirdSize.Height);
             return new AdaptiveSplitLayout(
-                new Rect(0, 0, firstSize.Width, firstSize.Height),
-                new Rect(0, secondRowY, secondSize.Width, secondSize.Height),
-                new Rect(Math.Max(0, width - thirdSize.Width), secondRowY, thirdSize.Width, thirdSize.Height),
+                new Rect(0, 0, arrangedFirstSize.Width, arrangedFirstSize.Height),
+                new Rect(0, secondRowY, arrangedSecondSize.Width, arrangedSecondSize.Height),
+                new Rect(Math.Max(0, width - arrangedThirdSize.Width), secondRowY, arrangedThirdSize.Width, arrangedThirdSize.Height),
                 secondRowY + secondRowHeight,
                 2);
         }
 
         double thirdRowY = secondRowY + secondSize.Height + verticalGap;
         return new AdaptiveSplitLayout(
-            new Rect(0, 0, firstSize.Width, firstSize.Height),
-            new Rect(0, secondRowY, secondSize.Width, secondSize.Height),
-            new Rect(Math.Max(0, width - thirdSize.Width), thirdRowY, thirdSize.Width, thirdSize.Height),
+            new Rect(0, 0, arrangedFirstSize.Width, arrangedFirstSize.Height),
+            new Rect(0, secondRowY, arrangedSecondSize.Width, arrangedSecondSize.Height),
+            new Rect(Math.Max(0, width - arrangedThirdSize.Width), thirdRowY, arrangedThirdSize.Width, arrangedThirdSize.Height),
             thirdRowY + thirdSize.Height,
             3);
     }

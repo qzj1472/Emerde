@@ -65,4 +65,23 @@ public sealed class AdaptiveSplitPanelTests
         Assert.Equal(84, layout.Third.Y);
         Assert.Equal(112, layout.DesiredHeight);
     }
+
+    [Fact]
+    public void CalculateLayout_ConstrainsChildrenWiderThanPanel()
+    {
+        AdaptiveSplitLayout layout = AdaptiveSplitPanel.CalculateLayout(
+            120,
+            new WpfSize(180, 32),
+            new WpfSize(190, 28),
+            new WpfSize(160, 28),
+            24,
+            12);
+
+        Assert.Equal(120, layout.First.Width);
+        Assert.Equal(120, layout.Second.Width);
+        Assert.Equal(120, layout.Third.Width);
+        Assert.Equal(120, layout.First.Right);
+        Assert.Equal(120, layout.Second.Right);
+        Assert.Equal(120, layout.Third.Right);
+    }
 }

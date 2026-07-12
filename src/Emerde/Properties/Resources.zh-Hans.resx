@@ -526,6 +526,15 @@
   <data name="AutoShutdownInTime" xml:space="preserve">
     <value>系统将会在1分钟后自动关机</value>
   </data>
+  <data name="AutoShutdownAfterTranscode" xml:space="preserve"><value>转码完成后再关闭</value></data>
+  <data name="AutoShutdownComputer" xml:space="preserve"><value>关闭电脑</value></data>
+  <data name="AutoShutdownCancel" xml:space="preserve"><value>取消关闭</value></data>
+  <data name="AutoShutdownNow" xml:space="preserve"><value>现在关闭</value></data>
+  <data name="AutoShutdownAfterTranscodeNow" xml:space="preserve"><value>转码完关闭</value></data>
+  <data name="ButtonOfAcknowledge" xml:space="preserve"><value>我知道了</value></data>
+  <data name="AutoShutdownComputerDescription" xml:space="preserve"><value>录制已经停止。到达设定时间时会关闭电脑。需要等待全部转码完成时，可以选择转码完关闭，或在设置中长期启用该选项。</value></data>
+  <data name="AutoShutdownApplicationDescription" xml:space="preserve"><value>录制已经停止。到达设定时间时只会退出 Emerde，不会关闭电脑。需要等待全部转码完成时，可以选择转码完关闭，或在设置中长期启用该选项。</value></data>
+  <data name="AutoShutdownComputerFailed" xml:space="preserve"><value>系统关机请求失败，请检查权限或手动关闭电脑。</value></data>
   <data name="StatusOn" xml:space="preserve">
     <value>已启用</value>
   </data>

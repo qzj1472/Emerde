@@ -529,6 +529,15 @@
   <data name="AutoShutdownInTime" xml:space="preserve">
     <value>システムは1分後に自動シャットダウン</value>
   </data>
+  <data name="AutoShutdownAfterTranscode" xml:space="preserve"><value>変換完了後に終了</value></data>
+  <data name="AutoShutdownComputer" xml:space="preserve"><value>コンピューターをシャットダウン</value></data>
+  <data name="AutoShutdownCancel" xml:space="preserve"><value>終了をキャンセル</value></data>
+  <data name="AutoShutdownNow" xml:space="preserve"><value>今すぐ終了</value></data>
+  <data name="AutoShutdownAfterTranscodeNow" xml:space="preserve"><value>変換後に終了</value></data>
+  <data name="ButtonOfAcknowledge" xml:space="preserve"><value>確認</value></data>
+  <data name="AutoShutdownComputerDescription" xml:space="preserve"><value>録画は停止しました。設定時刻になるとコンピューターをシャットダウンします。すべての変換を待つ場合は、変換後に終了を選ぶか、設定でこのオプションを有効にしてください。</value></data>
+  <data name="AutoShutdownApplicationDescription" xml:space="preserve"><value>録画は停止しました。設定時刻になると Emerde のみ終了し、コンピューターはシャットダウンしません。すべての変換を待つ場合は、変換後に終了を選ぶか、設定でこのオプションを有効にしてください。</value></data>
+  <data name="AutoShutdownComputerFailed" xml:space="preserve"><value>システムのシャットダウン要求に失敗しました。権限を確認するか、手動でシャットダウンしてください。</value></data>
   <data name="StatusOn" xml:space="preserve">
     <value>有効</value>
   </data>

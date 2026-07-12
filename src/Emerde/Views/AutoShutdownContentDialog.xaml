@@ -5,7 +5,7 @@
                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                    xmlns:vio="http://schemas.lepo.co/wpfui/2022/xaml/violeta"
-                   Title="定时关闭"
+                   Title="{I18N AutoShutdown}"
                    d:DesignHeight="NaN"
                    d:DesignWidth="NaN"
                    FontSize="14"
@@ -23,20 +23,20 @@
             </Grid.ColumnDefinitions>
             <Button Grid.Column="0"
                     Margin="0,0,8,0"
-                    Content="取消关闭"
+                    Content="{I18N AutoShutdownCancel}"
                     Click="CancelClick" />
             <Button Grid.Column="1"
                     Margin="4,0"
-                    Content="现在关闭"
+                    Content="{I18N AutoShutdownNow}"
                     Click="ShutdownNowClick" />
             <Button Grid.Column="2"
                     Margin="8,0,0,0"
-                    Content="转码完关闭"
+                    Content="{I18N AutoShutdownAfterTranscodeNow}"
                     Click="ShutdownAfterTranscodeClick" />
         </Grid>
         <Button Height="38"
                 HorizontalAlignment="Stretch"
-                Content="我知道了"
+                Content="{I18N ButtonOfAcknowledge}"
                 Click="AcknowledgeClick" />
     </ui:StackPanel>
 </vio:ContentDialog>
