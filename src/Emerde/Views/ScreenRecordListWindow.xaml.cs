@@ -809,6 +809,13 @@ public partial class ScreenRecordListViewModel : ObservableObject
             return;
         }
 
+        bool streamsCompatible = await Task.Run(() => HaveCompatibleMergeStreams(selected));
+        if (!streamsCompatible)
+        {
+            Toast.Warning("所选视频的编码、分辨率或音轨参数不一致  无法无损合并");
+            return;
+        }
+
         using CommonOpenFileDialog dialog = new()
         {
             IsFolderPicker = true,
@@ -2074,6 +2081,82 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
 
         return items.OrderBy(item => item.CreatedAt).ThenBy(item => item.FileName, StringComparer.OrdinalIgnoreCase);
+    }
+
+    internal static bool HaveCompatibleMergeStreams(IReadOnlyList<RecordedVideoItem> selected)
+    {
+        string[] signatures = selected
+            .Select(video => ProbeMergeStreamSignature(video.FullPath))
+            .ToArray();
+        return signatures.Length >= 2
+            && signatures.All(signature => !string.IsNullOrWhiteSpace(signature))
+            && signatures.Distinct(StringComparer.Ordinal).Count() == 1;
+    }
+
+    private static string ProbeMergeStreamSignature(string filePath)
+    {
+        string? ffprobePath = SearchFileHelper.SearchExecutable("ffprobe.exe");
+        if (string.IsNullOrWhiteSpace(ffprobePath) || !File.Exists(filePath))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            ProcessStartInfo startInfo = new()
+            {
+                FileName = ffprobePath,
+                UseShellExecute = false,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true,
+                StandardErrorEncoding = Encoding.UTF8,
+                StandardOutputEncoding = Encoding.UTF8,
+            };
+
+            foreach (string argument in new[] { "-v", "error", "-show_entries", "stream=codec_type,codec_name,profile,width,height,pix_fmt,time_base,sample_rate,channels,channel_layout", "-of", "json", filePath })
+            {
+                startInfo.ArgumentList.Add(argument);
+            }
+
+            using Process process = new() { StartInfo = startInfo };
+            process.Start();
+            _ = ChildProcessTracerPeriodicTimer.Default.TryTraceProcess(process);
+            string output = process.StandardOutput.ReadToEnd();
+            _ = process.StandardError.ReadToEnd();
+            if (!process.WaitForExit(5000))
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit();
+                return string.Empty;
+            }
+
+            return process.ExitCode == 0 ? ParseMergeStreamSignature(output) : string.Empty;
+        }
+        catch (Exception e) when (e is InvalidOperationException or IOException or Win32Exception or JsonException)
+        {
+            return string.Empty;
+        }
+    }
+
+    internal static string ParseMergeStreamSignature(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return string.Empty;
+        }
+
+        using JsonDocument document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty("streams", out JsonElement streams)
+            || streams.ValueKind != JsonValueKind.Array
+            || streams.GetArrayLength() == 0)
+        {
+            return string.Empty;
+        }
+
+        string[] properties = ["codec_type", "codec_name", "profile", "width", "height", "pix_fmt", "time_base", "sample_rate", "channels", "channel_layout"];
+        return string.Join(";", streams.EnumerateArray().Select(stream => string.Join("|", properties.Select(property =>
+            stream.TryGetProperty(property, out JsonElement value) ? value.ToString() : string.Empty))));
     }
 
     private static bool IsContinuousSegmentSelection(IReadOnlyList<RecordedVideoItem> selected)

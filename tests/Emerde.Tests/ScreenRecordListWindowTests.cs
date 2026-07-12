@@ -199,6 +199,23 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
+    public void ParseMergeStreamSignature_DistinguishesCodecAndAudioLayout()
+    {
+        const string first = """
+            {"streams":[{"codec_type":"video","codec_name":"h264","width":1920,"height":1080,"pix_fmt":"yuv420p","time_base":"1/90000"},{"codec_type":"audio","codec_name":"aac","sample_rate":"48000","channels":2,"channel_layout":"stereo","time_base":"1/48000"}]}
+            """;
+        const string second = """
+            {"streams":[{"codec_type":"video","codec_name":"hevc","width":1920,"height":1080,"pix_fmt":"yuv420p","time_base":"1/90000"},{"codec_type":"audio","codec_name":"aac","sample_rate":"48000","channels":6,"channel_layout":"5.1","time_base":"1/48000"}]}
+            """;
+
+        string firstSignature = ScreenRecordListViewModel.ParseMergeStreamSignature(first);
+        string secondSignature = ScreenRecordListViewModel.ParseMergeStreamSignature(second);
+
+        Assert.NotEmpty(firstSignature);
+        Assert.NotEqual(firstSignature, secondSignature);
+    }
+
+    [Fact]
     public void LoadMetadata_UsesSharedSegmentMetadata()
     {
         string root = Path.Combine(Path.GetTempPath(), $"emerde-metadata-{Guid.NewGuid():N}");
