@@ -15,7 +15,8 @@ internal static partial class StreamResolver
     private const int HlsVariantCacheLimit = 256;
     private const string DouyinDefaultCookie = "ttwid=1%7C2iDIYVmjzMcpZ20fcaFde0VghXAA3NaNXE_SLR68IyE%7C1761045455%7Cab35197d5cfb21df6cbb2fa7ef1c9262206b062c315b9d04da746d0b37dfbc7d";
     private const string DouyinWebUserAgent = "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.5845.97 Safari/537.36 Core/1.116.567.400 QQBrowser/19.7.6764.400";
-    private static readonly TimeSpan HlsVariantCacheDuration = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan HlsVariantPositiveCacheDuration = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan HlsVariantNegativeCacheDuration = TimeSpan.FromMinutes(2);
     private static readonly ConcurrentDictionary<string, string> LastErrors = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, HlsVariantCacheEntry> HlsVariantCache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -454,10 +455,10 @@ internal static partial class StreamResolver
         if (!TryGetCachedHlsVariant(result.HlsUrl, out HlsVariant variant))
         {
             variant = ProbeHighestHlsVariant(result.HlsUrl, referer, cookie, userAgent);
-            if (!string.IsNullOrWhiteSpace(variant.Url))
-            {
-                CacheHlsVariant(result.HlsUrl, variant, HlsVariantCacheDuration);
-            }
+            TimeSpan cacheDuration = string.IsNullOrWhiteSpace(variant.Url)
+                ? HlsVariantNegativeCacheDuration
+                : HlsVariantPositiveCacheDuration;
+            CacheHlsVariant(result.HlsUrl, variant, cacheDuration);
         }
         if (string.IsNullOrWhiteSpace(variant.Url))
         {
