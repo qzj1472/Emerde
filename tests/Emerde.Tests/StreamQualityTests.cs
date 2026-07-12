@@ -76,6 +76,39 @@ public sealed class StreamQualityTests
     }
 
     [Fact]
+    public void DouyinResolver_OriginalFallsBackWhenCandidateMetadataIsIncomplete()
+    {
+        string json = """
+            {
+              "data": {
+                "data": [{
+                  "status": 2,
+                  "stream_url": {
+                    "hls_pull_url_map": {
+                      "ORIGIN": "https://example.test/origin.m3u8",
+                      "FULL_HD1": "https://example.test/full.m3u8?resolution=1280x720&bitrate=1800"
+                    },
+                    "flv_pull_url": {
+                      "ORIGIN": "https://example.test/origin.flv",
+                      "FULL_HD1": "https://example.test/full.flv?resolution=1280x720&bitrate=1800"
+                    }
+                  }
+                }]
+              }
+            }
+            """;
+
+        StreamResolverResult result = StreamResolver.ExtractDouyinWebEnterData(
+            "https://live.douyin.com/123456",
+            json,
+            StreamQualityCatalog.Original);
+
+        Assert.Equal("https://example.test/origin.m3u8", result.HlsUrl);
+        Assert.Equal("https://example.test/origin.flv", result.FlvUrl);
+        Assert.Equal("ORIGIN", result.Quality);
+    }
+
+    [Fact]
     public void KuaishouResolver_SelectsRequestedVariantAndMetadata()
     {
         string json = """

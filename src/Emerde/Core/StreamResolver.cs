@@ -1021,21 +1021,36 @@ internal static partial class StreamResolver
             return default;
         }
 
+        string[] qualityOrder = StreamQualityCatalog.GetStreamKeyOrder(StreamQualityCatalog.Original).ToArray();
         var candidates = urls
             .Select(pair =>
             {
                 (int height, double bitrate) = StreamMetadataParser.GetQualityMetrics(pair.Value);
-                return new { pair.Key, Url = pair.Value, Height = height, Bitrate = bitrate };
+                int qualityRank = Array.FindIndex(qualityOrder, key => key.Equals(pair.Key, StringComparison.OrdinalIgnoreCase));
+                return new
+                {
+                    pair.Key,
+                    Url = pair.Value,
+                    Height = height,
+                    Bitrate = bitrate,
+                    QualityRank = qualityRank < 0 ? int.MaxValue : qualityRank,
+                };
             })
-            .Where(candidate => candidate.Height > 0 || candidate.Bitrate > 0)
+            .ToArray();
+        if (candidates.Length == 0 || candidates.Any(candidate => candidate.Height <= 0 && candidate.Bitrate <= 0))
+        {
+            return default;
+        }
+
+        var selected = candidates
             .OrderByDescending(candidate => candidate.Height)
             .ThenByDescending(candidate => candidate.Bitrate)
-            .ThenBy(candidate => Array.IndexOf(StreamQualityCatalog.GetStreamKeyOrder(StreamQualityCatalog.Original).ToArray(), candidate.Key))
+            .ThenBy(candidate => candidate.QualityRank)
             .FirstOrDefault();
 
-        return candidates == null
+        return selected == null
             ? default
-            : new StreamCandidate(candidates.Url, string.IsNullOrWhiteSpace(candidates.Key) ? null : candidates.Key);
+            : new StreamCandidate(selected.Url, string.IsNullOrWhiteSpace(selected.Key) ? null : selected.Key);
     }
 
     private static string? ExtractFirstUrlFromList(JToken? token)
