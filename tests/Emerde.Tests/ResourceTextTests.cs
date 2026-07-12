@@ -154,7 +154,9 @@ public sealed class ResourceTextTests
             "StreamerLabel", "TimeRangeLabel", "OpenVideo", "TranscodeVideo", "SplitButton",
             "SplitVideo", "SplitInterval", "Minutes", "Seconds", "Hours", "StartButton",
             "QualityLabel", "QualitySelectionHint", "PreviewPause", "PreviewMute", "PreviewUnmute",
-            "PreviewFullScreen", "PreviewRestore",
+            "PreviewFullScreen", "PreviewRestore", "AutoShutdownAfterTranscode", "AutoShutdownComputer",
+            "AutoShutdownCancel", "AutoShutdownNow", "AutoShutdownAfterTranscodeNow", "ButtonOfAcknowledge",
+            "AutoShutdownComputerDescription", "AutoShutdownApplicationDescription", "AutoShutdownComputerFailed",
         ];
 
         foreach (string key in keys)

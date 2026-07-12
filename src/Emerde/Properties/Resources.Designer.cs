@@ -167,6 +167,42 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("AutoShutdownTime", resourceCulture);
             }
         }
+
+        public static string AutoShutdownAfterTranscode {
+            get { return ResourceManager.GetString("AutoShutdownAfterTranscode", resourceCulture); }
+        }
+
+        public static string AutoShutdownComputer {
+            get { return ResourceManager.GetString("AutoShutdownComputer", resourceCulture); }
+        }
+
+        public static string AutoShutdownCancel {
+            get { return ResourceManager.GetString("AutoShutdownCancel", resourceCulture); }
+        }
+
+        public static string AutoShutdownNow {
+            get { return ResourceManager.GetString("AutoShutdownNow", resourceCulture); }
+        }
+
+        public static string AutoShutdownAfterTranscodeNow {
+            get { return ResourceManager.GetString("AutoShutdownAfterTranscodeNow", resourceCulture); }
+        }
+
+        public static string ButtonOfAcknowledge {
+            get { return ResourceManager.GetString("ButtonOfAcknowledge", resourceCulture); }
+        }
+
+        public static string AutoShutdownComputerDescription {
+            get { return ResourceManager.GetString("AutoShutdownComputerDescription", resourceCulture); }
+        }
+
+        public static string AutoShutdownApplicationDescription {
+            get { return ResourceManager.GetString("AutoShutdownApplicationDescription", resourceCulture); }
+        }
+
+        public static string AutoShutdownComputerFailed {
+            get { return ResourceManager.GetString("AutoShutdownComputerFailed", resourceCulture); }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Avatar.
