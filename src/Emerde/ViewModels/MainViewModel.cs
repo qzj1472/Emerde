@@ -2350,6 +2350,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             GlobalMonitor.ClearTemporaryRoomOverrides(roomUrl);
 
             RoomStatusReactive? roomStatusReactive = RoomStatuses.FirstOrDefault(room => room.RoomUrl == roomUrl);
+            int removedIndex = roomStatusReactive == null ? -1 : RoomStatuses.IndexOf(roomStatusReactive);
             if (roomStatusReactive != null)
             {
                 RoomStatuses.Remove(roomStatusReactive);
@@ -2362,7 +2363,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             rooms.RemoveAll(room => room.RoomUrl == roomUrl);
             Configurations.Rooms.Set([.. rooms]);
             ConfigurationManager.Save();
-            _ = SelectedItem.MapFrom(new RoomStatusReactive());
+            SelectedItem = RoomStatuses.Count == 0
+                ? new RoomStatusReactive()
+                : RoomStatuses[Math.Clamp(removedIndex, 0, RoomStatuses.Count - 1)];
 
             Toast.Success("SuccOp".Tr());
         }
@@ -2573,7 +2576,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                     {
                         if (row.DataContext is RoomStatusReactive { } data)
                         {
-                            _ = data.MapTo(SelectedItem);
+                            SelectedItem = data;
 
                             foreach (UIElement d in ((ContextMenu)sender).Items.OfType<UIElement>())
                             {
@@ -2584,7 +2587,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                     else
                     {
                         ((ContextMenu)sender).IsOpen = false;
-                        _ = SelectedItem.MapFrom(new RoomStatusReactive());
+                        SelectedItem = new RoomStatusReactive();
 
                         foreach (UIElement d in ((ContextMenu)sender).Items.OfType<UIElement>())
                         {
