@@ -404,6 +404,20 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         PreviewControls.IsHitTestVisible = false;
     }
 
+    internal void RefreshVideoLayout()
+    {
+        InvalidateMeasure();
+        InvalidateArrange();
+        PreviewViewport.InvalidateMeasure();
+        PreviewViewport.InvalidateArrange();
+        VideoSurface.InvalidateMeasure();
+        VideoSurface.InvalidateArrange();
+        UpdateLayout();
+        UpdateVideoSurfaceSize();
+        ScheduleVideoLayoutRefresh();
+        UpdatePreviewControlsPlacement();
+    }
+
     private void ToggleWindowSize_OnClick(object sender, System.Windows.RoutedEventArgs e)
     {
         System.Windows.Window? window = System.Windows.Window.GetWindow(this);

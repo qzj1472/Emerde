@@ -2,6 +2,7 @@ using Emerde.Core;
 using Emerde.Models;
 using Emerde.ViewModels;
 using Emerde.Views;
+using Vanara.PInvoke;
 
 namespace Emerde.Tests;
 
@@ -253,5 +254,91 @@ public sealed class LivePreviewTests
     public void IsPreviewFullScreenExitMessage_RejectsOtherTopLevelWindow()
     {
         Assert.False(MainWindow.IsPreviewFullScreenExitMessage(true, 0x0100, new IntPtr(0x1B), new IntPtr(10), new IntPtr(20)));
+    }
+
+    [Fact]
+    public void IsPreviewFullScreenClientHitTest_DisablesWindowEdgeHitTesting()
+    {
+        Assert.True(MainWindow.IsPreviewFullScreenClientHitTest(true, 0x0084));
+        Assert.False(MainWindow.IsPreviewFullScreenClientHitTest(false, 0x0084));
+        Assert.False(MainWindow.IsPreviewFullScreenClientHitTest(true, 0x0200));
+    }
+
+    [Fact]
+    public void IsPreviewFullScreenNonClientMessage_SuppressesFramePainting()
+    {
+        Assert.True(MainWindow.IsPreviewFullScreenNonClientMessage(true, 0x0083));
+        Assert.True(MainWindow.IsPreviewFullScreenNonClientMessage(true, 0x0085));
+        Assert.False(MainWindow.IsPreviewFullScreenNonClientMessage(false, 0x0083));
+        Assert.False(MainWindow.IsPreviewFullScreenNonClientMessage(true, 0x0084));
+    }
+
+    [Fact]
+    public void IsPreviewFullScreenBlockedSystemCommand_BlocksMoveAndResize()
+    {
+        Assert.True(MainWindow.IsPreviewFullScreenBlockedSystemCommand(true, 0x0112, new IntPtr(0xF000)));
+        Assert.True(MainWindow.IsPreviewFullScreenBlockedSystemCommand(true, 0x0112, new IntPtr(0xF010)));
+        Assert.False(MainWindow.IsPreviewFullScreenBlockedSystemCommand(false, 0x0112, new IntPtr(0xF000)));
+        Assert.False(MainWindow.IsPreviewFullScreenBlockedSystemCommand(true, 0x0112, new IntPtr(0xF030)));
+    }
+
+    [Fact]
+    public void BuildPreviewFullScreenWindowStyle_UsesPopupOnly()
+    {
+        int style = (int)(User32.WindowStyles.WS_OVERLAPPEDWINDOW | User32.WindowStyles.WS_VISIBLE);
+        int fullScreenStyle = MainWindow.BuildPreviewFullScreenWindowStyle(style);
+
+        Assert.True((fullScreenStyle & unchecked((int)User32.WindowStyles.WS_POPUP)) != 0);
+        Assert.True((fullScreenStyle & (int)User32.WindowStyles.WS_VISIBLE) != 0);
+        Assert.False((fullScreenStyle & (int)User32.WindowStyles.WS_CAPTION) != 0);
+        Assert.False((fullScreenStyle & (int)User32.WindowStyles.WS_THICKFRAME) != 0);
+    }
+
+    [Fact]
+    public void BuildPreviewFullScreenWindowExStyle_RemovesEdgeStyles()
+    {
+        int exStyle = (int)(User32.WindowStylesEx.WS_EX_APPWINDOW
+            | User32.WindowStylesEx.WS_EX_CLIENTEDGE
+            | User32.WindowStylesEx.WS_EX_WINDOWEDGE
+            | User32.WindowStylesEx.WS_EX_STATICEDGE);
+
+        int fullScreenExStyle = MainWindow.BuildPreviewFullScreenWindowExStyle(exStyle);
+
+        Assert.True((fullScreenExStyle & (int)User32.WindowStylesEx.WS_EX_APPWINDOW) != 0);
+        Assert.False((fullScreenExStyle & (int)User32.WindowStylesEx.WS_EX_CLIENTEDGE) != 0);
+        Assert.False((fullScreenExStyle & (int)User32.WindowStylesEx.WS_EX_WINDOWEDGE) != 0);
+        Assert.False((fullScreenExStyle & (int)User32.WindowStylesEx.WS_EX_STATICEDGE) != 0);
+    }
+
+    [Fact]
+    public void ExpandPreviewFullScreenBounds_OverscansEveryEdgeByTwoPixels()
+    {
+        System.Drawing.Rectangle bounds = new(-1920, 0, 1920, 1080);
+
+        System.Drawing.Rectangle expandedBounds = MainWindow.ExpandPreviewFullScreenBounds(bounds, [bounds]);
+
+        Assert.Equal(new System.Drawing.Rectangle(-1922, -2, 1924, 1084), expandedBounds);
+    }
+
+    [Fact]
+    public void ExpandPreviewFullScreenBounds_DoesNotEnterAdjacentScreen()
+    {
+        System.Drawing.Rectangle bounds = new(0, 0, 1920, 1080);
+        System.Drawing.Rectangle adjacent = new(1920, 0, 1920, 1080);
+
+        System.Drawing.Rectangle expandedBounds = MainWindow.ExpandPreviewFullScreenBounds(bounds, [bounds, adjacent]);
+
+        Assert.Equal(new System.Drawing.Rectangle(-2, -2, 1922, 1084), expandedBounds);
+    }
+
+    [Fact]
+    public void ExpandPreviewFullScreenBounds_UsesOnlyAvailableGap()
+    {
+        System.Drawing.Rectangle bounds = new(0, 0, 1920, 1080);
+        System.Drawing.Rectangle adjacent = new(1921, 0, 1920, 1080);
+
+        System.Drawing.Rectangle expandedBounds = MainWindow.ExpandPreviewFullScreenBounds(bounds, [bounds, adjacent]);
+
+        Assert.Equal(new System.Drawing.Rectangle(-2, -2, 1923, 1084), expandedBounds);
     }
 }

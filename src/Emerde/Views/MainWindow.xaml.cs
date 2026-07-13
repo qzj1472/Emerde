@@ -205,6 +205,16 @@ public partial class MainWindow : FluentWindow
     private const double RoomCardScrollBarReservedWidth = 17d;
     private const int RoomCardDragDelayMilliseconds = 260;
     private const int RoomCardBlankLongPressMilliseconds = 560;
+    private const int WmNcCalcSize = 0x0083;
+    private const int WmNcHitTest = 0x0084;
+    private const int WmNcPaint = 0x0085;
+    private const int WmSysCommand = 0x0112;
+    private const int HtClient = 1;
+    private const int SysCommandMask = 0xFFF0;
+    private const int ScSize = 0xF000;
+    private const int ScMove = 0xF010;
+    private const int DwmColorNone = unchecked((int)0xFFFFFFFE);
+    private const int PreviewFullScreenOverscanPixels = 2;
 
     private double normalRoomCardBaseWidth;
     private bool isNormalRoomCardBaseWidthCaptured;
@@ -246,11 +256,21 @@ public partial class MainWindow : FluentWindow
     private WindowState previewWindowState;
     private WindowStyle previewWindowStyle;
     private ResizeMode previewResizeMode;
+    private WindowBackdropType previewWindowBackdropType;
     private bool previewTopmost;
+    private double previewMaxWidth;
+    private double previewMaxHeight;
     private double previewLeft;
     private double previewTop;
     private double previewWidth;
     private double previewHeight;
+    private int previewNativeWindowStyle;
+    private int previewNativeWindowExStyle;
+    private int previewDwmBorderColor;
+    private int previewDwmCornerPreference;
+    private bool isPreviewNativeWindowStyleCaptured;
+    private bool isPreviewDwmBorderColorCaptured;
+    private bool isPreviewDwmCornerPreferenceCaptured;
     private bool isPreviewFullScreen;
     private bool isPreviewPresentationSuspendedByOverlay;
     private bool previousPreviewingState;
@@ -291,12 +311,60 @@ public partial class MainWindow : FluentWindow
         UpdateRoomCardMetrics(e.NewSize.Width);
     }
 
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        HwndSource? source = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
+        source?.AddHook(MainWindowWindowProc);
+    }
+
     protected override void OnClosed(EventArgs e)
     {
+        HwndSource? source = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
+        source?.RemoveHook(MainWindowWindowProc);
         PreviewKeyDown -= MainWindowPreviewKeyDown;
         ComponentDispatcher.ThreadPreprocessMessage -= MainWindowThreadPreprocessMessage;
         ViewModel.PropertyChanged -= ViewModelPropertyChanged;
         base.OnClosed(e);
+    }
+
+    private IntPtr MainWindowWindowProc(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (IsPreviewFullScreenNonClientMessage(isPreviewFullScreen, message))
+        {
+            handled = true;
+            return IntPtr.Zero;
+        }
+
+        if (IsPreviewFullScreenClientHitTest(isPreviewFullScreen, message))
+        {
+            handled = true;
+            return new IntPtr(HtClient);
+        }
+
+        if (IsPreviewFullScreenBlockedSystemCommand(isPreviewFullScreen, message, wParam))
+        {
+            handled = true;
+            return IntPtr.Zero;
+        }
+
+        return IntPtr.Zero;
+    }
+
+    internal static bool IsPreviewFullScreenNonClientMessage(bool isFullScreen, int message)
+    {
+        return isFullScreen && (message == WmNcCalcSize || message == WmNcPaint);
+    }
+
+    internal static bool IsPreviewFullScreenClientHitTest(bool isFullScreen, int message)
+    {
+        return isFullScreen && message == WmNcHitTest;
+    }
+
+    internal static bool IsPreviewFullScreenBlockedSystemCommand(bool isFullScreen, int message, IntPtr command)
+    {
+        long commandType = command.ToInt64() & SysCommandMask;
+        return isFullScreen && message == WmSysCommand && (commandType == ScSize || commandType == ScMove);
     }
 
     private void MainWindowPreviewKeyDown(object sender, KeyEventArgs e)
@@ -723,34 +791,31 @@ public partial class MainWindow : FluentWindow
 
     private void EnterPreviewFullScreen()
     {
-        if (!ViewModel.IsPreviewing)
-        {
-            return;
-        }
-
-        if (isPreviewFullScreen)
+        if (!ViewModel.IsPreviewing || isPreviewFullScreen)
         {
             return;
         }
 
         SavePreviewFullScreenLayout();
         SavePreviewWindowPlacement();
+
         try
         {
             isPreviewFullScreen = true;
             ViewModel.IsPreviewDetached = true;
-            ApplyPreviewFullScreenWindowBounds();
             ApplyPreviewFullScreenLayout();
             HomePreviewPanel.IsFullScreen = true;
+            ApplyPreviewFullScreenWindowBounds();
             Activate();
             Focus();
+            QueuePreviewFullScreenWindowRefresh();
         }
         catch
         {
+            isPreviewFullScreen = false;
             HomePreviewPanel.IsFullScreen = false;
             RestorePreviewFullScreenLayout();
             RestorePreviewWindowPlacement();
-            isPreviewFullScreen = false;
             ViewModel.IsPreviewDetached = false;
             throw;
         }
@@ -764,13 +829,43 @@ public partial class MainWindow : FluentWindow
         }
 
         HomePreviewPanel.HidePreviewControlsImmediately();
+        isPreviewFullScreen = false;
         HomePreviewPanel.IsFullScreen = false;
         RestorePreviewFullScreenLayout();
         RestorePreviewWindowPlacement();
-        isPreviewFullScreen = false;
         ViewModel.IsPreviewDetached = false;
+        QueuePreviewLayoutRefreshAfterFullScreen();
         Activate();
         Focus();
+    }
+
+    private void QueuePreviewLayoutRefreshAfterFullScreen()
+    {
+        _ = Dispatcher.BeginInvoke(RefreshPreviewLayoutAfterFullScreen, DispatcherPriority.Render);
+    }
+
+    private void RefreshPreviewLayoutAfterFullScreen()
+    {
+        if (isPreviewFullScreen)
+        {
+            return;
+        }
+
+        UpdateHomePreviewLayout();
+        MainContentRoot.InvalidateMeasure();
+        MainContentRoot.InvalidateArrange();
+        HomePreviewLayoutRoot.InvalidateMeasure();
+        HomePreviewLayoutRoot.InvalidateArrange();
+        RoomCardPanel.InvalidateMeasure();
+        RoomCardPanel.InvalidateArrange();
+        RoomDetailPanel.InvalidateMeasure();
+        RoomDetailPanel.InvalidateArrange();
+        HomePreviewPanel.RefreshVideoLayout();
+        MainContentRoot.InvalidateVisual();
+        HomePreviewPanel.InvalidateVisual();
+        InvalidateVisual();
+        UpdateLayout();
+        UpdateRoomCardMetrics(RoomCardList.ActualWidth);
     }
 
     private void SavePreviewFullScreenLayout()
@@ -853,7 +948,10 @@ public partial class MainWindow : FluentWindow
         previewWindowState = WindowState;
         previewWindowStyle = WindowStyle;
         previewResizeMode = ResizeMode;
+        previewWindowBackdropType = WindowBackdropType;
         previewTopmost = Topmost;
+        previewMaxWidth = MaxWidth;
+        previewMaxHeight = MaxHeight;
         Rect restoreBounds = WindowState == WindowState.Normal
             ? new Rect(Left, Top, Width, Height)
             : RestoreBounds;
@@ -865,41 +963,212 @@ public partial class MainWindow : FluentWindow
 
     private void ApplyPreviewFullScreenWindowBounds()
     {
-        Rect bounds = GetCurrentScreenBounds();
+        IntPtr handle = new WindowInteropHelper(this).Handle;
+        if (handle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        System.Drawing.Rectangle screenBounds = System.Windows.Forms.Screen.FromHandle(handle).Bounds;
+        System.Drawing.Rectangle bounds = ExpandPreviewFullScreenBounds(
+            screenBounds,
+            System.Windows.Forms.Screen.AllScreens.Select(screen => screen.Bounds));
+        DpiScale dpi = VisualTreeHelper.GetDpi(this);
         WindowState = WindowState.Normal;
-        WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
+        WindowStyle = WindowStyle.None;
+        WindowBackdropType = WindowBackdropType.None;
+        MaxWidth = double.PositiveInfinity;
+        MaxHeight = double.PositiveInfinity;
         Topmost = true;
-        Left = bounds.Left;
-        Top = bounds.Top;
-        Width = bounds.Width;
-        Height = bounds.Height;
+        ApplyPreviewNativeFullScreenStyle(handle);
+        Left = bounds.Left / dpi.DpiScaleX;
+        Top = bounds.Top / dpi.DpiScaleY;
+        Width = bounds.Width / dpi.DpiScaleX;
+        Height = bounds.Height / dpi.DpiScaleY;
+        _ = User32.SetWindowPos(
+            handle,
+            new IntPtr(-1),
+            bounds.Left,
+            bounds.Top,
+            bounds.Width,
+            bounds.Height,
+            User32.SetWindowPosFlags.SWP_SHOWWINDOW | User32.SetWindowPosFlags.SWP_FRAMECHANGED);
+    }
+
+    internal static System.Drawing.Rectangle ExpandPreviewFullScreenBounds(
+        System.Drawing.Rectangle bounds,
+        IEnumerable<System.Drawing.Rectangle>? screenBounds = null)
+    {
+        System.Drawing.Rectangle[] otherScreens = (screenBounds ?? [])
+            .Where(screen => screen != bounds)
+            .ToArray();
+        int leftOverscan = PreviewFullScreenOverscanPixels;
+        int topOverscan = PreviewFullScreenOverscanPixels;
+        int rightOverscan = PreviewFullScreenOverscanPixels;
+        int bottomOverscan = PreviewFullScreenOverscanPixels;
+
+        foreach (System.Drawing.Rectangle otherScreen in otherScreens)
+        {
+            if (RangesOverlap(bounds.Top, bounds.Bottom, otherScreen.Top, otherScreen.Bottom))
+            {
+                if (otherScreen.Left < bounds.Left)
+                {
+                    leftOverscan = Math.Min(leftOverscan, Math.Clamp(bounds.Left - otherScreen.Right, 0, PreviewFullScreenOverscanPixels));
+                }
+
+                if (otherScreen.Right > bounds.Right)
+                {
+                    rightOverscan = Math.Min(rightOverscan, Math.Clamp(otherScreen.Left - bounds.Right, 0, PreviewFullScreenOverscanPixels));
+                }
+            }
+
+            if (RangesOverlap(bounds.Left, bounds.Right, otherScreen.Left, otherScreen.Right))
+            {
+                if (otherScreen.Top < bounds.Top)
+                {
+                    topOverscan = Math.Min(topOverscan, Math.Clamp(bounds.Top - otherScreen.Bottom, 0, PreviewFullScreenOverscanPixels));
+                }
+
+                if (otherScreen.Bottom > bounds.Bottom)
+                {
+                    bottomOverscan = Math.Min(bottomOverscan, Math.Clamp(otherScreen.Top - bounds.Bottom, 0, PreviewFullScreenOverscanPixels));
+                }
+            }
+        }
+
+        return new System.Drawing.Rectangle(
+            bounds.Left - leftOverscan,
+            bounds.Top - topOverscan,
+            bounds.Width + leftOverscan + rightOverscan,
+            bounds.Height + topOverscan + bottomOverscan);
+    }
+
+    private static bool RangesOverlap(int firstStart, int firstEnd, int secondStart, int secondEnd)
+    {
+        return firstStart < secondEnd && secondStart < firstEnd;
+    }
+
+    private void QueuePreviewFullScreenWindowRefresh()
+    {
+        _ = Dispatcher.BeginInvoke(RefreshPreviewFullScreenWindow, DispatcherPriority.Render);
+    }
+
+    private void RefreshPreviewFullScreenWindow()
+    {
+        if (!isPreviewFullScreen)
+        {
+            return;
+        }
+
+        ApplyPreviewFullScreenWindowBounds();
+        HomePreviewPanel.RefreshVideoLayout();
+        HomePreviewPanel.InvalidateVisual();
     }
 
     private void RestorePreviewWindowPlacement()
     {
+        IntPtr handle = new WindowInteropHelper(this).Handle;
         WindowState = WindowState.Normal;
         WindowStyle = previewWindowStyle;
         ResizeMode = previewResizeMode;
+        WindowBackdropType = previewWindowBackdropType;
+        MaxWidth = previewMaxWidth;
+        MaxHeight = previewMaxHeight;
         Topmost = previewTopmost;
         Left = previewLeft;
         Top = previewTop;
         Width = previewWidth;
         Height = previewHeight;
         WindowState = previewWindowState;
+        if (handle != IntPtr.Zero)
+        {
+            RestorePreviewNativeWindowStyle(handle);
+            _ = User32.SetWindowPos(
+                handle,
+                IntPtr.Zero,
+                0,
+                0,
+                0,
+                0,
+                User32.SetWindowPosFlags.SWP_NOMOVE
+                    | User32.SetWindowPosFlags.SWP_NOSIZE
+                    | User32.SetWindowPosFlags.SWP_NOZORDER
+                    | User32.SetWindowPosFlags.SWP_FRAMECHANGED);
+        }
     }
 
-    private Rect GetCurrentScreenBounds()
+    private void ApplyPreviewNativeFullScreenStyle(IntPtr handle)
     {
-        System.Windows.Forms.Screen screen = System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle);
-        System.Drawing.Rectangle bounds = screen.Bounds;
-        DpiScale dpi = VisualTreeHelper.GetDpi(this);
+        SavePreviewNativeWindowStyle(handle);
+        _ = User32.SetWindowLong(handle, User32.WindowLongFlags.GWL_STYLE, BuildPreviewFullScreenWindowStyle(previewNativeWindowStyle));
+        _ = User32.SetWindowLong(handle, User32.WindowLongFlags.GWL_EXSTYLE, BuildPreviewFullScreenWindowExStyle(previewNativeWindowExStyle));
+        SetPreviewWindowFrameAttributes(handle, true);
+    }
 
-        return new Rect(
-            bounds.Left / dpi.DpiScaleX,
-            bounds.Top / dpi.DpiScaleY,
-            bounds.Width / dpi.DpiScaleX,
-            bounds.Height / dpi.DpiScaleY);
+    private void SavePreviewNativeWindowStyle(IntPtr handle)
+    {
+        if (isPreviewNativeWindowStyleCaptured)
+        {
+            return;
+        }
+
+        previewNativeWindowStyle = User32.GetWindowLong(handle, User32.WindowLongFlags.GWL_STYLE);
+        previewNativeWindowExStyle = User32.GetWindowLong(handle, User32.WindowLongFlags.GWL_EXSTYLE);
+        isPreviewDwmBorderColorCaptured = Interop.DwmGetWindowAttribute(handle, Interop.DwmWindowAttribute.BorderColor, out previewDwmBorderColor, sizeof(int)) >= 0;
+        isPreviewDwmCornerPreferenceCaptured = Interop.DwmGetWindowAttribute(handle, Interop.DwmWindowAttribute.WindowCornerPreference, out previewDwmCornerPreference, sizeof(int)) >= 0;
+        isPreviewNativeWindowStyleCaptured = true;
+    }
+
+    private void RestorePreviewNativeWindowStyle(IntPtr handle)
+    {
+        if (!isPreviewNativeWindowStyleCaptured)
+        {
+            return;
+        }
+
+        _ = User32.SetWindowLong(handle, User32.WindowLongFlags.GWL_STYLE, previewNativeWindowStyle);
+        _ = User32.SetWindowLong(handle, User32.WindowLongFlags.GWL_EXSTYLE, previewNativeWindowExStyle);
+        SetPreviewWindowFrameAttributes(handle, false);
+        isPreviewNativeWindowStyleCaptured = false;
+        isPreviewDwmBorderColorCaptured = false;
+        isPreviewDwmCornerPreferenceCaptured = false;
+    }
+
+    private void SetPreviewWindowFrameAttributes(IntPtr handle, bool isFullScreen)
+    {
+        int borderColor = isFullScreen ? DwmColorNone : previewDwmBorderColor;
+        int cornerPreference = isFullScreen
+            ? (int)Interop.DwmWindowCornerPreference.DWMWCP_DONOTROUND
+            : previewDwmCornerPreference;
+
+        if (isFullScreen || isPreviewDwmBorderColorCaptured)
+        {
+            _ = Interop.DwmSetWindowAttribute(handle, Interop.DwmWindowAttribute.BorderColor, ref borderColor, sizeof(int));
+        }
+
+        if (isFullScreen || isPreviewDwmCornerPreferenceCaptured)
+        {
+            _ = Interop.DwmSetWindowAttribute(handle, Interop.DwmWindowAttribute.WindowCornerPreference, ref cornerPreference, sizeof(int));
+        }
+    }
+
+    internal static int BuildPreviewFullScreenWindowStyle(int style)
+    {
+        return unchecked((int)User32.WindowStyles.WS_POPUP)
+            | (int)User32.WindowStyles.WS_VISIBLE
+            | (int)User32.WindowStyles.WS_CLIPCHILDREN
+            | (int)User32.WindowStyles.WS_CLIPSIBLINGS;
+    }
+
+    internal static int BuildPreviewFullScreenWindowExStyle(int exStyle)
+    {
+        const User32.WindowStylesEx edgeStyles = User32.WindowStylesEx.WS_EX_DLGMODALFRAME
+            | User32.WindowStylesEx.WS_EX_CLIENTEDGE
+            | User32.WindowStylesEx.WS_EX_STATICEDGE
+            | User32.WindowStylesEx.WS_EX_WINDOWEDGE;
+
+        return exStyle & unchecked(~(int)edgeStyles);
     }
 
     private void RoomCardListPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
