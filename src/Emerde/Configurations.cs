@@ -15,7 +15,7 @@ public static class Configurations
     public static ConfigurationDefinition<bool> IsOffRemindCloseToTray { get; } = new(nameof(IsOffRemindCloseToTray), false);
     public static ConfigurationDefinition<Room[]> Rooms { get; } = new(nameof(Rooms), []);
     public static ConfigurationDefinition<bool> IsUseStatusTray { get; } = new(nameof(IsUseStatusTray), true);
-    public static ConfigurationDefinition<int> RoutineInterval { get; } = new(nameof(RoutineInterval), 3000);
+    public static ConfigurationDefinition<int> RoutineInterval { get; } = new(nameof(RoutineInterval), MonitorTiming.DefaultRoutineIntervalMilliseconds);
     public static ConfigurationDefinition<int> RoutineIntervalUnit { get; } = new(nameof(RoutineIntervalUnit), 1);
     public static ConfigurationDefinition<bool> IsMonitorRunning { get; } = new(nameof(IsMonitorRunning), true);
     public static ConfigurationDefinition<bool> IsToMonitor { get; } = new(nameof(IsToMonitor), true);

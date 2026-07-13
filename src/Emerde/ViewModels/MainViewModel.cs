@@ -301,7 +301,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusOfRoutineIntervalWithUnit))]
-    private int statusOfRoutineInterval = Configurations.RoutineInterval.Get();
+    private int statusOfRoutineInterval = MonitorTiming.NormalizeRoutineInterval(Configurations.RoutineInterval.Get());
 
     public string StatusOfRoutineIntervalWithUnit
     {
@@ -311,13 +311,13 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             {
                 return $"{Math.Round(StatusOfRoutineInterval / 60000d, 1)}min";
             }
-            else if (StatusOfRoutineInterval > 1000d)
+            else if (StatusOfRoutineInterval >= 1000d)
             {
                 return $"{StatusOfRoutineInterval / 1000d}s";
             }
             else
             {
-                return $"{StatusOfRoutineInterval}ms";
+                return $"{MonitorTiming.MinimumRoutineIntervalMilliseconds / 1000d}s";
             }
         }
     }
@@ -452,7 +452,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         StatusOfIsUseAutoShutdown = Configurations.IsUseAutoShutdown.Get();
         StatusOfAutoShutdownTime = Configurations.AutoShutdownTime.Get();
         StatusOfRecordFormat = Configurations.RecordFormat.Get();
-        StatusOfRoutineInterval = Configurations.RoutineInterval.Get();
+        StatusOfRoutineInterval = MonitorTiming.NormalizeRoutineInterval(Configurations.RoutineInterval.Get());
         OnPropertyChanged(nameof(StatusOfAutoShutdownCountdown));
         OnPropertyChanged(nameof(StatusOfAutoShutdownCountdownToolTip));
         OnPropertyChanged(nameof(CanPreviewSelectedRoom));
@@ -2123,7 +2123,6 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         Configurations.Rooms.Set(rooms);
         ConfigurationManager.Save();
-        GlobalMonitor.RefreshRoutineInterval();
     }
 
     [RelayCommand]

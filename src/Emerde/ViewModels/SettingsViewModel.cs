@@ -38,7 +38,6 @@ public partial class SettingsViewModel : ReactiveObject
 
     public IReadOnlyList<UnitOption> TimeUnitOptions { get; } =
     [
-        new((int)TimeUnitIndexEnum.Milliseconds, "毫秒"),
         new((int)TimeUnitIndexEnum.Seconds, "秒"),
         new((int)TimeUnitIndexEnum.Minutes, "分钟"),
         new((int)TimeUnitIndexEnum.Hours, "小时"),
@@ -527,8 +526,8 @@ public partial class SettingsViewModel : ReactiveObject
 
     [ObservableProperty]
     private double routineInterval = ConvertMillisecondsToTimeUnit(
-        Configurations.RoutineInterval.Get(),
-        Math.Clamp(Configurations.RoutineIntervalUnit.Get(), (int)TimeUnitIndexEnum.Milliseconds, (int)TimeUnitIndexEnum.Hours));
+        MonitorTiming.NormalizeRoutineInterval(Configurations.RoutineInterval.Get()),
+        NormalizeRoutineIntervalUnitIndex(Configurations.RoutineIntervalUnit.Get()));
 
     private bool isUpdatingRoutineInterval;
 
@@ -543,14 +542,11 @@ public partial class SettingsViewModel : ReactiveObject
     }
 
     [ObservableProperty]
-    private int routineIntervalUnitIndex = Math.Clamp(
-        Configurations.RoutineIntervalUnit.Get(),
-        (int)TimeUnitIndexEnum.Milliseconds,
-        (int)TimeUnitIndexEnum.Hours);
+    private int routineIntervalUnitIndex = NormalizeRoutineIntervalUnitIndex(Configurations.RoutineIntervalUnit.Get());
 
     partial void OnRoutineIntervalUnitIndexChanged(int value)
     {
-        int next = Math.Clamp(value, (int)TimeUnitIndexEnum.Milliseconds, (int)TimeUnitIndexEnum.Hours);
+        int next = NormalizeRoutineIntervalUnitIndex(value);
         if (next != value)
         {
             RoutineIntervalUnitIndex = next;
@@ -560,7 +556,7 @@ public partial class SettingsViewModel : ReactiveObject
         isUpdatingRoutineInterval = true;
         try
         {
-            RoutineInterval = ConvertMillisecondsToTimeUnit(Configurations.RoutineInterval.Get(), next);
+            RoutineInterval = ConvertMillisecondsToTimeUnit(MonitorTiming.NormalizeRoutineInterval(Configurations.RoutineInterval.Get()), next);
         }
         finally
         {
@@ -573,10 +569,11 @@ public partial class SettingsViewModel : ReactiveObject
 
     private void SaveRoutineInterval(double value, int unitIndex)
     {
-        int milliseconds = ConvertTimeUnitToMilliseconds(value, unitIndex);
-        milliseconds = Math.Max(500, milliseconds);
+        int nextUnitIndex = NormalizeRoutineIntervalUnitIndex(unitIndex);
+        int milliseconds = ConvertTimeUnitToMilliseconds(value, nextUnitIndex);
+        milliseconds = MonitorTiming.NormalizeRoutineInterval(milliseconds);
         Configurations.RoutineInterval.Set(milliseconds);
-        Configurations.RoutineIntervalUnit.Set(unitIndex);
+        Configurations.RoutineIntervalUnit.Set(nextUnitIndex);
         ConfigurationManager.Save();
         GlobalMonitor.RefreshRoutineInterval();
     }
@@ -1428,8 +1425,7 @@ public partial class SettingsViewModel : ReactiveObject
         {
             (int)TimeUnitIndexEnum.Hours => 3600000d,
             (int)TimeUnitIndexEnum.Minutes => 60000d,
-            (int)TimeUnitIndexEnum.Seconds => 1000d,
-            (int)TimeUnitIndexEnum.Milliseconds or _ => 1d,
+            (int)TimeUnitIndexEnum.Seconds or _ => 1000d,
         };
 
         return (int)Math.Clamp(Math.Round(value * multiplier, MidpointRounding.AwayFromZero), 1, int.MaxValue);
@@ -1441,9 +1437,13 @@ public partial class SettingsViewModel : ReactiveObject
         {
             (int)TimeUnitIndexEnum.Hours => milliseconds / 3600000d,
             (int)TimeUnitIndexEnum.Minutes => milliseconds / 60000d,
-            (int)TimeUnitIndexEnum.Seconds => milliseconds / 1000d,
-            (int)TimeUnitIndexEnum.Milliseconds or _ => milliseconds,
+            (int)TimeUnitIndexEnum.Seconds or _ => milliseconds / 1000d,
         };
+    }
+
+    private static int NormalizeRoutineIntervalUnitIndex(int unitIndex)
+    {
+        return Math.Clamp(unitIndex, (int)TimeUnitIndexEnum.Seconds, (int)TimeUnitIndexEnum.Hours);
     }
 }
 

@@ -19,7 +19,6 @@ namespace Emerde.Views;
 [ObservableObject]
 public sealed partial class LocalSettingsContentDialog : System.Windows.Controls.UserControl
 {
-    private const int Milliseconds = 0;
     private const int Seconds = 1;
     private const int Minutes = 2;
     private const int Hours = 3;
@@ -36,7 +35,6 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
 
     public IReadOnlyList<UnitOption> TimeUnitOptions { get; } =
     [
-        new(Milliseconds, "毫秒"),
         new(Seconds, "秒"),
         new(Minutes, "分钟"),
         new(Hours, "小时"),
@@ -136,7 +134,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
     private double routineScheduleEndMinute = 59;
 
     [ObservableProperty]
-    private double routineIntervalValue = 3;
+    private double routineIntervalValue = 5;
 
     partial void OnRoutineIntervalValueChanged(double value)
     {
@@ -145,7 +143,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
             return;
         }
 
-        routineIntervalMilliseconds = Math.Max(500, ConvertTimeUnitToMilliseconds(value, RoutineIntervalUnitIndex));
+        routineIntervalMilliseconds = MonitorTiming.NormalizeRoutineInterval(ConvertTimeUnitToMilliseconds(value, RoutineIntervalUnitIndex));
     }
 
     [ObservableProperty]
@@ -153,7 +151,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
 
     partial void OnRoutineIntervalUnitIndexChanged(int value)
     {
-        int next = Math.Clamp(value, Milliseconds, Hours);
+        int next = NormalizeRoutineIntervalUnitIndex(value);
         if (next != value)
         {
             RoutineIntervalUnitIndex = next;
@@ -432,7 +430,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
             IsToSegment = IsToSegment,
             SegmentTime = Math.Max(1, segmentRawValue),
             SegmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(SegmentTimeUnitIndex),
-            RoutineInterval = Math.Max(500, routineIntervalMilliseconds),
+            RoutineInterval = MonitorTiming.NormalizeRoutineInterval(routineIntervalMilliseconds),
             RoutineScheduleMode = Math.Clamp(RoutineScheduleModeIndex, 0, 4),
             RoutineScheduleDays = BuildRoutineScheduleDays(),
             RoutineScheduleStartHour = ClampHour(RoutineScheduleStartHour),
@@ -473,7 +471,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
             isUpdatingSegmentTime = false;
         }
 
-        routineIntervalMilliseconds = Math.Max(500, settings.RoutineInterval);
+        routineIntervalMilliseconds = MonitorTiming.NormalizeRoutineInterval(settings.RoutineInterval);
         RoutineIntervalUnitIndex = GetPreferredTimeUnit(routineIntervalMilliseconds);
         isUpdatingRoutineInterval = true;
         try
@@ -637,7 +635,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
             return Seconds;
         }
 
-        return Milliseconds;
+        return Seconds;
     }
 
     private static int ConvertTimeUnitToMilliseconds(double value, int unitIndex)
@@ -646,8 +644,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         {
             Hours => 3600000d,
             Minutes => 60000d,
-            Seconds => 1000d,
-            _ => 1d,
+            Seconds or _ => 1000d,
         };
 
         return (int)Math.Clamp(Math.Round(value * multiplier, MidpointRounding.AwayFromZero), 1, int.MaxValue);
@@ -659,9 +656,13 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         {
             Hours => milliseconds / 3600000d,
             Minutes => milliseconds / 60000d,
-            Seconds => milliseconds / 1000d,
-            _ => milliseconds,
+            Seconds or _ => milliseconds / 1000d,
         };
+    }
+
+    private static int NormalizeRoutineIntervalUnitIndex(int unitIndex)
+    {
+        return Math.Clamp(unitIndex, Seconds, Hours);
     }
 
     private static int ClampHour(double value) => (int)Math.Clamp(Math.Round(value, MidpointRounding.AwayFromZero), 0, 23);

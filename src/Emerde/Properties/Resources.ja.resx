@@ -386,7 +386,7 @@
     <value>サイクル間隔</value>
   </data>
   <data name="RoutineIntervalHint" xml:space="preserve">
-    <value>配信状態などの検知動作のサイクリング間隔（ミリ秒）</value>
+    <value>検知間隔を短くしすぎないでください。高頻度の検知はプラットフォームのリスク制御を招く可能性があります。最小は 1 秒で、5 秒以上を推奨します。</value>
   </data>
   <data name="RecordFormat" xml:space="preserve">
     <value>録画フォーマット</value>

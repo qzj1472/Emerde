@@ -14,7 +14,7 @@ public sealed record RoomRecordingOptions
 
     public int SegmentTimeUnit { get; init; } = SegmentTimeUnitHelper.Seconds;
 
-    public int RoutineInterval { get; init; } = 3000;
+    public int RoutineInterval { get; init; } = MonitorTiming.DefaultRoutineIntervalMilliseconds;
 
     public int RoutineScheduleMode { get; init; }
 
@@ -50,7 +50,7 @@ internal static class RoomRecordingSettings
             IsToSegment = Configurations.IsToSegment.Get(),
             SegmentTime = Math.Max(1, Configurations.SegmentTime.Get()),
             SegmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(Configurations.SegmentTimeUnit.Get()),
-            RoutineInterval = Math.Max(500, Configurations.RoutineInterval.Get()),
+            RoutineInterval = MonitorTiming.NormalizeRoutineInterval(Configurations.RoutineInterval.Get()),
             RoutineScheduleMode = Math.Clamp(Configurations.RoutineScheduleMode.Get(), 0, 4),
             RoutineScheduleDays = NormalizeScheduleDays(Configurations.RoutineScheduleDays.Get()),
             RoutineScheduleStartHour = Math.Clamp(Configurations.RoutineScheduleStartHour.Get(), 0, 23),
@@ -79,7 +79,7 @@ internal static class RoomRecordingSettings
             IsToSegment = room.IsToSegment ?? global.IsToSegment,
             SegmentTime = Math.Max(1, room.SegmentTime ?? global.SegmentTime),
             SegmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(room.SegmentTimeUnit ?? global.SegmentTimeUnit),
-            RoutineInterval = Math.Max(500, room.RoutineInterval ?? global.RoutineInterval),
+            RoutineInterval = MonitorTiming.NormalizeRoutineInterval(room.RoutineInterval ?? global.RoutineInterval),
             RoutineScheduleMode = Math.Clamp(room.RoutineScheduleMode ?? global.RoutineScheduleMode, 0, 4),
             RoutineScheduleDays = NormalizeScheduleDays(room.RoutineScheduleDays, global.RoutineScheduleDays),
             RoutineScheduleStartHour = Math.Clamp(room.RoutineScheduleStartHour ?? global.RoutineScheduleStartHour, 0, 23),
@@ -108,7 +108,7 @@ internal static class RoomRecordingSettings
         room.IsToSegment = settings.IsToSegment;
         room.SegmentTime = Math.Max(1, settings.SegmentTime);
         room.SegmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(settings.SegmentTimeUnit);
-        room.RoutineInterval = Math.Max(500, settings.RoutineInterval);
+        room.RoutineInterval = MonitorTiming.NormalizeRoutineInterval(settings.RoutineInterval);
         room.RoutineScheduleMode = Math.Clamp(settings.RoutineScheduleMode, 0, 4);
         room.RoutineScheduleDays = NormalizeScheduleDays(settings.RoutineScheduleDays);
         room.RoutineScheduleStartHour = Math.Clamp(settings.RoutineScheduleStartHour, 0, 23);

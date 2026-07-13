@@ -383,7 +383,7 @@
     <value>Cycle Period</value>
   </data>
   <data name="RoutineIntervalHint" xml:space="preserve">
-    <value>The cycle period (ms) for detecting the status and other actions</value>
+    <value>Do not set the detection interval too low; very frequent checks can trigger platform risk control. Minimum 1 second, 5 seconds or longer recommended.</value>
   </data>
   <data name="RecordFormat" xml:space="preserve">
     <value>Recording Format</value>

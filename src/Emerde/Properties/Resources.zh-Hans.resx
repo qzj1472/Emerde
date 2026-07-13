@@ -383,7 +383,7 @@
     <value>循环周期</value>
   </data>
   <data name="RoutineIntervalHint" xml:space="preserve">
-    <value>检测开播状态等动作的循环周期（毫秒）</value>
+    <value>检测时间间隔不可太短，太短可能触发平台风控。最低 1 秒，建议 5 秒或更长。</value>
   </data>
   <data name="RecordFormat" xml:space="preserve">
     <value>录制格式</value>

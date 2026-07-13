@@ -16,6 +16,13 @@ namespace Emerde.Core;
 
 internal static class GlobalMonitor
 {
+    private const int DefaultSchedulerPeriodMilliseconds = MonitorTiming.DefaultRoutineIntervalMilliseconds;
+    private const int MinimumBatchSize = 1;
+    private const int MaximumBatchSize = MonitorTiming.MonitorBatchLimit;
+    private static readonly TimeSpan StreamingCycleInterval = TimeSpan.FromMilliseconds(MonitorTiming.LiveRoutineIntervalMilliseconds);
+    private static readonly TimeSpan RecentlyClosedInterval = TimeSpan.FromMilliseconds(MonitorTiming.RecentlyClosedRoutineIntervalMilliseconds);
+    private static readonly TimeSpan RecentlyClosedWindow = MonitorTiming.RecentlyClosedWindow;
+
     /// <summary>
     /// ConcurrentDictionary{RoomUrl: string, RoomStatus: RoomStatus>}
     /// </summary>
@@ -27,7 +34,7 @@ internal static class GlobalMonitor
 
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> RoomCheckLocks = new(StringComparer.OrdinalIgnoreCase);
 
-    private static readonly ConcurrentDictionary<string, DateTime> LastRoomCheckTimes = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, RoomCheckScheduleState> RoomCheckSchedules = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly ConcurrentDictionary<string, byte> RecordStartBlocks = new(StringComparer.OrdinalIgnoreCase);
 
@@ -40,6 +47,14 @@ internal static class GlobalMonitor
     private static Task? MonitorTask = null;
 
     private static long monitorGeneration;
+
+    private sealed class RoomCheckScheduleState
+    {
+        public DateTime NextCheckAt { get; set; } = DateTime.MinValue;
+        public DateTime? LiveCycleEndsAt { get; set; }
+        public DateTime? LastClosedAt { get; set; }
+        public Queue<DateTime> PendingLiveChecks { get; } = [];
+    }
 
     private sealed class GlobalMonitorRecipient : ObservableRecipient
     {
@@ -241,8 +256,7 @@ internal static class GlobalMonitor
         {
             _ = TemporaryRoomRecordOverrides.TryRemove(roomUrl, out _);
             _ = TemporaryRoomMonitorOverrides.TryRemove(roomUrl, out _);
-            _ = LastRoomCheckTimes.TryRemove(roomUrl, out _);
-            _ = RoomCheckLocks.TryRemove(roomUrl, out _);
+            _ = RoomCheckSchedules.TryRemove(roomUrl, out _);
         }
     }
 
@@ -267,7 +281,7 @@ internal static class GlobalMonitor
 
     internal static async Task<T> RunRoomUpdateAsync<T>(string roomUrl, Func<Task<T>> update, CancellationToken token = default)
     {
-        SemaphoreSlim roomLock = RoomCheckLocks.GetOrAdd(roomUrl, _ => new SemaphoreSlim(1, 1));
+        SemaphoreSlim roomLock = GetRoomCheckLock(roomUrl);
         await roomLock.WaitAsync(token);
 
         try
@@ -308,8 +322,7 @@ internal static class GlobalMonitor
             bool isGlobalToNotify = Configurations.IsToNotify.Get();
             DateTime now = DateTime.Now;
 
-            using SemaphoreSlim semaphore = new(Math.Clamp(Environment.ProcessorCount, 4, 8));
-            List<Task> tasks = [];
+            List<(Room Room, RoomStatus RoomStatus, bool ShouldNotify, bool ShouldRecord, RoomRecordingOptions Settings)> dueRooms = [];
 
             foreach (Room room in DistinctRoomsByUrl(rooms))
             {
@@ -327,23 +340,44 @@ internal static class GlobalMonitor
 
                 if (shouldMonitor)
                 {
-                    if (!force && !ShouldCheckRoom(room.RoomUrl, settings.RoutineInterval, now))
+                    if (!force && !ShouldCheckRoom(room.RoomUrl, settings, roomStatus.StreamStatus, now))
                     {
                         continue;
                     }
 
-                    LastRoomCheckTimes[room.RoomUrl] = now;
-                    tasks.Add(RunRoomCheckWithSemaphoreAsync(semaphore, room, roomStatus, shouldNotify, shouldRecord, settings, token));
+                    dueRooms.Add((room, roomStatus, shouldNotify, shouldRecord, settings));
                 }
                 else
                 {
+                    _ = RoomCheckSchedules.TryRemove(room.RoomUrl, out _);
                     StopRecordingBecauseMonitoringDisabled(room, roomStatus);
                     roomStatus.RecordStatus = RecordStatus.Disabled;
                     roomStatus.StreamStatus = StreamStatus.Disabled;
                 }
             }
 
-            await Task.WhenAll(tasks);
+            if (dueRooms.Count == 0)
+            {
+                return;
+            }
+
+            int offset = 0;
+            foreach (int batchSize in CreateMonitorBatchSizes(dueRooms.Count))
+            {
+                token.ThrowIfCancellationRequested();
+                using SemaphoreSlim semaphore = new(batchSize);
+                List<Task> tasks = new(batchSize);
+
+                for (int index = offset; index < offset + batchSize; index++)
+                {
+                    (Room room, RoomStatus roomStatus, bool shouldNotify, bool shouldRecord, RoomRecordingOptions settings) = dueRooms[index];
+                    ReserveRoomCheck(room.RoomUrl, settings, roomStatus.StreamStatus, now);
+                    tasks.Add(RunRoomCheckWithSemaphoreAsync(semaphore, room, roomStatus, shouldNotify, shouldRecord, settings, token));
+                }
+
+                await Task.WhenAll(tasks);
+                offset += batchSize;
+            }
         }
         catch (OperationCanceledException)
         {
@@ -355,16 +389,45 @@ internal static class GlobalMonitor
         }
     }
 
+    internal static IReadOnlyList<int> CreateMonitorBatchSizes(int roomCount, Random? random = null)
+    {
+        List<int> batchSizes = [];
+        int remaining = Math.Max(0, roomCount);
+        Random generator = random ?? Random.Shared;
+
+        while (remaining > 0)
+        {
+            int batchSize = Math.Min(remaining, generator.Next(MinimumBatchSize, MaximumBatchSize + 1));
+            batchSizes.Add(batchSize);
+            remaining -= batchSize;
+        }
+
+        return batchSizes;
+    }
+
+    internal static SemaphoreSlim GetRoomCheckLock(string roomUrl)
+    {
+        return RoomCheckLocks.GetOrAdd(roomUrl, _ => new SemaphoreSlim(1, 1));
+    }
+
+    internal static bool IsCurrentRoomStatus(string roomUrl, RoomStatus roomStatus)
+    {
+        return RoomStatus.TryGetValue(roomUrl, out RoomStatus? current)
+            && ReferenceEquals(current, roomStatus);
+    }
+
     private static async Task RunRoomCheckWithSemaphoreAsync(SemaphoreSlim semaphore, Room room, RoomStatus roomStatus, bool shouldNotify, bool shouldRecord, RoomRecordingOptions settings, CancellationToken token)
     {
         await semaphore.WaitAsync(token);
-        SemaphoreSlim roomLock = RoomCheckLocks.GetOrAdd(room.RoomUrl, _ => new SemaphoreSlim(1, 1));
+        SemaphoreSlim roomLock = GetRoomCheckLock(room.RoomUrl);
         bool roomLockTaken = false;
+        StreamStatus previousStreamStatus = default;
 
         try
         {
             await roomLock.WaitAsync(token);
             roomLockTaken = true;
+            previousStreamStatus = roomStatus.StreamStatus;
             await RunRoomCheckAsync(room, roomStatus, shouldNotify, shouldRecord, settings, token);
         }
         catch (OperationCanceledException)
@@ -384,6 +447,10 @@ internal static class GlobalMonitor
         {
             if (roomLockTaken)
             {
+                if (GetEffectiveRoomMonitor(room) && IsCurrentRoomStatus(room.RoomUrl, roomStatus))
+                {
+                    UpdateRoomCheckSchedule(room.RoomUrl, previousStreamStatus, roomStatus.StreamStatus, settings, DateTime.Now);
+                }
                 roomLock.Release();
             }
             semaphore.Release();
@@ -396,8 +463,14 @@ internal static class GlobalMonitor
         ISpiderResult? spiderResult = await Task.Run(() => Spider.GetResult(room.RoomUrl, settings.PreferredStreamQuality), token);
         shouldRecord = GetEffectiveRoomRecord(room) && !IsRecordStartBlocked;
 
+        if (!IsCurrentRoomStatus(room.RoomUrl, roomStatus))
+        {
+            return;
+        }
+
         if (!GetEffectiveRoomMonitor(room))
         {
+            _ = RoomCheckSchedules.TryRemove(room.RoomUrl, out _);
             StopRecordingBecauseMonitoringDisabled(room, roomStatus);
             roomStatus.RecordStatus = RecordStatus.Disabled;
             roomStatus.StreamStatus = StreamStatus.Disabled;
@@ -424,7 +497,7 @@ internal static class GlobalMonitor
                 roomStatus.PlatformName,
                 roomStatus.StreamStatus,
                 roomStatus.RecordStatus,
-                resolverError = StreamResolver.GetLastError(room.RoomUrl),
+                resolverError = ExternalStreamResolver.GetLastError(room.RoomUrl),
             });
             return;
         }
@@ -587,17 +660,61 @@ internal static class GlobalMonitor
     public static void RefreshRoutineInterval()
     {
         RoutinePeriodicWait.Period = GetRoutinePeriod();
+        RefreshRoutineSchedules(DateTime.Now);
+    }
+
+    private static void RefreshRoutineSchedules(DateTime now)
+    {
+        Dictionary<string, Room> rooms = (Configurations.Rooms.Get() ?? [])
+            .Where(room => room != null && !string.IsNullOrWhiteSpace(room.RoomUrl))
+            .GroupBy(room => room.RoomUrl, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+        foreach ((string roomUrl, RoomCheckScheduleState state) in RoomCheckSchedules)
+        {
+            if (!rooms.TryGetValue(roomUrl, out Room? room) || !GetEffectiveRoomMonitor(room))
+            {
+                _ = RoomCheckSchedules.TryRemove(roomUrl, out _);
+                continue;
+            }
+
+            if (!RoomStatus.TryGetValue(roomUrl, out RoomStatus? roomStatus))
+            {
+                continue;
+            }
+
+            RoomRecordingOptions settings = RoomRecordingSettings.Get(room);
+            lock (state)
+            {
+                if (state.NextCheckAt == DateTime.MinValue || roomStatus.StreamStatus == StreamStatus.Streaming)
+                {
+                    continue;
+                }
+
+                if (state.LastClosedAt is DateTime closedAt && now - closedAt < RecentlyClosedWindow)
+                {
+                    DateTime recentlyClosedNextCheck = now + RecentlyClosedInterval;
+                    if (state.NextCheckAt > recentlyClosedNextCheck)
+                    {
+                        state.NextCheckAt = recentlyClosedNextCheck;
+                    }
+                    continue;
+                }
+
+                state.NextCheckAt = now + TimeSpan.FromMilliseconds(MonitorTiming.NormalizeRoutineInterval(settings.RoutineInterval));
+            }
+        }
     }
 
     internal static TimeSpan GetRoutinePeriod()
     {
-        return TimeSpan.FromMilliseconds(GetEffectiveRoutineInterval());
+        return TimeSpan.FromMilliseconds(Math.Min(DefaultSchedulerPeriodMilliseconds, GetEffectiveRoutineInterval()));
     }
 
     internal static int GetEffectiveRoutineInterval()
     {
         Room[] rooms = Configurations.Rooms.Get() ?? [];
-        int interval = Math.Max(500, Configurations.RoutineInterval.Get());
+        int interval = MonitorTiming.NormalizeRoutineInterval(Configurations.RoutineInterval.Get());
 
         foreach (Room room in rooms)
         {
@@ -607,27 +724,114 @@ internal static class GlobalMonitor
             }
 
             RoomRecordingOptions settings = RoomRecordingSettings.Get(room);
-            interval = Math.Min(interval, Math.Max(500, settings.RoutineInterval));
+            interval = Math.Min(interval, MonitorTiming.NormalizeRoutineInterval(settings.RoutineInterval));
         }
 
         return interval;
     }
 
-    private static bool ShouldCheckRoom(string roomUrl, int routineInterval, DateTime now)
+    private static bool ShouldCheckRoom(string roomUrl, RoomRecordingOptions settings, StreamStatus streamStatus, DateTime now)
     {
-        if (!LastRoomCheckTimes.TryGetValue(roomUrl, out DateTime lastCheckTime))
+        RoomCheckScheduleState state = RoomCheckSchedules.GetOrAdd(roomUrl, _ => new RoomCheckScheduleState());
+        lock (state)
         {
-            LastRoomCheckTimes[roomUrl] = now;
-            return true;
+            if (state.NextCheckAt == DateTime.MinValue)
+            {
+                state.NextCheckAt = now;
+                return true;
+            }
+
+            return now >= state.NextCheckAt;
+        }
+    }
+
+    private static void ReserveRoomCheck(string roomUrl, RoomRecordingOptions settings, StreamStatus streamStatus, DateTime now)
+    {
+        RoomCheckScheduleState state = RoomCheckSchedules.GetOrAdd(roomUrl, _ => new RoomCheckScheduleState());
+        lock (state)
+        {
+            state.NextCheckAt = now + GetFallbackInterval(streamStatus, settings.RoutineInterval, state.LastClosedAt, now);
+        }
+    }
+
+    private static void UpdateRoomCheckSchedule(string roomUrl, StreamStatus previousStatus, StreamStatus currentStatus, RoomRecordingOptions settings, DateTime now)
+    {
+        RoomCheckScheduleState state = RoomCheckSchedules.GetOrAdd(roomUrl, _ => new RoomCheckScheduleState());
+        lock (state)
+        {
+            if (currentStatus == StreamStatus.Streaming)
+            {
+                state.LastClosedAt = null;
+                AdvanceLiveSchedule(state, now);
+                return;
+            }
+
+            state.PendingLiveChecks.Clear();
+            state.LiveCycleEndsAt = null;
+
+            if (previousStatus == StreamStatus.Streaming && currentStatus == StreamStatus.NotStreaming)
+            {
+                state.LastClosedAt = now;
+            }
+
+            state.NextCheckAt = now + GetFallbackInterval(currentStatus, settings.RoutineInterval, state.LastClosedAt, now);
+        }
+    }
+
+    private static void AdvanceLiveSchedule(RoomCheckScheduleState state, DateTime now)
+    {
+        while (state.PendingLiveChecks.Count > 0 && state.PendingLiveChecks.Peek() <= now)
+        {
+            state.PendingLiveChecks.Dequeue();
         }
 
-        if ((now - lastCheckTime).TotalMilliseconds < Math.Max(500, routineInterval))
+        if (state.PendingLiveChecks.Count == 0 || state.LiveCycleEndsAt == null || state.LiveCycleEndsAt <= now)
         {
-            return false;
+            ScheduleLiveCycle(state, now);
+            return;
         }
 
-        LastRoomCheckTimes[roomUrl] = now;
-        return true;
+        state.NextCheckAt = state.PendingLiveChecks.Peek();
+    }
+
+    private static void ScheduleLiveCycle(RoomCheckScheduleState state, DateTime now)
+    {
+        state.PendingLiveChecks.Clear();
+        IReadOnlyList<TimeSpan> offsets = CreateStreamingCycleOffsets();
+        foreach (TimeSpan offset in offsets)
+        {
+            state.PendingLiveChecks.Enqueue(now + offset);
+        }
+        state.LiveCycleEndsAt = now + offsets[^1];
+        state.NextCheckAt = state.PendingLiveChecks.Peek();
+    }
+
+    internal static IReadOnlyList<TimeSpan> CreateStreamingCycleOffsets(Random? random = null)
+    {
+        Random generator = random ?? Random.Shared;
+        int firstOffset = generator.Next(12, 24);
+        int secondOffset = generator.Next(34, 51);
+        return
+        [
+            TimeSpan.FromSeconds(firstOffset),
+            TimeSpan.FromSeconds(Math.Max(firstOffset + 5, secondOffset)),
+            StreamingCycleInterval,
+        ];
+    }
+
+    internal static TimeSpan GetFallbackInterval(StreamStatus streamStatus, int routineInterval, DateTime? lastClosedAt, DateTime now)
+    {
+        if (streamStatus == StreamStatus.Streaming)
+        {
+            return StreamingCycleInterval;
+        }
+
+        if (lastClosedAt is DateTime closedAt && now - closedAt < RecentlyClosedWindow)
+        {
+            return RecentlyClosedInterval;
+        }
+
+        return TimeSpan.FromMilliseconds(MonitorTiming.NormalizeRoutineInterval(routineInterval));
     }
 
     private static bool HasRecordableStream(RoomStatus roomStatus)

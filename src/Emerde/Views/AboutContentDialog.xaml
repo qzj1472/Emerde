@@ -74,7 +74,7 @@
                         <TextBlock FontWeight="SemiBold" Text="监控与录制" />
                         <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    LineHeight="20"
-                                   Text="顶部“监控”控制是否检查直播状态，“录制”控制是否允许开始录制。&#x0a;跟随全局的直播间使用顶部和全局设置；关闭跟随全局后，局部设置优先。&#x0a;只打开录制但没有开启监控时，软件不会主动发现开播。"
+                                   Text="顶部“监控”控制是否检查直播状态，“录制”控制是否允许开始录制。&#x0a;跟随全局的直播间使用顶部和全局设置；关闭跟随全局后，局部设置优先。&#x0a;自动监控会分批检查，一次请求 1-5 个直播间；开播后约 1 分钟一轮并穿插 2 次随机检测；直播关闭后半小时内约 20 秒一次，之后恢复设置间隔。&#x0a;只打开录制但没有开启监控时，软件不会主动发现开播。"
                                    TextWrapping="Wrap" />
                     </ui:StackPanel>
                 </Border>

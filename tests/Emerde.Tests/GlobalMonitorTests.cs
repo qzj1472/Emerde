@@ -6,7 +6,60 @@ namespace Emerde.Tests;
 public sealed class GlobalMonitorTests
 {
     [Fact]
-    public void GetEffectiveRoutineInterval_UsesShortestEnabledRoomInterval()
+    public void RoomRecordingOptions_DefaultRoutineIntervalIsFiveSeconds()
+    {
+        Assert.Equal(5000, new RoomRecordingOptions().RoutineInterval);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(17)]
+    [InlineData(100)]
+    public void CreateMonitorBatchSizes_CoversEveryRoomWithOneToFivePerBatch(int roomCount)
+    {
+        IReadOnlyList<int> batchSizes = GlobalMonitor.CreateMonitorBatchSizes(roomCount, new Random(20260713));
+
+        Assert.Equal(roomCount, batchSizes.Sum());
+        Assert.All(batchSizes, batchSize => Assert.InRange(batchSize, 1, MonitorTiming.MonitorBatchLimit));
+    }
+
+    [Fact]
+    public void CreateStreamingCycleOffsets_UsesTwoRandomChecksAndOneMinuteBoundary()
+    {
+        IReadOnlyList<TimeSpan> offsets = GlobalMonitor.CreateStreamingCycleOffsets(new Random(20260713));
+
+        Assert.Equal(3, offsets.Count);
+        Assert.InRange(offsets[0], TimeSpan.FromSeconds(12), TimeSpan.FromSeconds(23));
+        Assert.InRange(offsets[1], TimeSpan.FromSeconds(34), TimeSpan.FromSeconds(50));
+        Assert.Equal(TimeSpan.FromMinutes(1), offsets[2]);
+        Assert.True(offsets[0] < offsets[1]);
+        Assert.True(offsets[1] < offsets[2]);
+    }
+
+    [Fact]
+    public void GetFallbackInterval_UsesLiveRecentlyClosedAndRoutineRules()
+    {
+        DateTime now = new(2026, 7, 13, 12, 0, 0, DateTimeKind.Local);
+
+        Assert.Equal(
+            TimeSpan.FromMinutes(1),
+            GlobalMonitor.GetFallbackInterval(StreamStatus.Streaming, 9000, null, now));
+        Assert.Equal(
+            TimeSpan.FromSeconds(20),
+            GlobalMonitor.GetFallbackInterval(StreamStatus.NotStreaming, 9000, now.AddMinutes(-29), now));
+        Assert.Equal(
+            TimeSpan.FromSeconds(9),
+            GlobalMonitor.GetFallbackInterval(StreamStatus.NotStreaming, 9000, now.AddMinutes(-30), now));
+        Assert.Equal(
+            TimeSpan.FromSeconds(1),
+            GlobalMonitor.GetFallbackInterval(StreamStatus.NotStreaming, 500, null, now));
+    }
+
+    [Fact]
+    public void GetEffectiveRoutineInterval_UsesOneSecondMinimumForShortestEnabledRoomInterval()
     {
         Room[] oldRooms = Configurations.Rooms.Get();
         int oldRoutineInterval = Configurations.RoutineInterval.Get();
@@ -45,7 +98,7 @@ public sealed class GlobalMonitorTests
                 },
             ]);
 
-            Assert.Equal(500, GlobalMonitor.GetEffectiveRoutineInterval());
+            Assert.Equal(1000, GlobalMonitor.GetEffectiveRoutineInterval());
         }
         finally
         {
@@ -155,6 +208,40 @@ public sealed class GlobalMonitorTests
             Configurations.IsToRecord.Set(oldIsToRecord);
             Configurations.IsToMonitor.Set(oldIsToMonitor);
             Configurations.IsMonitorRunning.Set(oldIsMonitorRunning);
+        }
+    }
+
+    [Fact]
+    public void ClearTemporaryRoomOverrides_PreservesRoomCheckLock()
+    {
+        const string roomUrl = "https://example.test/locked-room";
+        SemaphoreSlim firstLock = GlobalMonitor.GetRoomCheckLock(roomUrl);
+
+        GlobalMonitor.ClearTemporaryRoomOverrides(roomUrl);
+
+        Assert.Same(firstLock, GlobalMonitor.GetRoomCheckLock(roomUrl));
+    }
+
+    [Fact]
+    public void IsCurrentRoomStatus_RejectsReplacedStatusInstance()
+    {
+        const string roomUrl = "https://example.test/replaced-room";
+        RoomStatus first = new() { RoomUrl = roomUrl };
+        RoomStatus second = new() { RoomUrl = roomUrl };
+
+        try
+        {
+            GlobalMonitor.RoomStatus[roomUrl] = first;
+            Assert.True(GlobalMonitor.IsCurrentRoomStatus(roomUrl, first));
+
+            GlobalMonitor.RoomStatus[roomUrl] = second;
+
+            Assert.False(GlobalMonitor.IsCurrentRoomStatus(roomUrl, first));
+            Assert.True(GlobalMonitor.IsCurrentRoomStatus(roomUrl, second));
+        }
+        finally
+        {
+            _ = GlobalMonitor.RoomStatus.TryRemove(roomUrl, out _);
         }
     }
 
