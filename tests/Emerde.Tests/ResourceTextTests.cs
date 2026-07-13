@@ -144,6 +144,27 @@ public sealed class ResourceTextTests
         }
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("zh-Hans")]
+    [InlineData("zh-Hant")]
+    [InlineData("ja")]
+    public void StartupNoticeUiKeys_ArePresent(string cultureName)
+    {
+        CultureInfo? culture = string.IsNullOrEmpty(cultureName) ? null : new CultureInfo(cultureName);
+        string[] keys =
+        [
+            "StartupAboutNoticeTitle",
+            "StartupAboutNoticeDescription",
+            "ButtonOfAcknowledge",
+        ];
+
+        foreach (string key in keys)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(Resources.ResourceManager.GetString(key, culture)), key);
+        }
+    }
+
     [Fact]
     public void XamlResourceProperties_ArePresent()
     {

@@ -725,4 +725,6 @@
   <data name="PreviewUnmute" xml:space="preserve"><value>Unmute</value></data>
   <data name="PreviewFullScreen" xml:space="preserve"><value>Full screen</value></data>
   <data name="PreviewRestore" xml:space="preserve"><value>Exit full screen</value></data>
+  <data name="StartupAboutNoticeTitle" xml:space="preserve"><value>Read before using</value></data>
+  <data name="StartupAboutNoticeDescription" xml:space="preserve"><value>To avoid misconfiguration and platform risk control, open About before first use and review the monitoring interval, dynamic checks, recording, preview, and full-screen behavior. Add live rooms and enable monitoring after understanding these rules.</value></data>
 </root>

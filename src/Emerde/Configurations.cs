@@ -11,6 +11,7 @@ public static class Configurations
     public static ConfigurationDefinition<string> Theme { get; } = new(nameof(Theme), string.Empty);
     public static ConfigurationDefinition<int> DisplayScale { get; } = new(nameof(DisplayScale), 100);
     public static ConfigurationDefinition<int> UpdateChannel { get; } = new(nameof(UpdateChannel), 0);
+    public static ConfigurationDefinition<bool> IsStartupAboutNoticeShown { get; } = new(nameof(IsStartupAboutNoticeShown), false);
     public static ConfigurationDefinition<bool> IsSessionLogEnabled { get; } = new(nameof(IsSessionLogEnabled), true);
     public static ConfigurationDefinition<bool> IsOffRemindCloseToTray { get; } = new(nameof(IsOffRemindCloseToTray), false);
     public static ConfigurationDefinition<Room[]> Rooms { get; } = new(nameof(Rooms), []);

@@ -13,6 +13,7 @@ internal static class ConfigFileManager
         nameof(Configurations.Theme),
         nameof(Configurations.DisplayScale),
         nameof(Configurations.UpdateChannel),
+        nameof(Configurations.IsStartupAboutNoticeShown),
         nameof(Configurations.IsSessionLogEnabled),
         nameof(Configurations.IsOffRemindCloseToTray),
         nameof(Configurations.Rooms),

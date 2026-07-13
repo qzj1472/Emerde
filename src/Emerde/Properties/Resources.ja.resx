@@ -728,4 +728,6 @@
   <data name="PreviewUnmute" xml:space="preserve"><value>ミュート解除</value></data>
   <data name="PreviewFullScreen" xml:space="preserve"><value>全画面</value></data>
   <data name="PreviewRestore" xml:space="preserve"><value>全画面を終了</value></data>
+  <data name="StartupAboutNoticeTitle" xml:space="preserve"><value>使用前に説明をお読みください</value></data>
+  <data name="StartupAboutNoticeDescription" xml:space="preserve"><value>誤操作やプラットフォームのリスク制御を避けるため、初回利用前に左側の「概要」を開き、監視間隔、動的チェック、録画、プレビュー、全画面表示に関する説明を確認してください。内容を理解してから配信ルームを追加し、監視を開始することをおすすめします。</value></data>
 </root>

@@ -1,4 +1,5 @@
 using Microsoft.Toolkit.Uwp.Notifications;
+using Fischless.Configuration;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -274,6 +275,8 @@ public partial class MainWindow : FluentWindow
     private bool isPreviewFullScreen;
     private bool isPreviewPresentationSuspendedByOverlay;
     private bool previousPreviewingState;
+    private bool isStartupAboutNoticeQueued;
+    private bool isStartupAboutNoticeShowing;
 
     public MainWindow()
     {
@@ -291,7 +294,10 @@ public partial class MainWindow : FluentWindow
         {
             UpdateHomePreviewLayout();
             AppSessionLogger.Write($"perf MainWindow loaded in {stopwatch.ElapsedMilliseconds} ms");
+            QueueStartupAboutNotice();
         };
+        IsVisibleChanged += (_, _) => QueueStartupAboutNotice();
+        StateChanged += (_, _) => QueueStartupAboutNotice();
 
         if (Configurations.IsUseKeepAwake.Get())
         {
@@ -1169,6 +1175,61 @@ public partial class MainWindow : FluentWindow
             | User32.WindowStylesEx.WS_EX_WINDOWEDGE;
 
         return exStyle & unchecked(~(int)edgeStyles);
+    }
+
+    private void QueueStartupAboutNotice()
+    {
+        if (isStartupAboutNoticeQueued || Configurations.IsStartupAboutNoticeShown.Get())
+        {
+            return;
+        }
+
+        isStartupAboutNoticeQueued = true;
+        _ = Dispatcher.BeginInvoke(async () =>
+        {
+            isStartupAboutNoticeQueued = false;
+            await ShowStartupAboutNoticeIfNeededAsync();
+        }, DispatcherPriority.ContextIdle);
+    }
+
+    private async Task ShowStartupAboutNoticeIfNeededAsync()
+    {
+        if (isStartupAboutNoticeShowing
+            || Configurations.IsStartupAboutNoticeShown.Get()
+            || !IsLoaded
+            || !IsVisible
+            || WindowState == WindowState.Minimized)
+        {
+            return;
+        }
+
+        isStartupAboutNoticeShowing = true;
+        ContentDialog dialog = new()
+        {
+            Title = "StartupAboutNoticeTitle".Tr(),
+            Content = new System.Windows.Controls.TextBlock
+            {
+                Text = "StartupAboutNoticeDescription".Tr(),
+                TextWrapping = TextWrapping.Wrap,
+                LineHeight = 22,
+                MaxWidth = 520,
+            },
+            CloseButtonText = "ButtonOfAcknowledge".Tr(),
+            DefaultButton = ContentDialogButton.Close,
+            Style = Application.Current?.TryFindResource("DefaultVioletaContentDialogStyle") as Style,
+        };
+
+        using DialogBlurScope blurScope = DialogBlurScope.ForDialog(this, dialog);
+        try
+        {
+            await WindowSizing.ShowContentDialogAsync(dialog, this);
+            Configurations.IsStartupAboutNoticeShown.Set(true);
+            ConfigurationManager.Save();
+        }
+        finally
+        {
+            isStartupAboutNoticeShowing = false;
+        }
     }
 
     private void RoomCardListPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)

@@ -725,4 +725,6 @@
   <data name="PreviewUnmute" xml:space="preserve"><value>取消静音</value></data>
   <data name="PreviewFullScreen" xml:space="preserve"><value>全屏</value></data>
   <data name="PreviewRestore" xml:space="preserve"><value>退出全屏</value></data>
+  <data name="StartupAboutNoticeTitle" xml:space="preserve"><value>使用前请先阅读说明</value></data>
+  <data name="StartupAboutNoticeDescription" xml:space="preserve"><value>为了避免误操作和平台风控，首次使用前建议先打开左侧“关于”，仔细阅读监控间隔、动态检测、录制、预览与全屏等说明。理解这些规则后再添加直播间和开启监控，会更稳一些。</value></data>
 </root>
