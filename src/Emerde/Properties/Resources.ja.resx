@@ -551,7 +551,7 @@
     <value>保存フォルダは作者によって作られる</value>
   </data>
   <data name="AddRoomForce" xml:space="preserve">
-    <value>有効性を検出せずに直接追加する</value>
+    <value>ネットワークで有効性を確認せずに追加する（URL 形式は確認します）</value>
   </data>
   <data name="SegmentTime" xml:space="preserve">
     <value>ビデオ分割時間（秒）</value>

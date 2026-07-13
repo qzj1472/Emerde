@@ -37,63 +37,70 @@ public sealed partial class AddRoomContentDialog : ContentDialog
         InitializeComponent();
     }
 
-    private void OnPrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs e)
+    private async void OnPrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(Url))
+        var deferral = e.GetDeferral();
+        try
         {
-            Toast.Warning("EnterRoomUrl".Tr());
-            e.Cancel = true;
-            return;
-        }
-
-        if (IsForcedAdd)
-        {
-            string? roomUrl = Spider.ParseUrl(Url);
-
-            if (roomUrl != null)
+            if (string.IsNullOrWhiteSpace(Url))
             {
-                if (Configurations.Rooms.Get().Any(room => room.RoomUrl == roomUrl))
+                Toast.Warning("EnterRoomUrl".Tr());
+                e.Cancel = true;
+                return;
+            }
+
+            string inputUrl = Url;
+            using (LoadingWindow.ShowAsync())
+            {
+                string? normalizedRoomUrl = await Task.Run(() => Spider.ParseUrl(inputUrl, allowNetwork: !IsForcedAdd));
+                if (string.IsNullOrWhiteSpace(normalizedRoomUrl))
                 {
                     e.Cancel = true;
-                    Toast.Warning("AddRoomErrorDuplicated".Tr(roomUrl));
+                    Toast.Error("ErrorRoomUrl".Tr());
                     return;
                 }
 
-                NickName = roomUrl;
-                RoomUrl = roomUrl;
+                if (Configurations.Rooms.Get().Any(room => string.Equals(room.RoomUrl, normalizedRoomUrl, StringComparison.OrdinalIgnoreCase)))
+                {
+                    e.Cancel = true;
+                    Toast.Warning("AddRoomErrorDuplicated".Tr(normalizedRoomUrl));
+                    return;
+                }
 
-                Toast.Success("AddRoomSucc".Tr(RoomUrl));
-            }
-            else
-            {
-                e.Cancel = true;
-                Toast.Error("ErrorRoomUrl".Tr());
-            }
-        }
-        else
-        {
-            using (LoadingWindow.ShowAsync())
-            {
+                if (IsForcedAdd)
+                {
+                    NickName = normalizedRoomUrl;
+                    RoomUrl = normalizedRoomUrl;
+
+                    Toast.Success("AddRoomSucc".Tr(RoomUrl));
+                    return;
+                }
+
                 try
                 {
-                    ISpiderResult? spider = Spider.GetResult(Url, RoomRecordingSettings.GetGlobal().PreferredStreamQuality);
+                    string preferredQuality = RoomRecordingSettings.GetGlobal().PreferredStreamQuality;
+                    ISpiderResult? spider = await Task.Run(() => Spider.GetResult(normalizedRoomUrl, preferredQuality));
+                    string roomUrl = string.IsNullOrWhiteSpace(spider?.RoomUrl)
+                        ? normalizedRoomUrl
+                        : Spider.ParseUrl(spider.RoomUrl!) ?? spider.RoomUrl!;
 
-                    if (string.IsNullOrWhiteSpace(spider?.Nickname))
+                    if (spider == null || !HasAddableRoomInfo(spider, roomUrl))
                     {
                         e.Cancel = true;
-                        Toast.Error(GetRoomInfoErrorMessage(Url));
+                        Toast.Error(GetRoomInfoErrorMessage(normalizedRoomUrl));
                         return;
                     }
 
-                    if (Configurations.Rooms.Get().Any(room => room.RoomUrl == spider.RoomUrl))
+                    if (Configurations.Rooms.Get().Any(room => string.Equals(room.RoomUrl, roomUrl, StringComparison.OrdinalIgnoreCase)))
                     {
                         e.Cancel = true;
-                        Toast.Warning("AddRoomErrorDuplicated".Tr(spider.Nickname));
+                        Toast.Warning("AddRoomErrorDuplicated".Tr(GetConfirmedNickName(spider)));
                         return;
                     }
 
-                    NickName = spider.Nickname;
-                    RoomUrl = spider.RoomUrl;
+                    NickName = GetConfirmedNickName(spider);
+                    RoomUrl = roomUrl;
+                    spider.RoomUrl = roomUrl;
                     SpiderResult = spider;
 
                     Toast.Success("AddRoomSucc".Tr(NickName));
@@ -105,13 +112,50 @@ public sealed partial class AddRoomContentDialog : ContentDialog
                 }
             }
         }
+        finally
+        {
+            deferral.Complete();
+        }
     }
 
     internal static string GetRoomInfoErrorMessage(string? roomUrl, string? fallback = null)
     {
-        string error = string.IsNullOrWhiteSpace(roomUrl) ? string.Empty : StreamResolver.GetLastError(roomUrl);
+        string error = string.IsNullOrWhiteSpace(roomUrl) ? string.Empty : ExternalStreamResolver.GetLastError(roomUrl);
+        if (string.IsNullOrWhiteSpace(error) && !string.IsNullOrWhiteSpace(roomUrl))
+        {
+            error = StreamResolver.GetLastError(roomUrl);
+        }
+
         string detail = string.IsNullOrWhiteSpace(error) ? fallback ?? string.Empty : error;
         string message = "GetRoomInfoError".Tr();
         return string.IsNullOrWhiteSpace(detail) ? message : $"{message}: {detail}";
+    }
+
+    internal static bool HasAddableRoomInfo(ISpiderResult? spider, string? roomUrl)
+    {
+        if (spider == null || string.IsNullOrWhiteSpace(roomUrl))
+        {
+            return false;
+        }
+
+        string platformName = string.IsNullOrWhiteSpace(spider.PlatformName)
+            ? Spider.GetPlatformName(roomUrl)
+            : spider.PlatformName;
+        if (string.IsNullOrWhiteSpace(platformName))
+        {
+            return false;
+        }
+
+        return !string.IsNullOrWhiteSpace(spider.Nickname)
+            || !string.IsNullOrWhiteSpace(spider.Uid)
+            || spider.IsLiveStreaming == true
+            || !string.IsNullOrWhiteSpace(spider.FlvUrl)
+            || !string.IsNullOrWhiteSpace(spider.HlsUrl)
+            || !string.IsNullOrWhiteSpace(spider.RecordUrl);
+    }
+
+    internal static string GetConfirmedNickName(ISpiderResult spider)
+    {
+        return string.IsNullOrWhiteSpace(spider.Nickname) ? spider.RoomUrl ?? string.Empty : spider.Nickname;
     }
 }

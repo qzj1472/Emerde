@@ -25,23 +25,17 @@ public sealed partial class DouyinSpider : ISpider
 
     public string? ParseUrl(string url)
     {
-        // Supported two case URLs:
-        // https://live.douyin.com/xxx?x=x
-        // https://www.douyin.com/root/live/xxx?x=x
-        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri))
+        string value = url.Contains("://", StringComparison.Ordinal) ? url : "https://" + url.Trim();
+        string? normalizedUrl = StreamResolver.NormalizeUrl(value, allowNetwork: false);
+        if (string.IsNullOrWhiteSpace(normalizedUrl)
+            || !Uri.TryCreate(normalizedUrl, UriKind.Absolute, out Uri? uri))
         {
             return null;
         }
 
-        if (uri.Host != "live.douyin.com" && uri.Host != "www.douyin.com")
-        {
-            return null;
-        }
-
-        string roomId = uri.Segments.Last();
-        string roomUrl = $"https://live.douyin.com/{roomId}";
-
-        return roomUrl;
+        return uri.Host.Equals("live.douyin.com", StringComparison.OrdinalIgnoreCase)
+            ? normalizedUrl
+            : null;
     }
 
     private string? RequestUrl(string? url)

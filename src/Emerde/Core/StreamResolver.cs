@@ -19,6 +19,7 @@ internal static partial class StreamResolver
     private static readonly TimeSpan HlsVariantNegativeCacheDuration = TimeSpan.FromMinutes(2);
     private static readonly ConcurrentDictionary<string, string> LastErrors = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, HlsVariantCacheEntry> HlsVariantCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly SemaphoreSlim DouyinResolverSemaphore = new(MonitorTiming.MonitorBatchLimit, MonitorTiming.MonitorBatchLimit);
 
     public static string GetLastError(string url)
     {
@@ -39,12 +40,12 @@ internal static partial class StreamResolver
         }
 
         string host = uri.Host.ToLowerInvariant();
-        if (host.EndsWith("douyin.com", StringComparison.Ordinal) || host.EndsWith("iesdouyin.com", StringComparison.Ordinal))
+        if (HostMatchesDomain(host, "douyin.com") || HostMatchesDomain(host, "iesdouyin.com"))
         {
             return "Douyin";
         }
 
-        if (host.EndsWith("tiktok.com", StringComparison.Ordinal))
+        if (HostMatchesDomain(host, "tiktok.com"))
         {
             return "TikTok";
         }
@@ -60,6 +61,11 @@ internal static partial class StreamResolver
         }
 
         string trimmed = url.Trim();
+        if (!trimmed.Contains("://", StringComparison.Ordinal))
+        {
+            trimmed = "https://" + trimmed;
+        }
+
         if (!Uri.TryCreate(trimmed, UriKind.Absolute, out Uri? uri))
         {
             return null;
@@ -75,10 +81,10 @@ internal static partial class StreamResolver
         {
             return allowNetwork && TryResolveRedirect(trimmed, out string? redirected)
                 ? NormalizeUrl(redirected ?? string.Empty, allowNetwork: false) ?? redirected
-                : trimmed;
+                : null;
         }
 
-        if (host.EndsWith("douyin.com", StringComparison.Ordinal))
+        if (HostMatchesDomain(host, "douyin.com"))
         {
             string? roomId = ExtractDouyinRoomId(uri);
             return string.IsNullOrWhiteSpace(roomId) ? null : $"https://live.douyin.com/{roomId}";
@@ -88,10 +94,10 @@ internal static partial class StreamResolver
         {
             return allowNetwork && TryResolveRedirect(trimmed, out string? redirected)
                 ? NormalizeUrl(redirected ?? string.Empty, allowNetwork: false) ?? redirected
-                : trimmed;
+                : null;
         }
 
-        if (host.EndsWith("tiktok.com", StringComparison.Ordinal))
+        if (HostMatchesDomain(host, "tiktok.com"))
         {
             string? userId = uri.Segments
                 .Select(segment => segment.Trim('/'))
@@ -124,12 +130,20 @@ internal static partial class StreamResolver
             }
 
             string host = uri.Host.ToLowerInvariant();
-            if (host.EndsWith("douyin.com", StringComparison.Ordinal))
+            if (HostMatchesDomain(host, "douyin.com"))
             {
-                return ResolveDouyin(resolverUrl, preferredQuality);
+                DouyinResolverSemaphore.Wait();
+                try
+                {
+                    return ResolveDouyin(resolverUrl, preferredQuality);
+                }
+                finally
+                {
+                    DouyinResolverSemaphore.Release();
+                }
             }
 
-            if (host.EndsWith("tiktok.com", StringComparison.Ordinal))
+            if (HostMatchesDomain(host, "tiktok.com"))
             {
                 return ResolveTiktok(resolverUrl, preferredQuality);
             }
@@ -145,14 +159,77 @@ internal static partial class StreamResolver
 
     public static bool HasUsableData(ISpiderResult? result)
     {
+        return HasConclusiveData(result);
+    }
+
+    public static bool HasConclusiveData(ISpiderResult? result)
+    {
+        return result != null
+            && (result.IsLiveStreaming.HasValue
+                || !string.IsNullOrWhiteSpace(result.FlvUrl)
+                || !string.IsNullOrWhiteSpace(result.HlsUrl)
+                || !string.IsNullOrWhiteSpace(result.RecordUrl));
+    }
+
+    public static bool HasRoomData(ISpiderResult? result)
+    {
         if (result == null)
         {
             return false;
         }
 
-        return result.IsLiveStreaming != null
-            || !string.IsNullOrWhiteSpace(result.FlvUrl)
-            || !string.IsNullOrWhiteSpace(result.HlsUrl);
+        return HasConclusiveData(result)
+            || !string.IsNullOrWhiteSpace(result.Nickname)
+            || !string.IsNullOrWhiteSpace(result.AvatarThumbUrl)
+            || !string.IsNullOrWhiteSpace(result.Uid)
+            || !string.IsNullOrWhiteSpace(SpiderResultMetadata.GetTitle(result));
+    }
+
+    internal static bool NeedsSupplementalData(ISpiderResult? result)
+    {
+        if (!HasConclusiveData(result))
+        {
+            return true;
+        }
+
+        if (result!.IsLiveStreaming == true)
+        {
+            return string.IsNullOrWhiteSpace(result.FlvUrl)
+                && string.IsNullOrWhiteSpace(result.HlsUrl)
+                && string.IsNullOrWhiteSpace(result.RecordUrl);
+        }
+
+        return result.IsLiveStreaming == false
+            && string.IsNullOrWhiteSpace(result.Nickname)
+            && string.IsNullOrWhiteSpace(result.Uid);
+    }
+
+    internal static StreamResolverResult MergeResults(string roomUrl, params ISpiderResult?[] results)
+    {
+        StreamResolverResult merged = new()
+        {
+            RoomUrl = roomUrl,
+        };
+
+        foreach (ISpiderResult result in results.OfType<ISpiderResult>())
+        {
+            merged.RoomUrl = FirstNonEmpty(merged.RoomUrl, result.RoomUrl);
+            merged.PlatformName = FirstNonEmpty(merged.PlatformName, result.PlatformName);
+            merged.IsLiveStreaming ??= result.IsLiveStreaming;
+            merged.Nickname = FirstNonEmpty(merged.Nickname, result.Nickname);
+            merged.AvatarThumbUrl = FirstNonEmpty(merged.AvatarThumbUrl, result.AvatarThumbUrl);
+            merged.FlvUrl = FirstNonEmpty(merged.FlvUrl, result.FlvUrl);
+            merged.HlsUrl = FirstNonEmpty(merged.HlsUrl, result.HlsUrl);
+            merged.RecordUrl = FirstNonEmpty(merged.RecordUrl, result.RecordUrl);
+            merged.Title = FirstNonEmpty(merged.Title, SpiderResultMetadata.GetTitle(result));
+            merged.Quality = FirstNonEmpty(merged.Quality, SpiderResultMetadata.GetQuality(result));
+            merged.Uid = FirstNonEmpty(merged.Uid, result.Uid);
+            merged.Resolution = FirstNonEmpty(merged.Resolution, SpiderResultMetadata.GetResolution(result));
+            merged.Bitrate = FirstNonEmpty(merged.Bitrate, SpiderResultMetadata.GetBitrate(result));
+            merged.Headers = FirstNonEmpty(merged.Headers, SpiderResultMetadata.GetHeaders(result));
+        }
+
+        return merged;
     }
 
     internal static StreamResolverResult ExtractDouyinData(string roomUrl, string? html, string? preferredQuality = null)
@@ -226,9 +303,14 @@ internal static partial class StreamResolver
             result.IsLiveStreaming = status switch
             {
                 2 => true,
-                null => null,
-                _ => false,
+                4 => false,
+                _ => null,
             };
+            result.Uid = FirstNonEmpty(
+                CleanOptionalText(user?["id_str"]?.ToString()),
+                CleanOptionalText(user?["sec_uid"]?.ToString()),
+                CleanOptionalText(room["owner"]?["id_str"]?.ToString()),
+                CleanOptionalText(room["owner"]?["sec_uid"]?.ToString()));
 
             JToken? streamUrl = room["stream_url"];
             StreamCandidate hls = SelectPreferredStream(streamUrl?["hls_pull_url_map"], preferredQuality);
@@ -289,7 +371,7 @@ internal static partial class StreamResolver
     private static StreamResolverResult? ResolveDouyin(string roomUrl, string? preferredQuality)
     {
         StreamResolverResult? webEnterResult = ResolveDouyinWebEnter(roomUrl, preferredQuality);
-        if (HasUsableData(webEnterResult))
+        if (!NeedsSupplementalData(webEnterResult))
         {
             EnrichHighestHlsVariant(webEnterResult!, preferredQuality, roomUrl, PlatformCookieStore.GetCookie("Douyin", Configurations.CookieChina.Get()), DouyinWebUserAgent);
             LastErrors.TryRemove(roomUrl, out _);
@@ -302,12 +384,19 @@ internal static partial class StreamResolver
             PlatformCookieStore.GetCookie("Douyin", Configurations.CookieChina.Get()),
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0");
 
-        StreamResolverResult result = ExtractDouyinData(roomUrl, html, preferredQuality);
+        StreamResolverResult pageResult = ExtractDouyinData(roomUrl, html, preferredQuality);
+        StreamResolverResult result = MergeResults(roomUrl, webEnterResult, pageResult);
 
-        if (HasUsableData(result))
+        if (!NeedsSupplementalData(result))
         {
             EnrichHighestHlsVariant(result, preferredQuality, roomUrl, PlatformCookieStore.GetCookie("Douyin", Configurations.CookieChina.Get()), DouyinWebUserAgent);
             LastErrors.TryRemove(roomUrl, out _);
+            return result;
+        }
+
+        if (HasRoomData(result))
+        {
+            SetLastError(roomUrl, "Douyin room state was inconclusive.");
             return result;
         }
 
@@ -348,13 +437,13 @@ internal static partial class StreamResolver
         string cookie = string.IsNullOrWhiteSpace(configuredCookie) ? DouyinDefaultCookie : configuredCookie;
         string? json = RequestText(
             api,
-            "https://live.douyin.com/335354047186",
+            roomUrl,
             cookie,
             DouyinWebUserAgent,
             "application/json,text/plain,*/*");
 
         StreamResolverResult result = ExtractDouyinWebEnterData(roomUrl, json, preferredQuality);
-        return HasUsableData(result) ? result : null;
+        return HasRoomData(result) ? result : null;
     }
 
     private static StreamResolverResult? ResolveTiktok(string roomUrl, string? preferredQuality)
@@ -647,6 +736,7 @@ internal static partial class StreamResolver
 
     private static string? ExtractDouyinRoomId(Uri uri)
     {
+        string host = uri.Host.ToLowerInvariant();
         string[] segments = uri.Segments
             .Select(segment => segment.Trim('/'))
             .Where(segment => !string.IsNullOrWhiteSpace(segment))
@@ -657,13 +747,41 @@ internal static partial class StreamResolver
             return null;
         }
 
+        if (host.Equals("live.douyin.com", StringComparison.Ordinal))
+        {
+            return IsValidDouyinRoomToken(segments[0]) ? segments[0] : null;
+        }
+
+        if (!host.Equals("www.douyin.com", StringComparison.Ordinal)
+            && !host.Equals("douyin.com", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
         int liveIndex = Array.FindIndex(segments, segment => segment.Equals("live", StringComparison.OrdinalIgnoreCase));
         if (liveIndex >= 0 && liveIndex < segments.Length - 1)
         {
-            return segments[liveIndex + 1];
+            string roomId = segments[liveIndex + 1];
+            return IsValidDouyinRoomToken(roomId) ? roomId : null;
         }
 
-        return segments[^1];
+        return null;
+    }
+
+    private static bool HostMatchesDomain(string host, string domain)
+    {
+        return host.Equals(domain, StringComparison.Ordinal)
+            || host.EndsWith('.' + domain, StringComparison.Ordinal);
+    }
+
+    private static bool IsValidDouyinRoomToken(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        return DouyinRoomTokenRegex.IsMatch(value);
     }
 
     private static string? TryFetchDouyinProfileAvatar(string roomUrl, string? liveHtml)
@@ -1199,6 +1317,9 @@ internal static partial class StreamResolver
     [GeneratedRegex(@"\\u([0-9a-fA-F]{4})")]
     private static partial Regex UnicodeEscapeRegex { get; }
 
+    [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9_-]{1,63}$")]
+    private static partial Regex DouyinRoomTokenRegex { get; }
+
     private static Regex[] AvatarRegexes { get; } =
     [
         AvatarThumbRegex,
@@ -1248,9 +1369,13 @@ internal sealed class StreamResolverResult : ISpiderResult, IStreamMetadataResul
 
     public string? HlsUrl { get; set; }
 
+    public string? RecordUrl { get; set; }
+
     public string? Title { get; set; }
 
     public string? Quality { get; set; }
+
+    public string? Uid { get; set; }
 
     public string? Resolution { get; set; }
 

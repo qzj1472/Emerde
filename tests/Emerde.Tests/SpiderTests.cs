@@ -22,6 +22,14 @@ public sealed class SpiderTests
     }
 
     [Fact]
+    public void ParseUrl_WithDouyinLiveUrlWithoutScheme_NormalizesRoomUrl()
+    {
+        string? result = Spider.ParseUrl("live.douyin.com/123456?from=test");
+
+        Assert.Equal("https://live.douyin.com/123456", result);
+    }
+
+    [Fact]
     public void ParseUrl_WithTiktokLiveUrl_NormalizesRoomUrl()
     {
         string? result = Spider.ParseUrl("https://www.tiktok.com/@someone/live");
@@ -575,6 +583,7 @@ public sealed class SpiderTests
 
     [Theory]
     [InlineData("https://live.douyin.com/123456?from=test", "https://live.douyin.com/123456")]
+    [InlineData("https://live.douyin.com/591184816437?enter_from_merge=link_share&enter_method=copy_link_share&action_type=click&from=web_code_link", "https://live.douyin.com/591184816437")]
     [InlineData("https://www.douyin.com/root/live/123456?from=test", "https://live.douyin.com/123456")]
     [InlineData("https://www.tiktok.com/@someone/live?from=test", "https://www.tiktok.com/@someone/live")]
     public void StreamResolverNormalizeUrl_NormalizesKnownRoomUrls(string input, string expected)
@@ -582,6 +591,26 @@ public sealed class SpiderTests
         string? result = StreamResolver.NormalizeUrl(input);
 
         Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void ExternalStreamResolverNormalizeUrl_RejectsUnsupportedUrl()
+    {
+        string? result = ExternalStreamResolver.NormalizeUrl("https://example.test/not-a-room");
+
+        Assert.Null(result);
+    }
+
+    [Theory]
+    [InlineData("https://notdouyu.com/123456")]
+    [InlineData("https://notdouyin.com/123456")]
+    [InlineData("https://nottiktok.com/@channel/live")]
+    [InlineData("https://www.twitch.tv/videos/123456")]
+    public void ExternalStreamResolverNormalizeUrl_RejectsLookalikeAndNonChannelUrls(string input)
+    {
+        string? result = ExternalStreamResolver.NormalizeUrl(input);
+
+        Assert.Null(result);
     }
 
     [Fact]
@@ -637,6 +666,62 @@ public sealed class SpiderTests
         Assert.Null(result.IsLiveStreaming);
         Assert.Equal("anchor", result.Nickname);
         Assert.Equal("https://example.test/avatar.jpeg", result.AvatarThumbUrl);
+        Assert.False(StreamResolver.HasConclusiveData(result));
+        Assert.True(StreamResolver.HasRoomData(result));
+    }
+
+    [Fact]
+    public void StreamResolverMergeResults_CombinesProfileAndFallbackState()
+    {
+        StreamResolverResult profile = new()
+        {
+            RoomUrl = "https://live.douyin.com/123456",
+            PlatformName = "Douyin",
+            Nickname = "anchor",
+        };
+        DouyinSpiderResult fallback = new()
+        {
+            RoomUrl = profile.RoomUrl,
+            PlatformName = "Douyin",
+            IsLiveStreaming = false,
+        };
+
+        StreamResolverResult result = StreamResolver.MergeResults(profile.RoomUrl, profile, fallback);
+
+        Assert.Equal("anchor", result.Nickname);
+        Assert.False(result.IsLiveStreaming);
+        Assert.True(StreamResolver.HasConclusiveData(result));
+    }
+
+    [Fact]
+    public void StreamResolverNeedsSupplementalData_RequiresStreamForLiveRoom()
+    {
+        StreamResolverResult result = new()
+        {
+            IsLiveStreaming = true,
+            Nickname = "anchor",
+        };
+
+        Assert.True(StreamResolver.NeedsSupplementalData(result));
+
+        result.HlsUrl = "https://example.test/live.m3u8";
+
+        Assert.False(StreamResolver.NeedsSupplementalData(result));
+    }
+
+    [Fact]
+    public void StreamResolverNeedsSupplementalData_RequiresIdentityForOfflineRoom()
+    {
+        StreamResolverResult result = new()
+        {
+            IsLiveStreaming = false,
+        };
+
+        Assert.True(StreamResolver.NeedsSupplementalData(result));
+
+        result.Nickname = "anchor";
+
+        Assert.False(StreamResolver.NeedsSupplementalData(result));
     }
 
     [Fact]
@@ -676,6 +761,20 @@ public sealed class SpiderTests
 
         Assert.False(result.IsLiveStreaming);
         Assert.Null(result.Title);
+    }
+
+    [Fact]
+    public void StreamResolverExtractDouyinWebEnterData_LeavesUnknownStatusInconclusive()
+    {
+        string json = """
+            {"data":{"user":{"nickname":"anchor"},"data":[{"status":7,"title":"unknown state"}]}}
+            """;
+
+        StreamResolverResult result = StreamResolver.ExtractDouyinWebEnterData("https://live.douyin.com/123456", json);
+
+        Assert.Null(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.False(StreamResolver.HasConclusiveData(result));
     }
 
     [Fact]

@@ -57,7 +57,18 @@ internal static class Spider
 
     public static IReadOnlyList<string> SupportedPlatformNames => Spiders.Value.Select(spider => spider.PlatformName).ToArray();
 
-    public static string? ParseUrl(string url)
+    public static string? ParseUrl(string url, bool allowNetwork = false)
+    {
+        string? normalizedUrl = ExternalStreamResolver.NormalizeUrl(url, allowNetwork);
+        if (!string.IsNullOrWhiteSpace(normalizedUrl))
+        {
+            return normalizedUrl;
+        }
+
+        return ParseLegacyUrl(url);
+    }
+
+    internal static string? ParseLegacyUrl(string url)
     {
         foreach (ISpider spider in Spiders.Value)
         {
@@ -74,12 +85,11 @@ internal static class Spider
 
     public static ISpiderResult? GetResult(string url, string? preferredQuality = null)
     {
-        ISpiderResult? resolverResult = StreamResolver.GetResult(url, preferredQuality);
-        if (StreamResolver.HasUsableData(resolverResult))
-        {
-            return resolverResult;
-        }
+        return ExternalStreamResolver.GetResult(url, preferredQuality);
+    }
 
+    internal static ISpiderResult? GetLegacyResult(string url, string? preferredQuality = null)
+    {
         foreach (ISpider spider in Spiders.Value)
         {
             if (!string.IsNullOrWhiteSpace(spider.ParseUrl(url)))
@@ -95,12 +105,11 @@ internal static class Spider
 
     public static string GetPlatformName(string url)
     {
-        string resolverPlatformName = StreamResolver.GetPlatformName(url);
-        if (!string.IsNullOrWhiteSpace(resolverPlatformName))
-        {
-            return resolverPlatformName;
-        }
+        return ExternalStreamResolver.GetPlatformName(url);
+    }
 
+    internal static string GetLegacyPlatformName(string url)
+    {
         foreach (ISpider spider in Spiders.Value)
         {
             if (!string.IsNullOrWhiteSpace(spider.ParseUrl(url)))
