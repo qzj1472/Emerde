@@ -5,6 +5,7 @@ namespace Emerde.Core;
 public sealed class LivePreviewPlayer : IDisposable
 {
     private static readonly TimeSpan PlaybackStartTimeout = TimeSpan.FromSeconds(8);
+    internal const int CacheMilliseconds = 300;
     private readonly LibVLC libVlc;
     private Media? currentMedia;
     private EventHandler<EventArgs>? currentPlayingHandler;
@@ -21,7 +22,7 @@ public sealed class LivePreviewPlayer : IDisposable
     public LivePreviewPlayer()
     {
         LibVLCSharp.Shared.Core.Initialize();
-        libVlc = new LibVLC("--network-caching=1500", "--live-caching=1500", "--clock-jitter=0");
+        libVlc = new LibVLC($"--network-caching={CacheMilliseconds}", $"--live-caching={CacheMilliseconds}", "--clock-jitter=0");
         MediaPlayer = new MediaPlayer(libVlc)
         {
             Mute = true,

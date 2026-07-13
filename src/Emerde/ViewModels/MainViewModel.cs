@@ -717,7 +717,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
             previewTransitionGate.Release();
             enteredGate = false;
-            await RefreshPreviewStreamQualityAsync(targetRoom, cancellation.Token);
+            if (ShouldRefreshPreviewStreamBeforePlayback(targetRoom))
+            {
+                await RefreshPreviewStreamQualityAsync(targetRoom, cancellation.Token);
+            }
             cancellation.Token.ThrowIfCancellationRequested();
 
             await previewTransitionGate.WaitAsync(cancellation.Token);
@@ -960,6 +963,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return false;
         }
 
+        if (string.IsNullOrWhiteSpace(GetPreviewPlaybackUrl(room)))
+        {
+            return true;
+        }
+
         if (IsPreviewQualityRefreshCoolingDown(room.RoomUrl))
         {
             return false;
@@ -984,6 +992,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     internal static string GetPreviewPlaybackUrl(RoomStatusReactive room)
     {
         return room.PreviewUrl;
+    }
+
+    internal static bool ShouldRefreshPreviewStreamBeforePlayback(RoomStatusReactive room)
+    {
+        return string.IsNullOrWhiteSpace(GetPreviewPlaybackUrl(room));
     }
 
     private bool IsPreviewQualityRefreshCoolingDown(string roomUrl)

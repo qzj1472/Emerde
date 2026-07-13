@@ -9,6 +9,25 @@ namespace Emerde.Tests;
 public sealed class LivePreviewTests
 {
     [Fact]
+    public void ShouldRefreshPreviewStreamBeforePlayback_UsesCachedStreamImmediately()
+    {
+        RoomStatusReactive cached = new()
+        {
+            HlsUrl = "https://example.test/live.m3u8",
+        };
+        RoomStatusReactive missing = new();
+
+        Assert.False(MainViewModel.ShouldRefreshPreviewStreamBeforePlayback(cached));
+        Assert.True(MainViewModel.ShouldRefreshPreviewStreamBeforePlayback(missing));
+    }
+
+    [Fact]
+    public void LivePreviewPlayer_UsesLowLatencyCache()
+    {
+        Assert.Equal(300, LivePreviewPlayer.CacheMilliseconds);
+    }
+
+    [Fact]
     public void HasPointerMoved_RequiresActualPointerMovement()
     {
         System.Windows.Point position = new(120, 80);
@@ -20,7 +39,7 @@ public sealed class LivePreviewTests
     }
 
     [Fact]
-    public void PreviewUrl_UsesHlsBeforeFlv()
+    public void PreviewUrl_UsesFlvBeforeHls()
     {
         RoomStatusReactive room = new()
         {
@@ -29,8 +48,8 @@ public sealed class LivePreviewTests
             HlsUrl = "https://example.test/live.m3u8",
         };
 
-        Assert.Equal("https://example.test/live.m3u8", room.PreviewUrl);
-        Assert.Equal("HLS", room.PreviewSourceText);
+        Assert.Equal("https://example.test/live.flv", room.PreviewUrl);
+        Assert.Equal("FLV", room.PreviewSourceText);
     }
 
     [Fact]
@@ -62,16 +81,16 @@ public sealed class LivePreviewTests
     }
 
     [Fact]
-    public void PreviewUrl_FallsBackToFlv()
+    public void PreviewUrl_FallsBackToHls()
     {
         RoomStatusReactive room = new()
         {
             StreamStatus = StreamStatus.Streaming,
-            FlvUrl = "https://example.test/live.flv",
+            HlsUrl = "https://example.test/live.m3u8",
         };
 
-        Assert.Equal("https://example.test/live.flv", room.PreviewUrl);
-        Assert.Equal("FLV", room.PreviewSourceText);
+        Assert.Equal("https://example.test/live.m3u8", room.PreviewUrl);
+        Assert.Equal("HLS", room.PreviewSourceText);
     }
 
     [Theory]

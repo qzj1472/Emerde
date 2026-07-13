@@ -164,9 +164,9 @@ public partial class RoomStatusReactive : ReactiveObject
 
     public string PreviewUrl => !string.IsNullOrWhiteSpace(RecordUrl)
         ? RecordUrl
-        : !string.IsNullOrWhiteSpace(HlsUrl)
-            ? HlsUrl
-            : FlvUrl;
+        : !string.IsNullOrWhiteSpace(FlvUrl)
+            ? FlvUrl
+            : HlsUrl;
 
     public bool CanPreview => StreamStatus == StreamStatus.Streaming && !string.IsNullOrWhiteSpace(PreviewUrl);
 
@@ -206,7 +206,7 @@ public partial class RoomStatusReactive : ReactiveObject
 
     public string BitrateText => !IsStreaming || string.IsNullOrWhiteSpace(Bitrate) ? "-" : Bitrate;
 
-    public string PreviewSupportText => PreviewSourceText == "-" ? "Record / HLS / FLV" : PreviewSourceText;
+    public string PreviewSupportText => PreviewSourceText == "-" ? "Record / FLV / HLS" : PreviewSourceText;
 
     public string PreviewSourceText
     {
@@ -222,14 +222,14 @@ public partial class RoomStatusReactive : ReactiveObject
                 return "Record";
             }
 
-            if (!string.IsNullOrWhiteSpace(HlsUrl))
-            {
-                return "HLS";
-            }
-
             if (!string.IsNullOrWhiteSpace(FlvUrl))
             {
                 return "FLV";
+            }
+
+            if (!string.IsNullOrWhiteSpace(HlsUrl))
+            {
+                return "HLS";
             }
 
             return "-";
