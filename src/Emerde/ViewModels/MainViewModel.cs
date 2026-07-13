@@ -404,7 +404,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         {
             GlobalMonitor.Start();
         }
-        ChildProcessTracerPeriodicTimer.Default.WhiteList = ["ffmpeg", "ffprobe", "ffplay", "python", "python3", "node"];
+        ChildProcessTracerPeriodicTimer.Default.WhiteList = ["ffmpeg", "ffprobe", "ffplay"];
         ChildProcessTracerPeriodicTimer.Default.Start();
         DispatcherTimer.Start();
         AutoShutdownDispatcherTimer.Start();
