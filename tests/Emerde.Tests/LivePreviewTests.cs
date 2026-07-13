@@ -270,9 +270,10 @@ public sealed class LivePreviewTests
     }
 
     [Fact]
-    public void IsPreviewFullScreenExitMessage_RejectsOtherTopLevelWindow()
+    public void IsPreviewFullScreenExitMessage_RejectsOtherMessages()
     {
-        Assert.False(MainWindow.IsPreviewFullScreenExitMessage(true, 0x0100, new IntPtr(0x1B), new IntPtr(10), new IntPtr(20)));
+        Assert.False(MainWindow.IsPreviewFullScreenExitMessage(true, 0x0101, new IntPtr(0x1B)));
+        Assert.False(MainWindow.IsPreviewFullScreenExitMessage(true, 0x0200, new IntPtr(0x1B)));
     }
 
     [Fact]
@@ -302,7 +303,7 @@ public sealed class LivePreviewTests
     }
 
     [Fact]
-    public void BuildPreviewFullScreenWindowStyle_UsesPopupOnly()
+    public void BuildPreviewFullScreenWindowStyle_UsesBorderlessPopup()
     {
         int style = (int)(User32.WindowStyles.WS_OVERLAPPEDWINDOW | User32.WindowStyles.WS_VISIBLE);
         int fullScreenStyle = MainWindow.BuildPreviewFullScreenWindowStyle(style);
@@ -314,9 +315,10 @@ public sealed class LivePreviewTests
     }
 
     [Fact]
-    public void BuildPreviewFullScreenWindowExStyle_RemovesEdgeStyles()
+    public void BuildPreviewFullScreenWindowExStyle_RemovesEdgesAndTopmost()
     {
         int exStyle = (int)(User32.WindowStylesEx.WS_EX_APPWINDOW
+            | User32.WindowStylesEx.WS_EX_TOPMOST
             | User32.WindowStylesEx.WS_EX_CLIENTEDGE
             | User32.WindowStylesEx.WS_EX_WINDOWEDGE
             | User32.WindowStylesEx.WS_EX_STATICEDGE);
@@ -324,13 +326,14 @@ public sealed class LivePreviewTests
         int fullScreenExStyle = MainWindow.BuildPreviewFullScreenWindowExStyle(exStyle);
 
         Assert.True((fullScreenExStyle & (int)User32.WindowStylesEx.WS_EX_APPWINDOW) != 0);
+        Assert.False((fullScreenExStyle & (int)User32.WindowStylesEx.WS_EX_TOPMOST) != 0);
         Assert.False((fullScreenExStyle & (int)User32.WindowStylesEx.WS_EX_CLIENTEDGE) != 0);
         Assert.False((fullScreenExStyle & (int)User32.WindowStylesEx.WS_EX_WINDOWEDGE) != 0);
         Assert.False((fullScreenExStyle & (int)User32.WindowStylesEx.WS_EX_STATICEDGE) != 0);
     }
 
     [Fact]
-    public void ExpandPreviewFullScreenBounds_OverscansEveryEdgeByTwoPixels()
+    public void ExpandPreviewFullScreenBounds_OverscansEveryAvailableEdgeByTwoPixels()
     {
         System.Drawing.Rectangle bounds = new(-1920, 0, 1920, 1080);
 
@@ -360,4 +363,5 @@ public sealed class LivePreviewTests
 
         Assert.Equal(new System.Drawing.Rectangle(-2, -2, 1923, 1084), expandedBounds);
     }
+
 }

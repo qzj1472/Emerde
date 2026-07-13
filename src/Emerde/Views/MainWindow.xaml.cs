@@ -2,7 +2,6 @@ using Microsoft.Toolkit.Uwp.Notifications;
 using Fischless.Configuration;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -258,6 +257,8 @@ public partial class MainWindow : FluentWindow
     private WindowStyle previewWindowStyle;
     private ResizeMode previewResizeMode;
     private WindowBackdropType previewWindowBackdropType;
+    private Thickness previewWindowBorderThickness;
+    private Brush? previewWindowBorderBrush;
     private bool previewTopmost;
     private double previewMaxWidth;
     private double previewMaxHeight;
@@ -330,6 +331,7 @@ public partial class MainWindow : FluentWindow
         source?.RemoveHook(MainWindowWindowProc);
         PreviewKeyDown -= MainWindowPreviewKeyDown;
         ComponentDispatcher.ThreadPreprocessMessage -= MainWindowThreadPreprocessMessage;
+        ViewModel.IsPreviewDetached = false;
         ViewModel.PropertyChanged -= ViewModelPropertyChanged;
         base.OnClosed(e);
     }
@@ -386,8 +388,7 @@ public partial class MainWindow : FluentWindow
 
     private void MainWindowThreadPreprocessMessage(ref System.Windows.Interop.MSG msg, ref bool handled)
     {
-        IntPtr windowHandle = new WindowInteropHelper(this).Handle;
-        if (handled || !IsPreviewFullScreenExitMessage(isPreviewFullScreen, msg.message, msg.wParam, msg.hwnd, windowHandle))
+        if (handled || !IsPreviewFullScreenExitMessage(isPreviewFullScreen, msg.message, msg.wParam))
         {
             return;
         }
@@ -396,16 +397,12 @@ public partial class MainWindow : FluentWindow
         handled = true;
     }
 
-    internal static bool IsPreviewFullScreenExitMessage(bool isFullScreen, int message, IntPtr key, IntPtr sourceWindow = default, IntPtr ownerWindow = default)
+    internal static bool IsPreviewFullScreenExitMessage(bool isFullScreen, int message, IntPtr key)
     {
         return isFullScreen
             && message is 0x0100 or 0x0104
-            && key == new IntPtr(0x1B)
-            && (sourceWindow == IntPtr.Zero || ownerWindow == IntPtr.Zero || GetAncestor(sourceWindow, 2) == ownerWindow);
+            && key == new IntPtr(0x1B);
     }
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetAncestor(IntPtr window, uint flags);
 
     private void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -430,7 +427,7 @@ public partial class MainWindow : FluentWindow
         UpdatePreviewPresentationState();
         Dispatcher.BeginInvoke(() =>
         {
-            if (!ViewModel.IsPreviewing && isPreviewFullScreen)
+            if (!ViewModel.IsPreviewing && IsPreviewFullScreenActive)
             {
                 ExitPreviewFullScreen();
             }
@@ -474,8 +471,8 @@ public partial class MainWindow : FluentWindow
     {
         HomePreviewPanel.SetVideoPresentationSuspended(
             isPreviewPresentationSuspendedByOverlay
-            || !ViewModel.IsHomePageSelected
-            || !ViewModel.IsPreviewing);
+            || !ViewModel.IsPreviewing
+            || (!isPreviewFullScreen && !ViewModel.IsHomePageSelected));
     }
 
     private void UpdateHomePreviewLayout()
@@ -774,7 +771,7 @@ public partial class MainWindow : FluentWindow
 
     internal void TogglePreviewFullScreen()
     {
-        if (isPreviewFullScreen)
+        if (IsPreviewFullScreenActive)
         {
             ExitPreviewFullScreen();
             return;
@@ -840,38 +837,10 @@ public partial class MainWindow : FluentWindow
         RestorePreviewFullScreenLayout();
         RestorePreviewWindowPlacement();
         ViewModel.IsPreviewDetached = false;
+        UpdatePreviewPresentationState();
         QueuePreviewLayoutRefreshAfterFullScreen();
         Activate();
         Focus();
-    }
-
-    private void QueuePreviewLayoutRefreshAfterFullScreen()
-    {
-        _ = Dispatcher.BeginInvoke(RefreshPreviewLayoutAfterFullScreen, DispatcherPriority.Render);
-    }
-
-    private void RefreshPreviewLayoutAfterFullScreen()
-    {
-        if (isPreviewFullScreen)
-        {
-            return;
-        }
-
-        UpdateHomePreviewLayout();
-        MainContentRoot.InvalidateMeasure();
-        MainContentRoot.InvalidateArrange();
-        HomePreviewLayoutRoot.InvalidateMeasure();
-        HomePreviewLayoutRoot.InvalidateArrange();
-        RoomCardPanel.InvalidateMeasure();
-        RoomCardPanel.InvalidateArrange();
-        RoomDetailPanel.InvalidateMeasure();
-        RoomDetailPanel.InvalidateArrange();
-        HomePreviewPanel.RefreshVideoLayout();
-        MainContentRoot.InvalidateVisual();
-        HomePreviewPanel.InvalidateVisual();
-        InvalidateVisual();
-        UpdateLayout();
-        UpdateRoomCardMetrics(RoomCardList.ActualWidth);
     }
 
     private void SavePreviewFullScreenLayout()
@@ -955,6 +924,8 @@ public partial class MainWindow : FluentWindow
         previewWindowStyle = WindowStyle;
         previewResizeMode = ResizeMode;
         previewWindowBackdropType = WindowBackdropType;
+        previewWindowBorderThickness = BorderThickness;
+        previewWindowBorderBrush = BorderBrush;
         previewTopmost = Topmost;
         previewMaxWidth = MaxWidth;
         previewMaxHeight = MaxHeight;
@@ -984,9 +955,11 @@ public partial class MainWindow : FluentWindow
         ResizeMode = ResizeMode.NoResize;
         WindowStyle = WindowStyle.None;
         WindowBackdropType = WindowBackdropType.None;
+        BorderThickness = new Thickness(0);
+        BorderBrush = System.Windows.Media.Brushes.Transparent;
         MaxWidth = double.PositiveInfinity;
         MaxHeight = double.PositiveInfinity;
-        Topmost = true;
+        Topmost = false;
         ApplyPreviewNativeFullScreenStyle(handle);
         Left = bounds.Left / dpi.DpiScaleX;
         Top = bounds.Top / dpi.DpiScaleY;
@@ -994,12 +967,14 @@ public partial class MainWindow : FluentWindow
         Height = bounds.Height / dpi.DpiScaleY;
         _ = User32.SetWindowPos(
             handle,
-            new IntPtr(-1),
+            new IntPtr(-2),
             bounds.Left,
             bounds.Top,
             bounds.Width,
             bounds.Height,
-            User32.SetWindowPosFlags.SWP_SHOWWINDOW | User32.SetWindowPosFlags.SWP_FRAMECHANGED);
+            User32.SetWindowPosFlags.SWP_SHOWWINDOW
+                | User32.SetWindowPosFlags.SWP_FRAMECHANGED
+                | User32.SetWindowPosFlags.SWP_NOOWNERZORDER);
     }
 
     internal static System.Drawing.Rectangle ExpandPreviewFullScreenBounds(
@@ -1079,6 +1054,8 @@ public partial class MainWindow : FluentWindow
         WindowStyle = previewWindowStyle;
         ResizeMode = previewResizeMode;
         WindowBackdropType = previewWindowBackdropType;
+        BorderThickness = previewWindowBorderThickness;
+        BorderBrush = previewWindowBorderBrush;
         MaxWidth = previewMaxWidth;
         MaxHeight = previewMaxHeight;
         Topmost = previewTopmost;
@@ -1169,12 +1146,42 @@ public partial class MainWindow : FluentWindow
 
     internal static int BuildPreviewFullScreenWindowExStyle(int exStyle)
     {
-        const User32.WindowStylesEx edgeStyles = User32.WindowStylesEx.WS_EX_DLGMODALFRAME
+        const User32.WindowStylesEx removedStyles = User32.WindowStylesEx.WS_EX_TOPMOST
+            | User32.WindowStylesEx.WS_EX_DLGMODALFRAME
             | User32.WindowStylesEx.WS_EX_CLIENTEDGE
             | User32.WindowStylesEx.WS_EX_STATICEDGE
             | User32.WindowStylesEx.WS_EX_WINDOWEDGE;
 
-        return exStyle & unchecked(~(int)edgeStyles);
+        return exStyle & unchecked(~(int)removedStyles);
+    }
+
+    private void QueuePreviewLayoutRefreshAfterFullScreen()
+    {
+        _ = Dispatcher.BeginInvoke(RefreshPreviewLayoutAfterFullScreen, DispatcherPriority.Render);
+    }
+
+    private void RefreshPreviewLayoutAfterFullScreen()
+    {
+        if (isPreviewFullScreen)
+        {
+            return;
+        }
+
+        UpdateHomePreviewLayout();
+        MainContentRoot.InvalidateMeasure();
+        MainContentRoot.InvalidateArrange();
+        HomePreviewLayoutRoot.InvalidateMeasure();
+        HomePreviewLayoutRoot.InvalidateArrange();
+        RoomCardPanel.InvalidateMeasure();
+        RoomCardPanel.InvalidateArrange();
+        RoomDetailPanel.InvalidateMeasure();
+        RoomDetailPanel.InvalidateArrange();
+        HomePreviewPanel.RefreshVideoLayout();
+        MainContentRoot.InvalidateVisual();
+        HomePreviewPanel.InvalidateVisual();
+        InvalidateVisual();
+        UpdateLayout();
+        UpdateRoomCardMetrics(RoomCardList.ActualWidth);
     }
 
     private void QueueStartupAboutNotice()
