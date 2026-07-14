@@ -12,6 +12,9 @@ namespace Emerde.ViewModels;
 public partial class RoomStatusReactive : ReactiveObject
 {
     [ObservableProperty]
+    private bool isSelected;
+
+    [ObservableProperty]
     private string nickName = string.Empty;
 
     [ObservableProperty]

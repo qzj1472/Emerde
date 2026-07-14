@@ -221,7 +221,7 @@
             <Style x:Key="ShellNavButtonStyle" TargetType="{x:Type ToggleButton}">
                 <Setter Property="Width" Value="64" />
                 <Setter Property="Height" Value="58" />
-                <Setter Property="Margin" Value="4,0,4,6" />
+                <Setter Property="Margin" Value="4,0,4,4" />
                 <Setter Property="Padding" Value="0" />
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Background" Value="Transparent" />
@@ -260,6 +260,57 @@
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
+            </Style>
+
+            <Style x:Key="ShellExitButtonStyle"
+                   TargetType="{x:Type Button}"
+                   BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Width" Value="64" />
+                <Setter Property="Height" Value="34" />
+                <Setter Property="Padding" Value="6,0" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="Background" Value="#52FF78AE" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type Button}">
+                            <Grid>
+                                <Border x:Name="ThemeFill"
+                                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                        CornerRadius="{StaticResource Win11ControlCornerRadius}" />
+                                <Border Background="{TemplateBinding Background}"
+                                        CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                        IsHitTestVisible="False" />
+                                <ContentPresenter Margin="{TemplateBinding Padding}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="ThemeFill" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="ThemeFill" Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.55" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="SelectedContextMenuOptionStyle"
+                   TargetType="{x:Type MenuItem}"
+                   BasedOn="{StaticResource {x:Type MenuItem}}">
+                <Style.Triggers>
+                    <Trigger Property="IsChecked" Value="True">
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                        <Setter Property="Foreground" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                    </Trigger>
+                </Style.Triggers>
             </Style>
 
             <Style x:Key="DetailLabelStyle" TargetType="{x:Type TextBlock}">
@@ -557,9 +608,15 @@
                     Background="{DynamicResource EmerdeSurfaceBrush}"
                     BorderThickness="0"
                     CornerRadius="{StaticResource Win11ControlCornerRadius}">
-                <ui:StackPanel Margin="0,12,0,0"
-                               HorizontalAlignment="Center"
-                               Orientation="Vertical">
+                <Grid Margin="0,5,0,5">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <ui:StackPanel Grid.Row="0"
+                                   HorizontalAlignment="Center"
+                                   Orientation="Vertical">
                     <ToggleButton Command="{Binding ShowHomePageCommand}"
                                   IsChecked="{Binding IsHomePageSelected, Mode=OneWay}"
                                   Style="{StaticResource ShellNavButtonStyle}">
@@ -604,7 +661,17 @@
                             <TextBlock HorizontalAlignment="Center" FontSize="11" Text="关于" />
                         </ui:StackPanel>
                     </ToggleButton>
-                </ui:StackPanel>
+                    </ui:StackPanel>
+                    <Button Grid.Row="2"
+                            Command="{Binding ExitApplicationCommand}"
+                            Style="{StaticResource ShellExitButtonStyle}">
+                        <ui:StackPanel Orientation="Horizontal" Spacing="5">
+                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                         Glyph="{x:Static ui:FontSymbols.PowerButton}" />
+                            <TextBlock Text="退出" />
+                        </ui:StackPanel>
+                    </Button>
+                </Grid>
             </Border>
             <Border x:Name="ShellContentSurface"
                     Grid.Column="2"
@@ -626,7 +693,8 @@
                     </ui:Grid.Style>
             <ui:Grid x:Name="HomeActionBar" Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
                 <ui:StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
-                    <Button MinWidth="72" Command="{Binding AddRoomCommand}">
+                    <Button MinWidth="72"
+                            Command="{Binding AddRoomCommand}">
                         <Button.Content>
                             <ui:StackPanel Orientation="Horizontal" Spacing="8">
                                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Add}" />
@@ -660,17 +728,8 @@
                             </ui:StackPanel>
                         </Button.Content>
                     </Button>
-                    <Button MinWidth="72" Command="{Binding ExitApplicationCommand}">
-                        <Button.Content>
-                            <ui:StackPanel Orientation="Horizontal" Spacing="8">
-                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.PowerButton}" />
-                                <TextBlock Text="退出" />
-                            </ui:StackPanel>
-                        </Button.Content>
-                    </Button>
                 </ui:StackPanel>
 
-                <FrameworkElement Grid.Column="2" />
             </ui:Grid>
 
             <Grid x:Name="HomePreviewLayoutRoot"
@@ -697,18 +756,39 @@
                         PreviewMouseRightButtonDown="RoomCardListPreviewMouseRightButtonDown">
                     <Border.ContextMenu>
                         <ContextMenu Placement="MousePoint" DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                            <MenuItem Header="刷新"
+                                      Command="{Binding RefreshRoomCardsCommand}" />
                             <MenuItem Header="卡片大小">
                                 <MenuItem Header="大" Click="SetRoomCardLargeClick" />
                                 <MenuItem Header="中" Click="SetRoomCardMediumClick" />
                                 <MenuItem Header="小" Click="SetRoomCardSmallClick" />
                             </MenuItem>
                             <MenuItem Header="排序">
-                                <MenuItem Header="按名称" Command="{Binding SortRoomsByNameCommand}" />
-                                <MenuItem Header="按添加顺序" Command="{Binding SortRoomsByAddedAtCommand}" />
+                                <MenuItem Header="按名称"
+                                          Command="{Binding SortRoomsByNameCommand}"
+                                          IsCheckable="True"
+                                          IsChecked="{Binding IsRoomSortByName, Mode=OneWay}"
+                                          Style="{StaticResource SelectedContextMenuOptionStyle}" />
+                                <MenuItem Header="按添加顺序"
+                                          Command="{Binding SortRoomsByAddedAtCommand}"
+                                          IsCheckable="True"
+                                          IsChecked="{Binding IsRoomSortByAddedAt, Mode=OneWay}"
+                                          Style="{StaticResource SelectedContextMenuOptionStyle}" />
                             </MenuItem>
-                            <Separator />
-                            <MenuItem Header="刷新" Command="{Binding RefreshRoomCardsCommand}" />
-                            <MenuItem Header="编辑模式" Command="{Binding ToggleCardEditModeCommand}" />
+                            <MenuItem Header="平台筛选"
+                                      SubmenuOpened="PlatformFilterMenuSubmenuOpened">
+                                <MenuItem Header="加载平台" IsEnabled="False" />
+                                <MenuItem.Style>
+                                    <Style TargetType="{x:Type MenuItem}" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsPlatformFilterActive}" Value="True">
+                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                                <Setter Property="Foreground" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </MenuItem.Style>
+                            </MenuItem>
                         </ContextMenu>
                     </Border.ContextMenu>
                     <Grid x:Name="RoomCardPanelContent"
@@ -771,13 +851,9 @@
                                             BorderBrush="Transparent"
                                             BorderThickness="0"
                                             CornerRadius="{StaticResource Win11ControlCornerRadius}"
-                                            RenderTransformOrigin="0.5,0.5"
                                             SnapsToDevicePixels="True"
                                             Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
                                             TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
-                                        <Border.RenderTransform>
-                                            <RotateTransform x:Name="RoomCardAngle" Angle="0" />
-                                        </Border.RenderTransform>
                                         <Border.ContextMenu>
                                             <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
                                                 <MenuItem Header="{I18N PreviewLiveRoom}"
@@ -787,28 +863,33 @@
                                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Play}" />
                                                     </MenuItem.Icon>
                                                 </MenuItem>
-                                                <MenuItem Header="{I18N GotoLiveRoom}" Command="{Binding GotoRoomUrlCommand}">
+                                                <MenuItem Header="{I18N GotoLiveRoom}"
+                                                          Command="{Binding GotoRoomUrlCommand}">
                                                     <MenuItem.Icon>
                                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.OpenInNewWindow}" />
                                                     </MenuItem.Icon>
                                                 </MenuItem>
-                                                <MenuItem Header="{I18N SaveFolder}" Command="{Binding OpenSaveFolderCommand}">
+                                                <MenuItem Header="{I18N SaveFolder}"
+                                                          Command="{Binding OpenSaveFolderCommand}">
                                                     <MenuItem.Icon>
                                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.FolderOpen}" />
                                                     </MenuItem.Icon>
                                                 </MenuItem>
                                                 <Separator />
-                                                <MenuItem Header="{I18N RowUpRoom}" Command="{Binding RowUpRoomUrlCommand}">
+                                                <MenuItem Header="{I18N RowUpRoom}"
+                                                          Command="{Binding RowUpRoomUrlCommand}">
                                                     <MenuItem.Icon>
                                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.ChevronUp}" />
                                                     </MenuItem.Icon>
                                                 </MenuItem>
-                                                <MenuItem Header="{I18N RowDownRoom}" Command="{Binding RowDownRoomUrlCommand}">
+                                                <MenuItem Header="{I18N RowDownRoom}"
+                                                          Command="{Binding RowDownRoomUrlCommand}">
                                                     <MenuItem.Icon>
                                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.ChevronDown}" />
                                                     </MenuItem.Icon>
                                                 </MenuItem>
-                                                <MenuItem Header="{I18N StopRecord}" Command="{Binding StopRecordCommand}">
+                                                <MenuItem Header="{I18N StopRecord}"
+                                                          Command="{Binding StopRecordCommand}">
                                                     <MenuItem.Icon>
                                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Stop}" />
                                                     </MenuItem.Icon>
@@ -823,7 +904,8 @@
                                                           IsCheckable="True"
                                                           IsChecked="{Binding SelectedItem.IsToRecord, Mode=TwoWay}" />
                                                 <Separator />
-                                                <MenuItem Header="{I18N RemoveRoom}" Command="{Binding RemoveRoomUrlCommand}">
+                                                 <MenuItem Header="{I18N RemoveRoom}"
+                                                           Command="{Binding RemoveRoomUrlCommand}">
                                                     <MenuItem.Icon>
                                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.CalculatorMultiply}" />
                                                     </MenuItem.Icon>
@@ -932,6 +1014,11 @@
                                             <Setter TargetName="RoomCardShell" Property="Background" Value="#2A4DA7B0" />
                                             <Setter TargetName="RoomCardShell" Property="BorderBrush" Value="#884DA7B0" />
                                         </MultiDataTrigger>
+                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                            <Setter TargetName="RoomCardShell" Property="Background" Value="#344DA7B0" />
+                                            <Setter TargetName="RoomCardShell" Property="BorderBrush" Value="#CC4DA7B0" />
+                                            <Setter TargetName="RoomCardShell" Property="BorderThickness" Value="1" />
+                                        </DataTrigger>
                                         <DataTrigger Binding="{Binding IsRefreshFlashActive}" Value="True">
                                             <DataTrigger.EnterActions>
                                                 <BeginStoryboard>
@@ -949,27 +1036,16 @@
                                             <Setter TargetName="RoomCardAvatarImage" Property="Visibility" Value="Collapsed" />
                                             <Setter TargetName="RoomCardAvatarPlaceholder" Property="Visibility" Value="Visible" />
                                         </DataTrigger>
-                                        <DataTrigger Binding="{Binding DataContext.IsCardEditMode, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="True">
-                                            <DataTrigger.EnterActions>
-                                                <BeginStoryboard x:Name="RoomCardWiggleStoryboard">
-                                                    <Storyboard AutoReverse="True" RepeatBehavior="Forever">
-                                                        <DoubleAnimation Storyboard.TargetName="RoomCardAngle"
-                                                                         Storyboard.TargetProperty="Angle"
-                                                                         From="-0.45"
-                                                                         To="0.45"
-                                                                         Duration="0:0:0.12"
-                                                                         FillBehavior="Stop" />
-                                                    </Storyboard>
-                                                </BeginStoryboard>
-                                            </DataTrigger.EnterActions>
-                                            <DataTrigger.ExitActions>
-                                                <StopStoryboard BeginStoryboardName="RoomCardWiggleStoryboard" />
-                                            </DataTrigger.ExitActions>
-                                        </DataTrigger>
                                     </DataTemplate.Triggers>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
+                        <Canvas Panel.ZIndex="30" IsHitTestVisible="False">
+                            <Rectangle x:Name="RoomCardSelectionRectangle"
+                                       Fill="#344DA7B0"
+                                       StrokeThickness="0"
+                                       Visibility="Collapsed" />
+                        </Canvas>
 
                         <ui:StackPanel HorizontalAlignment="Center"
                                        VerticalAlignment="Center"
@@ -1069,7 +1145,7 @@
                                         MinWidth="28"
                                         Padding="0"
                                         Command="{Binding RefreshSelectedRoomInfoCommand}"
-                                        ToolTip="刷新">
+                                        ToolTip="刷新直播间信息">
                                     <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                                  Glyph="{x:Static ui:FontSymbols.Sync}"
                                                  RenderTransformOrigin="0.5,0.5">
@@ -1136,7 +1212,7 @@
                                             Margin="8,0,0,0"
                                             Padding="0"
                                             Command="{Binding CopySelectedRoomUrlCommand}"
-                                            ToolTip="复制">
+                                            ToolTip="复制直播间地址">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Copy}" />
                                     </Button>
                                 </ui:Grid>
@@ -1151,7 +1227,7 @@
                                             Margin="8,0,0,0"
                                             Padding="0"
                                             Command="{Binding CopySelectedPreviewUrlCommand}"
-                                            ToolTip="复制">
+                                            ToolTip="复制直播流地址">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Copy}" />
                                     </Button>
                                 </ui:Grid>
@@ -1274,8 +1350,7 @@
                                Style="{StaticResource StatusTrayTextBlockStyle}"
                                Text="{Binding PlatformSummaryText}" />
                     <Button Command="{Binding TestNetworkCapacityCommand}"
-                            Style="{StaticResource StatusTrayCapacityButtonStyle}"
-                            ToolTip="{Binding NetworkCapacityToolTip}">
+                            Style="{StaticResource StatusTrayCapacityButtonStyle}">
                         <ui:StackPanel VerticalAlignment="Center"
                                        Orientation="Horizontal"
                                        Spacing="5">
@@ -1378,7 +1453,6 @@
                         <TextBlock Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                    Style="{StaticResource StatusTrayTextBlockStyle}"
                                    Text="{Binding StatusOfAutoShutdownCountdown}"
-                                   ToolTip="{Binding StatusOfAutoShutdownCountdownToolTip}"
                                    Visibility="{Binding StatusOfIsUseAutoShutdown, Converter={x:Static c:BoolToVisibilityConverter.Instance}}" />
                         <Border Width="1"
                                 Height="14"
@@ -1386,8 +1460,7 @@
                                 Background="{DynamicResource ControlStrokeColorDefaultBrush}"
                                 Opacity="0.55" />
                         <Button Command="{Binding OpenSettingsDialogCommand}"
-                                Style="{StaticResource StatusTrayChipButtonStyle}"
-                                ToolTip="{I18N RoutineInterval}">
+                                Style="{StaticResource StatusTrayChipButtonStyle}">
                             <TextBlock Style="{StaticResource StatusTrayTextBlockStyle}"
                                        Text="{Binding StatusOfRoutineIntervalWithUnit}" />
                         </Button>
@@ -1398,8 +1471,7 @@
                                 Opacity="0.55" />
                         <TextBlock Opacity="0.6"
                                    Style="{StaticResource StatusTrayTextBlockStyle}"
-                                   Text="{Binding StatusOfRecordFormat}"
-                                   ToolTip="{I18N RecordFormat}" />
+                                   Text="{Binding StatusOfRecordFormat}" />
                 </ui:StackPanel>
             </ui:Grid>
                 </ui:Grid>

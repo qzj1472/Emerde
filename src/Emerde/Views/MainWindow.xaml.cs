@@ -9,7 +9,6 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Emerde.Core;
@@ -204,8 +203,6 @@ public partial class MainWindow : FluentWindow
     private const double RoomCardSmallGapScale = 2d / 3d;
     private const double RoomCardScrollContentPadding = 6d;
     private const double RoomCardScrollBarReservedWidth = 17d;
-    private const int RoomCardDragDelayMilliseconds = 260;
-    private const int RoomCardBlankLongPressMilliseconds = 560;
     private const int WmNcCalcSize = 0x0083;
     private const int WmNcHitTest = 0x0084;
     private const int WmNcPaint = 0x0085;
@@ -223,14 +220,14 @@ public partial class MainWindow : FluentWindow
     private bool isPreviewRoomCardBaseWidthCaptured;
     private double roomCardSizePreference = RoomCardMediumSizeScale;
     private Point roomCardDragStart;
-    private DateTime roomCardPressedAt = DateTime.MinValue;
     private RoomStatusReactive? draggedRoom;
     private ListBoxItem? draggedRoomItem;
     private Point roomCardDragOffset;
     private bool isRoomCardDragging;
-    private DispatcherTimer? roomCardBlankPressTimer;
     private bool roomCardBlankPressCandidate;
     private Point roomCardBlankPressStart;
+    private bool isRoomCardMarqueeSelecting;
+    private Point roomCardMarqueeStart;
     private AdornerLayer? roomCardAdornerLayer;
     private DragPreviewAdorner? roomCardDragAdorner;
     private InsertionLineAdorner? roomCardInsertionAdorner;
@@ -378,13 +375,36 @@ public partial class MainWindow : FluentWindow
 
     private void MainWindowPreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Escape || !isPreviewFullScreen)
+        if (e.Key == Key.Escape && isPreviewFullScreen)
+        {
+            ExitPreviewFullScreen();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Escape && ViewModel.IsHomePageSelected && ViewModel.IsRoomMultiSelectMode)
+        {
+            ViewModel.CancelRoomMultiSelect();
+            e.Handled = true;
+            return;
+        }
+
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control
+            || !ViewModel.IsHomePageSelected)
         {
             return;
         }
 
-        ExitPreviewFullScreen();
-        e.Handled = true;
+        if (e.Key == Key.Z)
+        {
+            ViewModel.UndoRoomSelection();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Y)
+        {
+            ViewModel.RedoRoomSelection();
+            e.Handled = true;
+        }
     }
 
     private void MainWindowThreadPreprocessMessage(ref System.Windows.Interop.MSG msg, ref bool handled)
@@ -1246,7 +1266,6 @@ public partial class MainWindow : FluentWindow
         CancelRoomCardBlankPress();
         ListBoxItem? item = FindVisualParent<ListBoxItem>(e.OriginalSource as DependencyObject);
         roomCardDragStart = e.GetPosition(RoomCardList);
-        roomCardPressedAt = DateTime.Now;
 
         if (item == null)
         {
@@ -1258,7 +1277,7 @@ public partial class MainWindow : FluentWindow
         }
 
         ViewModel.IsRoomCardSelectionVisible = true;
-        draggedRoom = ViewModel.IsCardEditMode ? item.DataContext as RoomStatusReactive : null;
+        draggedRoom = item.DataContext as RoomStatusReactive;
         draggedRoomItem = draggedRoom == null ? null : item;
         roomCardDragOffset = e.GetPosition(item);
     }
@@ -1266,6 +1285,13 @@ public partial class MainWindow : FluentWindow
     private void RoomCardListPreviewMouseMove(object sender, MouseEventArgs e)
     {
         Point currentPosition = e.GetPosition(RoomCardList);
+
+        if (isRoomCardMarqueeSelecting)
+        {
+            UpdateRoomCardMarquee(currentPosition);
+            e.Handled = true;
+            return;
+        }
 
         if (isRoomCardDragging)
         {
@@ -1279,15 +1305,25 @@ public partial class MainWindow : FluentWindow
             bool movedBlank = Math.Abs(currentPosition.X - roomCardBlankPressStart.X) >= SystemParameters.MinimumHorizontalDragDistance ||
                 Math.Abs(currentPosition.Y - roomCardBlankPressStart.Y) >= SystemParameters.MinimumVerticalDragDistance;
 
-            if (movedBlank || e.LeftButton != MouseButtonState.Pressed)
+            if (e.LeftButton != MouseButtonState.Pressed)
             {
                 CancelRoomCardBlankPress();
+                return;
+            }
+
+            if (movedBlank)
+            {
+                Point start = roomCardBlankPressStart;
+                CancelRoomCardBlankPress();
+                StartRoomCardMarquee(start);
+                UpdateRoomCardMarquee(currentPosition);
+                e.Handled = true;
             }
 
             return;
         }
 
-        if (!ViewModel.IsCardEditMode || e.LeftButton != MouseButtonState.Pressed || draggedRoom == null || draggedRoomItem == null)
+        if (e.LeftButton != MouseButtonState.Pressed || draggedRoom == null || draggedRoomItem == null)
         {
             return;
         }
@@ -1295,8 +1331,7 @@ public partial class MainWindow : FluentWindow
         bool isHorizontalDrag = Math.Abs(currentPosition.X - roomCardDragStart.X) >= SystemParameters.MinimumHorizontalDragDistance;
         bool isVerticalDrag = Math.Abs(currentPosition.Y - roomCardDragStart.Y) >= SystemParameters.MinimumVerticalDragDistance;
 
-        if ((!isHorizontalDrag && !isVerticalDrag) ||
-            (DateTime.Now - roomCardPressedAt).TotalMilliseconds < RoomCardDragDelayMilliseconds)
+        if (!isHorizontalDrag && !isVerticalDrag)
         {
             return;
         }
@@ -1307,11 +1342,39 @@ public partial class MainWindow : FluentWindow
 
     private void RoomCardListPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        if (isRoomCardMarqueeSelecting)
+        {
+            FinishRoomCardMarquee(true);
+            e.Handled = true;
+            return;
+        }
+
         if (isRoomCardDragging)
         {
             FinishRoomCardDrag(true);
             e.Handled = true;
             return;
+        }
+
+        if (roomCardBlankPressCandidate)
+        {
+            CancelRoomCardBlankPress();
+            if (ViewModel.IsRoomMultiSelectMode)
+            {
+                ViewModel.CancelRoomMultiSelect();
+            }
+            e.Handled = true;
+            return;
+        }
+
+        if (draggedRoom != null)
+        {
+            bool toggleSelection = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+            bool selectRange = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+            ViewModel.SelectRoom(draggedRoom, toggleSelection, selectRange);
+            RoomCardList.SelectedItem = draggedRoom;
+            ViewModel.SelectedItem = draggedRoom;
+            e.Handled = true;
         }
 
         CancelRoomCardBlankPress();
@@ -1326,6 +1389,10 @@ public partial class MainWindow : FluentWindow
         if (FindVisualParent<ListBoxItem>(e.OriginalSource as DependencyObject) is ListBoxItem item &&
             item.DataContext is RoomStatusReactive room)
         {
+            if (!room.IsSelected)
+            {
+                ViewModel.SelectRoom(room, false, false);
+            }
             ViewModel.IsRoomCardSelectionVisible = true;
             RoomCardList.SelectedItem = room;
             ViewModel.SelectedItem = room;
@@ -1355,6 +1422,11 @@ public partial class MainWindow : FluentWindow
 
     private void RoomCardListLostMouseCapture(object sender, MouseEventArgs e)
     {
+        if (isRoomCardMarqueeSelecting)
+        {
+            FinishRoomCardMarquee(false);
+        }
+
         if (isRoomCardDragging)
         {
             FinishRoomCardDrag(false);
@@ -1365,44 +1437,77 @@ public partial class MainWindow : FluentWindow
     {
         roomCardBlankPressCandidate = true;
         roomCardBlankPressStart = position;
-        roomCardBlankPressTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(RoomCardBlankLongPressMilliseconds) };
-        roomCardBlankPressTimer.Tick -= RoomCardBlankPressTimerTick;
-        roomCardBlankPressTimer.Tick += RoomCardBlankPressTimerTick;
-        roomCardBlankPressTimer.Stop();
-        roomCardBlankPressTimer.Start();
-    }
-
-    private void RoomCardBlankPressTimerTick(object? sender, EventArgs e)
-    {
-        CancelRoomCardBlankPress();
-
-        if (Mouse.LeftButton != MouseButtonState.Pressed || FindRoomCardItemAt(Mouse.GetPosition(RoomCardList)) != null)
-        {
-            return;
-        }
-
-        if (ViewModel.ToggleCardEditModeCommand.CanExecute(null))
-        {
-            ViewModel.ToggleCardEditModeCommand.Execute(null);
-        }
     }
 
     private void CancelRoomCardBlankPress()
     {
         roomCardBlankPressCandidate = false;
-        roomCardBlankPressTimer?.Stop();
     }
 
-    private ListBoxItem? FindRoomCardItemAt(Point position)
+    private void StartRoomCardMarquee(Point position)
     {
-        return FindVisualParent<ListBoxItem>(RoomCardList.InputHitTest(position) as DependencyObject);
+        ViewModel.BeginRoomMultiSelect();
+        isRoomCardMarqueeSelecting = true;
+        roomCardMarqueeStart = position;
+        RoomCardSelectionRectangle.Visibility = Visibility.Visible;
+        RoomCardList.CaptureMouse();
+    }
+
+    private void UpdateRoomCardMarquee(Point position)
+    {
+        Rect selection = CreateSelectionRect(roomCardMarqueeStart, position);
+        Canvas.SetLeft(RoomCardSelectionRectangle, selection.Left);
+        Canvas.SetTop(RoomCardSelectionRectangle, selection.Top);
+        RoomCardSelectionRectangle.Width = selection.Width;
+        RoomCardSelectionRectangle.Height = selection.Height;
+    }
+
+    private void FinishRoomCardMarquee(bool commit)
+    {
+        Rect selection = CreateSelectionRect(roomCardMarqueeStart, Mouse.GetPosition(RoomCardList));
+        isRoomCardMarqueeSelecting = false;
+        RoomCardSelectionRectangle.Visibility = Visibility.Collapsed;
+        if (RoomCardList.IsMouseCaptured)
+        {
+            RoomCardList.ReleaseMouseCapture();
+        }
+
+        if (!commit || selection.Width < 1d || selection.Height < 1d)
+        {
+            return;
+        }
+
+        List<RoomStatusReactive> selectedRooms = [];
+        for (int index = 0; index < RoomCardList.Items.Count; index++)
+        {
+            if (RoomCardList.ItemContainerGenerator.ContainerFromIndex(index) is ListBoxItem item
+                && FindVisualChild<FrameworkElement>(item, "RoomCardShell") is FrameworkElement card
+                && selection.IntersectsWith(GetElementBounds(card, RoomCardList))
+                && item.DataContext is RoomStatusReactive room)
+            {
+                selectedRooms.Add(room);
+            }
+        }
+        ViewModel.SelectRooms(selectedRooms);
+    }
+
+    private static Rect CreateSelectionRect(Point start, Point end)
+    {
+        return new Rect(
+            new Point(Math.Min(start.X, end.X), Math.Min(start.Y, end.Y)),
+            new Point(Math.Max(start.X, end.X), Math.Max(start.Y, end.Y)));
     }
 
     private void StartRoomCardDrag(Point position)
     {
-        if (draggedRoomItem == null)
+        if (draggedRoom == null || draggedRoomItem == null)
         {
             return;
+        }
+
+        if (!draggedRoom.IsSelected)
+        {
+            ViewModel.SelectRoom(draggedRoom, false, false);
         }
 
         isRoomCardDragging = true;
@@ -1489,7 +1594,7 @@ public partial class MainWindow : FluentWindow
     {
         if (commit && draggedRoom != null && roomCardInsertionIndex >= 0)
         {
-            ViewModel.MoveRoom(draggedRoom, roomCardInsertionIndex);
+            ViewModel.MoveRooms(ViewModel.GetRoomsForMove(draggedRoom), roomCardInsertionIndex);
         }
 
         ClearRoomCardDrag();
@@ -1531,6 +1636,38 @@ public partial class MainWindow : FluentWindow
         draggedRoomItem = null;
     }
 
+    private void PlatformFilterMenuSubmenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.MenuItem menu)
+        {
+            return;
+        }
+
+        ViewModel.EnsureSelectedPlatformFilterAvailable();
+        menu.Items.Clear();
+        foreach (string option in ViewModel.PlatformFilterOptions)
+        {
+            System.Windows.Controls.MenuItem item = new()
+            {
+                Header = ViewModel.GetPlatformFilterDisplayName(option),
+                Tag = option,
+                IsCheckable = true,
+                IsChecked = string.Equals(option, ViewModel.SelectedPlatformFilter, StringComparison.OrdinalIgnoreCase),
+                Style = TryFindResource("SelectedContextMenuOptionStyle") as Style,
+            };
+            item.Click += PlatformFilterMenuItemClick;
+            menu.Items.Add(item);
+        }
+    }
+
+    private void PlatformFilterMenuItemClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.MenuItem { Tag: string platform })
+        {
+            ViewModel.SelectedPlatformFilter = platform;
+        }
+    }
+
     private static Brush CreateRoomCardDragBrush(FrameworkElement element)
     {
         double width = Math.Max(1d, element.ActualWidth);
@@ -1565,6 +1702,25 @@ public partial class MainWindow : FluentWindow
             child = VisualTreeHelper.GetParent(child);
         }
 
+        return null;
+    }
+
+    private static T? FindVisualChild<T>(DependencyObject parent, string name) where T : FrameworkElement
+    {
+        for (int index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(parent, index);
+            if (child is T match && match.Name == name)
+            {
+                return match;
+            }
+
+            T? nested = FindVisualChild<T>(child, name);
+            if (nested != null)
+            {
+                return nested;
+            }
+        }
         return null;
     }
 

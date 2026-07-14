@@ -39,7 +39,8 @@ namespace Emerde.ViewModels;
 [ObservableObject]
 public partial class MainViewModel : ReactiveObject, IDisposable
 {
-    private const string AllPlatformFilter = "All";
+    internal const string AllPlatformFilter = "";
+    internal const int RoomHistoryLimit = 200;
     private const long ManualRefreshCooldownMilliseconds = 5000;
     private const long PreviewQualityRefreshCooldownMilliseconds = 30000;
     private const string PreviewStreamQualityPreference = StreamQualityCatalog.Original;
@@ -60,8 +61,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private readonly object previewTransitionSync = new();
     private readonly object manualRefreshCooldownLock = new();
     private readonly Dictionary<string, long> previewQualityRefreshTimestamps = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Stack<RoomHistoryEntry> roomHistoryUndoStack = [];
+    private readonly Stack<RoomHistoryEntry> roomHistoryRedoStack = [];
     private CancellationTokenSource? previewTransitionCancellation;
     private long lastManualRefreshTimestamp;
+    private RoomStatusReactive? lastSelectedRoom;
     private readonly AutoShutdownSchedule autoShutdownSchedule = new();
     private AutoShutdownContentDialog? autoShutdownDialog;
     private bool forceShutdownAfterTranscode;
@@ -94,15 +98,53 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     public ICollectionView RoomStatusesView { get; }
 
-    public IReadOnlyList<string> PlatformFilterOptions { get; } = [AllPlatformFilter, .. Spider.SupportedPlatformNames];
+    public IReadOnlyList<string> PlatformFilterOptions => BuildPlatformFilterOptions(RoomStatuses);
+
+    internal static string[] BuildPlatformFilterOptions(IEnumerable<RoomStatusReactive> rooms)
+    {
+        return
+        [
+            AllPlatformFilter,
+            .. rooms
+            .Select(room => room.PlatformName)
+            .Where(platform => !string.IsNullOrWhiteSpace(platform))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(global::Emerde.Core.PlatformDisplayName.Get, StringComparer.CurrentCultureIgnoreCase),
+        ];
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PlatformSummaryText))]
+    [NotifyPropertyChangedFor(nameof(IsPlatformFilterActive))]
     private string selectedPlatformFilter = AllPlatformFilter;
+
+    public bool IsPlatformFilterActive => SelectedPlatformFilter != AllPlatformFilter;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsRoomSortByAddedAt))]
+    private bool isRoomSortByName;
+
+    public bool IsRoomSortByAddedAt => !IsRoomSortByName;
 
     partial void OnSelectedPlatformFilterChanged(string value)
     {
         RoomStatusesView.Refresh();
+    }
+
+    public string GetPlatformFilterDisplayName(string value)
+    {
+        return value == AllPlatformFilter ? "全部显示" : global::Emerde.Core.PlatformDisplayName.Get(value);
+    }
+
+    public void EnsureSelectedPlatformFilterAvailable()
+    {
+        if (SelectedPlatformFilter != AllPlatformFilter
+            && !RoomStatuses.Any(room => string.Equals(room.PlatformName, SelectedPlatformFilter, StringComparison.OrdinalIgnoreCase)))
+        {
+            SelectedPlatformFilter = AllPlatformFilter;
+        }
+
+        OnPropertyChanged(nameof(PlatformFilterOptions));
     }
 
     public string PlatformSummaryText
@@ -128,7 +170,17 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private bool isRoomCardSelectionVisible = true;
 
     [ObservableProperty]
-    private bool isCardEditMode = false;
+    private bool isRoomMultiSelectMode;
+
+    public int SelectedRoomCount => RoomStatuses.Count(room => room.IsSelected);
+
+    public bool HasSelectedRooms => SelectedRoomCount > 0;
+
+    public bool CanUndoRoomSelection => roomHistoryUndoStack.Count > 0;
+
+    public bool CanRedoRoomSelection => roomHistoryRedoStack.Count > 0;
+
+    public string SelectedRoomSummary => $"已选择 {SelectedRoomCount} 个直播间";
 
     [ObservableProperty]
     private bool isRefreshingSelectedRoomInfo = false;
@@ -241,6 +293,74 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         return Spider.ParseUrl(roomUrl) ?? roomUrl.Trim();
     }
 
+    private static RoomStatusReactive CreateRoomStatusReactive(Room room, int addedOrder)
+    {
+        return new RoomStatusReactive
+        {
+            NickName = room.NickName,
+            RoomUrl = room.RoomUrl,
+            AvatarThumbUrl = room.AvatarThumbUrl,
+            AvatarLocalPath = room.AvatarLocalPath,
+            PlatformName = string.IsNullOrWhiteSpace(room.PlatformName) ? Spider.GetPlatformName(room.RoomUrl) : room.PlatformName,
+            LiveTitle = room.LiveTitle,
+            Uid = room.Uid,
+            Quality = room.Quality,
+            Resolution = room.Resolution,
+            Bitrate = room.Bitrate,
+            Headers = room.Headers,
+            FlvUrl = room.FlvUrl,
+            HlsUrl = room.HlsUrl,
+            RecordUrl = room.RecordUrl,
+            IsToNotify = room.IsToNotify,
+            IsToRecord = room.IsToRecord,
+            IsToMonitor = room.IsToMonitor,
+            IsFollowGlobalSettings = room.IsFollowGlobalSettings,
+            AddedOrder = addedOrder,
+        };
+    }
+
+    internal static Room CloneRoom(Room room)
+    {
+        return new Room
+        {
+            NickName = room.NickName,
+            RoomUrl = room.RoomUrl,
+            AvatarThumbUrl = room.AvatarThumbUrl,
+            AvatarLocalPath = room.AvatarLocalPath,
+            PlatformName = room.PlatformName,
+            LiveTitle = room.LiveTitle,
+            Uid = room.Uid,
+            Quality = room.Quality,
+            Resolution = room.Resolution,
+            Bitrate = room.Bitrate,
+            Headers = room.Headers,
+            FlvUrl = room.FlvUrl,
+            HlsUrl = room.HlsUrl,
+            RecordUrl = room.RecordUrl,
+            LastInfoUpdatedAt = room.LastInfoUpdatedAt,
+            IsToNotify = room.IsToNotify,
+            IsToRecord = room.IsToRecord,
+            IsToMonitor = room.IsToMonitor,
+            IsFollowGlobalSettings = room.IsFollowGlobalSettings,
+            PreferredStreamQuality = room.PreferredStreamQuality,
+            RecordFormat = room.RecordFormat,
+            IsRemoveTs = room.IsRemoveTs,
+            IsToSegment = room.IsToSegment,
+            SegmentTime = room.SegmentTime,
+            SegmentTimeUnit = room.SegmentTimeUnit,
+            RoutineInterval = room.RoutineInterval,
+            RoutineScheduleMode = room.RoutineScheduleMode,
+            RoutineScheduleDays = room.RoutineScheduleDays,
+            RoutineScheduleStartHour = room.RoutineScheduleStartHour,
+            RoutineScheduleStartMinute = room.RoutineScheduleStartMinute,
+            RoutineScheduleEndHour = room.RoutineScheduleEndHour,
+            RoutineScheduleEndMinute = room.RoutineScheduleEndMinute,
+            SaveFolder = room.SaveFolder,
+            SaveFolderPathLevel = room.SaveFolderPathLevel,
+            SaveFileNameCustomRule = room.SaveFileNameCustomRule,
+        };
+    }
+
     partial void OnIsRecordingChanged(bool value)
     {
         TrayIconManager.GetInstance().UpdateTrayIcon();
@@ -344,28 +464,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         AutoShutdownDispatcherTimer = new(TimeSpan.FromSeconds(1), UpdateAutoShutdownState);
         Room[] configuredRooms = NormalizeStoredRooms(Configurations.Rooms.Get());
 
-        RoomStatuses.Reset(configuredRooms.Select((room, index) => new RoomStatusReactive()
-        {
-            NickName = room.NickName,
-            RoomUrl = room.RoomUrl,
-            AvatarThumbUrl = room.AvatarThumbUrl,
-            AvatarLocalPath = room.AvatarLocalPath,
-            PlatformName = string.IsNullOrWhiteSpace(room.PlatformName) ? Spider.GetPlatformName(room.RoomUrl) : room.PlatformName,
-            LiveTitle = room.LiveTitle,
-            Uid = room.Uid,
-            Quality = room.Quality,
-            Resolution = room.Resolution,
-            Bitrate = room.Bitrate,
-            Headers = room.Headers,
-            FlvUrl = room.FlvUrl,
-            HlsUrl = room.HlsUrl,
-            RecordUrl = room.RecordUrl,
-            IsToNotify = room.IsToNotify,
-            IsToRecord = room.IsToRecord,
-            IsToMonitor = room.IsToMonitor,
-            IsFollowGlobalSettings = room.IsFollowGlobalSettings,
-            AddedOrder = index,
-        }));
+        RoomStatuses.Reset(configuredRooms.Select(CreateRoomStatusReactive));
         RoomStatusesView = CollectionViewSource.GetDefaultView(RoomStatuses);
         RoomStatusesView.Filter = FilterRoomStatus;
 
@@ -1235,6 +1334,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     private void AddConfirmedRoom(string nickName, string roomUrl, ISpiderResult? spiderResult)
     {
+        RoomListHistoryState before = CaptureRoomListHistoryState();
         List<Room> rooms = [.. Configurations.Rooms.Get()];
 
         rooms.RemoveAll(room => room.RoomUrl == roomUrl);
@@ -1269,6 +1369,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         RoomStatuses.Add(roomStatusReactive);
         RoomStatusesView.Refresh();
         OnPropertyChanged(nameof(PlatformSummaryText));
+        OnPropertyChanged(nameof(PlatformFilterOptions));
+        PushRoomHistory(new RoomListHistoryEntry(before, CaptureRoomListHistoryState()));
     }
 
     [RelayCommand]
@@ -1337,6 +1439,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     [RelayCommand]
     private void SortRoomsByName()
     {
+        IsRoomSortByName = true;
         RoomStatusReactive? selected = SelectedItem;
         RoomStatuses.Reset(RoomStatuses
             .OrderBy(room => room.NickName, StringComparer.CurrentCultureIgnoreCase)
@@ -1351,6 +1454,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     [RelayCommand]
     private void SortRoomsByAddedAt()
     {
+        IsRoomSortByName = false;
         RoomStatusReactive? selected = SelectedItem;
         RoomStatuses.Reset(RoomStatuses
             .OrderBy(room => room.AddedOrder)
@@ -1942,69 +2046,363 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         target.IsFollowGlobalSettings = source.IsFollowGlobalSettings;
     }
 
-    [RelayCommand]
-    private void ToggleCardEditMode()
-    {
-        IsCardEditMode = !IsCardEditMode;
-        Toast.Success("SuccOp".Tr());
-    }
-
     public void MoveRoom(RoomStatusReactive source, int newVisibleIndex)
     {
-        if (!RoomStatuses.Contains(source))
+        MoveRooms([source], newVisibleIndex);
+    }
+
+    public void MoveRooms(IReadOnlyCollection<RoomStatusReactive> sources, int newVisibleIndex)
+    {
+        if (sources.Count == 0)
         {
             return;
         }
 
         List<RoomStatusReactive> visibleRooms = RoomStatusesView.Cast<RoomStatusReactive>().ToList();
-        int oldVisibleIndex = visibleRooms.IndexOf(source);
-
-        if (oldVisibleIndex < 0)
+        RoomStatusReactive[] movingRooms = visibleRooms.Where(sources.Contains).ToArray();
+        if (movingRooms.Length == 0)
         {
             return;
         }
 
-        newVisibleIndex = Math.Clamp(newVisibleIndex, 0, visibleRooms.Count);
-        if (oldVisibleIndex < newVisibleIndex)
-        {
-            newVisibleIndex--;
-        }
-
-        if (oldVisibleIndex == newVisibleIndex)
+        RoomStatusReactive[] nextOrder = BuildMovedRoomOrder(RoomStatuses.ToArray(), visibleRooms, movingRooms, newVisibleIndex);
+        if (RoomStatuses.SequenceEqual(nextOrder))
         {
             return;
         }
 
-        RoomStatusReactive? target = visibleRooms
-            .Where(room => !ReferenceEquals(room, source))
-            .ElementAtOrDefault(newVisibleIndex);
+        RoomStatusReactive selected = SelectedItem;
+        RoomStatuses.Reset(nextOrder);
+        RestoreSelectedRoom(selected);
+        SaveRoomOrder();
+        RoomStatusesView.Refresh();
+    }
 
-        int oldIndex = RoomStatuses.IndexOf(source);
-        int newIndex;
-
-        if (target == null)
+    internal static RoomStatusReactive[] BuildMovedRoomOrder(
+        IReadOnlyList<RoomStatusReactive> allRooms,
+        IReadOnlyList<RoomStatusReactive> visibleRooms,
+        IReadOnlyCollection<RoomStatusReactive> movingRooms,
+        int insertionIndex)
+    {
+        HashSet<RoomStatusReactive> moving = movingRooms.ToHashSet();
+        RoomStatusReactive[] orderedMoving = visibleRooms.Where(moving.Contains).ToArray();
+        RoomStatusReactive[] remainingVisible = visibleRooms.Where(room => !moving.Contains(room)).ToArray();
+        if (orderedMoving.Length == 0 || remainingVisible.Length == 0)
         {
-            newIndex = RoomStatuses.Count - 1;
+            return allRooms.ToArray();
         }
-        else
+
+        insertionIndex = Math.Clamp(insertionIndex, 0, visibleRooms.Count);
+        int removedBeforeInsertion = visibleRooms.Take(insertionIndex).Count(moving.Contains);
+        int adjustedInsertionIndex = Math.Clamp(insertionIndex - removedBeforeInsertion, 0, remainingVisible.Length);
+        RoomStatusReactive? target = remainingVisible.ElementAtOrDefault(adjustedInsertionIndex);
+        List<RoomStatusReactive> result = allRooms.Where(room => !moving.Contains(room)).ToList();
+        int targetIndex = target == null
+            ? result.IndexOf(remainingVisible[^1]) + 1
+            : result.IndexOf(target);
+        result.InsertRange(Math.Clamp(targetIndex, 0, result.Count), orderedMoving);
+        return result.ToArray();
+    }
+
+    internal RoomStatusReactive[] GetRoomsForMove(RoomStatusReactive source)
+    {
+        if (source.IsSelected)
         {
-            newIndex = RoomStatuses.IndexOf(target);
-            if (oldIndex < newIndex)
+            RoomStatusReactive[] selected = RoomStatusesView.Cast<RoomStatusReactive>().Where(room => room.IsSelected).ToArray();
+            if (selected.Length > 0)
             {
-                newIndex--;
+                return selected;
             }
         }
 
-        newIndex = Math.Clamp(newIndex, 0, Math.Max(0, RoomStatuses.Count - 1));
-        if (oldIndex == newIndex)
+        return [source];
+    }
+
+    internal void BeginRoomMultiSelect()
+    {
+        IsRoomMultiSelectMode = true;
+        RefreshRoomSelectionSummary();
+    }
+
+    internal void SelectRoom(RoomStatusReactive room, bool toggleSelection, bool selectRange)
+    {
+        BeginRoomMultiSelect();
+        ApplyRoomSelectionChange(() =>
+        {
+            RoomStatusReactive[] visibleRooms = RoomStatusesView.Cast<RoomStatusReactive>().ToArray();
+            if (selectRange && lastSelectedRoom != null)
+            {
+                int start = Array.IndexOf(visibleRooms, lastSelectedRoom);
+                int end = Array.IndexOf(visibleRooms, room);
+                if (start >= 0 && end >= 0)
+                {
+                    if (start > end)
+                    {
+                        (start, end) = (end, start);
+                    }
+
+                    for (int index = start; index <= end; index++)
+                    {
+                        visibleRooms[index].IsSelected = true;
+                    }
+                    lastSelectedRoom = room;
+                    return;
+                }
+            }
+
+            if (!toggleSelection)
+            {
+                foreach (RoomStatusReactive candidate in RoomStatuses)
+                {
+                    candidate.IsSelected = ReferenceEquals(candidate, room);
+                }
+            }
+            else
+            {
+                room.IsSelected = !room.IsSelected;
+            }
+            lastSelectedRoom = room.IsSelected ? room : null;
+        });
+    }
+
+    internal void SelectRooms(IEnumerable<RoomStatusReactive> rooms)
+    {
+        RoomStatusReactive[] targets = rooms.Distinct().ToArray();
+        if (targets.Length == 0)
         {
             return;
         }
 
-        RoomStatuses.Move(oldIndex, newIndex);
-        SelectedItem = source;
-        SaveRoomOrder();
+        BeginRoomMultiSelect();
+        ApplyRoomSelectionChange(() =>
+        {
+            foreach (RoomStatusReactive room in targets)
+            {
+                room.IsSelected = true;
+            }
+            lastSelectedRoom = targets[^1];
+        });
+    }
+
+    [RelayCommand]
+    private void SelectAllRoomCards()
+    {
+        BeginRoomMultiSelect();
+        ApplyRoomSelectionChange(() =>
+        {
+            foreach (RoomStatusReactive room in RoomStatusesView.Cast<RoomStatusReactive>())
+            {
+                room.IsSelected = true;
+            }
+        });
+    }
+
+    [RelayCommand]
+    private void InvertRoomCardSelection()
+    {
+        BeginRoomMultiSelect();
+        ApplyRoomSelectionChange(() =>
+        {
+            foreach (RoomStatusReactive room in RoomStatusesView.Cast<RoomStatusReactive>())
+            {
+                room.IsSelected = !room.IsSelected;
+            }
+        });
+    }
+
+    [RelayCommand]
+    internal void CancelRoomMultiSelect()
+    {
+        ApplyRoomSelectionChange(() =>
+        {
+            foreach (RoomStatusReactive room in RoomStatuses)
+            {
+                room.IsSelected = false;
+            }
+        });
+        IsRoomMultiSelectMode = false;
+        lastSelectedRoom = null;
+        RefreshRoomSelectionSummary();
+    }
+
+    [RelayCommand]
+    internal void UndoRoomSelection()
+    {
+        if (roomHistoryUndoStack.Count == 0)
+        {
+            return;
+        }
+
+        RoomHistoryEntry entry = roomHistoryUndoStack.Pop();
+        roomHistoryRedoStack.Push(entry);
+        RestoreRoomHistoryEntry(entry, restoreBefore: true);
+        RefreshRoomSelectionSummary();
+    }
+
+    [RelayCommand]
+    internal void RedoRoomSelection()
+    {
+        if (roomHistoryRedoStack.Count == 0)
+        {
+            return;
+        }
+
+        RoomHistoryEntry entry = roomHistoryRedoStack.Pop();
+        roomHistoryUndoStack.Push(entry);
+        RestoreRoomHistoryEntry(entry, restoreBefore: false);
+        RefreshRoomSelectionSummary();
+    }
+
+    private void ApplyRoomSelectionChange(Action change)
+    {
+        HashSet<string> before = CaptureSelectedRoomUrls();
+        change();
+        HashSet<string> after = CaptureSelectedRoomUrls();
+        if (!before.SetEquals(after))
+        {
+            PushRoomHistory(new RoomSelectionHistoryEntry(before, after));
+        }
+
+        RefreshRoomSelectionSummary();
+    }
+
+    private HashSet<string> CaptureSelectedRoomUrls()
+    {
+        return RoomStatuses.Where(room => room.IsSelected)
+            .Select(room => room.RoomUrl)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void RestoreRoomSelection(ISet<string> selectedRoomUrls)
+    {
+        foreach (RoomStatusReactive room in RoomStatuses)
+        {
+            room.IsSelected = selectedRoomUrls.Contains(room.RoomUrl);
+        }
+
+        IsRoomMultiSelectMode = selectedRoomUrls.Count > 0;
+        lastSelectedRoom = RoomStatusesView.Cast<RoomStatusReactive>().LastOrDefault(room => room.IsSelected);
+        RefreshRoomSelectionSummary();
+    }
+
+    private void ClearRoomSelection()
+    {
+        foreach (RoomStatusReactive room in RoomStatuses)
+        {
+            room.IsSelected = false;
+        }
+
+        IsRoomMultiSelectMode = false;
+        lastSelectedRoom = null;
+        RefreshRoomSelectionSummary();
+    }
+
+    private RoomListHistoryState CaptureRoomListHistoryState()
+    {
+        return new RoomListHistoryState(
+            Configurations.Rooms.Get().Select(CloneRoom).ToArray(),
+            CaptureSelectedRoomUrls(),
+            SelectedItem?.RoomUrl ?? string.Empty);
+    }
+
+    private void PushRoomHistory(RoomHistoryEntry entry)
+    {
+        roomHistoryUndoStack.Push(entry);
+        while (roomHistoryUndoStack.Count > RoomHistoryLimit)
+        {
+            RoomHistoryEntry[] entries = roomHistoryUndoStack.Reverse().Skip(1).ToArray();
+            roomHistoryUndoStack.Clear();
+            foreach (RoomHistoryEntry historyEntry in entries)
+            {
+                roomHistoryUndoStack.Push(historyEntry);
+            }
+        }
+        roomHistoryRedoStack.Clear();
+        RefreshRoomSelectionSummary();
+    }
+
+    private void RestoreRoomHistoryEntry(RoomHistoryEntry entry, bool restoreBefore)
+    {
+        switch (entry)
+        {
+            case RoomSelectionHistoryEntry selection:
+                RestoreRoomSelection(restoreBefore ? selection.Before : selection.After);
+                break;
+            case RoomListHistoryEntry roomList:
+                RestoreRoomListHistoryState(restoreBefore ? roomList.Before : roomList.After);
+                break;
+        }
+    }
+
+    private void RestoreRoomListHistoryState(RoomListHistoryState state)
+    {
+        HashSet<string> targetUrls = state.Rooms
+            .Select(room => room.RoomUrl)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (RoomStatusReactive room in RoomStatuses.Where(room => !targetUrls.Contains(room.RoomUrl)).ToArray())
+        {
+            StopAndRemoveMonitoredRoom(room.RoomUrl);
+        }
+
+        Room[] restoredConfiguration = BuildRestoredRoomConfiguration(Configurations.Rooms.Get(), state.Rooms);
+        Dictionary<string, RoomStatusReactive> currentRooms = RoomStatuses
+            .Where(room => !string.IsNullOrWhiteSpace(room.RoomUrl))
+            .GroupBy(room => room.RoomUrl, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+        RoomStatusReactive[] restoredRooms = state.Rooms
+            .Select((room, index) =>
+            {
+                if (currentRooms.TryGetValue(room.RoomUrl, out RoomStatusReactive? existing))
+                {
+                    existing.AddedOrder = index;
+                    return existing;
+                }
+                return CreateRoomStatusReactive(room, index);
+            })
+            .ToArray();
+
+        Configurations.Rooms.Set(restoredConfiguration);
+        ConfigurationManager.Save();
+        RoomStatuses.Reset(restoredRooms);
         RoomStatusesView.Refresh();
+        RestoreRoomSelection(state.SelectedRoomUrls);
+        SelectedItem = RoomStatuses.FirstOrDefault(room => string.Equals(room.RoomUrl, state.SelectedRoomUrl, StringComparison.OrdinalIgnoreCase))
+            ?? RoomStatuses.FirstOrDefault()
+            ?? new RoomStatusReactive();
+        OnPropertyChanged(nameof(PlatformSummaryText));
+        OnPropertyChanged(nameof(PlatformFilterOptions));
+    }
+
+    internal static Room[] BuildRestoredRoomConfiguration(IEnumerable<Room> currentRooms, IReadOnlyList<Room> targetRooms)
+    {
+        Dictionary<string, Room> currentConfiguration = currentRooms
+            .Where(room => !string.IsNullOrWhiteSpace(room.RoomUrl))
+            .GroupBy(room => room.RoomUrl, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+        return targetRooms
+            .Select(room => currentConfiguration.TryGetValue(room.RoomUrl, out Room? current)
+                ? CloneRoom(current)
+                : CloneRoom(room))
+            .ToArray();
+    }
+
+    private static void StopAndRemoveMonitoredRoom(string roomUrl)
+    {
+        if (GlobalMonitor.RoomStatus.TryGetValue(roomUrl, out RoomStatus? roomStatus))
+        {
+            roomStatus.Recorder.Stop();
+            _ = GlobalMonitor.RoomStatus.TryRemove(roomUrl, out _);
+        }
+        GlobalMonitor.ClearTemporaryRoomOverrides(roomUrl);
+    }
+
+    private void RefreshRoomSelectionSummary()
+    {
+        OnPropertyChanged(nameof(SelectedRoomCount));
+        OnPropertyChanged(nameof(HasSelectedRooms));
+        OnPropertyChanged(nameof(CanUndoRoomSelection));
+        OnPropertyChanged(nameof(CanRedoRoomSelection));
+        OnPropertyChanged(nameof(SelectedRoomSummary));
     }
 
     private void RestoreSelectedRoom(RoomStatusReactive? selected)
@@ -2348,37 +2746,49 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return;
         }
 
-        string roomUrl = SelectedItem.RoomUrl;
-        string nickName = SelectedItem.NickName;
+        RoomStatusReactive[] targets = IsRoomMultiSelectMode && SelectedItem.IsSelected
+            ? RoomStatuses.Where(room => room.IsSelected).ToArray()
+            : [SelectedItem];
+        if (targets.Length == 0)
+        {
+            return;
+        }
+
+        string prompt = targets.Length == 1
+            ? "SureRemoveRoom".Tr(targets[0].NickName)
+            : $"确定移除选中的 {targets.Length} 个直播间吗？";
         using DialogBlurScope blurScope = new(Application.Current.MainWindow);
-        MessageBoxResult result = await MessageBox.QuestionAsync("SureRemoveRoom".Tr(nickName));
+        MessageBoxResult result = await MessageBox.QuestionAsync(prompt);
 
         if (result == MessageBoxResult.Yes)
         {
-            if (GlobalMonitor.RoomStatus.TryGetValue(roomUrl, out RoomStatus? roomStatus))
-            {
-                roomStatus.Recorder.Stop();
-                _ = GlobalMonitor.RoomStatus.TryRemove(roomUrl, out _);
-            }
-            GlobalMonitor.ClearTemporaryRoomOverrides(roomUrl);
+            RoomListHistoryState before = CaptureRoomListHistoryState();
+            HashSet<string> roomUrls = targets.Select(room => room.RoomUrl).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            int removedIndex = targets
+                .Select(RoomStatuses.IndexOf)
+                .Where(index => index >= 0)
+                .DefaultIfEmpty(0)
+                .Min();
 
-            RoomStatusReactive? roomStatusReactive = RoomStatuses.FirstOrDefault(room => room.RoomUrl == roomUrl);
-            int removedIndex = roomStatusReactive == null ? -1 : RoomStatuses.IndexOf(roomStatusReactive);
-            if (roomStatusReactive != null)
+            foreach (RoomStatusReactive target in targets)
             {
-                RoomStatuses.Remove(roomStatusReactive);
+                StopAndRemoveMonitoredRoom(target.RoomUrl);
+                RoomStatuses.Remove(target);
             }
+
+            ClearRoomSelection();
             RoomStatusesView.Refresh();
             OnPropertyChanged(nameof(PlatformSummaryText));
+            OnPropertyChanged(nameof(PlatformFilterOptions));
 
             List<Room> rooms = [.. Configurations.Rooms.Get()];
-
-            rooms.RemoveAll(room => room.RoomUrl == roomUrl);
+            rooms.RemoveAll(room => roomUrls.Contains(room.RoomUrl));
             Configurations.Rooms.Set([.. rooms]);
             ConfigurationManager.Save();
             SelectedItem = RoomStatuses.Count == 0
                 ? new RoomStatusReactive()
                 : RoomStatuses[Math.Clamp(removedIndex, 0, RoomStatuses.Count - 1)];
+            PushRoomHistory(new RoomListHistoryEntry(before, CaptureRoomListHistoryState()));
 
             Toast.Success("SuccOp".Tr());
         }
@@ -2629,7 +3039,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return false;
         }
 
-        return SelectedPlatformFilter == AllPlatformFilter || room.PlatformName == SelectedPlatformFilter;
+        return SelectedPlatformFilter == AllPlatformFilter
+            || string.Equals(room.PlatformName, SelectedPlatformFilter, StringComparison.OrdinalIgnoreCase);
     }
 
     public void Dispose()
@@ -2648,3 +3059,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         livePreviewPlayer.Dispose();
     }
 }
+
+internal abstract record RoomHistoryEntry;
+
+internal sealed record RoomSelectionHistoryEntry(HashSet<string> Before, HashSet<string> After) : RoomHistoryEntry;
+
+internal sealed record RoomListHistoryState(Room[] Rooms, HashSet<string> SelectedRoomUrls, string SelectedRoomUrl);
+
+internal sealed record RoomListHistoryEntry(RoomListHistoryState Before, RoomListHistoryState After) : RoomHistoryEntry;
