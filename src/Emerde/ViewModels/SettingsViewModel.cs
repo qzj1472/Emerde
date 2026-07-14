@@ -1341,20 +1341,9 @@ public partial class SettingsViewModel : ReactiveObject
 
     private async Task RestartIfConfirmedAsync(string message)
     {
-        ContentDialog dialog = new()
-        {
-            Title = "重启软件",
-            Content = message,
-            CloseButtonText = "取消",
-            PrimaryButtonText = "立即重启",
-            DefaultButton = ContentDialogButton.Close,
-            Style = System.Windows.Application.Current.TryFindResource("DefaultVioletaContentDialogStyle") as System.Windows.Style,
-        };
-
-        using DialogBlurScope blurScope = DialogBlurScope.ForDialog(OwnerWindow, dialog);
-        ContentDialogResult result = await WindowSizing.ShowContentDialogAsync(dialog, OwnerWindow);
-
-        if (result == ContentDialogResult.Primary)
+        using DialogBlurScope blurScope = new(OwnerWindow);
+        System.Windows.MessageBoxResult result = await MessageBox.QuestionAsync(message);
+        if (result == System.Windows.MessageBoxResult.Yes)
         {
             TrayIconManager.GetInstance().RestartApplication(confirmRecording: false);
         }

@@ -8,6 +8,15 @@ namespace Emerde.Tests;
 
 public sealed class LivePreviewTests
 {
+    [Theory]
+    [InlineData(System.Windows.MessageBoxResult.None, false)]
+    [InlineData(System.Windows.MessageBoxResult.OK, true)]
+    [InlineData(System.Windows.MessageBoxResult.Cancel, false)]
+    public void ShouldPersistStartupAboutNoticeAcknowledgement_RequiresExplicitConfirmation(System.Windows.MessageBoxResult result, bool expected)
+    {
+        Assert.Equal(expected, MainWindow.ShouldPersistStartupAboutNoticeAcknowledgement(result));
+    }
+
     [Fact]
     public void ShouldRefreshPreviewStreamBeforePlayback_UsesCachedStreamImmediately()
     {

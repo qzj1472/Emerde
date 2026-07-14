@@ -1809,5 +1809,13 @@ namespace Emerde.Properties {
         public static string PreviewRestore {
             get { return ResourceManager.GetString("PreviewRestore", resourceCulture); }
         }
+
+        public static string StartupAboutNoticeTitle {
+            get { return ResourceManager.GetString("StartupAboutNoticeTitle", resourceCulture); }
+        }
+
+        public static string StartupAboutNoticeDescription {
+            get { return ResourceManager.GetString("StartupAboutNoticeDescription", resourceCulture); }
+        }
     }
 }

@@ -16,6 +16,7 @@ using Emerde.Core;
 using Emerde.ViewModels;
 using Vanara.PInvoke;
 using Wpf.Ui.Controls;
+using AppResources = Emerde.Properties.Resources;
 using Brush = System.Windows.Media.Brush;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MouseButtonState = System.Windows.Input.MouseButtonState;
@@ -1199,7 +1200,7 @@ public partial class MainWindow : FluentWindow
         }, DispatcherPriority.ContextIdle);
     }
 
-    private async Task ShowStartupAboutNoticeIfNeededAsync()
+    private Task ShowStartupAboutNoticeIfNeededAsync()
     {
         if (isStartupAboutNoticeShowing
             || Configurations.IsStartupAboutNoticeShown.Get()
@@ -1207,36 +1208,32 @@ public partial class MainWindow : FluentWindow
             || !IsVisible
             || WindowState == WindowState.Minimized)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         isStartupAboutNoticeShowing = true;
-        ContentDialog dialog = new()
-        {
-            Title = "StartupAboutNoticeTitle".Tr(),
-            Content = new System.Windows.Controls.TextBlock
-            {
-                Text = "StartupAboutNoticeDescription".Tr(),
-                TextWrapping = TextWrapping.Wrap,
-                LineHeight = 22,
-                MaxWidth = 520,
-            },
-            CloseButtonText = "ButtonOfAcknowledge".Tr(),
-            DefaultButton = ContentDialogButton.Close,
-            Style = Application.Current?.TryFindResource("DefaultVioletaContentDialogStyle") as Style,
-        };
-
-        using DialogBlurScope blurScope = DialogBlurScope.ForDialog(this, dialog);
         try
         {
-            await WindowSizing.ShowContentDialogAsync(dialog, this);
-            Configurations.IsStartupAboutNoticeShown.Set(true);
-            ConfigurationManager.Save();
+            using DialogBlurScope blurScope = new(this);
+            System.Windows.MessageBoxResult result = MessageBox.Information(
+                $"{AppResources.StartupAboutNoticeTitle}{Environment.NewLine}{Environment.NewLine}{AppResources.StartupAboutNoticeDescription}");
+            if (ShouldPersistStartupAboutNoticeAcknowledgement(result))
+            {
+                Configurations.IsStartupAboutNoticeShown.Set(true);
+                ConfigurationManager.Save();
+            }
         }
         finally
         {
             isStartupAboutNoticeShowing = false;
         }
+
+        return Task.CompletedTask;
+    }
+
+    internal static bool ShouldPersistStartupAboutNoticeAcknowledgement(System.Windows.MessageBoxResult result)
+    {
+        return result == System.Windows.MessageBoxResult.OK;
     }
 
     private void RoomCardListPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)

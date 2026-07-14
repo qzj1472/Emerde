@@ -178,6 +178,7 @@ public sealed class ResourceTextTests
             "PreviewFullScreen", "PreviewRestore", "AutoShutdownAfterTranscode", "AutoShutdownComputer",
             "AutoShutdownCancel", "AutoShutdownNow", "AutoShutdownAfterTranscodeNow", "ButtonOfAcknowledge",
             "AutoShutdownComputerDescription", "AutoShutdownApplicationDescription", "AutoShutdownComputerFailed",
+            "StartupAboutNoticeTitle", "StartupAboutNoticeDescription",
         ];
 
         foreach (string key in keys)
