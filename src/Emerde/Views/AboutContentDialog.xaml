@@ -196,6 +196,20 @@
             <Border MaxWidth="1040"
                     Padding="18"
                     HorizontalAlignment="Left"
+                    Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                    CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                <ui:StackPanel Spacing="8">
+                    <TextBlock FontWeight="SemiBold" Text="快捷键与选择操作" />
+                    <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               LineHeight="21"
+                               Text="首页：卡片可直接拖动排序；普通点击单选，按住 Ctrl 点击可增减选择，按住 Shift 点击可连续选择；Ctrl+Z 撤销最近 200 步选择、添加或删除操作，Ctrl+Y 恢复，Esc 清除选择。&#x0a;视频列表：普通点击为常规选中，双击打开视频；点击“多选”或按住 Ctrl、Shift 点击可进入多选，多选时点击卡片可增减选择；Ctrl+Z 撤销最近 200 步选择，Ctrl+Y 恢复，Esc 退出多选。&#x0a;预览全屏：按 Esc 退出全屏。&#x0a;数字输入框：按 ↑ 或 ↓ 调整数值，按 Enter 确认当前输入。&#x0a;首页和视频列表均可在空白区域按住鼠标左键拖动框选；视频列表空框不会进入多选。&#x0a;退出软件：侧边栏“退出”会结束 Emerde 并停止后台运行；标题栏右上角关闭按钮只关闭主窗口，Emerde 会继续在系统托盘后台运行。"
+                               TextWrapping="Wrap" />
+                </ui:StackPanel>
+            </Border>
+
+            <Border MaxWidth="1040"
+                    Padding="18"
+                    HorizontalAlignment="Left"
                     Background="#18D83B01"
                     BorderBrush="#66D83B01"
                     BorderThickness="1"
