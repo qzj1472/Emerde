@@ -5,6 +5,7 @@ using Emerde.Extensions;
 using Emerde.Properties;
 using Emerde.Threading;
 using Microsoft.VisualBasic.FileIO;
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -21,12 +22,19 @@ using System.Windows.Threading;
 using Windows.System;
 using WindowsAPICodePack.Dialogs;
 using Wpf.Ui.Violeta.Controls;
+using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+using Point = System.Windows.Point;
 
 namespace Emerde.Views;
 
 public partial class ScreenRecordListWindow : System.Windows.Controls.UserControl
 {
     private readonly DispatcherTimer visibleVideoLoadTimer = new() { Interval = TimeSpan.FromMilliseconds(180) };
+    private bool videoMarqueeCandidate;
+    private bool isVideoMarqueeSelecting;
+    private Point videoMarqueeStart;
+    private RecordedVideoItem? videoMarqueePressedItem;
+    private int videoMarqueeClickCount;
 
     public ScreenRecordListViewModel ViewModel { get; } = new();
 
@@ -39,6 +47,7 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         ViewModel.VisibleItemsChanged += (_, _) => ScheduleVisibleVideoLoading();
         Loaded += ScreenRecordListWindowLoaded;
         Unloaded += ScreenRecordListWindowUnloaded;
+        IsVisibleChanged += ScreenRecordListWindowIsVisibleChanged;
         SizeChanged += (_, _) => ScheduleVisibleVideoLoading();
         PreviewKeyDown += ScreenRecordListWindowPreviewKeyDown;
     }
@@ -46,14 +55,30 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
     private async void ScreenRecordListWindowLoaded(object sender, RoutedEventArgs e)
     {
         DialogBlurScope.ApplyBackdropBrush(VideoListModalOverlay);
-        await ViewModel.RefreshAsync();
-        ScheduleVisibleVideoLoading();
+        if (IsVisible)
+        {
+            await RefreshVisibleVideoListAsync();
+        }
     }
 
     private void ScreenRecordListWindowUnloaded(object sender, RoutedEventArgs e)
     {
         visibleVideoLoadTimer.Stop();
         ViewModel.CancelBackgroundLoading();
+    }
+
+    private async void ScreenRecordListWindowIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (IsLoaded && e.NewValue is true)
+        {
+            await RefreshVisibleVideoListAsync();
+        }
+    }
+
+    private async Task RefreshVisibleVideoListAsync()
+    {
+        await ViewModel.RefreshAsync();
+        ScheduleVisibleVideoLoading();
     }
 
     private void ScheduleVisibleVideoLoading()
@@ -96,6 +121,196 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         ScheduleVisibleVideoLoading();
     }
 
+    private void VideoSelectionHostPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        ListBoxItem? item = FindVisualParent<ListBoxItem>(e.OriginalSource as DependencyObject);
+        if (e.ChangedButton != MouseButton.Left
+            || ViewModel.IsModalOpen
+            || FindVisualParent<System.Windows.Controls.Primitives.ScrollBar>(e.OriginalSource as DependencyObject) != null
+            || item != null && IsInteractiveElement(e.OriginalSource as DependencyObject, item))
+        {
+            return;
+        }
+
+        videoMarqueeCandidate = true;
+        videoMarqueeStart = e.GetPosition(VideoListBox);
+        videoMarqueePressedItem = item?.DataContext as RecordedVideoItem;
+        videoMarqueeClickCount = e.ClickCount;
+        if (item != null)
+        {
+            e.Handled = true;
+        }
+    }
+
+    private void VideoSelectionHostPreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        Point position = e.GetPosition(VideoListBox);
+        if (isVideoMarqueeSelecting)
+        {
+            UpdateVideoMarquee(position);
+            e.Handled = true;
+            return;
+        }
+
+        if (!videoMarqueeCandidate)
+        {
+            return;
+        }
+
+        if (e.LeftButton != MouseButtonState.Pressed)
+        {
+            videoMarqueeCandidate = false;
+            videoMarqueePressedItem = null;
+            videoMarqueeClickCount = 0;
+            return;
+        }
+
+        bool moved = Math.Abs(position.X - videoMarqueeStart.X) >= SystemParameters.MinimumHorizontalDragDistance
+            || Math.Abs(position.Y - videoMarqueeStart.Y) >= SystemParameters.MinimumVerticalDragDistance;
+        if (!moved)
+        {
+            return;
+        }
+
+        videoMarqueeCandidate = false;
+        isVideoMarqueeSelecting = true;
+        VideoSelectionRectangle.Visibility = Visibility.Visible;
+        VideoListBox.CaptureMouse();
+        UpdateVideoMarquee(position);
+        e.Handled = true;
+    }
+
+    private void VideoSelectionHostPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!isVideoMarqueeSelecting)
+        {
+            if (videoMarqueeCandidate)
+            {
+                if (videoMarqueePressedItem != null)
+                {
+                    bool toggleSelection = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+                    bool selectRange = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+                    bool wasMultiSelectMode = ViewModel.IsMultiSelectMode;
+                    if (wasMultiSelectMode)
+                    {
+                        ViewModel.SelectMultipleItem(videoMarqueePressedItem, !selectRange, selectRange);
+                    }
+                    else if (toggleSelection || selectRange)
+                    {
+                        ViewModel.SelectMultipleItem(videoMarqueePressedItem, toggleSelection, selectRange);
+                    }
+                    else
+                    {
+                        ViewModel.SelectRegularItem(videoMarqueePressedItem);
+                    }
+                    if (ShouldOpenVideoFromClick(wasMultiSelectMode, toggleSelection, selectRange, videoMarqueeClickCount))
+                    {
+                        ViewModel.OpenVideoCommand.Execute(videoMarqueePressedItem);
+                    }
+                }
+                else if (!ViewModel.IsMultiSelectMode)
+                {
+                    ViewModel.ClearRegularSelection();
+                }
+                e.Handled = true;
+            }
+            videoMarqueeCandidate = false;
+            videoMarqueePressedItem = null;
+            videoMarqueeClickCount = 0;
+            return;
+        }
+
+        FinishVideoMarquee(true);
+        e.Handled = true;
+    }
+
+    private void VideoSelectionHostLostMouseCapture(object sender, MouseEventArgs e)
+    {
+        if (isVideoMarqueeSelecting)
+        {
+            FinishVideoMarquee(false);
+            return;
+        }
+
+        videoMarqueeCandidate = false;
+        videoMarqueePressedItem = null;
+        videoMarqueeClickCount = 0;
+    }
+
+    private void UpdateVideoMarquee(Point position)
+    {
+        Rect selection = CreateSelectionRect(videoMarqueeStart, position);
+        Canvas.SetLeft(VideoSelectionRectangle, selection.Left);
+        Canvas.SetTop(VideoSelectionRectangle, selection.Top);
+        VideoSelectionRectangle.Width = selection.Width;
+        VideoSelectionRectangle.Height = selection.Height;
+    }
+
+    private void FinishVideoMarquee(bool commit)
+    {
+        Rect selection = CreateSelectionRect(videoMarqueeStart, Mouse.GetPosition(VideoListBox));
+        isVideoMarqueeSelecting = false;
+        videoMarqueeCandidate = false;
+        videoMarqueePressedItem = null;
+        videoMarqueeClickCount = 0;
+        VideoSelectionRectangle.Visibility = Visibility.Collapsed;
+        if (VideoListBox.IsMouseCaptured)
+        {
+            VideoListBox.ReleaseMouseCapture();
+        }
+
+        if (!commit || selection.Width < 1d || selection.Height < 1d)
+        {
+            return;
+        }
+
+        List<RecordedVideoItem> selectedItems = [];
+        for (int index = 0; index < VideoListBox.Items.Count; index++)
+        {
+            if (VideoListBox.ItemContainerGenerator.ContainerFromIndex(index) is ListBoxItem item
+                && selection.IntersectsWith(item.TransformToVisual(VideoListBox).TransformBounds(new Rect(0, 0, item.ActualWidth, item.ActualHeight)))
+                && item.DataContext is RecordedVideoItem video)
+            {
+                selectedItems.Add(video);
+            }
+        }
+        ViewModel.SelectItems(selectedItems);
+    }
+
+    private void VideoSelectionHostPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (FindVisualParent<ListBoxItem>(e.OriginalSource as DependencyObject) is not ListBoxItem item
+            || item.DataContext is not RecordedVideoItem video)
+        {
+            return;
+        }
+
+        if (ViewModel.IsMultiSelectMode)
+        {
+            if (!video.IsSelected)
+            {
+                ViewModel.SelectMultipleItem(video, false, false);
+            }
+        }
+        else
+        {
+            ViewModel.SelectRegularItem(video);
+        }
+        item.Focus();
+    }
+
+    internal static bool ShouldOpenVideoFromClick(bool isMultiSelectMode, bool toggleSelection, bool selectRange, int clickCount)
+    {
+        return !isMultiSelectMode && !toggleSelection && !selectRange && clickCount >= 2;
+    }
+
+    private static Rect CreateSelectionRect(Point start, Point end)
+    {
+        return new Rect(
+            new Point(Math.Min(start.X, end.X), Math.Min(start.Y, end.Y)),
+            new Point(Math.Max(start.X, end.X), Math.Max(start.Y, end.Y)));
+    }
+
     private void VideoCardLoaded(object sender, RoutedEventArgs e)
     {
         ScheduleVisibleVideoLoading();
@@ -109,36 +324,18 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         }
 
         e.Handled = true;
-        ViewModel.ToggleSelection(item, (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift);
-    }
-
-    private void VideoCardMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is not FrameworkElement { DataContext: RecordedVideoItem item }
-            || IsInteractiveElement(e.OriginalSource as DependencyObject, sender as DependencyObject))
-        {
-            return;
-        }
-
-        if (ViewModel.IsMultiSelectMode)
-        {
-            if (e.ClickCount == 1)
-            {
-                ViewModel.ToggleSelection(item, (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift);
-            }
-            e.Handled = true;
-            return;
-        }
-
-        if (e.ClickCount >= 2)
-        {
-            ViewModel.OpenVideoCommand.Execute(item);
-            e.Handled = true;
-        }
+        ViewModel.SelectMultipleItem(item, true, (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift);
     }
 
     private void ScreenRecordListWindowPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && ViewModel.IsMultiSelectMode)
+        {
+            ViewModel.CancelMultiSelectCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
         if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
         {
             return;
@@ -173,6 +370,19 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         return false;
     }
 
+    private static T? FindVisualParent<T>(DependencyObject? source) where T : DependencyObject
+    {
+        while (source != null)
+        {
+            if (source is T match)
+            {
+                return match;
+            }
+            source = System.Windows.Media.VisualTreeHelper.GetParent(source);
+        }
+        return null;
+    }
+
     private void VideoListModalOverlayMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (ReferenceEquals(e.OriginalSource, sender) && ViewModel.IsIdle)
@@ -180,6 +390,47 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
             ViewModel.CloseModalCommand.Execute(null);
             e.Handled = true;
         }
+    }
+}
+
+internal sealed class ThumbnailImageConverter : IValueConverter
+{
+    public static ThumbnailImageConverter Instance { get; } = new();
+
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is not string path || !File.Exists(path))
+        {
+            return DependencyProperty.UnsetValue;
+        }
+
+        try
+        {
+            return LoadImage(path);
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e);
+            return DependencyProperty.UnsetValue;
+        }
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+
+    internal static System.Windows.Media.ImageSource LoadImage(string path)
+    {
+        using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        System.Windows.Media.Imaging.BitmapImage image = new();
+        image.BeginInit();
+        image.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+        image.DecodePixelWidth = 320;
+        image.StreamSource = stream;
+        image.EndInit();
+        image.Freeze();
+        return image;
     }
 }
 
@@ -208,8 +459,9 @@ public partial class ScreenRecordListViewModel : ObservableObject
     ];
 
     private readonly ObservableCollection<RecordedVideoItem> videos = [];
-    private const int SelectionHistoryLimit = 50;
+    internal const int SelectionHistoryLimit = 200;
     private readonly SemaphoreSlim videoEnrichmentSemaphore = new(Math.Clamp(Environment.ProcessorCount, 2, 4));
+    private readonly ConcurrentDictionary<string, Lazy<Task<string>>> thumbnailExtractionTasks = new(StringComparer.OrdinalIgnoreCase);
     private readonly object videoEnrichmentLock = new();
     private readonly HashSet<string> queuedVideoEnrichmentPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly Stack<SelectionSnapshot> selectionUndoStack = [];
@@ -232,11 +484,16 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SortDirectionText))]
+    [NotifyPropertyChangedFor(nameof(SortDirectionToolTip))]
     private bool isSortDescending = true;
 
     public string SortDirectionText => IsSortDescending
         ? GetResourceText("SortDescending", "Descending")
         : GetResourceText("SortAscending", "Ascending");
+
+    public string SortDirectionToolTip => IsSortDescending
+        ? "当前按录制时间倒序排列，最新录制的视频在最前面"
+        : "当前按录制时间顺序排列，最早录制的视频在最前面";
 
     [ObservableProperty]
     private string selectedStreamer = AllStreamerOption;
@@ -265,6 +522,9 @@ public partial class ScreenRecordListViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(SelectedVideoSummary))]
     [NotifyPropertyChangedFor(nameof(HasSelectedVideos))]
     private bool isMultiSelectMode;
+
+    [ObservableProperty]
+    private RecordedVideoItem? regularSelectedItem;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsModalOpen))]
@@ -392,9 +652,9 @@ public partial class ScreenRecordListViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ToggleMultiSelect()
+    private void BeginMultiSelect()
     {
-        IsMultiSelectMode = true;
+        ApplySelectionChange(() => IsMultiSelectMode = true);
     }
 
     [RelayCommand]
@@ -406,10 +666,9 @@ public partial class ScreenRecordListViewModel : ObservableObject
             {
                 item.IsSelected = false;
             }
+            IsMultiSelectMode = false;
+            lastSelectedItem = null;
         });
-
-        IsMultiSelectMode = false;
-        lastSelectedItem = null;
     }
 
     [RelayCommand]
@@ -436,10 +695,28 @@ public partial class ScreenRecordListViewModel : ObservableObject
         });
     }
 
-    internal void ToggleSelection(RecordedVideoItem item, bool selectRange)
+    internal void SelectRegularItem(RecordedVideoItem item)
     {
+        RegularSelectedItem = item;
+    }
+
+    internal void ClearRegularSelection()
+    {
+        RegularSelectedItem = null;
+    }
+
+    internal void SelectMultipleItem(RecordedVideoItem item, bool toggleSelection, bool selectRange)
+    {
+        bool wasMultiSelectMode = IsMultiSelectMode;
         ApplySelectionChange(() =>
         {
+            IsMultiSelectMode = true;
+            if (!wasMultiSelectMode && RegularSelectedItem != null)
+            {
+                RegularSelectedItem.IsSelected = true;
+                lastSelectedItem = RegularSelectedItem;
+            }
+
             if (selectRange && lastSelectedItem != null)
             {
                 RecordedVideoItem[] visible = GetVisibleVideos();
@@ -456,15 +733,39 @@ public partial class ScreenRecordListViewModel : ObservableObject
                     {
                         visible[index].IsSelected = true;
                     }
+                    lastSelectedItem = item;
                     return;
                 }
             }
 
-            item.IsSelected = !item.IsSelected;
-            if (item.IsSelected)
+            if (!toggleSelection)
             {
-                lastSelectedItem = item;
+                item.IsSelected = true;
             }
+            else
+            {
+                item.IsSelected = !item.IsSelected;
+            }
+            lastSelectedItem = item.IsSelected ? item : null;
+        });
+    }
+
+    internal void SelectItems(IEnumerable<RecordedVideoItem> items)
+    {
+        RecordedVideoItem[] targets = items.Distinct().ToArray();
+        if (targets.Length == 0)
+        {
+            return;
+        }
+
+        ApplySelectionChange(() =>
+        {
+            IsMultiSelectMode = true;
+            foreach (RecordedVideoItem item in targets)
+            {
+                item.IsSelected = true;
+            }
+            lastSelectedItem = targets[^1];
         });
     }
 
@@ -477,7 +778,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
         SelectionSnapshot snapshot = selectionUndoStack.Pop();
         selectionRedoStack.Push(snapshot);
-        RestoreSelection(snapshot.Before);
+        RestoreSelection(snapshot.Before, snapshot.BeforeMultiSelectMode);
     }
 
     internal void RedoSelection()
@@ -489,7 +790,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
         SelectionSnapshot snapshot = selectionRedoStack.Pop();
         selectionUndoStack.Push(snapshot);
-        RestoreSelection(snapshot.After);
+        RestoreSelection(snapshot.After, snapshot.AfterMultiSelectMode);
     }
 
     [RelayCommand]
@@ -905,7 +1206,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
                 {
                     FileSystem.DeleteFile(item.FullPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
                     VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(item.FullPath, sendToRecycleBin: true);
-                    DeleteThumbnailCache(item.FullPath);
+                    DeleteThumbnailCacheIfUnused(item.FullPath);
                     deleted++;
                 }
             }
@@ -991,7 +1292,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
                         TransferVideoFile(item.FullPath, targetPath, move);
                         if (move)
                         {
-                            DeleteThumbnailCache(item.FullPath);
+                            DeleteThumbnailCacheIfUnused(item.FullPath);
                         }
                     });
                     succeeded++;
@@ -1046,8 +1347,11 @@ public partial class ScreenRecordListViewModel : ObservableObject
         {
             items = await Task.Run(() =>
             {
-                return EnumerateVideoFiles(folder)
+                string[] videoPaths = EnumerateVideoFiles(folder)
                     .Where(path => VideoExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+                    .ToArray();
+                CleanupOrphanedThumbnailCache(videoPaths);
+                return videoPaths
                     .Select(path =>
                     {
                         loadToken.ThrowIfCancellationRequested();
@@ -1070,6 +1374,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
             .Where(video => video.IsSelected)
             .Select(video => video.FullPath)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        string regularSelectedPath = RegularSelectedItem?.FullPath ?? string.Empty;
         foreach (RecordedVideoItem item in videos)
         {
             item.PropertyChanged -= VideoItemPropertyChanged;
@@ -1088,6 +1393,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         ApplyFilters();
         RefreshSelectionSummary();
         lastSelectedItem = GetVisibleVideos().LastOrDefault(item => item.IsSelected);
+        RegularSelectedItem = videos.FirstOrDefault(item => string.Equals(item.FullPath, regularSelectedPath, StringComparison.OrdinalIgnoreCase));
         VisibleItemsChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -1452,7 +1758,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         });
     }
 
-    private static async Task<string> ExtractThumbnailAsync(string filePath, CancellationToken token)
+    private async Task<string> ExtractThumbnailAsync(string filePath, CancellationToken token)
     {
         string? ffmpegPath = SearchFileHelper.SearchExecutable("ffmpeg.exe");
         if (string.IsNullOrWhiteSpace(ffmpegPath) || !File.Exists(filePath))
@@ -1464,6 +1770,27 @@ public partial class ScreenRecordListViewModel : ObservableObject
         Directory.CreateDirectory(cacheDir);
         string imagePath = GetThumbnailCachePath(filePath);
 
+        if (IsThumbnailCacheCurrent(filePath, imagePath))
+        {
+            return imagePath;
+        }
+
+        Lazy<Task<string>> extraction = thumbnailExtractionTasks.GetOrAdd(
+            imagePath,
+            _ => new Lazy<Task<string>>(
+                () => ExtractThumbnailCoreAsync(ffmpegPath, filePath, imagePath, token),
+                LazyThreadSafetyMode.ExecutionAndPublication));
+        Task<string> extractionTask = extraction.Value;
+        _ = extractionTask.ContinueWith(
+            _ => thumbnailExtractionTasks.TryRemove(new KeyValuePair<string, Lazy<Task<string>>>(imagePath, extraction)),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+        return await extractionTask.WaitAsync(token);
+    }
+
+    private static async Task<string> ExtractThumbnailCoreAsync(string ffmpegPath, string filePath, string imagePath, CancellationToken token)
+    {
         if (IsThumbnailCacheCurrent(filePath, imagePath))
         {
             return imagePath;
@@ -1531,17 +1858,24 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     internal static string GetThumbnailCachePath(string filePath)
     {
-        return Path.Combine(GetThumbnailCacheDirectory(), $"{ToStableHash(filePath)}.jpg");
+        return GetThumbnailCachePath(filePath, GetThumbnailCacheDirectory());
     }
 
-    internal static string GetExistingThumbnailPath(string filePath, string coverPath)
+    internal static string GetThumbnailCachePath(string filePath, string cacheDirectory)
+    {
+        return Path.Combine(cacheDirectory, $"{ToStableHash(GetThumbnailIdentity(filePath))}.jpg");
+    }
+
+    internal static string GetExistingThumbnailPath(string filePath, string coverPath, string? cacheDirectory = null)
     {
         if (File.Exists(coverPath))
         {
             return coverPath;
         }
 
-        string cachePath = GetThumbnailCachePath(filePath);
+        string cachePath = cacheDirectory == null
+            ? GetThumbnailCachePath(filePath)
+            : GetThumbnailCachePath(filePath, cacheDirectory);
         return IsThumbnailCacheCurrent(filePath, cachePath) ? cachePath : string.Empty;
     }
 
@@ -1565,6 +1899,55 @@ public partial class ScreenRecordListViewModel : ObservableObject
         FileInfo video = new(filePath);
         FileInfo thumbnail = new(cachePath);
         return thumbnail.Length > 0 && thumbnail.LastWriteTimeUtc >= video.LastWriteTimeUtc;
+    }
+
+    private static string GetThumbnailIdentity(string filePath)
+    {
+        string fullPath = Path.GetFullPath(filePath);
+        string directory = Path.GetDirectoryName(fullPath) ?? string.Empty;
+        string stem = Path.GetFileNameWithoutExtension(fullPath);
+        return Path.Combine(directory, stem).ToUpperInvariant();
+    }
+
+    internal static int CleanupOrphanedThumbnailCache(IEnumerable<string> videoFilePaths, string? cacheDirectory = null)
+    {
+        string directory = cacheDirectory ?? GetThumbnailCacheDirectory();
+        if (!Directory.Exists(directory))
+        {
+            return 0;
+        }
+
+        HashSet<string> expectedFileNames = videoFilePaths
+            .Select(path => Path.GetFileName(GetThumbnailCachePath(path, directory)))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        int deleted = 0;
+
+        try
+        {
+            foreach (string thumbnailPath in Directory.EnumerateFiles(directory, "*.jpg", System.IO.SearchOption.TopDirectoryOnly))
+            {
+                if (expectedFileNames.Contains(Path.GetFileName(thumbnailPath)))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    File.Delete(thumbnailPath);
+                    deleted++;
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    Debug.WriteLine(e);
+                }
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Debug.WriteLine(e);
+        }
+
+        return deleted;
     }
 
     internal static void CopyAssociatedMetadata(string sourceFilePath, string targetFilePath)
@@ -1666,7 +2049,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
             }
 
             VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(sourceFilePath);
-            DeleteThumbnailCache(sourceFilePath);
+            DeleteThumbnailCacheIfUnused(sourceFilePath);
         }
         catch
         {
@@ -1679,12 +2062,32 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
     }
 
-    private static void DeleteThumbnailCache(string filePath)
+    internal static bool DeleteThumbnailCacheIfUnused(string filePath, string? cacheDirectory = null)
     {
-        string cachePath = GetThumbnailCachePath(filePath);
-        if (File.Exists(cachePath))
+        string directory = Path.GetDirectoryName(Path.GetFullPath(filePath)) ?? string.Empty;
+        string stem = Path.GetFileNameWithoutExtension(filePath);
+        if (VideoExtensions.Any(extension => File.Exists(Path.Combine(directory, stem + extension))))
+        {
+            return false;
+        }
+
+        string cachePath = cacheDirectory == null
+            ? GetThumbnailCachePath(filePath)
+            : GetThumbnailCachePath(filePath, cacheDirectory);
+        if (!File.Exists(cachePath))
+        {
+            return false;
+        }
+
+        try
         {
             File.Delete(cachePath);
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Debug.WriteLine(e);
+            return false;
         }
     }
 
@@ -1956,11 +2359,13 @@ public partial class ScreenRecordListViewModel : ObservableObject
     private void ApplySelectionChange(Action change)
     {
         HashSet<string> before = CaptureSelectedPaths();
+        bool beforeMultiSelectMode = IsMultiSelectMode;
         change();
         HashSet<string> after = CaptureSelectedPaths();
-        if (!before.SetEquals(after))
+        bool afterMultiSelectMode = IsMultiSelectMode;
+        if (!before.SetEquals(after) || beforeMultiSelectMode != afterMultiSelectMode)
         {
-            selectionUndoStack.Push(new SelectionSnapshot(before, after));
+            selectionUndoStack.Push(new SelectionSnapshot(before, after, beforeMultiSelectMode, afterMultiSelectMode));
             while (selectionUndoStack.Count > SelectionHistoryLimit)
             {
                 SelectionSnapshot[] snapshots = selectionUndoStack.Reverse().Skip(1).ToArray();
@@ -1983,7 +2388,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
-    private void RestoreSelection(ISet<string> selectedPaths)
+    private void RestoreSelection(ISet<string> selectedPaths, bool multiSelectMode)
     {
         isRestoringSelection = true;
         try
@@ -1999,6 +2404,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
 
         lastSelectedItem = GetVisibleVideos().LastOrDefault(item => item.IsSelected);
+        IsMultiSelectMode = multiSelectMode;
         RefreshSelectionSummary();
     }
 
@@ -2422,7 +2828,11 @@ internal readonly record struct VideoProbeInfo(string Resolution, string Bitrate
     public static VideoProbeInfo Empty { get; } = new(string.Empty, string.Empty, null);
 }
 
-internal sealed record SelectionSnapshot(HashSet<string> Before, HashSet<string> After);
+internal sealed record SelectionSnapshot(
+    HashSet<string> Before,
+    HashSet<string> After,
+    bool BeforeMultiSelectMode,
+    bool AfterMultiSelectMode);
 
 public partial class RecordedVideoItem : ObservableObject
 {

@@ -42,42 +42,130 @@
     <Grid x:Name="VideoListDialogContent">
         <Grid x:Name="VideoListContentRoot" Margin="0">
             <Grid.RowDefinitions>
-                <RowDefinition Height="48" />
-                <RowDefinition Height="Auto" />
+                <RowDefinition Height="84" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
             <Grid Grid.Row="0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="42" />
+                    <RowDefinition Height="42" />
+                </Grid.RowDefinitions>
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-                <ui:StackPanel Grid.Column="0"
-                               HorizontalAlignment="Left"
-                               VerticalAlignment="Center"
-                               Orientation="Horizontal"
-                               Spacing="8">
-                    <TextBlock Margin="0,0,12,0"
-                               VerticalAlignment="Center"
-                               FontSize="22"
-                               FontWeight="SemiBold"
-                               Text="{I18N VideoListTitle}" />
-                    <Button Command="{Binding RefreshCommand}"
-                            IsEnabled="{Binding IsIdle}"
-                            Style="{StaticResource VideoListToolbarButtonStyle}">
-                        <ui:StackPanel Orientation="Horizontal" Spacing="7">
-                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                         Glyph="{x:Static ui:FontSymbols.Sync}" />
-                            <TextBlock Text="{I18N RefreshButton}" />
-                        </ui:StackPanel>
-                    </Button>
+                    <StackPanel Grid.Column="0"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal">
+                        <TextBlock Margin="0,0,12,0"
+                                   VerticalAlignment="Center"
+                                   FontSize="22"
+                                   FontWeight="SemiBold"
+                                   Text="{I18N VideoListTitle}" />
+                        <Button Command="{Binding RefreshCommand}"
+                                Margin="0,0,8,0"
+                                IsEnabled="{Binding IsIdle}"
+                                Style="{StaticResource VideoListToolbarButtonStyle}">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             Margin="0,0,7,0"
+                                             Glyph="{x:Static ui:FontSymbols.Sync}" />
+                                <TextBlock Text="{I18N RefreshButton}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Command="{Binding ImportFolderCommand}"
+                                Margin="0,0,8,0"
+                                IsEnabled="{Binding IsIdle}"
+                                Style="{StaticResource VideoListToolbarButtonStyle}">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             Margin="0,0,7,0"
+                                             Glyph="{x:Static ui:FontSymbols.FolderOpen}" />
+                                <TextBlock Text="{I18N ImportFolder}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Command="{Binding OpenSaveFolderCommand}"
+                                Style="{StaticResource VideoListToolbarButtonStyle}">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             Margin="0,0,7,0"
+                                             Glyph="{x:Static ui:FontSymbols.FolderOpen}" />
+                                <TextBlock Text="{I18N SaveFolder}" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal">
+                        <Button Command="{Binding BeginMultiSelectCommand}"
+                                Content="{I18N MultiSelect}">
+                            <Button.Style>
+                                <Style TargetType="{x:Type Button}" BasedOn="{StaticResource VideoListToolbarButtonStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsMultiSelectMode}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <StackPanel Orientation="Horizontal">
+                            <StackPanel.Style>
+                                <Style TargetType="{x:Type StackPanel}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsMultiSelectMode}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <TextBlock Margin="0,0,8,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       Text="{Binding SelectedVideoSummary}" />
+                            <Button Margin="0,0,8,0"
+                                    Command="{Binding SelectAllCommand}"
+                                    Style="{StaticResource VideoListIconButtonStyle}"
+                                    ToolTip="全选">
+                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             Glyph="{x:Static ui:FontSymbols.Accept}" />
+                            </Button>
+                            <Button Margin="0,0,8,0"
+                                    Command="{Binding InvertSelectionCommand}"
+                                    Style="{StaticResource VideoListIconButtonStyle}"
+                                    ToolTip="反选">
+                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             Glyph="{x:Static ui:FontSymbols.Switch}" />
+                            </Button>
+                            <Button Command="{Binding CancelMultiSelectCommand}"
+                                    Style="{StaticResource VideoListIconButtonStyle}"
+                                    ToolTip="取消选择（Esc）">
+                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             Glyph="{x:Static ui:FontSymbols.CalculatorMultiply}" />
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel Grid.Row="1"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal">
                     <Button Command="{Binding ToggleSortCommand}"
+                            Margin="0,0,8,0"
                             IsEnabled="{Binding IsIdle}"
                             Style="{StaticResource VideoListToolbarButtonStyle}">
-                        <ui:StackPanel Orientation="Horizontal" Spacing="7">
-                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:FontIcon Margin="0,0,7,0"
+                                         FontFamily="{DynamicResource SymbolThemeFontFamily}">
                                 <ui:FontIcon.Style>
                                     <Style TargetType="{x:Type ui:FontIcon}">
                                         <Setter Property="Glyph" Value="{x:Static ui:FontSymbols.ChevronUp}" />
@@ -90,160 +178,40 @@
                                 </ui:FontIcon.Style>
                             </ui:FontIcon>
                             <TextBlock Text="{Binding SortDirectionText}" />
-                        </ui:StackPanel>
+                        </StackPanel>
                     </Button>
-                    <Button Command="{Binding ImportFolderCommand}"
-                            IsEnabled="{Binding IsIdle}"
-                            Style="{StaticResource VideoListToolbarButtonStyle}">
-                        <ui:StackPanel Orientation="Horizontal" Spacing="7">
-                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                         Glyph="{x:Static ui:FontSymbols.FolderOpen}" />
-                            <TextBlock Text="{I18N ImportFolder}" />
-                        </ui:StackPanel>
-                    </Button>
-                    <Button Command="{Binding OpenSaveFolderCommand}"
-                            Style="{StaticResource VideoListToolbarButtonStyle}">
-                        <ui:StackPanel Orientation="Horizontal" Spacing="7">
-                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                         Glyph="{x:Static ui:FontSymbols.FolderOpen}" />
-                            <TextBlock Text="{I18N SaveFolder}" />
-                        </ui:StackPanel>
-                    </Button>
-                </ui:StackPanel>
-
-                <ui:StackPanel Grid.Column="2"
-                               HorizontalAlignment="Right"
-                               VerticalAlignment="Center"
-                               Orientation="Horizontal"
-                               Spacing="8">
-                    <ui:StackPanel Orientation="Horizontal"
-                                   Spacing="8"
-                                   HorizontalAlignment="Right">
-                        <ui:StackPanel.Style>
-                            <Style TargetType="{x:Type ui:StackPanel}">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsMultiSelectMode}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ui:StackPanel.Style>
-                        <TextBlock VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   Text="{Binding SelectedVideoSummary}" />
-                        <Button Command="{Binding OpenMergeSelectedCommand}"
-                                IsEnabled="{Binding CanMergeSelectedVideos}"
-                                Style="{StaticResource VideoListIconButtonStyle}"
-                                ToolTip="{I18N MergeVideos}">
-                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                         Glyph="{x:Static ui:FontSymbols.Link}" />
-                        </Button>
-                        <Button Command="{Binding SplitSelectedCommand}"
-                                IsEnabled="{Binding HasSelectedVideos}"
-                                Style="{StaticResource VideoListIconButtonStyle}"
-                                ToolTip="{I18N SplitVideo}">
-                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                         Glyph="{x:Static ui:FontSymbols.Cut}" />
-                        </Button>
-                        <Button Command="{Binding DeleteSelectedCommand}"
-                                IsEnabled="{Binding HasSelectedVideos}"
-                                Style="{StaticResource VideoListIconButtonStyle}"
-                                ToolTip="{I18N DeleteButton}">
-                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                         Glyph="{x:Static ui:FontSymbols.Delete}" />
-                        </Button>
-                        <Button Command="{Binding MoveSelectedCommand}"
-                                IsEnabled="{Binding HasSelectedVideos}"
-                                Style="{StaticResource VideoListIconButtonStyle}"
-                                ToolTip="{I18N MoveButton}">
-                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                         Glyph="{x:Static ui:FontSymbols.FolderOpen}" />
-                        </Button>
-                        <Button Command="{Binding CopySelectedCommand}"
-                                IsEnabled="{Binding HasSelectedVideos}"
-                                Style="{StaticResource VideoListIconButtonStyle}"
-                                ToolTip="{I18N CopyButton}">
-                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                         Glyph="{x:Static ui:FontSymbols.Copy}" />
-                        </Button>
-                        <Button Command="{Binding SelectAllCommand}"
-                                Style="{StaticResource VideoListIconButtonStyle}"
-                                ToolTip="{I18N SelectAll}">
-                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                         Glyph="{x:Static ui:FontSymbols.Accept}" />
-                        </Button>
-                        <Button Command="{Binding InvertSelectionCommand}"
-                                Style="{StaticResource VideoListIconButtonStyle}"
-                                ToolTip="{I18N InvertSelection}">
-                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                         Glyph="{x:Static ui:FontSymbols.Switch}" />
-                        </Button>
-                        <Button Command="{Binding CancelMultiSelectCommand}"
-                                Style="{StaticResource VideoListIconButtonStyle}"
-                                ToolTip="{I18N ButtonOfCancel}">
-                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                         Glyph="{x:Static ui:FontSymbols.CalculatorMultiply}" />
-                        </Button>
-                    </ui:StackPanel>
-                    <Button Command="{Binding ToggleMultiSelectCommand}">
-                        <Button.Style>
-                            <Style TargetType="{x:Type Button}" BasedOn="{StaticResource VideoListToolbarButtonStyle}">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsMultiSelectMode}" Value="True">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                        <ui:StackPanel Orientation="Horizontal" Spacing="7">
-                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                         Glyph="{x:Static ui:FontSymbols.Accept}" />
-                            <TextBlock Text="{I18N MultiSelect}" />
-                        </ui:StackPanel>
-                    </Button>
-                </ui:StackPanel>
-            </Grid>
-
-            <Grid Grid.Row="1" Margin="0,4,0,10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-
-                <ui:StackPanel Grid.Column="0"
-                               Orientation="Horizontal"
-                               VerticalAlignment="Center"
-                               Spacing="8">
                     <TextBlock VerticalAlignment="Center"
+                               Margin="0,0,8,0"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                Text="{I18N StreamerLabel}" />
-                    <ComboBox MinWidth="200"
+                    <ComboBox Width="150"
+                              Margin="0,0,8,0"
                               ItemsSource="{Binding StreamerOptions}"
                               SelectedItem="{Binding SelectedStreamer, Mode=TwoWay}" />
-                </ui:StackPanel>
-
-                <ui:StackPanel Grid.Column="1"
-                               Margin="18,0,0,0"
-                               Orientation="Horizontal"
-                               VerticalAlignment="Center"
-                               Spacing="8">
                     <TextBlock VerticalAlignment="Center"
+                               Margin="0,0,8,0"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                Text="{I18N TimeRangeLabel}" />
-                    <ComboBox MinWidth="160"
+                    <ComboBox Width="130"
                               ItemsSource="{Binding TimeRangeOptions}"
                               SelectedIndex="{Binding SelectedTimeRangeIndex, Mode=TwoWay}" />
-                </ui:StackPanel>
+                </StackPanel>
             </Grid>
 
-            <Grid Grid.Row="2" ClipToBounds="True">
+            <Grid x:Name="VideoSelectionHost"
+                  Grid.Row="1"
+                  ClipToBounds="True"
+                  PreviewMouseLeftButtonDown="VideoSelectionHostPreviewMouseLeftButtonDown"
+                  PreviewMouseLeftButtonUp="VideoSelectionHostPreviewMouseLeftButtonUp"
+                  PreviewMouseMove="VideoSelectionHostPreviewMouseMove"
+                  PreviewMouseRightButtonDown="VideoSelectionHostPreviewMouseRightButtonDown"
+                  LostMouseCapture="VideoSelectionHostLostMouseCapture">
                 <ListBox x:Name="VideoListBox"
                          ItemsSource="{Binding Videos}"
                          Background="Transparent"
                          BorderThickness="0"
+                         SelectedItem="{Binding RegularSelectedItem, Mode=TwoWay}"
+                         SelectionMode="Single"
                          ScrollViewer.CanContentScroll="True"
                          ScrollViewer.VerticalScrollBarVisibility="Auto"
                          ScrollViewer.ScrollChanged="VideoListScrollChanged"
@@ -279,35 +247,40 @@
                                 Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
                                 Background="{DynamicResource CardBackground}"
                                 BorderBrush="{DynamicResource CardBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="{StaticResource Win11ControlCornerRadius}"
-                                Loaded="VideoCardLoaded"
-                                PreviewMouseLeftButtonDown="VideoCardMouseLeftButtonDown">
+                                 BorderThickness="1"
+                                 CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                 Loaded="VideoCardLoaded">
                             <Border.ContextMenu>
                                 <ContextMenu DataContext="{Binding PlacementTarget, RelativeSource={RelativeSource Self}}">
-                                    <MenuItem Header="删除"
-                                              Command="{Binding Tag.DeleteVideoCommand}"
+                                    <MenuItem Header="打开视频"
+                                              Command="{Binding Tag.OpenVideoCommand}"
                                               CommandParameter="{Binding DataContext}" />
-                                    <MenuItem Header="分割"
-                                              Command="{Binding Tag.SplitVideoCommand}"
-                                              CommandParameter="{Binding DataContext}" />
-                                    <MenuItem Header="转码"
-                                              Command="{Binding Tag.TranscodeVideoCommand}"
-                                              CommandParameter="{Binding DataContext}"
-                                              IsEnabled="{Binding DataContext.CanTranscode}" />
-                                    <Separator />
                                     <MenuItem Header="打开目录"
                                               Command="{Binding Tag.OpenDirectoryCommand}"
                                               CommandParameter="{Binding DataContext}" />
                                     <MenuItem Header="重命名"
                                               Command="{Binding Tag.RenameVideoCommand}"
                                               CommandParameter="{Binding DataContext}" />
-                                    <MenuItem Header="打开视频"
-                                              Command="{Binding Tag.OpenVideoCommand}"
-                                              CommandParameter="{Binding DataContext}" />
-                                    <MenuItem Header="另存为"
-                                              Command="{Binding Tag.SaveAsVideoCommand}"
-                                              CommandParameter="{Binding DataContext}" />
+                                    <MenuItem Header="转码"
+                                              Command="{Binding Tag.TranscodeVideoCommand}"
+                                              CommandParameter="{Binding DataContext}"
+                                              IsEnabled="{Binding DataContext.CanTranscode}" />
+                                    <Separator />
+                                    <MenuItem Header="合并选中视频"
+                                              Command="{Binding Tag.OpenMergeSelectedCommand}"
+                                              IsEnabled="{Binding Tag.CanMergeSelectedVideos}" />
+                                    <MenuItem Header="分割选中视频"
+                                              Command="{Binding Tag.SplitSelectedCommand}"
+                                              IsEnabled="{Binding Tag.HasSelectedVideos}" />
+                                    <MenuItem Header="移动选中视频"
+                                              Command="{Binding Tag.MoveSelectedCommand}"
+                                              IsEnabled="{Binding Tag.HasSelectedVideos}" />
+                                    <MenuItem Header="复制选中视频"
+                                              Command="{Binding Tag.CopySelectedCommand}"
+                                              IsEnabled="{Binding Tag.HasSelectedVideos}" />
+                                    <MenuItem Header="删除选中视频"
+                                              Command="{Binding Tag.DeleteSelectedCommand}"
+                                              IsEnabled="{Binding Tag.HasSelectedVideos}" />
                                 </ContextMenu>
                             </Border.ContextMenu>
                             <Grid>
@@ -332,7 +305,7 @@
                                             <Border.Background>
                                                 <ImageBrush AlignmentX="Center"
                                                             AlignmentY="Center"
-                                                            ImageSource="{Binding ThumbnailPath}"
+                                                            ImageSource="{Binding ThumbnailPath, Converter={x:Static local:ThumbnailImageConverter.Instance}}"
                                                             Stretch="UniformToFill" />
                                             </Border.Background>
                                         </Border>
@@ -361,9 +334,8 @@
                                                FontWeight="SemiBold"
                                                Text="{Binding FileName}"
                                                TextTrimming="CharacterEllipsis" />
-                                    <ui:StackPanel Margin="0,10,0,0"
-                                                   Orientation="Horizontal"
-                                                   Spacing="0">
+                                    <StackPanel Margin="0,10,0,0"
+                                                Orientation="Horizontal">
                                         <Border MaxWidth="220" Style="{StaticResource VideoMetaChipStyle}">
                                             <TextBlock Style="{StaticResource VideoMetaChipTextStyle}"
                                                        Text="{Binding StreamerChipText}" />
@@ -376,7 +348,7 @@
                                             <TextBlock Style="{StaticResource VideoMetaChipTextStyle}"
                                                        Text="{Binding BitrateChipText}" />
                                         </Border>
-                                    </ui:StackPanel>
+                                    </StackPanel>
                                     <TextBlock Margin="0,8,0,0"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                Text="{Binding Title}"
@@ -451,6 +423,10 @@
                             </Grid>
                         </Border>
                         <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="True">
+                                <Setter TargetName="VideoCardShell" Property="Background" Value="#18337DFF" />
+                                <Setter TargetName="VideoCardShell" Property="BorderBrush" Value="#60337DFF" />
+                            </DataTrigger>
                             <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                 <Setter TargetName="VideoCardShell" Property="Background" Value="#2A4DA7B0" />
                                 <Setter TargetName="VideoCardShell" Property="BorderBrush" Value="#884DA7B0" />
@@ -459,6 +435,12 @@
                     </DataTemplate>
                 </ListBox.ItemTemplate>
                 </ListBox>
+                <Canvas Panel.ZIndex="30" IsHitTestVisible="False">
+                    <Rectangle x:Name="VideoSelectionRectangle"
+                               Fill="#2A4DA7B0"
+                               StrokeThickness="0"
+                               Visibility="Collapsed" />
+                </Canvas>
                 <Border Height="6"
                         VerticalAlignment="Top"
                         Panel.ZIndex="20"

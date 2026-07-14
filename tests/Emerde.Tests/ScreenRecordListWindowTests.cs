@@ -1,11 +1,101 @@
 using Emerde.Core;
 using Emerde.Views;
+using System.Collections.ObjectModel;
 using System.Text.Json;
 
 namespace Emerde.Tests;
 
 public sealed class ScreenRecordListWindowTests
 {
+    [Fact]
+    public void VideoListXaml_DoesNotUseSpacingStackPanelInConstrainedLayout()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+
+        Assert.DoesNotContain("<ui:StackPanel", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SelectionHistoryLimit_IsTwoHundred()
+    {
+        Assert.Equal(200, ScreenRecordListViewModel.SelectionHistoryLimit);
+    }
+
+    [Fact]
+    public void VideoSelection_SeparatesRegularAndMultiSelection()
+    {
+        ScreenRecordListViewModel viewModel = new();
+        ObservableCollection<RecordedVideoItem> videos = Assert.IsType<ObservableCollection<RecordedVideoItem>>(viewModel.Videos.SourceCollection);
+        RecordedVideoItem first = new() { FullPath = @"C:\videos\first.ts" };
+        RecordedVideoItem second = new() { FullPath = @"C:\videos\second.ts" };
+        RecordedVideoItem third = new() { FullPath = @"C:\videos\third.ts" };
+        videos.Add(first);
+        videos.Add(second);
+        videos.Add(third);
+
+        viewModel.SelectRegularItem(first);
+
+        Assert.Same(first, viewModel.RegularSelectedItem);
+        Assert.False(first.IsSelected);
+        Assert.False(viewModel.IsMultiSelectMode);
+
+        viewModel.SelectMultipleItem(second, true, false);
+
+        Assert.True(first.IsSelected);
+        Assert.True(second.IsSelected);
+        Assert.True(viewModel.IsMultiSelectMode);
+
+        viewModel.SelectRegularItem(third);
+        viewModel.ClearRegularSelection();
+
+        Assert.Null(viewModel.RegularSelectedItem);
+        Assert.True(first.IsSelected);
+        Assert.True(second.IsSelected);
+        Assert.True(viewModel.IsMultiSelectMode);
+    }
+
+    [Fact]
+    public void SelectItems_EmptySelectionDoesNotEnterMultiSelect()
+    {
+        ScreenRecordListViewModel viewModel = new();
+
+        viewModel.SelectItems([]);
+
+        Assert.False(viewModel.IsMultiSelectMode);
+    }
+
+    [Fact]
+    public void BeginMultiSelect_EntersModeWithoutSelectingRegularItem()
+    {
+        ScreenRecordListViewModel viewModel = new();
+        RecordedVideoItem item = new() { FullPath = @"C:\videos\first.ts" };
+        viewModel.SelectRegularItem(item);
+
+        viewModel.BeginMultiSelectCommand.Execute(null);
+
+        Assert.True(viewModel.IsMultiSelectMode);
+        Assert.Same(item, viewModel.RegularSelectedItem);
+        Assert.False(item.IsSelected);
+    }
+
+    [Theory]
+    [InlineData(false, false, false, 2, true)]
+    [InlineData(false, false, false, 1, false)]
+    [InlineData(true, false, false, 2, false)]
+    [InlineData(false, true, false, 2, false)]
+    [InlineData(false, false, true, 2, false)]
+    public void ShouldOpenVideoFromClick_OnlyAcceptsRegularDoubleClick(
+        bool isMultiSelectMode,
+        bool toggleSelection,
+        bool selectRange,
+        int clickCount,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            ScreenRecordListWindow.ShouldOpenVideoFromClick(isMultiSelectMode, toggleSelection, selectRange, clickCount));
+    }
+
     [Fact]
     public void ContextMenuCommands_AreAvailable()
     {
@@ -17,10 +107,26 @@ public sealed class ScreenRecordListWindowTests
         Assert.NotNull(viewModel.OpenDirectoryCommand);
         Assert.NotNull(viewModel.RenameVideoCommand);
         Assert.NotNull(viewModel.OpenVideoCommand);
+        Assert.NotNull(viewModel.BeginMultiSelectCommand);
         Assert.NotNull(viewModel.SaveAsVideoCommand);
         Assert.NotNull(viewModel.SplitSelectedCommand);
         Assert.NotNull(viewModel.OpenMergeSelectedCommand);
         Assert.NotNull(viewModel.ConfirmMergeSelectedCommand);
+    }
+
+    private static string FindRepositoryFile(params string[] parts)
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory != null)
+        {
+            string path = Path.Combine([directory.FullName, .. parts]);
+            if (File.Exists(path))
+            {
+                return path;
+            }
+            directory = directory.Parent;
+        }
+        throw new FileNotFoundException(string.Join(Path.DirectorySeparatorChar, parts));
     }
 
     [Fact]
@@ -416,8 +522,9 @@ public sealed class ScreenRecordListWindowTests
     public void GetExistingThumbnailPath_UsesCachedThumbnail()
     {
         string videoPath = Path.Combine(Path.GetTempPath(), $"record-{Guid.NewGuid():N}.mp4");
-        string thumbnailPath = ScreenRecordListViewModel.GetThumbnailCachePath(videoPath);
-        Directory.CreateDirectory(Path.GetDirectoryName(thumbnailPath)!);
+        string cacheDirectory = Path.Combine(Path.GetTempPath(), $"emerde-thumbnail-cache-{Guid.NewGuid():N}");
+        string thumbnailPath = ScreenRecordListViewModel.GetThumbnailCachePath(videoPath, cacheDirectory);
+        Directory.CreateDirectory(cacheDirectory);
 
         try
         {
@@ -425,7 +532,7 @@ public sealed class ScreenRecordListWindowTests
             File.WriteAllText(thumbnailPath, "fake");
             File.SetLastWriteTimeUtc(thumbnailPath, File.GetLastWriteTimeUtc(videoPath).AddSeconds(1));
 
-            string result = ScreenRecordListViewModel.GetExistingThumbnailPath(videoPath, string.Empty);
+            string result = ScreenRecordListViewModel.GetExistingThumbnailPath(videoPath, string.Empty, cacheDirectory);
 
             Assert.Equal(thumbnailPath, result);
         }
@@ -435,9 +542,9 @@ public sealed class ScreenRecordListWindowTests
             {
                 File.Delete(videoPath);
             }
-            if (File.Exists(thumbnailPath))
+            if (Directory.Exists(cacheDirectory))
             {
-                File.Delete(thumbnailPath);
+                Directory.Delete(cacheDirectory, recursive: true);
             }
         }
     }
@@ -446,8 +553,9 @@ public sealed class ScreenRecordListWindowTests
     public void GetExistingThumbnailPath_RejectsThumbnailOlderThanVideo()
     {
         string videoPath = Path.Combine(Path.GetTempPath(), $"record-{Guid.NewGuid():N}.mp4");
-        string thumbnailPath = ScreenRecordListViewModel.GetThumbnailCachePath(videoPath);
-        Directory.CreateDirectory(Path.GetDirectoryName(thumbnailPath)!);
+        string cacheDirectory = Path.Combine(Path.GetTempPath(), $"emerde-thumbnail-cache-{Guid.NewGuid():N}");
+        string thumbnailPath = ScreenRecordListViewModel.GetThumbnailCachePath(videoPath, cacheDirectory);
+        Directory.CreateDirectory(cacheDirectory);
 
         try
         {
@@ -456,7 +564,7 @@ public sealed class ScreenRecordListWindowTests
             File.SetLastWriteTimeUtc(thumbnailPath, DateTime.UtcNow.AddMinutes(-1));
             File.SetLastWriteTimeUtc(videoPath, DateTime.UtcNow);
 
-            string result = ScreenRecordListViewModel.GetExistingThumbnailPath(videoPath, string.Empty);
+            string result = ScreenRecordListViewModel.GetExistingThumbnailPath(videoPath, string.Empty, cacheDirectory);
 
             Assert.Empty(result);
         }
@@ -466,9 +574,145 @@ public sealed class ScreenRecordListWindowTests
             {
                 File.Delete(videoPath);
             }
-            if (File.Exists(thumbnailPath))
+            if (Directory.Exists(cacheDirectory))
             {
-                File.Delete(thumbnailPath);
+                Directory.Delete(cacheDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void GetThumbnailCachePath_SharesCacheAcrossVideoFormats()
+    {
+        string cacheDirectory = Path.Combine(Path.GetTempPath(), $"emerde-thumbnail-cache-{Guid.NewGuid():N}");
+        string stem = Path.Combine(Path.GetTempPath(), $"record-{Guid.NewGuid():N}");
+
+        string transportStreamThumbnail = ScreenRecordListViewModel.GetThumbnailCachePath(stem + ".ts", cacheDirectory);
+        string mp4Thumbnail = ScreenRecordListViewModel.GetThumbnailCachePath(stem + ".mp4", cacheDirectory);
+        string otherThumbnail = ScreenRecordListViewModel.GetThumbnailCachePath(stem + "-other.mp4", cacheDirectory);
+
+        Assert.Equal(transportStreamThumbnail, mp4Thumbnail);
+        Assert.NotEqual(mp4Thumbnail, otherThumbnail);
+    }
+
+    [Fact]
+    public void CleanupOrphanedThumbnailCache_DeletesOnlyUnreferencedThumbnails()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"emerde-thumbnail-cleanup-{Guid.NewGuid():N}");
+        string cacheDirectory = Path.Combine(root, "cache");
+        Directory.CreateDirectory(cacheDirectory);
+        string sourceVideo = Path.Combine(root, "record.ts");
+        string convertedVideo = Path.Combine(root, "record.mp4");
+        string sharedThumbnail = ScreenRecordListViewModel.GetThumbnailCachePath(sourceVideo, cacheDirectory);
+        string orphanedThumbnail = ScreenRecordListViewModel.GetThumbnailCachePath(Path.Combine(root, "deleted.mp4"), cacheDirectory);
+
+        try
+        {
+            File.WriteAllText(sourceVideo, "video");
+            File.WriteAllText(convertedVideo, "video");
+            File.WriteAllText(sharedThumbnail, "thumbnail");
+            File.WriteAllText(orphanedThumbnail, "thumbnail");
+
+            int deleted = ScreenRecordListViewModel.CleanupOrphanedThumbnailCache([sourceVideo, convertedVideo], cacheDirectory);
+
+            Assert.Equal(1, deleted);
+            Assert.True(File.Exists(sharedThumbnail));
+            Assert.False(File.Exists(orphanedThumbnail));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void DeleteThumbnailCacheIfUnused_WaitsForLastVideoFormat()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"emerde-thumbnail-delete-{Guid.NewGuid():N}");
+        string cacheDirectory = Path.Combine(root, "cache");
+        Directory.CreateDirectory(cacheDirectory);
+        string sourceVideo = Path.Combine(root, "record.ts");
+        string convertedVideo = Path.Combine(root, "record.mp4");
+        string thumbnailPath = ScreenRecordListViewModel.GetThumbnailCachePath(sourceVideo, cacheDirectory);
+
+        try
+        {
+            File.WriteAllText(sourceVideo, "video");
+            File.WriteAllText(convertedVideo, "video");
+            File.WriteAllText(thumbnailPath, "thumbnail");
+
+            File.Delete(sourceVideo);
+            Assert.False(ScreenRecordListViewModel.DeleteThumbnailCacheIfUnused(sourceVideo, cacheDirectory));
+            Assert.True(File.Exists(thumbnailPath));
+
+            File.Delete(convertedVideo);
+            Assert.True(ScreenRecordListViewModel.DeleteThumbnailCacheIfUnused(convertedVideo, cacheDirectory));
+            Assert.False(File.Exists(thumbnailPath));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void ThumbnailImageConverter_DoesNotLockThumbnailFile()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"emerde-thumbnail-image-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        string thumbnailPath = Path.Combine(root, "thumbnail.jpg");
+
+        try
+        {
+            object? image = null;
+            Exception? error = null;
+            Thread thread = new(() =>
+            {
+                try
+                {
+                    System.Windows.Media.Imaging.BitmapSource source = System.Windows.Media.Imaging.BitmapSource.Create(
+                        1,
+                        1,
+                        96,
+                        96,
+                        System.Windows.Media.PixelFormats.Bgra32,
+                        null,
+                        new byte[] { 0, 0, 255, 255 },
+                        4);
+                    System.Windows.Media.Imaging.PngBitmapEncoder encoder = new();
+                    encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(source));
+                    using (FileStream stream = File.Create(thumbnailPath))
+                    {
+                        encoder.Save(stream);
+                    }
+
+                    image = ThumbnailImageConverter.LoadImage(thumbnailPath);
+                }
+                catch (Exception e)
+                {
+                    error = e;
+                }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+
+            Assert.Null(error);
+            Assert.NotSame(System.Windows.DependencyProperty.UnsetValue, image);
+            File.Delete(thumbnailPath);
+            Assert.False(File.Exists(thumbnailPath));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
             }
         }
     }
