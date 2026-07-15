@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Web;
 using Newtonsoft.Json.Linq;
 
 namespace Emerde.Core;
@@ -315,9 +316,17 @@ internal static partial class StreamResolver
             JToken? streamUrl = room["stream_url"];
             StreamCandidate hls = SelectPreferredStream(streamUrl?["hls_pull_url_map"], preferredQuality);
             StreamCandidate flv = SelectPreferredStream(streamUrl?["flv_pull_url"], preferredQuality);
-            result.HlsUrl = hls.Url;
-            result.FlvUrl = flv.Url;
-            result.Quality = FirstNonEmpty(hls.Quality, flv.Quality);
+            DouyinOriginStream originStream = SelectDouyinOriginStream(streamUrl, preferredQuality);
+            result.HlsUrl = originStream.HasStream ? originStream.HlsUrl : hls.Url;
+            result.FlvUrl = originStream.HasStream ? originStream.FlvUrl : flv.Url;
+            result.RecordUrl = SelectDouyinRecordUrl(result.FlvUrl, result.HlsUrl);
+            result.Quality = originStream.HasStream ? "ORIGIN" : FirstNonEmpty(hls.Quality, flv.Quality);
+            result.Resolution = FirstNonEmpty(
+                originStream.Resolution,
+                StreamMetadataParser.GetResolution(result.FlvUrl, result.HlsUrl));
+            result.Bitrate = originStream.Bitrate > 0
+                ? StreamQualityCatalog.FormatBitrate(originStream.Bitrate)
+                : StreamMetadataParser.GetBitrate(result.FlvUrl, result.HlsUrl);
 
             if ((!string.IsNullOrWhiteSpace(result.HlsUrl) || !string.IsNullOrWhiteSpace(result.FlvUrl))
                 && result.IsLiveStreaming != false)
@@ -554,7 +563,12 @@ internal static partial class StreamResolver
             return;
         }
 
+        string originalHlsUrl = result.HlsUrl;
         result.HlsUrl = variant.Url;
+        if (string.Equals(result.RecordUrl, originalHlsUrl, StringComparison.Ordinal))
+        {
+            result.RecordUrl = variant.Url;
+        }
         if (variant.Height > 0)
         {
             result.Resolution = variant.Width > 0 ? $"{variant.Width}x{variant.Height}" : $"{variant.Height}p";
@@ -1133,6 +1147,135 @@ internal static partial class StreamResolver
             : new StreamCandidate(first.Value, first.Key);
     }
 
+    private static DouyinOriginStream SelectDouyinOriginStream(JToken? streamUrl, string? preferredQuality)
+    {
+        if (StreamQualityCatalog.NormalizePreference(preferredQuality) != StreamQualityCatalog.Original)
+        {
+            return default;
+        }
+
+        if (streamUrl is not JObject streamUrlObject)
+        {
+            return default;
+        }
+
+        JToken? liveCoreSdkData = GetJsonProperty(streamUrlObject, "live_core_sdk_data", "liveCoreSdkData");
+        JToken? primaryPullData = GetJsonProperty(liveCoreSdkData, "pull_data", "pullData");
+        JObject? primaryStreamData = ParseJsonObject(GetJsonProperty(primaryPullData, "stream_data", "streamData"));
+        if (primaryStreamData == null)
+        {
+            return default;
+        }
+
+        JObject selectedStreamData = primaryStreamData;
+        JToken? pullDatas = GetJsonProperty(streamUrlObject, "pull_datas", "pullDatas");
+        if (pullDatas is JObject pullDataMap
+            && pullDataMap.Properties().FirstOrDefault()?.Value is JObject firstPullData)
+        {
+            selectedStreamData = ParseJsonObject(GetJsonProperty(firstPullData, "stream_data", "streamData"))
+                ?? primaryStreamData;
+        }
+
+        if (selectedStreamData["data"]?["origin"]?["main"] is not JObject origin)
+        {
+            return default;
+        }
+
+        JObject? primaryOrigin = primaryStreamData?["data"]?["origin"]?["main"] as JObject;
+        JObject? primarySdkParams = ParseJsonObject(primaryOrigin?["sdk_params"] ?? primaryOrigin?["sdkParams"]);
+        string? codec = CleanOptionalText(primarySdkParams?["VCodec"]?.ToString());
+        JObject? selectedSdkParams = ParseJsonObject(origin["sdk_params"] ?? origin["sdkParams"]);
+        string? resolution = CleanOptionalText(selectedSdkParams?["resolution"]?.ToString());
+        double bitrate = ParsePositiveDouble(selectedSdkParams?["vbitrate"] ?? selectedSdkParams?["v_bit_rate"]);
+        if (bitrate <= 0)
+        {
+            bitrate = ParsePositiveDouble(origin["templateRealTimeInfo"]?["bitrateKbps"]) * 1000d;
+        }
+
+        string? flvUrl = AppendQueryParameter(CleanOptionalUrl(origin["flv"]?.ToString()), "codec", codec);
+        string? hlsUrl = AppendQueryParameter(CleanOptionalUrl(origin["hls"]?.ToString()), "codec", codec);
+        if (string.IsNullOrWhiteSpace(flvUrl) && string.IsNullOrWhiteSpace(hlsUrl))
+        {
+            return default;
+        }
+
+        return new DouyinOriginStream(flvUrl, hlsUrl, resolution, bitrate);
+    }
+
+    private static string? SelectDouyinRecordUrl(string? flvUrl, string? hlsUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(flvUrl))
+        {
+            string? codec = Uri.TryCreate(flvUrl, UriKind.Absolute, out Uri? flvUri)
+                ? HttpUtility.ParseQueryString(flvUri.Query)["codec"]
+                : null;
+            if (!string.Equals(codec, "h265", StringComparison.OrdinalIgnoreCase))
+            {
+                return flvUrl;
+            }
+        }
+
+        return FirstNonEmpty(hlsUrl, flvUrl);
+    }
+
+    private static JToken? GetJsonProperty(JToken? token, string primaryName, string alternateName)
+    {
+        return token is JObject obj ? obj[primaryName] ?? obj[alternateName] : null;
+    }
+
+    private static JObject? ParseJsonObject(JToken? token)
+    {
+        if (token is JObject obj)
+        {
+            return obj;
+        }
+
+        string? value = token?.ToString();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JObject.Parse(value);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static double ParsePositiveDouble(JToken? token)
+    {
+        string? value = token?.ToString();
+        return double.TryParse(
+            value,
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out double parsed)
+            && parsed > 0
+            ? parsed
+            : 0;
+    }
+
+    private static string? AppendQueryParameter(string? url, string name, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(value))
+        {
+            return url;
+        }
+
+        string parameterPrefix = $"{name}=";
+        if (url.Split('?', '&').Any(part => part.StartsWith(parameterPrefix, StringComparison.OrdinalIgnoreCase)))
+        {
+            return url;
+        }
+
+        char separator = url.Contains('?', StringComparison.Ordinal) ? '&' : '?';
+        return $"{url}{separator}{name}={Uri.EscapeDataString(value)}";
+    }
+
     private static StreamCandidate SelectHighestObservableQuality(IReadOnlyDictionary<string, string> urls, string? preferredQuality)
     {
         if (StreamQualityCatalog.NormalizePreference(preferredQuality) != StreamQualityCatalog.Original)
@@ -1334,6 +1477,15 @@ internal static partial class StreamResolver
     private readonly record struct TitleCandidate(string Value, int Score, int Index);
 
     private readonly record struct StreamCandidate(string? Url, string? Quality);
+
+    private readonly record struct DouyinOriginStream(
+        string? FlvUrl,
+        string? HlsUrl,
+        string? Resolution,
+        double Bitrate)
+    {
+        public bool HasStream => !string.IsNullOrWhiteSpace(FlvUrl) || !string.IsNullOrWhiteSpace(HlsUrl);
+    }
 }
 
 internal readonly record struct HlsVariant(string? Url, int Width, int Height, double Bandwidth);

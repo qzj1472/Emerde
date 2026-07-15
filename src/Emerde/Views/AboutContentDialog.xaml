@@ -47,6 +47,17 @@
                                         Content="{x:Static base:AppConfig.Url}"
                                         Cursor="Hand"
                                         Padding="0" />
+                    <WrapPanel>
+                        <TextBlock Margin="0,0,6,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Text="参考仓库：" />
+                        <ui:HyperlinkButton Command="{Binding OpenHyperlinkCommand}"
+                                            CommandParameter="https://github.com/ihmily/DouyinLiveRecorder"
+                                            Content="DouyinLiveRecorder"
+                                            Cursor="Hand"
+                                            Padding="0" />
+                    </WrapPanel>
                 </ui:StackPanel>
             </Grid>
 

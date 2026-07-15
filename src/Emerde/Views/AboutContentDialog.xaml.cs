@@ -15,8 +15,8 @@ public partial class AboutContentDialog : System.Windows.Controls.UserControl
     }
 
     [RelayCommand]
-    private async Task OpenHyperlink()
+    private async Task OpenHyperlink(string? url)
     {
-        _ = await Launcher.LaunchUriAsync(new Uri(AppConfig.Url));
+        _ = await Launcher.LaunchUriAsync(new Uri(string.IsNullOrWhiteSpace(url) ? AppConfig.Url : url));
     }
 }

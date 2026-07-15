@@ -51,6 +51,32 @@ public sealed class RecorderTests
         Assert.Contains("title=优化音频", arguments);
     }
 
+    [Fact]
+    public void BuildArguments_DirectCopyDoesNotApplyRateControl()
+    {
+        Recorder recorder = new() { Url = "https://example.test/live.flv" };
+
+        IReadOnlyList<string> arguments = recorder.BuildArguments(
+            "D:\\records\\Host.flv",
+            false,
+            string.Empty,
+            string.Empty,
+            "EmerdeTest",
+            false,
+            false,
+            1,
+            SegmentTimeUnitHelper.Seconds,
+            new VideoRecordingMetadata(),
+            false);
+
+        Assert.Contains("-c:v", arguments);
+        Assert.Contains("copy", arguments);
+        Assert.DoesNotContain("-b:v", arguments);
+        Assert.DoesNotContain("-minrate", arguments);
+        Assert.DoesNotContain("-maxrate", arguments);
+        Assert.DoesNotContain("-bufsize", arguments);
+    }
+
     [Theory]
     [InlineData("Stream specifier ':a:0' matches no streams")]
     [InlineData("Cannot find a matching stream for unlabeled input pad")]

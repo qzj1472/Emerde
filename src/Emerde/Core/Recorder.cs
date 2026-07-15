@@ -287,7 +287,7 @@ public sealed class Recorder
         }
     }
 
-    private List<string> BuildArguments(
+    internal List<string> BuildArguments(
         string outputFileName,
         bool isUseProxy,
         string httpProxy,
@@ -320,7 +320,6 @@ public sealed class Recorder
             .AddIf(!string.IsNullOrWhiteSpace(headers), "-headers", headers)
             .AddIf(true,
                 "-i", Url ?? string.Empty,
-                "-bufsize", "8000k",
                 "-sn",
                 "-dn",
                 "-reconnect_delay_max", "60",

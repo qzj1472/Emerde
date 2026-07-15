@@ -109,6 +109,283 @@ public sealed class StreamQualityTests
     }
 
     [Fact]
+    public void DouyinResolver_OriginalUsesPullDataOriginWhenAvailable()
+    {
+        string primaryStreamData = CreateDouyinStreamData(
+            "https://example.test/primary.flv",
+            "https://example.test/primary.m3u8",
+            "h265");
+        string landscapeStreamData = CreateDouyinStreamData(
+            "https://example.test/landscape.flv?token=first",
+            "https://example.test/landscape.m3u8?token=first",
+            "h264",
+            12000000,
+            "1920x1080");
+        string secondaryStreamData = CreateDouyinStreamData(
+            "https://example.test/secondary.flv",
+            "https://example.test/secondary.m3u8",
+            "h266");
+        string json = $$"""
+            {
+              "data": {
+                "data": [{
+                  "status": 2,
+                  "stream_url": {
+                    "live_core_sdk_data": {
+                      "pull_data": {
+                        "stream_data": {{System.Text.Json.JsonSerializer.Serialize(primaryStreamData)}}
+                      }
+                    },
+                    "pull_datas": {
+                      "landscape": {
+                        "stream_data": {{System.Text.Json.JsonSerializer.Serialize(landscapeStreamData)}}
+                      },
+                      "secondary": {
+                        "stream_data": {{System.Text.Json.JsonSerializer.Serialize(secondaryStreamData)}}
+                      }
+                    }
+                  }
+                }]
+              }
+            }
+            """;
+
+        StreamResolverResult result = StreamResolver.ExtractDouyinWebEnterData(
+            "https://live.douyin.com/123456",
+            json,
+            StreamQualityCatalog.Original);
+
+        Assert.Equal("https://example.test/landscape.m3u8?token=first&codec=h265", result.HlsUrl);
+        Assert.Equal("https://example.test/landscape.flv?token=first&codec=h265", result.FlvUrl);
+        Assert.Equal("https://example.test/landscape.m3u8?token=first&codec=h265", result.RecordUrl);
+        Assert.Equal("ORIGIN", result.Quality);
+        Assert.Equal("1920x1080", result.Resolution);
+        Assert.Equal("12 Mbps", result.Bitrate);
+    }
+
+    [Fact]
+    public void DouyinResolver_OriginalUsesPrimaryOriginAndFlvForH264()
+    {
+        string primaryStreamData = CreateDouyinStreamData(
+            "https://example.test/primary.flv?token=primary",
+            "https://example.test/primary.m3u8?token=primary",
+            "h264",
+            6000000,
+            "1280x720");
+        string json = $$"""
+            {
+              "data": {
+                "data": [{
+                  "status": 2,
+                  "stream_url": {
+                    "hls_pull_url_map": {
+                      "ORIGIN": "https://example.test/mapped-origin.m3u8"
+                    },
+                    "flv_pull_url": {
+                      "ORIGIN": "https://example.test/mapped-origin.flv"
+                    },
+                    "live_core_sdk_data": {
+                      "pull_data": {
+                        "stream_data": {{System.Text.Json.JsonSerializer.Serialize(primaryStreamData)}}
+                      }
+                    },
+                    "pull_datas": {}
+                  }
+                }]
+              }
+            }
+            """;
+
+        StreamResolverResult result = StreamResolver.ExtractDouyinWebEnterData(
+            "https://live.douyin.com/123456",
+            json,
+            StreamQualityCatalog.Original);
+
+        Assert.Equal("https://example.test/primary.m3u8?token=primary&codec=h264", result.HlsUrl);
+        Assert.Equal("https://example.test/primary.flv?token=primary&codec=h264", result.FlvUrl);
+        Assert.Equal("https://example.test/primary.flv?token=primary&codec=h264", result.RecordUrl);
+        Assert.Equal("ORIGIN", result.Quality);
+        Assert.Equal("1280x720", result.Resolution);
+        Assert.Equal("6 Mbps", result.Bitrate);
+    }
+
+    [Fact]
+    public void DouyinResolver_PullDataWithoutOriginFallsBackToMappedOrigin()
+    {
+        string primaryStreamData = CreateDouyinStreamData(
+            "https://example.test/primary.flv",
+            "https://example.test/primary.m3u8",
+            "h265");
+        string pullDataWithoutOrigin = """
+            {
+              "data": {
+                "uhd": {
+                  "main": {
+                    "flv": "https://example.test/uhd.flv"
+                  }
+                }
+              }
+            }
+            """;
+        string json = $$"""
+            {
+              "data": {
+                "data": [{
+                  "status": 2,
+                  "stream_url": {
+                    "hls_pull_url_map": {
+                      "ORIGIN": "https://example.test/mapped-origin.m3u8"
+                    },
+                    "flv_pull_url": {
+                      "ORIGIN": "https://example.test/mapped-origin.flv"
+                    },
+                    "live_core_sdk_data": {
+                      "pull_data": {
+                        "stream_data": {{System.Text.Json.JsonSerializer.Serialize(primaryStreamData)}}
+                      }
+                    },
+                    "pull_datas": {
+                      "landscape": {
+                        "stream_data": {{System.Text.Json.JsonSerializer.Serialize(pullDataWithoutOrigin)}}
+                      }
+                    }
+                  }
+                }]
+              }
+            }
+            """;
+
+        StreamResolverResult result = StreamResolver.ExtractDouyinWebEnterData(
+            "https://live.douyin.com/123456",
+            json,
+            StreamQualityCatalog.Original);
+
+        Assert.Equal("https://example.test/mapped-origin.m3u8", result.HlsUrl);
+        Assert.Equal("https://example.test/mapped-origin.flv", result.FlvUrl);
+        Assert.Equal("ORIGIN", result.Quality);
+    }
+
+    [Fact]
+    public void DouyinResolver_DoesNotMixDeclaredAndMappedProtocols()
+    {
+        string primaryStreamData = CreateDouyinStreamData(
+            "https://example.test/primary.flv",
+            "https://example.test/primary.m3u8",
+            "h264");
+        string pullDataStream = """
+            {
+              "data": {
+                "origin": {
+                  "main": {
+                    "hls": "https://example.test/pull-origin.m3u8"
+                  }
+                }
+              }
+            }
+            """;
+        string json = $$"""
+            {
+              "data": {
+                "data": [{
+                  "status": 2,
+                  "stream_url": {
+                    "flv_pull_url": {
+                      "ORIGIN": "https://example.test/mapped-origin.flv"
+                    },
+                    "live_core_sdk_data": {
+                      "pull_data": {
+                        "stream_data": {{System.Text.Json.JsonSerializer.Serialize(primaryStreamData)}}
+                      }
+                    },
+                    "pull_datas": {
+                      "landscape": {
+                        "stream_data": {{System.Text.Json.JsonSerializer.Serialize(pullDataStream)}}
+                      }
+                    }
+                  }
+                }]
+              }
+            }
+            """;
+
+        StreamResolverResult result = StreamResolver.ExtractDouyinWebEnterData(
+            "https://live.douyin.com/123456",
+            json,
+            StreamQualityCatalog.Original);
+
+        Assert.Equal("https://example.test/pull-origin.m3u8?codec=h264", result.HlsUrl);
+        Assert.Null(result.FlvUrl);
+        Assert.Equal("https://example.test/pull-origin.m3u8?codec=h264", result.RecordUrl);
+    }
+
+    [Fact]
+    public void DouyinResolver_InvalidDeclaredStreamFallsBackToMappedOrigin()
+    {
+        string json = """
+            {
+              "data": {
+                "data": [{
+                  "status": 2,
+                  "stream_url": {
+                    "hls_pull_url_map": {
+                      "ORIGIN": "https://example.test/mapped-origin.m3u8"
+                    },
+                    "flv_pull_url": {
+                      "ORIGIN": "https://example.test/mapped-origin.flv"
+                    },
+                    "live_core_sdk_data": "invalid",
+                    "pull_datas": {
+                      "invalid": "invalid"
+                    }
+                  }
+                }]
+              }
+            }
+            """;
+
+        StreamResolverResult result = StreamResolver.ExtractDouyinWebEnterData(
+            "https://live.douyin.com/123456",
+            json,
+            StreamQualityCatalog.Original);
+
+        Assert.Equal("https://example.test/mapped-origin.m3u8", result.HlsUrl);
+        Assert.Equal("https://example.test/mapped-origin.flv", result.FlvUrl);
+        Assert.Equal("https://example.test/mapped-origin.flv", result.RecordUrl);
+        Assert.Equal("ORIGIN", result.Quality);
+        Assert.True(result.IsLiveStreaming);
+    }
+
+    private static string CreateDouyinStreamData(
+        string flvUrl,
+        string hlsUrl,
+        string codec,
+        int bitrate = 0,
+        string resolution = "")
+    {
+        string sdkParams = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            VCodec = codec,
+            vbitrate = bitrate,
+            resolution,
+        });
+        return System.Text.Json.JsonSerializer.Serialize(new
+        {
+            data = new
+            {
+                origin = new
+                {
+                    main = new
+                    {
+                        flv = flvUrl,
+                        hls = hlsUrl,
+                        sdk_params = sdkParams,
+                    },
+                },
+            },
+        });
+    }
+
+    [Fact]
     public void KuaishouResolver_SelectsRequestedVariantAndMetadata()
     {
         string json = """
