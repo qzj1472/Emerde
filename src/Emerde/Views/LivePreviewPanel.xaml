@@ -73,6 +73,23 @@
                                 VerticalAlignment="Stretch"
                                 MouseEnter="PreviewViewport_OnMouseActivity"
                                 MouseMove="PreviewViewport_OnMouseActivity" />
+                        <Button x:Name="PreviewCloseButton"
+                                Panel.ZIndex="2"
+                                Margin="12"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Background="#99000000"
+                                Command="{Binding StopPreviewCommand}"
+                                IsHitTestVisible="False"
+                                Opacity="0"
+                                Style="{StaticResource PreviewControlButtonStyle}"
+                                ToolTip="关闭预览"
+                                MouseEnter="PreviewControls_OnMouseEnter"
+                                MouseLeave="PreviewControls_OnMouseLeave">
+                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                         FontSize="14"
+                                         Glyph="{x:Static ui:FontSymbols.CalculatorMultiply}" />
+                        </Button>
                         <Border x:Name="PreviewControls"
                                 Panel.ZIndex="1"
                                 Margin="12"

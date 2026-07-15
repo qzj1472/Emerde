@@ -354,8 +354,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     private void PreviewControls_OnMouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
     {
         controlsIdleTimer.Stop();
-        PreviewControls.Opacity = 1;
-        PreviewControls.IsHitTestVisible = true;
+        SetPreviewControlsVisible(true);
     }
 
     private void PreviewControls_OnMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
@@ -372,8 +371,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         }
 
         UpdatePreviewControlsPlacement();
-        PreviewControls.Opacity = 1;
-        PreviewControls.IsHitTestVisible = true;
+        SetPreviewControlsVisible(true);
         RestartControlsIdleTimer();
     }
 
@@ -387,21 +385,28 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     {
         controlsIdleTimer.Stop();
 
-        if (PreviewControls.IsMouseOver)
+        if (PreviewControls.IsMouseOver || PreviewCloseButton.IsMouseOver)
         {
             RestartControlsIdleTimer();
             return;
         }
 
-        PreviewControls.Opacity = 0;
-        PreviewControls.IsHitTestVisible = false;
+        SetPreviewControlsVisible(false);
     }
 
     public void HidePreviewControlsImmediately()
     {
         controlsIdleTimer.Stop();
-        PreviewControls.Opacity = 0;
-        PreviewControls.IsHitTestVisible = false;
+        SetPreviewControlsVisible(false);
+    }
+
+    private void SetPreviewControlsVisible(bool isVisible)
+    {
+        double opacity = isVisible ? 1d : 0d;
+        PreviewControls.Opacity = opacity;
+        PreviewControls.IsHitTestVisible = isVisible;
+        PreviewCloseButton.Opacity = opacity;
+        PreviewCloseButton.IsHitTestVisible = isVisible;
     }
 
     internal void RefreshVideoLayout()
