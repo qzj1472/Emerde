@@ -753,6 +753,7 @@
                         PreviewMouseLeftButtonDown="RoomCardListPreviewMouseLeftButtonDown"
                         PreviewMouseLeftButtonUp="RoomCardListPreviewMouseLeftButtonUp"
                         PreviewMouseMove="RoomCardListPreviewMouseMove"
+                        PreviewMouseWheel="RoomCardListPreviewMouseWheel"
                         PreviewMouseRightButtonDown="RoomCardListPreviewMouseRightButtonDown">
                     <Border.ContextMenu>
                         <ContextMenu Placement="MousePoint" DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
@@ -763,16 +764,15 @@
                                 <MenuItem Header="中" Click="SetRoomCardMediumClick" />
                                 <MenuItem Header="小" Click="SetRoomCardSmallClick" />
                             </MenuItem>
-                            <MenuItem Header="排序">
+                            <MenuItem Header="排序"
+                                      SubmenuOpened="RoomSortMenuSubmenuOpened">
                                 <MenuItem Header="按名称"
-                                          Command="{Binding SortRoomsByNameCommand}"
                                           IsCheckable="True"
-                                          IsChecked="{Binding IsRoomSortByName, Mode=OneWay}"
+                                          Click="SortRoomsByNameMenuItemClick"
                                           Style="{StaticResource SelectedContextMenuOptionStyle}" />
                                 <MenuItem Header="按添加顺序"
-                                          Command="{Binding SortRoomsByAddedAtCommand}"
                                           IsCheckable="True"
-                                          IsChecked="{Binding IsRoomSortByAddedAt, Mode=OneWay}"
+                                          Click="SortRoomsByAddedAtMenuItemClick"
                                           Style="{StaticResource SelectedContextMenuOptionStyle}" />
                             </MenuItem>
                             <MenuItem Header="平台筛选"

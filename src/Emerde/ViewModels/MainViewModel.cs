@@ -467,6 +467,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         RoomStatuses.Reset(configuredRooms.Select(CreateRoomStatusReactive));
         RoomStatusesView = CollectionViewSource.GetDefaultView(RoomStatuses);
         RoomStatusesView.Filter = FilterRoomStatus;
+        ApplyRoomSort();
 
         Locale.CultureChanged += (_, _) =>
         {
@@ -1440,30 +1441,39 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private void SortRoomsByName()
     {
         IsRoomSortByName = true;
-        RoomStatusReactive? selected = SelectedItem;
-        RoomStatuses.Reset(RoomStatuses
-            .OrderBy(room => room.NickName, StringComparer.CurrentCultureIgnoreCase)
-            .ThenBy(room => room.RoomUrl, StringComparer.OrdinalIgnoreCase)
-            .ToArray());
-        RestoreSelectedRoom(selected);
-        SaveRoomOrder();
-        RoomStatusesView.Refresh();
-        OnPropertyChanged(nameof(PlatformSummaryText));
+        ApplyRoomSort();
     }
 
     [RelayCommand]
     private void SortRoomsByAddedAt()
     {
         IsRoomSortByName = false;
-        RoomStatusReactive? selected = SelectedItem;
-        RoomStatuses.Reset(RoomStatuses
-            .OrderBy(room => room.AddedOrder)
-            .ThenBy(room => room.RoomUrl, StringComparer.OrdinalIgnoreCase)
-            .ToArray());
-        RestoreSelectedRoom(selected);
-        SaveRoomOrder();
-        RoomStatusesView.Refresh();
-        OnPropertyChanged(nameof(PlatformSummaryText));
+        ApplyRoomSort();
+    }
+
+    private void ApplyRoomSort()
+    {
+        using IDisposable refresh = RoomStatusesView.DeferRefresh();
+        RoomStatusesView.SortDescriptions.Clear();
+        foreach (SortDescription description in BuildRoomSortDescriptions(IsRoomSortByName))
+        {
+            RoomStatusesView.SortDescriptions.Add(description);
+        }
+    }
+
+    internal static SortDescription[] BuildRoomSortDescriptions(bool sortByName)
+    {
+        return sortByName
+            ?
+            [
+                new SortDescription(nameof(RoomStatusReactive.NickName), ListSortDirection.Ascending),
+                new SortDescription(nameof(RoomStatusReactive.RoomUrl), ListSortDirection.Ascending),
+            ]
+            :
+            [
+                new SortDescription(nameof(RoomStatusReactive.AddedOrder), ListSortDirection.Ascending),
+                new SortDescription(nameof(RoomStatusReactive.RoomUrl), ListSortDirection.Ascending),
+            ];
     }
 
     [RelayCommand]
@@ -2499,6 +2509,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private void SaveRoomOrder()
     {
         Dictionary<string, Room> roomsByUrl = [];
+
+        for (int index = 0; index < RoomStatuses.Count; index++)
+        {
+            RoomStatuses[index].AddedOrder = index;
+        }
 
         foreach (Room room in Configurations.Rooms.Get().Where(room => !string.IsNullOrWhiteSpace(room.RoomUrl)))
         {

@@ -1382,6 +1382,44 @@ public partial class MainWindow : FluentWindow
         draggedRoomItem = null;
     }
 
+    private void RoomCardListPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (!isRoomCardDragging || FindVisualChild<ScrollViewer>(RoomCardList, "RoomCardScrollViewer") is not ScrollViewer scrollViewer)
+        {
+            return;
+        }
+
+        if (SystemParameters.WheelScrollLines < 0)
+        {
+            if (e.Delta > 0)
+            {
+                scrollViewer.PageUp();
+            }
+            else
+            {
+                scrollViewer.PageDown();
+            }
+        }
+        else
+        {
+            int lines = Math.Max(1, SystemParameters.WheelScrollLines);
+            for (int index = 0; index < lines; index++)
+            {
+                if (e.Delta > 0)
+                {
+                    scrollViewer.LineUp();
+                }
+                else
+                {
+                    scrollViewer.LineDown();
+                }
+            }
+        }
+
+        UpdateRoomCardDrag(Mouse.GetPosition(RoomCardList));
+        e.Handled = true;
+    }
+
     private void RoomCardListPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         CancelRoomCardBlankPress();
@@ -1658,6 +1696,48 @@ public partial class MainWindow : FluentWindow
             item.Click += PlatformFilterMenuItemClick;
             menu.Items.Add(item);
         }
+    }
+
+    private void RoomSortMenuSubmenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.MenuItem sortMenu)
+        {
+            UpdateRoomSortMenuChecks(sortMenu);
+        }
+    }
+
+    private void SortRoomsByNameMenuItemClick(object sender, RoutedEventArgs e)
+    {
+        ViewModel.SortRoomsByNameCommand.Execute(null);
+        UpdateRoomSortMenuChecksFromItem(sender);
+    }
+
+    private void SortRoomsByAddedAtMenuItemClick(object sender, RoutedEventArgs e)
+    {
+        ViewModel.SortRoomsByAddedAtCommand.Execute(null);
+        UpdateRoomSortMenuChecksFromItem(sender);
+    }
+
+    private void UpdateRoomSortMenuChecksFromItem(object sender)
+    {
+        if (sender is System.Windows.Controls.MenuItem item
+            && System.Windows.Controls.ItemsControl.ItemsControlFromItemContainer(item) is System.Windows.Controls.MenuItem sortMenu)
+        {
+            UpdateRoomSortMenuChecks(sortMenu);
+        }
+    }
+
+    private void UpdateRoomSortMenuChecks(System.Windows.Controls.MenuItem sortMenu)
+    {
+        if (sortMenu.Items.Count < 2
+            || sortMenu.Items[0] is not System.Windows.Controls.MenuItem byName
+            || sortMenu.Items[1] is not System.Windows.Controls.MenuItem byAddedOrder)
+        {
+            return;
+        }
+
+        byName.IsChecked = ViewModel.IsRoomSortByName;
+        byAddedOrder.IsChecked = !ViewModel.IsRoomSortByName;
     }
 
     private void PlatformFilterMenuItemClick(object sender, RoutedEventArgs e)

@@ -120,6 +120,18 @@ public sealed class RoomCardSelectionTests
         Assert.Contains(result, platform => platform.Equals("Twitch", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void BuildRoomSortDescriptions_UsesSelectedSortMode()
+    {
+        System.ComponentModel.SortDescription[] byName = MainViewModel.BuildRoomSortDescriptions(true);
+        System.ComponentModel.SortDescription[] byAddedOrder = MainViewModel.BuildRoomSortDescriptions(false);
+
+        Assert.Equal(nameof(RoomStatusReactive.NickName), byName[0].PropertyName);
+        Assert.Equal(nameof(RoomStatusReactive.RoomUrl), byName[1].PropertyName);
+        Assert.Equal(nameof(RoomStatusReactive.AddedOrder), byAddedOrder[0].PropertyName);
+        Assert.Equal(nameof(RoomStatusReactive.RoomUrl), byAddedOrder[1].PropertyName);
+    }
+
     private static RoomStatusReactive CreateRoom(string name, string platform)
     {
         return new RoomStatusReactive
