@@ -110,6 +110,10 @@ public sealed class ScreenRecordListWindowTests
         Assert.NotNull(viewModel.BeginMultiSelectCommand);
         Assert.NotNull(viewModel.SaveAsVideoCommand);
         Assert.NotNull(viewModel.SplitSelectedCommand);
+        Assert.NotNull(viewModel.SplitContextCommand);
+        Assert.NotNull(viewModel.MoveContextCommand);
+        Assert.NotNull(viewModel.CopyContextCommand);
+        Assert.NotNull(viewModel.DeleteContextCommand);
         Assert.NotNull(viewModel.OpenMergeSelectedCommand);
         Assert.NotNull(viewModel.ConfirmMergeSelectedCommand);
     }

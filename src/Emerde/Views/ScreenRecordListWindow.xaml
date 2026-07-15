@@ -266,21 +266,21 @@
                                               CommandParameter="{Binding DataContext}"
                                               IsEnabled="{Binding DataContext.CanTranscode}" />
                                     <Separator />
-                                    <MenuItem Header="合并选中视频"
+                                    <MenuItem Header="合并"
                                               Command="{Binding Tag.OpenMergeSelectedCommand}"
                                               IsEnabled="{Binding Tag.CanMergeSelectedVideos}" />
-                                    <MenuItem Header="分割选中视频"
-                                              Command="{Binding Tag.SplitSelectedCommand}"
-                                              IsEnabled="{Binding Tag.HasSelectedVideos}" />
-                                    <MenuItem Header="移动选中视频"
-                                              Command="{Binding Tag.MoveSelectedCommand}"
-                                              IsEnabled="{Binding Tag.HasSelectedVideos}" />
-                                    <MenuItem Header="复制选中视频"
-                                              Command="{Binding Tag.CopySelectedCommand}"
-                                              IsEnabled="{Binding Tag.HasSelectedVideos}" />
-                                    <MenuItem Header="删除选中视频"
-                                              Command="{Binding Tag.DeleteSelectedCommand}"
-                                              IsEnabled="{Binding Tag.HasSelectedVideos}" />
+                                    <MenuItem Header="分割"
+                                              Command="{Binding Tag.SplitContextCommand}"
+                                              CommandParameter="{Binding DataContext}" />
+                                    <MenuItem Header="移动"
+                                              Command="{Binding Tag.MoveContextCommand}"
+                                              CommandParameter="{Binding DataContext}" />
+                                    <MenuItem Header="复制"
+                                              Command="{Binding Tag.CopyContextCommand}"
+                                              CommandParameter="{Binding DataContext}" />
+                                    <MenuItem Header="删除"
+                                              Command="{Binding Tag.DeleteContextCommand}"
+                                              CommandParameter="{Binding DataContext}" />
                                 </ContextMenu>
                             </Border.ContextMenu>
                             <Grid>

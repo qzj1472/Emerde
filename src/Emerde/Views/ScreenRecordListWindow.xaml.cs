@@ -297,6 +297,12 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
             ViewModel.SelectRegularItem(video);
         }
         item.Focus();
+        if (FindVisualChildByName(item, "VideoCardShell") is FrameworkElement { ContextMenu: not null } card)
+        {
+            card.ContextMenu.PlacementTarget = card;
+            card.ContextMenu.IsOpen = true;
+            e.Handled = true;
+        }
     }
 
     internal static bool ShouldOpenVideoFromClick(bool isMultiSelectMode, bool toggleSelection, bool selectRange, int clickCount)
@@ -380,6 +386,27 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
             }
             source = System.Windows.Media.VisualTreeHelper.GetParent(source);
         }
+        return null;
+    }
+
+    private static FrameworkElement? FindVisualChildByName(DependencyObject parent, string name)
+    {
+        int childCount = System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent);
+        for (int index = 0; index < childCount; index++)
+        {
+            DependencyObject child = System.Windows.Media.VisualTreeHelper.GetChild(parent, index);
+            if (child is FrameworkElement element && element.Name == name)
+            {
+                return element;
+            }
+
+            FrameworkElement? match = FindVisualChildByName(child, name);
+            if (match != null)
+            {
+                return match;
+            }
+        }
+
         return null;
     }
 
@@ -1002,6 +1029,19 @@ public partial class ScreenRecordListViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void SplitContext(RecordedVideoItem? item)
+    {
+        RecordedVideoItem[] targets = GetContextVideos(item);
+        if (targets.Length == 1)
+        {
+            SplitVideo(targets[0]);
+            return;
+        }
+
+        SplitSelected();
+    }
+
+    [RelayCommand]
     private void CloseModal()
     {
         if (IsOperating)
@@ -1171,6 +1211,12 @@ public partial class ScreenRecordListViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task DeleteContextAsync(RecordedVideoItem? item)
+    {
+        await DeleteVideosAsync(GetContextVideos(item));
+    }
+
+    [RelayCommand]
     private async Task DeleteVideoAsync(RecordedVideoItem? item)
     {
         if (item != null)
@@ -1235,9 +1281,21 @@ public partial class ScreenRecordListViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task MoveContextAsync(RecordedVideoItem? item)
+    {
+        await CopyOrMoveVideosAsync(GetContextVideos(item), move: true);
+    }
+
+    [RelayCommand]
     private async Task CopySelectedAsync()
     {
         await CopyOrMoveVideosAsync(GetSelectedVideos(), move: false);
+    }
+
+    [RelayCommand]
+    private async Task CopyContextAsync(RecordedVideoItem? item)
+    {
+        await CopyOrMoveVideosAsync(GetContextVideos(item), move: false);
     }
 
     [RelayCommand]
@@ -2349,6 +2407,17 @@ public partial class ScreenRecordListViewModel : ObservableObject
     private RecordedVideoItem[] GetSelectedVideos()
     {
         return GetVisibleVideos().Where(video => video.IsSelected && File.Exists(video.FullPath)).ToArray();
+    }
+
+    private RecordedVideoItem[] GetContextVideos(RecordedVideoItem? item)
+    {
+        RecordedVideoItem[] selected = GetSelectedVideos();
+        if (IsMultiSelectMode && selected.Length > 0)
+        {
+            return selected;
+        }
+
+        return item != null && File.Exists(item.FullPath) ? [item] : [];
     }
 
     private RecordedVideoItem[] GetVisibleVideos()
