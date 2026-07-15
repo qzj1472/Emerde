@@ -73,7 +73,20 @@ public sealed class LivePreviewTests
         };
 
         Assert.Equal("https://example.test/live-record.flv", room.PreviewUrl);
-        Assert.Equal("Record", room.PreviewSourceText);
+        Assert.Equal("FLV", room.PreviewSourceText);
+    }
+
+    [Fact]
+    public void PreviewSourceText_UsesRecordUrlFormat()
+    {
+        RoomStatusReactive room = new()
+        {
+            StreamStatus = StreamStatus.Streaming,
+            RecordUrl = "https://example.test/live-record.m3u8",
+            FlvUrl = "https://example.test/live.flv",
+        };
+
+        Assert.Equal("HLS", room.PreviewSourceText);
     }
 
     [Fact]

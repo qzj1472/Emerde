@@ -209,33 +209,34 @@ public partial class RoomStatusReactive : ReactiveObject
 
     public string BitrateText => !IsStreaming || string.IsNullOrWhiteSpace(Bitrate) ? "-" : Bitrate;
 
-    public string PreviewSupportText => PreviewSourceText == "-" ? "Record / FLV / HLS" : PreviewSourceText;
+    public string PreviewSupportText => PreviewSourceText == "-" ? "FLV / HLS / RTMP" : PreviewSourceText;
 
     public string PreviewSourceText
     {
         get
         {
-            if (!IsStreaming)
+            if (!IsStreaming || string.IsNullOrWhiteSpace(PreviewUrl))
             {
                 return "-";
             }
 
-            if (!string.IsNullOrWhiteSpace(RecordUrl))
-            {
-                return "Record";
-            }
-
-            if (!string.IsNullOrWhiteSpace(FlvUrl))
+            if (PreviewUrl.Contains(".flv", StringComparison.OrdinalIgnoreCase))
             {
                 return "FLV";
             }
 
-            if (!string.IsNullOrWhiteSpace(HlsUrl))
+            if (PreviewUrl.Contains(".m3u8", StringComparison.OrdinalIgnoreCase))
             {
                 return "HLS";
             }
 
-            return "-";
+            if (Uri.TryCreate(PreviewUrl, UriKind.Absolute, out Uri? uri)
+                && uri.Scheme.StartsWith("rtmp", StringComparison.OrdinalIgnoreCase))
+            {
+                return "RTMP";
+            }
+
+            return "直播流";
         }
     }
 
