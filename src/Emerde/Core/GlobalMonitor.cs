@@ -524,11 +524,17 @@ internal static class GlobalMonitor
         {
             roomStatus.LiveTitle = string.Empty;
         }
-        if (spiderResult.IsLiveStreaming.HasValue)
+        if (spiderResult.IsLiveStreaming == true)
         {
-            roomStatus.Quality = quality ?? string.Empty;
-            roomStatus.Resolution = resolution ?? string.Empty;
-            roomStatus.Bitrate = bitrate ?? string.Empty;
+            roomStatus.Quality = quality ?? roomStatus.Quality;
+            roomStatus.Resolution = resolution ?? roomStatus.Resolution;
+            roomStatus.Bitrate = bitrate ?? roomStatus.Bitrate;
+        }
+        else if (spiderResult.IsLiveStreaming == false)
+        {
+            roomStatus.Quality = string.Empty;
+            roomStatus.Resolution = string.Empty;
+            roomStatus.Bitrate = string.Empty;
         }
         bool hasFreshStream = HasRecordableStream(spiderResult);
         if (spiderResult.IsLiveStreaming.HasValue || hasFreshStream)

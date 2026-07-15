@@ -37,6 +37,41 @@ public sealed class LivePreviewTests
     }
 
     [Fact]
+    public void TryReadSnapshotDimensions_ReadsCompletedPng()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"emerde-preview-test-{Guid.NewGuid():N}.png");
+        try
+        {
+            byte[] pixels = new byte[4 * 3 * 4];
+            System.Windows.Media.Imaging.BitmapSource bitmap = System.Windows.Media.Imaging.BitmapSource.Create(
+                4,
+                3,
+                96,
+                96,
+                System.Windows.Media.PixelFormats.Bgra32,
+                null,
+                pixels,
+                4 * 4);
+            System.Windows.Media.Imaging.PngBitmapEncoder encoder = new();
+            encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+            using (FileStream stream = File.Create(path))
+            {
+                encoder.Save(stream);
+            }
+
+            bool resolved = LivePreviewPlayer.TryReadSnapshotDimensions(path, out uint width, out uint height);
+
+            Assert.True(resolved);
+            Assert.Equal(4u, width);
+            Assert.Equal(3u, height);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void HasPointerMoved_RequiresActualPointerMovement()
     {
         System.Windows.Point position = new(120, 80);
@@ -235,6 +270,39 @@ public sealed class LivePreviewTests
             Assert.Equal("https://example.test/original.m3u8", room.HlsUrl);
             Assert.Equal("Referer: https://example.test/", room.Headers);
             Assert.Equal(StreamStatus.Streaming, room.StreamStatus);
+        }
+        finally
+        {
+            _ = GlobalMonitor.RoomStatus.TryRemove(roomUrl, out _);
+        }
+    }
+
+    [Fact]
+    public void ApplyRoomInfoResult_PreservesResolvedMetadataWhenLiveRefreshOmitsIt()
+    {
+        const string roomUrl = "https://example.test/live-room";
+        RoomStatusReactive room = new()
+        {
+            RoomUrl = roomUrl,
+            StreamStatus = StreamStatus.Streaming,
+            Quality = StreamQualityCatalog.BlueRay,
+            Resolution = "1920x1080",
+            Bitrate = "8 Mbps",
+        };
+        StreamResolverResult result = new()
+        {
+            RoomUrl = roomUrl,
+            IsLiveStreaming = true,
+            FlvUrl = "https://example.test/live.flv",
+        };
+
+        try
+        {
+            MainViewModel.ApplyRoomInfoResult(room, result);
+
+            Assert.Equal(StreamQualityCatalog.BlueRay, room.Quality);
+            Assert.Equal("1920x1080", room.Resolution);
+            Assert.Equal("8 Mbps", room.Bitrate);
         }
         finally
         {

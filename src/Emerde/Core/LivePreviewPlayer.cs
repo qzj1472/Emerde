@@ -140,6 +140,62 @@ public sealed class LivePreviewPlayer : IDisposable
         MediaPlayer.Mute = isMuted;
     }
 
+    public async Task<(uint Width, uint Height)?> ResolveVideoDimensionsAsync(CancellationToken cancellationToken = default)
+    {
+        for (int attempt = 0; attempt < 20; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (TryGetVideoDimensions(out uint width, out uint height)
+                || TryGetVideoTrackDimensions(out width, out height))
+            {
+                return (width, height);
+            }
+
+            await Task.Delay(100, cancellationToken);
+        }
+
+        string snapshotPath = Path.Combine(Path.GetTempPath(), $"Emerde-preview-{Guid.NewGuid():N}.png");
+        try
+        {
+            bool captured = await Task.Run(() => MediaPlayer.TakeSnapshot(0, snapshotPath, 0, 0), cancellationToken);
+            if (!captured)
+            {
+                return null;
+            }
+
+            for (int attempt = 0; attempt < 30; attempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (TryReadSnapshotDimensions(snapshotPath, out uint width, out uint height))
+                {
+                    return (width, height);
+                }
+
+                await Task.Delay(100, cancellationToken);
+            }
+
+            return null;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(snapshotPath);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
     public void Dispose()
     {
         Stop();
@@ -172,6 +228,82 @@ public sealed class LivePreviewPlayer : IDisposable
     {
         currentMedia?.Dispose();
         currentMedia = null;
+    }
+
+    private bool TryGetVideoDimensions(out uint width, out uint height)
+    {
+        width = 0;
+        height = 0;
+        return MediaPlayer.VoutCount > 0
+            && MediaPlayer.Size(0, ref width, ref height)
+            && width > 0
+            && height > 0;
+    }
+
+    private bool TryGetVideoTrackDimensions(out uint width, out uint height)
+    {
+        width = 0;
+        height = 0;
+        Media? media = currentMedia;
+        if (media == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            foreach (MediaTrack track in media.Tracks)
+            {
+                if (track.TrackType != TrackType.Video
+                    || track.Data.Video.Width == 0
+                    || track.Data.Video.Height == 0)
+                {
+                    continue;
+                }
+
+                width = track.Data.Video.Width;
+                height = track.Data.Video.Height;
+                return true;
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
+    }
+
+    internal static bool TryReadSnapshotDimensions(string snapshotPath, out uint width, out uint height)
+    {
+        width = 0;
+        height = 0;
+        try
+        {
+            FileInfo snapshot = new(snapshotPath);
+            if (!snapshot.Exists || snapshot.Length == 0)
+            {
+                return false;
+            }
+
+            using FileStream stream = snapshot.OpenRead();
+            System.Windows.Media.Imaging.BitmapDecoder decoder = System.Windows.Media.Imaging.BitmapDecoder.Create(
+                stream,
+                System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat,
+                System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+            System.Windows.Media.Imaging.BitmapFrame? frame = decoder.Frames.FirstOrDefault();
+            if (frame is not { PixelWidth: > 0, PixelHeight: > 0 })
+            {
+                return false;
+            }
+
+            width = (uint)frame.PixelWidth;
+            height = (uint)frame.PixelHeight;
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return false;
+        }
     }
 
     private Media CreateMedia(string url, string userAgent, string proxyUrl, string headers)

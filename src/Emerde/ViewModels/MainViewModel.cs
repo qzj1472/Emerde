@@ -851,6 +851,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             {
                 LivePreviewStatus = LivePreviewStatus.Playing;
             }
+            await ResolvePreviewResolutionAsync(targetRoom, cancellation.Token);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
@@ -1002,6 +1003,30 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
 
         return ReferenceEquals(current, next) || string.Equals(current.RoomUrl, next.RoomUrl, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task ResolvePreviewResolutionAsync(RoomStatusReactive targetRoom, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(targetRoom.Resolution))
+        {
+            return;
+        }
+
+        (uint Width, uint Height)? dimensions = await livePreviewPlayer.ResolveVideoDimensionsAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (dimensions is not { Width: > 0, Height: > 0 }
+            || !IsSameRoom(PreviewingRoom, targetRoom))
+        {
+            return;
+        }
+
+        targetRoom.Resolution = $"{dimensions.Value.Width}x{dimensions.Value.Height}";
+        if (GlobalMonitor.RoomStatus.TryGetValue(targetRoom.RoomUrl, out RoomStatus? roomStatus))
+        {
+            roomStatus.Resolution = targetRoom.Resolution;
+        }
+        SaveRoomInfo(targetRoom);
+        targetRoom.FlashRefresh();
     }
 
     private async Task RefreshPreviewStreamQualityAsync(RoomStatusReactive targetRoom, CancellationToken cancellationToken)
@@ -1963,11 +1988,17 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             room.LiveTitle = string.Empty;
         }
 
-        if (result.IsLiveStreaming.HasValue)
+        if (result.IsLiveStreaming == true)
         {
-            room.Quality = quality ?? string.Empty;
-            room.Resolution = resolution ?? string.Empty;
-            room.Bitrate = bitrate ?? string.Empty;
+            room.Quality = quality ?? room.Quality;
+            room.Resolution = resolution ?? room.Resolution;
+            room.Bitrate = bitrate ?? room.Bitrate;
+        }
+        else if (result.IsLiveStreaming == false)
+        {
+            room.Quality = string.Empty;
+            room.Resolution = string.Empty;
+            room.Bitrate = string.Empty;
         }
 
         bool hasStreamUrl = !string.IsNullOrWhiteSpace(result.RecordUrl)
