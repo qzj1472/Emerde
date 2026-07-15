@@ -285,6 +285,15 @@ public sealed class LivePreviewTests
         Assert.False(MainWindow.IsPreviewFullScreenExitMessage(true, 0x0200, new IntPtr(0x1B)));
     }
 
+    [Theory]
+    [InlineData(false, true, false)]
+    [InlineData(true, true, true)]
+    [InlineData(false, false, true)]
+    public void ShouldSuspendPreviewPresentation_OnlySuspendsForOverlayOrStoppedPreview(bool overlay, bool previewing, bool expected)
+    {
+        Assert.Equal(expected, MainWindow.ShouldSuspendPreviewPresentation(overlay, previewing));
+    }
+
     [Fact]
     public void IsPreviewFullScreenClientHitTest_DisablesWindowEdgeHitTesting()
     {

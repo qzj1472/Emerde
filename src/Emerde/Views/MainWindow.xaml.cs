@@ -490,10 +490,20 @@ public partial class MainWindow : FluentWindow
 
     private void UpdatePreviewPresentationState()
     {
-        HomePreviewPanel.SetVideoPresentationSuspended(
-            isPreviewPresentationSuspendedByOverlay
-            || !ViewModel.IsPreviewing
-            || (!isPreviewFullScreen && !ViewModel.IsHomePageSelected));
+        bool isSuspended = ShouldSuspendPreviewPresentation(
+            isPreviewPresentationSuspendedByOverlay,
+            ViewModel.IsPreviewing);
+        HomePreviewPanel.SetVideoPresentationSuspended(isSuspended);
+
+        if (!isSuspended && (isPreviewFullScreen || ViewModel.IsHomePageSelected))
+        {
+            _ = Dispatcher.BeginInvoke(HomePreviewPanel.RefreshVideoLayout, DispatcherPriority.Render);
+        }
+    }
+
+    internal static bool ShouldSuspendPreviewPresentation(bool isSuspendedByOverlay, bool isPreviewing)
+    {
+        return isSuspendedByOverlay || !isPreviewing;
     }
 
     private void UpdateHomePreviewLayout()
