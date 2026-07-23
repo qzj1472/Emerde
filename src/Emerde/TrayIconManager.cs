@@ -305,7 +305,22 @@ internal sealed class TrayIconManager : IDisposable
                 trayMenuWindow = null;
             }
         };
-        window.Show();
+        try
+        {
+            window.Show();
+        }
+        catch (InvalidOperationException e)
+        {
+            AppSessionLogger.Event("error", "tray", "tray_menu_show_failed", e.Message, new
+            {
+                type = e.GetType().FullName,
+                stackTrace = e.ToString(),
+            });
+            if (ReferenceEquals(trayMenuWindow, window))
+            {
+                trayMenuWindow = null;
+            }
+        }
     }
 
     private static TrayMenuState CreateTrayMenuState()

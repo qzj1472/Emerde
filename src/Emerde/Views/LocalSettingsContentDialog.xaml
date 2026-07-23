@@ -122,6 +122,9 @@
                     </Border.Style>
                     <Grid ClipToBounds="True">
                         <ScrollViewer x:Name="LocalSettingsScrollViewer"
+                                      BorderThickness="0"
+                                      Focusable="False"
+                                      FocusVisualStyle="{x:Null}"
                                       Padding="14,0,8,0"
                                       PanningMode="VerticalOnly"
                                       ScrollViewer.CanContentScroll="False"

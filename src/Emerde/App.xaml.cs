@@ -25,6 +25,7 @@ public partial class App : Application
 
     static App()
     {
+        AppContext.SetSwitch("Switch.System.Windows.Input.Stylus.EnablePointerSupport", true);
         SystemMenuThemeManager.Apply();
         Directory.SetCurrentDirectory(AppContext.BaseDirectory);
         _ = DpiAware.SetProcessDpiAwareness();
