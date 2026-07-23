@@ -41,14 +41,15 @@ internal sealed class TrayIconManager : IDisposable
 
         _icon.LeftDoubleClick += (_, _) =>
         {
-            if (Application.Current.MainWindow.IsVisible)
+            if (Application.Current.MainWindow is not MainWindow mainWindow)
             {
-                if (Application.Current.MainWindow is MainWindow mainWindow)
-                {
-                    mainWindow.PrepareForTrayHide();
-                }
+                return;
+            }
 
-                Application.Current.MainWindow.Hide();
+            if (mainWindow.IsVisible)
+            {
+                mainWindow.PrepareForTrayHide();
+                mainWindow.Hide();
             }
             else
             {
@@ -376,13 +377,23 @@ internal sealed class TrayIconManager : IDisposable
             return;
         }
 
-        if (pageIndex.HasValue)
+        try
         {
-            mainWindow.ViewModel.SelectedMainPageIndex = pageIndex.Value;
+            if (pageIndex.HasValue)
+            {
+                mainWindow.ViewModel.SelectedMainPageIndex = pageIndex.Value;
+            }
+            if (!mainWindow.IsVisible)
+            {
+                mainWindow.Show();
+            }
+            mainWindow.Activate();
+            Interop.RestoreWindow(new WindowInteropHelper(mainWindow).Handle);
         }
-        mainWindow.Show();
-        mainWindow.Activate();
-        Interop.RestoreWindow(new WindowInteropHelper(mainWindow).Handle);
+        catch (Exception e) when (e is InvalidOperationException or ArgumentException)
+        {
+            AppSessionLogger.WriteException(e);
+        }
     }
 
     private static void ToggleAutoRun()
