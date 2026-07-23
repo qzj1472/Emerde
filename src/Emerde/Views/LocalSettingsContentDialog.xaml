@@ -531,7 +531,7 @@
                                                         MinWidth="34"
                                                         Margin="8,0,0,0"
                                                         Padding="0"
-                                                        Command="{Binding ClearSaveFileNameRuleCommand}"
+                                                        Command="{Binding ClearSaveFileNameCustomRuleCommand}"
                                                         ToolTip="{I18N Clear}">
                                                     <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.CalculatorMultiply}" />
                                                 </Button>

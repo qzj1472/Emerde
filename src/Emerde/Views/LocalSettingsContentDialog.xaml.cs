@@ -27,7 +27,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
 
     private int routineIntervalMilliseconds;
     private bool isUpdatingRoutineInterval;
-    private int segmentRawValue;
+    private long segmentRawValue;
     private int segmentRawUnit;
     private bool isUpdatingSegmentTime;
 
@@ -525,7 +525,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
     }
 
     [RelayCommand]
-    private void ClearSaveFileNameRule()
+    private void ClearSaveFileNameCustomRule()
     {
         SaveFileNameCustomRule = string.Empty;
     }

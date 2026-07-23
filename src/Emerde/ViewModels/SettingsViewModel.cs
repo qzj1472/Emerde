@@ -66,12 +66,12 @@ public partial class SettingsViewModel : ReactiveObject
     private IReadOnlyList<PlatformCookieItem>? domesticCookiePlatforms;
 
     public IReadOnlyList<PlatformCookieItem> DomesticCookiePlatforms =>
-        domesticCookiePlatforms ??= CreateCookieItems(DomesticCookiePlatformNames, Configurations.CookieChina.Get());
+        domesticCookiePlatforms ??= CreateCookieItems(DomesticCookiePlatformNames, SecretProtector.GetChinaCookie());
 
     private IReadOnlyList<PlatformCookieItem>? overseasCookiePlatforms;
 
     public IReadOnlyList<PlatformCookieItem> OverseasCookiePlatforms =>
-        overseasCookiePlatforms ??= CreateCookieItems(OverseasCookiePlatformNames, Configurations.CookieOversea.Get());
+        overseasCookiePlatforms ??= CreateCookieItems(OverseasCookiePlatformNames, SecretProtector.GetOverseaCookie());
 
     public string ChinaCookiePlatformsText => string.Join(" / ", DomesticCookiePlatformNames.Select(GetPlatformDisplayName));
 
@@ -268,23 +268,7 @@ public partial class SettingsViewModel : ReactiveObject
         }
 
         Configurations.DisplayScale.Set(next);
-        ConfigurationManager.Save();
-    }
-
-    [ObservableProperty]
-    private int updateChannelIndex = Math.Clamp(Configurations.UpdateChannel.Get(), 0, 2);
-
-    partial void OnUpdateChannelIndexChanged(int value)
-    {
-        int next = Math.Clamp(value, 0, 2);
-        if (next != value)
-        {
-            UpdateChannelIndex = next;
-            return;
-        }
-
-        Configurations.UpdateChannel.Set(next);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -294,7 +278,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsSessionLogEnabledChanged(bool value)
     {
         Configurations.IsSessionLogEnabled.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
 
         if (value)
         {
@@ -309,6 +293,22 @@ public partial class SettingsViewModel : ReactiveObject
     public string SessionLogStatus => IsSessionLogEnabled
         ? "保存本地运行日志，可导出最近或全部日志。"
         : "已关闭运行日志，仅能导出已存在的历史日志。";
+
+    [ObservableProperty]
+    private double sessionLogRetentionDays = AppSessionLogger.NormalizeRetentionDays(Configurations.SessionLogRetentionDays.Get());
+
+    partial void OnSessionLogRetentionDaysChanged(double value)
+    {
+        int next = AppSessionLogger.NormalizeRetentionDays((int)Math.Round(value, MidpointRounding.AwayFromZero));
+        if (Math.Abs(next - value) > double.Epsilon)
+        {
+            SessionLogRetentionDays = next;
+            return;
+        }
+
+        Configurations.SessionLogRetentionDays.Set(next);
+        ConfigurationSaveScheduler.Request();
+    }
 
     [ObservableProperty]
     private int languageIndex = Configurations.Language.Get() switch
@@ -338,7 +338,7 @@ public partial class SettingsViewModel : ReactiveObject
         };
 
         Configurations.Language.Set(language);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -365,7 +365,7 @@ public partial class SettingsViewModel : ReactiveObject
             ApplicationTheme.Dark => nameof(ApplicationTheme.Dark),
             _ => string.Empty,
         });
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
         AppThemeBrushes.Apply();
         DialogBlurScope.RefreshActiveBackdropBrushes();
         System.Windows.Application.Current.Dispatcher.BeginInvoke(
@@ -383,21 +383,28 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsUseStatusTrayChanged(bool value)
     {
         Configurations.IsUseStatusTray.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
         TrayIconManager.GetInstance().UpdateTrayIcon();
     }
 
     [RelayCommand]
     private void CreateDesktopShortcut()
     {
-        ShortcutHelper.CreateShortcutOnDesktop(
+        bool succeeded = ShortcutHelper.CreateShortcutOnDesktop(
             shortcutName: "Emerde",
             targetPath: Path.Combine(AppDomain.CurrentDomain.BaseDirectory, AppDomain.CurrentDomain.FriendlyName),
             arguments: null!,
             description: "Title".Tr(),
             iconLocation: Path.Combine(AppDomain.CurrentDomain.BaseDirectory, AppDomain.CurrentDomain.FriendlyName + ".exe"));
 
-        Toast.Success("SuccOp".Tr());
+        if (succeeded)
+        {
+            Toast.Success("SuccOp".Tr());
+        }
+        else
+        {
+            Toast.Warning("FailOp".Tr());
+        }
     }
 
     [ObservableProperty]
@@ -406,7 +413,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsToNotifyChanged(bool value)
     {
         Configurations.IsToNotify.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -415,7 +422,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsToNotifyWithSystemChanged(bool value)
     {
         Configurations.IsToNotifyWithSystem.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -424,7 +431,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsToNotifyWithMusicChanged(bool value)
     {
         Configurations.IsToNotifyWithMusic.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -433,7 +440,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnToNotifyWithMusicPathChanged(string? value)
     {
         Configurations.ToNotifyWithMusicPath.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -442,7 +449,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsToNotifyWithEmailChanged(bool value)
     {
         Configurations.IsToNotifyWithEmail.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -451,7 +458,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnToNotifyWithEmailSmtpChanged(string value)
     {
         Configurations.ToNotifyWithEmailSmtp.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -460,16 +467,16 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnToNotifyWithEmailUserNameChanged(string value)
     {
         Configurations.ToNotifyWithEmailUserName.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
-    private string toNotifyWithEmailPassword = Configurations.ToNotifyWithEmailPassword.Get();
+    private string toNotifyWithEmailPassword = SecretProtector.Unprotect(Configurations.ToNotifyWithEmailPassword.Get());
 
     partial void OnToNotifyWithEmailPasswordChanged(string value)
     {
-        Configurations.ToNotifyWithEmailPassword.Set(value);
-        ConfigurationManager.Save();
+        Configurations.ToNotifyWithEmailPassword.Set(SecretProtector.Protect(value));
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -478,7 +485,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsToNotifyGotoRoomUrlChanged(bool value)
     {
         Configurations.IsToNotifyGotoRoomUrl.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -487,7 +494,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsToNotifyGotoRoomUrlAndMuteChanged(bool value)
     {
         Configurations.IsToNotifyGotoRoomUrlAndMute.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -496,7 +503,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsToMonitorChanged(bool value)
     {
         Configurations.IsToMonitor.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -505,7 +512,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsToRecordChanged(bool value)
     {
         Configurations.IsToRecord.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -521,7 +528,7 @@ public partial class SettingsViewModel : ReactiveObject
         }
 
         Configurations.PreferredStreamQuality.Set(normalized);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -564,7 +571,7 @@ public partial class SettingsViewModel : ReactiveObject
         }
 
         Configurations.RoutineIntervalUnit.Set(next);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     private void SaveRoutineInterval(double value, int unitIndex)
@@ -574,8 +581,23 @@ public partial class SettingsViewModel : ReactiveObject
         milliseconds = MonitorTiming.NormalizeRoutineInterval(milliseconds);
         Configurations.RoutineInterval.Set(milliseconds);
         Configurations.RoutineIntervalUnit.Set(nextUnitIndex);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
         GlobalMonitor.RefreshRoutineInterval();
+    }
+
+    [ObservableProperty]
+    private int toNotifyWithEmailPort = Math.Clamp(Configurations.ToNotifyWithEmailPort.Get(), 1, 65535);
+
+    partial void OnToNotifyWithEmailPortChanged(int value)
+    {
+        int port = Math.Clamp(value, 1, 65535);
+        if (port != value)
+        {
+            ToNotifyWithEmailPort = port;
+            return;
+        }
+        Configurations.ToNotifyWithEmailPort.Set(port);
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -597,7 +619,7 @@ public partial class SettingsViewModel : ReactiveObject
         }
 
         Configurations.RoutineScheduleMode.Set(next);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -662,7 +684,7 @@ public partial class SettingsViewModel : ReactiveObject
             2 => "TS/FLV -> MKV",
             0 or _ => "TS/FLV",
         });
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -671,7 +693,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsRemoveTsChanged(bool value)
     {
         Configurations.IsRemoveTs.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -680,7 +702,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsToSegmentChanged(bool value)
     {
         Configurations.IsToSegment.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -746,7 +768,7 @@ public partial class SettingsViewModel : ReactiveObject
         int normalizedUnit = SegmentTimeUnitHelper.NormalizeUnit(unitIndex);
         Configurations.SegmentTime.Set(SegmentTimeUnitHelper.ToConfigValue(value, normalizedUnit));
         Configurations.SegmentTimeUnit.Set(normalizedUnit);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -755,7 +777,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnSaveFolderChanged(string value)
     {
         Configurations.SaveFolder.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
         RecordingCleanupService.QueueRun();
     }
 
@@ -765,7 +787,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnSaveFolderDistinguishedByAuthorsChanged(bool value)
     {
         Configurations.SaveFolderDistinguishedByAuthors.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -781,7 +803,7 @@ public partial class SettingsViewModel : ReactiveObject
         }
 
         Configurations.SaveFolderPathLevel.Set(next);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -797,7 +819,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnSaveFileNameCustomRuleChanged(string value)
     {
         Configurations.SaveFileNameCustomRule.Set(value ?? string.Empty);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [RelayCommand]
@@ -814,12 +836,6 @@ public partial class SettingsViewModel : ReactiveObject
     }
 
     [RelayCommand]
-    private void ResetSaveFileNameRule()
-    {
-        SaveFileNameCustomRule = string.Empty;
-    }
-
-    [RelayCommand]
     private void DeleteLastSaveFileNameToken()
     {
         if (string.IsNullOrWhiteSpace(SaveFileNameCustomRule))
@@ -833,7 +849,7 @@ public partial class SettingsViewModel : ReactiveObject
     }
 
     [RelayCommand]
-    private void ClearSaveFileNameRule()
+    private void ClearSaveFileNameCustomRule()
     {
         SaveFileNameCustomRule = string.Empty;
     }
@@ -844,7 +860,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsDataRetentionEnabledChanged(bool value)
     {
         Configurations.IsDataRetentionEnabled.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
 
         if (value)
         {
@@ -865,7 +881,7 @@ public partial class SettingsViewModel : ReactiveObject
         }
 
         Configurations.DataRetentionValue.Set(next);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
         RecordingCleanupService.QueueRun();
     }
 
@@ -882,7 +898,7 @@ public partial class SettingsViewModel : ReactiveObject
         }
 
         Configurations.DataRetentionUnit.Set(next);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
         RecordingCleanupService.QueueRun();
     }
 
@@ -913,32 +929,6 @@ public partial class SettingsViewModel : ReactiveObject
     }
 
     [ObservableProperty]
-    private int playerIndex = Configurations.Player.Get() switch
-    {
-        "ffplay" => 0,
-        "system" or _ => 1,
-    };
-
-    partial void OnPlayerIndexChanged(int value)
-    {
-        Configurations.Player.Set(value switch
-        {
-            0 => "ffplay",
-            1 or _ => "system",
-        });
-        ConfigurationManager.Save();
-    }
-
-    [ObservableProperty]
-    private bool isPlayerRect = Configurations.IsPlayerRect.Get();
-
-    partial void OnIsPlayerRectChanged(bool value)
-    {
-        Configurations.IsPlayerRect.Set(value);
-        ConfigurationManager.Save();
-    }
-
-    [ObservableProperty]
     private bool isUseKeepAwake = Configurations.IsUseKeepAwake.Get();
 
     partial void OnIsUseKeepAwakeChanged(bool value)
@@ -954,7 +944,7 @@ public partial class SettingsViewModel : ReactiveObject
             _ = Kernel32.SetThreadExecutionState(Kernel32.EXECUTION_STATE.ES_CONTINUOUS);
         }
         Configurations.IsUseKeepAwake.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -963,7 +953,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsUseAutoShutdownChanged(bool value)
     {
         Configurations.IsUseAutoShutdown.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -979,7 +969,7 @@ public partial class SettingsViewModel : ReactiveObject
         }
 
         Configurations.AutoShutdownTime.Set($"{normalized:D2}:{AutoShutdownTimeMinute:D2}");
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -995,7 +985,7 @@ public partial class SettingsViewModel : ReactiveObject
         }
 
         Configurations.AutoShutdownTime.Set($"{AutoShutdownTimeHour:D2}:{normalized:D2}");
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -1004,7 +994,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsAutoShutdownAfterTranscodeChanged(bool value)
     {
         Configurations.IsAutoShutdownAfterTranscode.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -1013,7 +1003,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsAutoShutdownComputerChanged(bool value)
     {
         Configurations.IsAutoShutdownComputer.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -1022,7 +1012,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsUseProxyChanged(bool value)
     {
         Configurations.IsUseProxy.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -1031,7 +1021,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnProxyUrlChanged(string value)
     {
         Configurations.ProxyUrl.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [RelayCommand]
@@ -1050,10 +1040,11 @@ public partial class SettingsViewModel : ReactiveObject
         };
 
         using HttpClient httpClient = new(httpClientHandler);
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(10));
 
         try
         {
-            HttpResponseMessage response = await httpClient.GetAsync("https://www.google.com");
+            using HttpResponseMessage response = await httpClient.GetAsync("https://www.google.com", timeout.Token);
             response.EnsureSuccessStatusCode();
 
             Toast.Success("ProxySuccOfStatusCode".Tr(response.StatusCode));
@@ -1061,6 +1052,10 @@ public partial class SettingsViewModel : ReactiveObject
         catch (HttpRequestException e)
         {
             Toast.Error("ProxyErrorOfExceptionMessage".Tr(e.Message));
+        }
+        catch (OperationCanceledException)
+        {
+            Toast.Error("ProxyErrorOfExceptionMessage".Tr("Timeout"));
         }
     }
 
@@ -1118,12 +1113,12 @@ public partial class SettingsViewModel : ReactiveObject
     }
 
     [ObservableProperty]
-    private string cookieChina = Configurations.CookieChina.Get();
+    private string cookieChina = SecretProtector.GetChinaCookie();
 
     partial void OnCookieChinaChanged(string value)
     {
-        Configurations.CookieChina.Set(value);
-        ConfigurationManager.Save();
+        Configurations.CookieChina.Set(SecretProtector.Protect(value));
+        ConfigurationSaveScheduler.Request();
     }
 
     [RelayCommand]
@@ -1139,12 +1134,12 @@ public partial class SettingsViewModel : ReactiveObject
     }
 
     [ObservableProperty]
-    private string cookieOversea = Configurations.CookieOversea.Get();
+    private string cookieOversea = SecretProtector.GetOverseaCookie();
 
     partial void OnCookieOverseaChanged(string value)
     {
-        Configurations.CookieOversea.Set(value);
-        ConfigurationManager.Save();
+        Configurations.CookieOversea.Set(SecretProtector.Protect(value));
+        ConfigurationSaveScheduler.Request();
     }
 
     [RelayCommand]
@@ -1165,7 +1160,7 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnUserAgentChanged(string value)
     {
         Configurations.UserAgent.Set(value);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [RelayCommand]
@@ -1345,7 +1340,7 @@ public partial class SettingsViewModel : ReactiveObject
         System.Windows.MessageBoxResult result = await MessageBox.QuestionAsync(message);
         if (result == System.Windows.MessageBoxResult.Yes)
         {
-            TrayIconManager.GetInstance().RestartApplication(confirmRecording: false);
+            await TrayIconManager.GetInstance().RestartApplicationAsync(confirmRecording: false);
         }
     }
 
@@ -1362,7 +1357,7 @@ public partial class SettingsViewModel : ReactiveObject
         if (RoutineScheduleSunday) days.Add(DayOfWeek.Sunday.ToString());
 
         Configurations.RoutineScheduleDays.Set(string.Join(",", days));
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     private void SaveRoutineScheduleTime(int hour, int minute, bool isStart)
@@ -1405,7 +1400,7 @@ public partial class SettingsViewModel : ReactiveObject
             Configurations.RoutineScheduleEndMinute.Set(normalizedMinute);
         }
 
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     private static int ConvertTimeUnitToMilliseconds(double value, int unitIndex)

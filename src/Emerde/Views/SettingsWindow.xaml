@@ -352,6 +352,12 @@
                                            Margin="0,0,28,0"
                                            Orientation="Horizontal"
                                            Spacing="8">
+                                <TextBlock VerticalAlignment="Center" Text="保留" />
+                                <controls:CompactNumberBox Width="70"
+                                                           Maximum="3650"
+                                                           Minimum="1"
+                                                           Value="{Binding SessionLogRetentionDays, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock VerticalAlignment="Center" Text="天" />
                                 <Button Command="{Binding OpenLogFolderCommand}" Content="打开目录" />
                                 <Button Command="{Binding ExportLogsCommand}" Content="导出" />
                                 <ui:ToggleSwitch IsChecked="{Binding IsSessionLogEnabled, Mode=TwoWay}" />
@@ -435,19 +441,26 @@
                                     <CheckBox Grid.Column="0"
                                               Content="{I18N LiveNotificationToMail}"
                                               IsChecked="{Binding IsToNotifyWithEmail, Mode=TwoWay}" />
-                                    <ui:Grid Grid.Column="1" ColumnDefinitions="*,*,*">
+                                    <ui:Grid Grid.Column="1" ColumnDefinitions="*,100,*,*">
                                         <ui:TextBox Grid.Column="0"
                                                     Margin="8,0,0,0"
                                                     PlaceholderText="SMTP"
                                                     Text="{Binding ToNotifyWithEmailSmtp, Mode=TwoWay}" />
-                                        <ui:TextBox Grid.Column="1"
+                                        <ui:NumberBox Grid.Column="1"
+                                                      Margin="8,0,0,0"
+                                                      Minimum="1"
+                                                      Maximum="65535"
+                                                      PlaceholderText="Port"
+                                                      Value="{Binding ToNotifyWithEmailPort, Mode=TwoWay}" />
+                                        <ui:TextBox Grid.Column="2"
                                                     Margin="8,0,0,0"
                                                     PlaceholderText="{I18N Account}"
                                                     Text="{Binding ToNotifyWithEmailUserName, Mode=TwoWay}" />
-                                        <ui:TextBox Grid.Column="2"
-                                                    Margin="8,0,0,0"
-                                                    PlaceholderText="{I18N Password}"
-                                                    Text="{Binding ToNotifyWithEmailPassword, Mode=TwoWay}" />
+                                        <ui:PasswordBox Grid.Column="3"
+                                                        Margin="8,0,0,0"
+                                                        Password="{Binding ToNotifyWithEmailPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                        PlaceholderText="{I18N Password}"
+                                                        RevealButtonEnabled="True" />
                                     </ui:Grid>
                                 </ui:Grid>
                                 <ui:Grid ColumnDefinitions="Auto,*">
@@ -875,7 +888,7 @@
                                             MinWidth="34"
                                             Margin="8,0,0,0"
                                             Padding="0"
-                                            Command="{Binding ClearSaveFileNameRuleCommand}"
+                                            Command="{Binding ClearSaveFileNameCustomRuleCommand}"
                                             ToolTip="{I18N Clear}">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.CalculatorMultiply}" />
                                     </Button>
@@ -1159,11 +1172,12 @@
                                                        VerticalAlignment="Center"
                                                        Text="{Binding DisplayName, StringFormat={}{0}:}"
                                                        TextTrimming="CharacterEllipsis" />
-                                            <ui:TextBox Grid.Column="1"
-                                                        MinWidth="120"
-                                                        Margin="8,0,0,0"
-                                                        PlaceholderText="{I18N UseCookieEnterHint}"
-                                                        Text="{Binding Cookie, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <ui:PasswordBox Grid.Column="1"
+                                                            MinWidth="120"
+                                                            Margin="8,0,0,0"
+                                                            Password="{Binding Cookie, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                            PlaceholderText="{I18N UseCookieEnterHint}"
+                                                            RevealButtonEnabled="True" />
                                         </ui:Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -1195,11 +1209,12 @@
                                                        VerticalAlignment="Center"
                                                        Text="{Binding DisplayName, StringFormat={}{0}:}"
                                                        TextTrimming="CharacterEllipsis" />
-                                            <ui:TextBox Grid.Column="1"
-                                                        MinWidth="120"
-                                                        Margin="8,0,0,0"
-                                                        PlaceholderText="{I18N UseCookieEnterHint}"
-                                                        Text="{Binding Cookie, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <ui:PasswordBox Grid.Column="1"
+                                                            MinWidth="120"
+                                                            Margin="8,0,0,0"
+                                                            Password="{Binding Cookie, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                            PlaceholderText="{I18N UseCookieEnterHint}"
+                                                            RevealButtonEnabled="True" />
                                         </ui:Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
