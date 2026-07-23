@@ -23,7 +23,8 @@ public sealed class AvatarCacheTests
             Assert.Equal(string.Empty, AvatarCache.GetCachedAvatarSource("https://live.douyin.com/123", directory));
 
             Directory.CreateDirectory(directory);
-            File.WriteAllBytes(path, [1, 2, 3]);
+            File.WriteAllBytes(path, Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="));
 
             Assert.Equal(path, AvatarCache.GetCachedAvatarSource("https://live.douyin.com/123", directory));
         }
@@ -34,5 +35,11 @@ public sealed class AvatarCacheTests
                 Directory.Delete(directory, true);
             }
         }
+    }
+
+    [Fact]
+    public void IsDecodableImage_RejectsAHeaderWithoutImageData()
+    {
+        Assert.False(AvatarCache.IsDecodableImage([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]));
     }
 }

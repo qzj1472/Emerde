@@ -1,17 +1,13 @@
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
+using System.Windows.Media.Imaging;
 
 namespace Emerde.Core;
 
 internal static class AvatarCache
 {
     private const int MaximumAvatarBytes = 5 * 1024 * 1024;
-
-    private static readonly HttpClient HttpClient = new()
-    {
-        Timeout = TimeSpan.FromSeconds(15),
-    };
 
     public static string GetCachedAvatarPath(string roomUrl)
     {
@@ -48,7 +44,12 @@ internal static class AvatarCache
             using HttpRequestMessage request = new(HttpMethod.Get, avatarUrl);
             string userAgent = Configurations.UserAgent.Get();
             request.Headers.UserAgent.ParseAdd(string.IsNullOrWhiteSpace(userAgent) ? "Mozilla/5.0" : userAgent);
-            using HttpResponseMessage response = await HttpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+            using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+            timeout.CancelAfter(TimeSpan.FromSeconds(15));
+            using HttpResponseMessage response = await ProxyHttpClientPool.GetCurrent().SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                timeout.Token);
             if (!response.IsSuccessStatusCode)
             {
                 return GetCachedAvatarSource(roomUrl);
@@ -59,8 +60,8 @@ internal static class AvatarCache
                 return GetCachedAvatarSource(roomUrl);
             }
 
-            byte[] bytes = await ReadLimitedAsync(response.Content, token);
-            if (bytes.Length == 0)
+            byte[] bytes = await ReadLimitedAsync(response.Content, timeout.Token);
+            if (!IsDecodableImage(bytes))
             {
                 return GetCachedAvatarSource(roomUrl);
             }
@@ -117,7 +118,18 @@ internal static class AvatarCache
             .Where(roomUrl => !string.IsNullOrWhiteSpace(roomUrl))
             .Select(roomUrl => GetCachedAvatarPath(roomUrl, directory))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (string path in Directory.EnumerateFiles(directory, "*", SearchOption.TopDirectoryOnly))
+        string[] paths;
+        try
+        {
+            paths = Directory.GetFiles(directory, "*", SearchOption.TopDirectoryOnly);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(e);
+            return;
+        }
+
+        foreach (string path in paths)
         {
             if (retainedPaths.Contains(path))
             {
@@ -195,7 +207,58 @@ internal static class AvatarCache
         try
         {
             FileInfo info = new(path);
-            return info.Exists && info.Length > 0;
+            if (!info.Exists || info.Length <= 0 || info.Length > MaximumAvatarBytes)
+            {
+                return false;
+            }
+
+            byte[] bytes = File.ReadAllBytes(path);
+            return IsDecodableImage(bytes);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    internal static bool IsSupportedImage(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF)
+        {
+            return true;
+        }
+        if (bytes.Length >= 8 && bytes[..8].SequenceEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }))
+        {
+            return true;
+        }
+        if (bytes.Length >= 6 && (bytes[..6].SequenceEqual("GIF87a"u8) || bytes[..6].SequenceEqual("GIF89a"u8)))
+        {
+            return true;
+        }
+        if (bytes.Length >= 12 && bytes[..4].SequenceEqual("RIFF"u8) && bytes[8..12].SequenceEqual("WEBP"u8))
+        {
+            return true;
+        }
+        return bytes.Length >= 2 && bytes[0] == (byte)'B' && bytes[1] == (byte)'M';
+    }
+
+    internal static bool IsDecodableImage(ReadOnlySpan<byte> bytes)
+    {
+        if (!IsSupportedImage(bytes))
+        {
+            return false;
+        }
+
+        try
+        {
+            using MemoryStream stream = new(bytes.ToArray(), writable: false);
+            BitmapDecoder decoder = BitmapDecoder.Create(
+                stream,
+                BitmapCreateOptions.PreservePixelFormat,
+                BitmapCacheOption.OnLoad);
+            return decoder.Frames.Count > 0
+                && decoder.Frames[0].PixelWidth > 0
+                && decoder.Frames[0].PixelHeight > 0;
         }
         catch
         {
