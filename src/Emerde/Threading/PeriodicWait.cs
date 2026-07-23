@@ -1,54 +1,92 @@
+using System.Diagnostics;
+
 namespace Emerde.Threading;
 
 public class PeriodicWait
 {
-    protected int _interval = 50;
-    protected bool _initialed = false;
+    private readonly object periodLock = new();
+    private CancellationTokenSource periodChanged = new();
+    private TimeSpan period;
+    private bool initialized;
 
     public TimeSpan InitialDelay { get; set; }
 
-    public TimeSpan Period { get; set; }
+    public TimeSpan Period
+    {
+        get
+        {
+            lock (periodLock)
+            {
+                return period;
+            }
+        }
+        set
+        {
+            CancellationTokenSource previous;
+            lock (periodLock)
+            {
+                period = value <= TimeSpan.Zero ? TimeSpan.FromMilliseconds(1) : value;
+                previous = periodChanged;
+                periodChanged = new CancellationTokenSource();
+            }
+            previous.Cancel();
+            previous.Dispose();
+        }
+    }
 
     public PeriodicWait(TimeSpan period, TimeSpan initialDelay = default)
     {
         InitialDelay = initialDelay;
-        Period = period;
-
-        if (Period.TotalMilliseconds < _interval)
-        {
-            _interval = (int)Period.TotalMilliseconds;
-        }
+        this.period = period <= TimeSpan.Zero ? TimeSpan.FromMilliseconds(1) : period;
     }
 
-    public ValueTask<bool> WaitForNextTickAsync(CancellationToken cancellationToken)
+    public async ValueTask<bool> WaitForNextTickAsync(CancellationToken cancellationToken)
     {
-        if (!_initialed)
+        if (!initialized)
         {
-            _initialed = true;
-            if (InitialDelay >= TimeSpan.Zero)
-            {
-                if (cancellationToken.IsCancellationRequested)
-                {
-                    return ValueTask.FromResult(false);
-                }
+            initialized = true;
+            return InitialDelay <= TimeSpan.Zero
+                ? !cancellationToken.IsCancellationRequested
+                : await DelayAsync(InitialDelay, cancellationToken, default);
+        }
 
-                Thread.Sleep(InitialDelay);
-                return ValueTask.FromResult(true);
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            TimeSpan currentPeriod;
+            CancellationToken changeToken;
+            lock (periodLock)
+            {
+                currentPeriod = period;
+                changeToken = periodChanged.Token;
+            }
+
+            TimeSpan remaining = currentPeriod - stopwatch.Elapsed;
+            if (remaining <= TimeSpan.Zero)
+            {
+                return true;
+            }
+
+            if (!await DelayAsync(remaining, cancellationToken, changeToken) && cancellationToken.IsCancellationRequested)
+            {
+                return false;
             }
         }
 
-        int currentInterval = default;
-        while (currentInterval < Period.TotalMilliseconds)
+        return false;
+    }
+
+    private static async ValueTask<bool> DelayAsync(TimeSpan delay, CancellationToken cancellationToken, CancellationToken changeToken)
+    {
+        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, changeToken);
+        try
         {
-            if (cancellationToken.IsCancellationRequested)
-            {
-                return ValueTask.FromResult(false);
-            }
-
-            Thread.Sleep(_interval);
-            currentInterval += _interval;
+            await Task.Delay(delay, linked.Token);
+            return true;
         }
-
-        return ValueTask.FromResult(true);
+        catch (OperationCanceledException) when (linked.IsCancellationRequested)
+        {
+            return false;
+        }
     }
 }
