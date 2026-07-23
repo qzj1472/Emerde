@@ -6,6 +6,7 @@ namespace Emerde.Controls;
 
 public sealed class AdaptiveSplitPanel : WpfPanel
 {
+    private readonly WpfSize[] preferredSizes = new WpfSize[3];
     public static readonly DependencyProperty HorizontalSpacingProperty = DependencyProperty.Register(
         nameof(HorizontalSpacing),
         typeof(double),
@@ -37,15 +38,29 @@ public sealed class AdaptiveSplitPanel : WpfPanel
             InternalChildren[index].Measure(index < 3
                 ? new WpfSize(double.PositiveInfinity, double.PositiveInfinity)
                 : WpfSize.Empty);
+            if (index < preferredSizes.Length)
+            {
+                preferredSizes[index] = InternalChildren[index].DesiredSize;
+            }
         }
 
-        WpfSize firstSize = GetDesiredSize(0);
-        WpfSize secondSize = GetDesiredSize(1);
-        WpfSize thirdSize = GetDesiredSize(2);
+        WpfSize firstSize = GetPreferredSize(0);
+        WpfSize secondSize = GetPreferredSize(1);
+        WpfSize thirdSize = GetPreferredSize(2);
         double availableWidth = double.IsInfinity(availableSize.Width)
             ? firstSize.Width + secondSize.Width + thirdSize.Width + Math.Max(0, HorizontalSpacing) * 2
             : Math.Max(0, availableSize.Width);
         AdaptiveSplitLayout layout = CalculateLayout(availableWidth, firstSize, secondSize, thirdSize, HorizontalSpacing, VerticalSpacing);
+        RemeasureChild(0, layout.First.Width);
+        RemeasureChild(1, layout.Second.Width);
+        RemeasureChild(2, layout.Third.Width);
+        layout = CalculateLayout(
+            availableWidth,
+            new WpfSize(firstSize.Width, GetDesiredSize(0).Height),
+            new WpfSize(secondSize.Width, GetDesiredSize(1).Height),
+            new WpfSize(thirdSize.Width, GetDesiredSize(2).Height),
+            HorizontalSpacing,
+            VerticalSpacing);
         return new WpfSize(availableWidth, layout.DesiredHeight);
     }
 
@@ -53,9 +68,9 @@ public sealed class AdaptiveSplitPanel : WpfPanel
     {
         AdaptiveSplitLayout layout = CalculateLayout(
             finalSize.Width,
-            GetDesiredSize(0),
-            GetDesiredSize(1),
-            GetDesiredSize(2),
+            new WpfSize(GetPreferredSize(0).Width, GetDesiredSize(0).Height),
+            new WpfSize(GetPreferredSize(1).Width, GetDesiredSize(1).Height),
+            new WpfSize(GetPreferredSize(2).Width, GetDesiredSize(2).Height),
             HorizontalSpacing,
             VerticalSpacing);
 
@@ -82,6 +97,19 @@ public sealed class AdaptiveSplitPanel : WpfPanel
     private WpfSize GetDesiredSize(int index)
     {
         return InternalChildren.Count > index ? InternalChildren[index].DesiredSize : WpfSize.Empty;
+    }
+
+    private WpfSize GetPreferredSize(int index)
+    {
+        return InternalChildren.Count > index ? preferredSizes[index] : WpfSize.Empty;
+    }
+
+    private void RemeasureChild(int index, double width)
+    {
+        if (InternalChildren.Count > index)
+        {
+            InternalChildren[index].Measure(new WpfSize(Math.Max(0, width), double.PositiveInfinity));
+        }
     }
 
     internal static AdaptiveSplitLayout CalculateLayout(

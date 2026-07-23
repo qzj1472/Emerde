@@ -81,6 +81,20 @@ public sealed class RoomCardLayoutTests
     }
 
     [Fact]
+    public void ColumnStabilization_KeepsCurrentColumnsInsideHysteresisBand()
+    {
+        Assert.Equal(2, MainWindow.StabilizeRoomCardColumns(2, 3, 440d, 200d, 12d));
+        Assert.Equal(3, MainWindow.StabilizeRoomCardColumns(3, 2, 580d, 200d, 12d));
+    }
+
+    [Fact]
+    public void ColumnStabilization_AcceptsCandidateOutsideHysteresisBand()
+    {
+        Assert.Equal(3, MainWindow.StabilizeRoomCardColumns(2, 3, 500d, 200d, 12d));
+        Assert.Equal(2, MainWindow.StabilizeRoomCardColumns(3, 2, 510d, 200d, 12d));
+    }
+
+    [Fact]
     public void RoomCardItemsPanel_UsesExplicitColumnsWithoutAutomaticWrapping()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));

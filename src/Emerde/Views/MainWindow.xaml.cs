@@ -625,7 +625,14 @@ public partial class MainWindow : FluentWindow
         double effectivePreference = NormalizeRoomCardScale(availableWidth, baseWidth, roomCardSizePreference);
         double horizontalGap = GetRoomCardHorizontalGap(effectivePreference);
         double verticalGap = GetRoomCardVerticalGap(effectivePreference);
-        (int columns, _, double cardWidth) = CalculateRoomCardLayout(availableWidth, baseWidth, effectivePreference, horizontalGap);
+        (int candidateColumns, _, _) = CalculateRoomCardLayout(availableWidth, baseWidth, effectivePreference, horizontalGap);
+        int columns = StabilizeRoomCardColumns(
+            RoomCardColumnCount,
+            candidateColumns,
+            availableWidth,
+            baseWidth * effectivePreference,
+            horizontalGap);
+        double cardWidth = GetCardWidthForColumns(availableWidth, columns, horizontalGap);
         double cardHeight = Math.Floor(cardWidth * 2d / 3d);
 
         RoomCardColumnCount = columns;
@@ -726,6 +733,31 @@ public partial class MainWindow : FluentWindow
         double normalCardWidth = GetCardWidthForColumns(availableWidth, columns, horizontalGap);
 
         return (columns, normalSlotWidth, normalCardWidth);
+    }
+
+    internal static int StabilizeRoomCardColumns(
+        int currentColumns,
+        int candidateColumns,
+        double availableWidth,
+        double targetCardWidth,
+        double horizontalGap)
+    {
+        if (currentColumns <= 0 || currentColumns == candidateColumns)
+        {
+            return Math.Max(1, candidateColumns);
+        }
+
+        double currentCardWidth = GetCardWidthForColumns(availableWidth, currentColumns, horizontalGap);
+        if (candidateColumns > currentColumns && currentCardWidth <= targetCardWidth * 1.1d)
+        {
+            return currentColumns;
+        }
+        if (candidateColumns < currentColumns && currentCardWidth >= targetCardWidth * 0.9d)
+        {
+            return currentColumns;
+        }
+
+        return Math.Max(1, candidateColumns);
     }
 
     private static double GetCardWidthForColumns(double availableWidth, int columns, double horizontalGap)
