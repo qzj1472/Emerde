@@ -35,11 +35,13 @@ public sealed class Converter
             return false;
         }
 
-        string targetFileName = Path.ChangeExtension(sourceFileName, targetFormat);
+        string requestedTargetFileName = Path.ChangeExtension(sourceFileName, targetFormat);
+        string targetFileName = GetAvailableTargetPath(requestedTargetFileName);
+        string temporaryTargetFileName = GetTemporaryTargetPath(targetFileName);
         VideoRecordingMetadata metadata = VideoRecordingMetadataStore.WithFileName(
             VideoRecordingMetadataStore.Load(sourceFileInfo),
             Path.GetFileName(targetFileName));
-        IReadOnlyList<string> arguments = BuildArguments(sourceFileName, targetFileName, metadata, ProbeAudioStream(sourceFileName));
+        IReadOnlyList<string> arguments = BuildArguments(sourceFileName, temporaryTargetFileName, metadata, ProbeAudioStream(sourceFileName));
         if (arguments.Count == 0)
         {
             return false;
@@ -88,7 +90,14 @@ public sealed class Converter
             await process.WaitForExitAsync(token);
             await Task.WhenAll(errorTask, outputTask);
 
-            bool succeeded = process.ExitCode == 0 && File.Exists(targetFileName);
+            bool succeeded = process.ExitCode == 0 && IsUsableOutput(temporaryTargetFileName);
+            if (succeeded)
+            {
+                File.Move(temporaryTargetFileName, targetFileName, false);
+                string targetDirectory = Path.GetDirectoryName(targetFileName) ?? string.Empty;
+                string targetStem = Path.GetFileNameWithoutExtension(targetFileName);
+                _ = VideoRecordingMetadataStore.WriteSidecar(targetDirectory, targetStem, metadata);
+            }
             AppSessionLogger.Event(succeeded ? "info" : "error", "converter", "conversion_finished", "recording conversion finished", new
             {
                 sourceFileName,
@@ -114,7 +123,59 @@ public sealed class Converter
         }
         finally
         {
+            DeleteTemporaryOutput(temporaryTargetFileName);
             Interlocked.Decrement(ref activeCount);
+        }
+    }
+
+    internal static string GetAvailableTargetPath(string requestedPath)
+    {
+        if (!File.Exists(requestedPath))
+        {
+            return requestedPath;
+        }
+
+        string directory = Path.GetDirectoryName(requestedPath) ?? string.Empty;
+        string stem = Path.GetFileNameWithoutExtension(requestedPath);
+        string extension = Path.GetExtension(requestedPath);
+        for (int index = 2; ; index++)
+        {
+            string candidate = Path.Combine(directory, $"{stem}_{index}{extension}");
+            if (!File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+    }
+
+    private static string GetTemporaryTargetPath(string targetPath)
+    {
+        string directory = Path.GetDirectoryName(targetPath) ?? string.Empty;
+        string stem = Path.GetFileNameWithoutExtension(targetPath);
+        string extension = Path.GetExtension(targetPath);
+        return Path.Combine(directory, $".{stem}.emerde-{Guid.NewGuid():N}{extension}");
+    }
+
+    private static bool IsUsableOutput(string path)
+    {
+        try
+        {
+            return new FileInfo(path) is { Exists: true, Length: > 0 };
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void DeleteTemporaryOutput(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
         }
     }
 
@@ -132,7 +193,7 @@ public sealed class Converter
             return [];
         }
 
-        List<string> arguments = ["-y"];
+        List<string> arguments = ["-n"];
         if (sourceExtension.Equals(".ts", StringComparison.OrdinalIgnoreCase))
         {
             arguments.AddRange(["-fflags", "+genpts"]);

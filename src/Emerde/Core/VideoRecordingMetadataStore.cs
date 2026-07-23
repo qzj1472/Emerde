@@ -13,7 +13,7 @@ internal static class VideoRecordingMetadataStore
         WriteIndented = true,
     };
 
-    private static readonly string[] SourceVideoExtensions = [".ts", ".flv"];
+    private static readonly string[] AssociatedVideoExtensions = [".ts", ".flv", ".mp4", ".mkv", ".mov", ".m4v", ".webm", ".avi"];
 
     public static VideoRecordingMetadata Load(FileInfo file)
     {
@@ -57,6 +57,32 @@ internal static class VideoRecordingMetadataStore
         {
             yield return GetSharedSegmentMetadataPath(file, baseStem);
         }
+    }
+
+    public static bool HasValidSidecar(FileInfo file)
+    {
+        foreach (string path in GetMetadataCandidates(file))
+        {
+            try
+            {
+                if (!File.Exists(path))
+                {
+                    continue;
+                }
+
+                VideoRecordingMetadata? metadata = JsonSerializer.Deserialize<VideoRecordingMetadata>(File.ReadAllText(path));
+                if (HasAnyMetadata(metadata))
+                {
+                    return true;
+                }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
+            {
+                AppSessionLogger.WriteException(e);
+            }
+        }
+
+        return false;
     }
 
     public static bool NeedsEmbeddedMetadataProbe(VideoRecordingMetadata metadata)
@@ -248,7 +274,7 @@ internal static class VideoRecordingMetadataStore
         }
 
         string stem = fileName[..^MetadataSuffix.Length];
-        foreach (string extension in SourceVideoExtensions)
+        foreach (string extension in AssociatedVideoExtensions)
         {
             if (File.Exists(Path.Combine(directory, $"{stem}{extension}")))
             {
