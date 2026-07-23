@@ -259,13 +259,13 @@ public sealed class RecorderTests
         Assert.False(tracker.IsStalled(startedAt.AddSeconds(29), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(15)));
         Assert.True(tracker.IsStalled(startedAt.AddSeconds(30), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(15)));
 
-        tracker.Observe("out_time=00:00:01.000000", startedAt.AddSeconds(30));
-        tracker.Observe("out_time=00:00:01.000000", startedAt.AddSeconds(40));
+        Assert.True(tracker.Observe("out_time=00:00:01.000000", startedAt.AddSeconds(30)));
+        Assert.False(tracker.Observe("out_time=00:00:01.000000", startedAt.AddSeconds(40)));
 
         Assert.False(tracker.IsStalled(startedAt.AddSeconds(44), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(15)));
         Assert.True(tracker.IsStalled(startedAt.AddSeconds(45), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(15)));
 
-        tracker.Observe("out_time=00:00:02.000000", startedAt.AddSeconds(45));
+        Assert.False(tracker.Observe("out_time=00:00:02.000000", startedAt.AddSeconds(45)));
 
         Assert.False(tracker.IsStalled(startedAt.AddSeconds(59), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(15)));
     }

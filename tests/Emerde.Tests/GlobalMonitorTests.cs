@@ -6,6 +6,34 @@ namespace Emerde.Tests;
 public sealed class GlobalMonitorTests
 {
     [Theory]
+    [InlineData("Douyin", true)]
+    [InlineData("Twitch", true)]
+    [InlineData("twitch", true)]
+    [InlineData("Bilibili", true)]
+    [InlineData(null, false)]
+    public void RecorderStreamRefresh_IsEnabledForExpiringPlatformUrls(string? platformName, bool expected)
+    {
+        Assert.Equal(expected, GlobalMonitor.SupportsRecorderStreamRefresh(platformName));
+    }
+
+    [Theory]
+    [InlineData(null, null, "https://example.test/master.m3u8", true)]
+    [InlineData("https://example.test/master.m3u8", null, "https://example.test/master.m3u8", true)]
+    [InlineData("https://example.test/live.flv", null, "https://example.test/master.m3u8", false)]
+    [InlineData(null, "https://example.test/live.flv", "https://example.test/master.m3u8", false)]
+    [InlineData(null, null, null, false)]
+    public void RecorderHlsPreparation_OnlyProbesWhenHlsIsSelected(string? recordUrl, string? flvUrl, string? hlsUrl, bool expected)
+    {
+        Assert.Equal(expected, GlobalMonitor.ShouldProbeHlsBeforeRecording(recordUrl, flvUrl, hlsUrl));
+    }
+
+    [Fact]
+    public void RecorderStreamRefresh_CoversEverySupportedPlatform()
+    {
+        Assert.All(Spider.SupportedPlatformNames, platform => Assert.True(GlobalMonitor.SupportsRecorderStreamRefresh(platform)));
+    }
+
+    [Theory]
     [InlineData(null, 1000L, true)]
     [InlineData(1000L, 1000L, false)]
     [InlineData(1000L, 3600999L, false)]
@@ -460,14 +488,14 @@ public sealed class GlobalMonitorTests
     }
 
     [Theory]
-    [InlineData("Douyin", true, false, false, 1, true)]
-    [InlineData("Douyin", true, false, false, 2, false)]
-    [InlineData("Douyin", false, false, false, 1, false)]
-    [InlineData("Douyin", true, true, true, 1, false)]
-    [InlineData("TikTok", true, false, false, 1, false)]
-    public void ShouldDeferDouyinOffline_RequiresASecondOfflineConfirmation(
-        string platformName,
-        bool isRecording,
+    [InlineData(StreamStatus.Streaming, RecordStatus.NotRecording, false, false, 1, true)]
+    [InlineData(StreamStatus.Streaming, RecordStatus.NotRecording, false, false, 2, false)]
+    [InlineData(StreamStatus.NotStreaming, RecordStatus.Recording, false, false, 1, true)]
+    [InlineData(StreamStatus.NotStreaming, RecordStatus.NotRecording, false, false, 1, false)]
+    [InlineData(StreamStatus.Streaming, RecordStatus.Recording, true, true, 1, false)]
+    public void ShouldDeferOffline_RequiresASecondOfflineConfirmationForActiveRooms(
+        StreamStatus streamStatus,
+        RecordStatus recordStatus,
         bool? isLiveStreaming,
         bool hasFreshStream,
         int offlineChecks,
@@ -475,7 +503,7 @@ public sealed class GlobalMonitorTests
     {
         Assert.Equal(
             expected,
-            GlobalMonitor.ShouldDeferDouyinOffline(platformName, isRecording, isLiveStreaming, hasFreshStream, offlineChecks));
+            GlobalMonitor.ShouldDeferOffline(streamStatus, recordStatus, isLiveStreaming, hasFreshStream, offlineChecks));
     }
 
     [Theory]
@@ -514,6 +542,24 @@ public sealed class GlobalMonitorTests
     }
 
     [Theory]
+    [InlineData("Douyin", StreamStatus.Streaming, RecordStatus.NotRecording, true, true)]
+    [InlineData("Douyin", StreamStatus.NotStreaming, RecordStatus.Recording, true, true)]
+    [InlineData("Douyin", StreamStatus.NotStreaming, RecordStatus.NotRecording, true, false)]
+    [InlineData("Twitch", StreamStatus.Streaming, RecordStatus.Recording, true, false)]
+    [InlineData("Douyin", StreamStatus.Streaming, RecordStatus.Recording, false, false)]
+    public void PreservedStreamProbeOnInconclusive_IsOnlyUsedForActiveDouyinRooms(
+        string platformName,
+        StreamStatus streamStatus,
+        RecordStatus recordStatus,
+        bool hasRecordableStream,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            GlobalMonitor.ShouldProbePreservedStreamOnInconclusive(platformName, streamStatus, recordStatus, hasRecordableStream));
+    }
+
+    [Theory]
     [InlineData("Douyin", "https://example.test/live.flv?t_id=037-20260722073816ABC", 0, StreamStatus.Initialized)]
     [InlineData("Douyin", "https://example.test/live.flv?t_id=037-20260722073816ABC", 121, StreamStatus.Initialized)]
     [InlineData("Douyin", "https://example.test/live.flv", 0, StreamStatus.Initialized)]
@@ -538,5 +584,20 @@ public sealed class GlobalMonitorTests
     public void ShouldStopRecorderAfterRoomCheck_RequiresConfirmedOffline(bool isLiveStreaming, RecordStatus recordStatus, bool expected)
     {
         Assert.Equal(expected, GlobalMonitor.ShouldStopRecorderAfterRoomCheck(isLiveStreaming, recordStatus));
+    }
+
+    [Fact]
+    public void SyncRecordStatus_ClearsStaleRecordingStateWhenRecorderFinished()
+    {
+        RoomStatus status = new()
+        {
+            RoomUrl = "https://example.test/finished",
+            NickName = "finished",
+            RecordStatus = RecordStatus.Recording,
+        };
+
+        GlobalMonitor.SyncRecordStatus(status);
+
+        Assert.Equal(RecordStatus.NotRecording, status.RecordStatus);
     }
 }

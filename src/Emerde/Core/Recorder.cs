@@ -39,6 +39,8 @@ public sealed class Recorder
 
     private int deferPostProcessing;
 
+    private int hasMediaProgress;
+
     private string lastProcessErrorOutput = string.Empty;
 
     private bool lastStreamRefreshHadUrl;
@@ -52,6 +54,8 @@ public sealed class Recorder
     private IDisposable? mediaOperationRegistration;
 
     public bool IsBusy => recordingTask is { IsCompleted: false };
+
+    public bool HasMediaProgress => Volatile.Read(ref hasMediaProgress) != 0;
 
     public string? Url { get; set; } = null;
 
@@ -78,6 +82,7 @@ public sealed class Recorder
 
             Volatile.Write(ref stopRequested, 0);
             Volatile.Write(ref deferPostProcessing, 0);
+            Volatile.Write(ref hasMediaProgress, 0);
             pendingRecordingPaths.Clear();
             unregisteredRecordingPatterns.Clear();
             FileName = null;
@@ -188,7 +193,6 @@ public sealed class Recorder
             }
 
             EndTime = DateTime.MinValue;
-            StartTime = DateTime.Now;
             int attempt = 0;
             int offlineRefreshChecks = 0;
             while (!token.IsCancellationRequested && Volatile.Read(ref stopRequested) == 0)
@@ -243,6 +247,7 @@ public sealed class Recorder
                 DeleteMetadataIfNoOutput(FileName, MetadataPath);
                 if (token.IsCancellationRequested || Volatile.Read(ref stopRequested) != 0)
                 {
+                    FinalizeMetadataForOutput(FileName, MetadataPath);
                     break;
                 }
 
@@ -258,6 +263,8 @@ public sealed class Recorder
                     });
                     continue;
                 }
+
+                FinalizeMetadataForOutput(FileName, MetadataPath);
 
                 bool hasStreamRefresh = startInfo.RefreshStreamAsync != null;
                 bool? isLiveAfterRefresh = await TryRefreshInputAsync(startInfo, token);
@@ -332,6 +339,7 @@ public sealed class Recorder
             try
             {
                 EndTime = DateTime.Now;
+                DeleteMetadataIfNoOutput(FileName ?? string.Empty, MetadataPath);
                 lock (stateLock)
                 {
                     if (RecordStatus == RecordStatus.Recording)
@@ -565,7 +573,10 @@ public sealed class Recorder
         RecorderProgressTracker progressTracker = new(DateTime.UtcNow);
         Task outputTask = ReadPipeAsync(process.StandardOutput, (data, _) =>
         {
-            progressTracker.Observe(data, DateTime.UtcNow);
+            if (progressTracker.Observe(data, DateTime.UtcNow))
+            {
+                ConfirmMediaProgress(startInfo);
+            }
             return Task.CompletedTask;
         }, CancellationToken.None);
         bool wasCanceled = false;
@@ -656,6 +667,30 @@ public sealed class Recorder
         return process.ExitCode;
     }
 
+    private void ConfirmMediaProgress(RecorderStartInfo startInfo)
+    {
+        lock (stateLock)
+        {
+            if (RecordStatus != RecordStatus.Recording
+                || Volatile.Read(ref stopRequested) != 0
+                || Interlocked.Exchange(ref hasMediaProgress, 1) != 0)
+            {
+                return;
+            }
+
+            StartTime = DateTime.Now;
+        }
+
+        AppSessionLogger.Event("info", "recorder", "record_media_started", "ffmpeg started writing media", new
+        {
+            startInfo.RoomUrl,
+            startInfo.NickName,
+            startInfo.PlatformName,
+            FileName,
+        });
+        _ = WeakReferenceMessenger.Default.Send(new RoomRecordingStateChangedMessage(startInfo.RoomUrl));
+    }
+
     internal static string GetProcessExitLogLevel(int exitCode, bool wasCanceled, bool wasStalled)
     {
         return exitCode == 0 || wasCanceled || wasStalled ? "info" : "warn";
@@ -743,6 +778,11 @@ public sealed class Recorder
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
         }
+    }
+
+    private static void FinalizeMetadataForOutput(string fileName, string? metadataPath)
+    {
+        _ = VideoRecordingMetadataStore.FinalizeSidecarForMedia(GetRecordedSourceFilesForPattern(fileName), metadataPath);
     }
 
     private void RequestCurrentProcessExit()
@@ -1269,29 +1309,31 @@ internal sealed class RecorderProgressTracker(DateTime startedAt)
     private string lastMediaTime = string.Empty;
     private bool hasProgress;
 
-    public void Observe(string line, DateTime observedAt)
+    public bool Observe(string line, DateTime observedAt)
     {
         if (!line.StartsWith("out_time=", StringComparison.Ordinal))
         {
-            return;
+            return false;
         }
 
         string mediaTime = line["out_time=".Length..].Trim();
         if (string.IsNullOrWhiteSpace(mediaTime) || mediaTime.Equals("N/A", StringComparison.OrdinalIgnoreCase))
         {
-            return;
+            return false;
         }
 
         lock (syncRoot)
         {
             if (string.Equals(lastMediaTime, mediaTime, StringComparison.Ordinal))
             {
-                return;
+                return false;
             }
 
+            bool isFirstProgress = !hasProgress;
             lastMediaTime = mediaTime;
             lastProgressAt = observedAt;
             hasProgress = true;
+            return isFirstProgress;
         }
     }
 

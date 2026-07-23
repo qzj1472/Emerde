@@ -577,6 +577,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
             if (roomStatusReactive != null)
             {
+                GlobalMonitor.SyncRecordStatus(roomStatus);
                 StreamStatus previousStreamStatus = roomStatusReactive.StreamStatus;
                 bool previousCanPreview = roomStatusReactive.CanPreview;
 
@@ -618,6 +619,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         StreamStatus previousStreamStatus = roomStatusReactive.StreamStatus;
         bool previousCanPreview = roomStatusReactive.CanPreview;
+        GlobalMonitor.SyncRecordStatus(roomStatus);
         CopyRoomStatus(roomStatusReactive, roomStatus);
 
         if ((previousStreamStatus == StreamStatus.Streaming) != (roomStatusReactive.StreamStatus == StreamStatus.Streaming))
@@ -654,6 +656,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         target.RecordUrl = source.RecordUrl;
         target.StartTime = source.Recorder.StartTime;
         target.EndTime = source.Recorder.EndTime;
+        target.IsRecordingConfirmed = source.Recorder.HasMediaProgress;
     }
 
     private void ReloadConfigurationStatus()

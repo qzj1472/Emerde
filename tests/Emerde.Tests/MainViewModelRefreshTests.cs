@@ -1,4 +1,5 @@
 using Emerde.Core;
+using Emerde.Extensions;
 using Emerde.Models;
 using Emerde.ViewModels;
 
@@ -58,5 +59,21 @@ public sealed class MainViewModelRefreshTests
         Assert.Equal("live title", target.LiveTitle);
         Assert.Equal("1920x1080", target.Resolution);
         Assert.Equal("8 Mbps", target.Bitrate);
+    }
+
+    [Fact]
+    public void CopyRoomStatus_ConfirmsRecordingOnlyAfterMediaProgress()
+    {
+        RoomStatus source = new()
+        {
+            RecordStatus = RecordStatus.Recording,
+        };
+        RoomStatusReactive target = new();
+
+        MainViewModel.CopyRoomStatus(target, source);
+
+        Assert.Equal(RecordStatus.Recording, target.RecordStatus);
+        Assert.False(target.IsRecordingConfirmed);
+        Assert.Equal("RecordStatusOfStarting".Tr(), target.RecordStatusText);
     }
 }

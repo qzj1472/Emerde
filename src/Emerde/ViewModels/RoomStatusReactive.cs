@@ -160,6 +160,7 @@ public partial class RoomStatusReactive : ReactiveObject
         RecordStatus.Initialized => "RecordStatusOfInitialized".Tr(),
         RecordStatus.Disabled => "RecordStatusOfDisabled".Tr(),
         RecordStatus.NotRecording => "RecordStatusOfNotRecording".Tr(),
+        RecordStatus.Recording when !IsRecordingConfirmed => "RecordStatusOfStarting".Tr(),
         RecordStatus.Recording => "RecordStatusOfRecording".Tr() + " " + Duration,
 #pragma warning disable CS0618 // Type or member is obsolete
         RecordStatus.Error => "RecordStatusOfError".Tr(),
@@ -168,6 +169,10 @@ public partial class RoomStatusReactive : ReactiveObject
     };
 
     public bool IsRecording => RecordStatus == RecordStatus.Recording;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RecordStatusText))]
+    private bool isRecordingConfirmed;
 
     public string PreviewUrl => !string.IsNullOrWhiteSpace(RecordUrl)
         ? RecordUrl
@@ -281,7 +286,7 @@ public partial class RoomStatusReactive : ReactiveObject
 
     public void RefreshDuration()
     {
-        if (RecordStatus == RecordStatus.Recording)
+        if (RecordStatus == RecordStatus.Recording && IsRecordingConfirmed)
         {
             OnPropertyChanged(nameof(RecordStatusText));
             OnPropertyChanged(nameof(Duration));
