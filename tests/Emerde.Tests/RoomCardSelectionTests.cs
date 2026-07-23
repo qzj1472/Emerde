@@ -1,9 +1,33 @@
 using Emerde.ViewModels;
+using Emerde.Views;
+using System.Xml.Linq;
 
 namespace Emerde.Tests;
 
 public sealed class RoomCardSelectionTests
 {
+    [Theory]
+    [InlineData(System.Windows.Input.Key.Up, true)]
+    [InlineData(System.Windows.Input.Key.Down, true)]
+    [InlineData(System.Windows.Input.Key.Left, true)]
+    [InlineData(System.Windows.Input.Key.Right, true)]
+    [InlineData(System.Windows.Input.Key.Home, false)]
+    public void RoomCardKeyboardNavigation_UsesArrowKeys(System.Windows.Input.Key key, bool expected)
+    {
+        Assert.Equal(expected, MainWindow.IsRoomCardKeyboardNavigationKey(key));
+    }
+
+    [Fact]
+    public void CurrentRoomVisual_IsHiddenWhenRoomsAreAlreadySelected()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XElement condition = document.Descendants()
+            .Single(element => element.Name.LocalName == "Condition"
+                && ((string?)element.Attribute("Binding"))?.Contains("HasSelectedRooms", StringComparison.Ordinal) == true);
+
+        Assert.Equal("False", (string?)condition.Attribute("Value"));
+    }
+
     [Fact]
     public void RoomHistoryLimit_IsTwoHundred()
     {
@@ -140,5 +164,20 @@ public sealed class RoomCardSelectionTests
             RoomUrl = $"https://example.com/{name}",
             PlatformName = platform,
         };
+    }
+
+    private static string FindRepositoryFile(params string[] parts)
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory != null)
+        {
+            string path = Path.Combine([directory.FullName, .. parts]);
+            if (File.Exists(path))
+            {
+                return path;
+            }
+            directory = directory.Parent;
+        }
+        throw new FileNotFoundException(string.Join(Path.DirectorySeparatorChar, parts));
     }
 }

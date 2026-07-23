@@ -90,6 +90,12 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         if (value < 0 || value > 3)
         {
             SelectedMainPageIndex = 0;
+            return;
+        }
+
+        if (value != 2)
+        {
+            ReloadConfigurationStatus();
         }
     }
 
@@ -277,7 +283,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         if (changed)
         {
             Configurations.Rooms.Set(normalizedRooms.ToArray());
-            ConfigurationManager.Save();
+            ConfigurationSaveScheduler.Request();
         }
 
         return normalizedRooms.ToArray();
@@ -300,7 +306,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             NickName = room.NickName,
             RoomUrl = room.RoomUrl,
             AvatarThumbUrl = room.AvatarThumbUrl,
-            AvatarLocalPath = room.AvatarLocalPath,
+            AvatarLocalPath = AvatarCache.GetCachedAvatarSource(room.RoomUrl),
             PlatformName = string.IsNullOrWhiteSpace(room.PlatformName) ? Spider.GetPlatformName(room.RoomUrl) : room.PlatformName,
             LiveTitle = room.LiveTitle,
             Uid = room.Uid,
@@ -326,7 +332,6 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             NickName = room.NickName,
             RoomUrl = room.RoomUrl,
             AvatarThumbUrl = room.AvatarThumbUrl,
-            AvatarLocalPath = room.AvatarLocalPath,
             PlatformName = room.PlatformName,
             LiveTitle = room.LiveTitle,
             Uid = room.Uid,
@@ -337,7 +342,6 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             FlvUrl = room.FlvUrl,
             HlsUrl = room.HlsUrl,
             RecordUrl = room.RecordUrl,
-            LastInfoUpdatedAt = room.LastInfoUpdatedAt,
             IsToNotify = room.IsToNotify,
             IsToRecord = room.IsToRecord,
             IsToMonitor = room.IsToMonitor,
@@ -461,29 +465,16 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         livePreviewPlayer.PlaybackFailed += OnLivePreviewPlaybackFailed;
         livePreviewPlayer.PlaybackEnded += OnLivePreviewPlaybackEnded;
         DispatcherTimer = new(TimeSpan.FromSeconds(3), ReloadRoomStatus);
-        AutoShutdownDispatcherTimer = new(TimeSpan.FromSeconds(1), UpdateAutoShutdownState);
+        AutoShutdownDispatcherTimer = new(TimeSpan.FromSeconds(1), UpdateOneSecondState);
         Room[] configuredRooms = NormalizeStoredRooms(Configurations.Rooms.Get());
+        AvatarCache.Prune(configuredRooms.Select(room => room.RoomUrl));
 
         RoomStatuses.Reset(configuredRooms.Select(CreateRoomStatusReactive));
         RoomStatusesView = CollectionViewSource.GetDefaultView(RoomStatuses);
         RoomStatusesView.Filter = FilterRoomStatus;
         ApplyRoomSort();
 
-        Locale.CultureChanged += (_, _) =>
-        {
-            foreach (RoomStatusReactive roomStatusReactive in RoomStatuses)
-            {
-                roomStatusReactive.RefreshStatus();
-            }
-            OnPropertyChanged(nameof(PlatformSummaryText));
-            OnPropertyChanged(nameof(PreviewPlaybackToolTip));
-            OnPropertyChanged(nameof(PreviewMuteToolTip));
-            if (!IsNetworkCapacityTesting && NetworkCapacityText == "NetworkCapacityIdle".Tr())
-            {
-                NetworkCapacityText = "NetworkCapacityIdle".Tr();
-                NetworkCapacityToolTip = "NetworkCapacityHint".Tr();
-            }
-        };
+        Locale.CultureChanged += OnCultureChanged;
 
         WeakReferenceMessenger.Default.Register<ToastNotificationActivatedMessage>(this, (_, msg) =>
         {
@@ -500,12 +491,13 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             }
         });
 
+        ChildProcessTracerPeriodicTimer.Default.WhiteList = ["ffmpeg", "ffprobe"];
+        ChildProcessTracerPeriodicTimer.Default.Start();
+        RecordingRecoveryService.QueueRun();
         if (ShouldRunMonitorLoop())
         {
             GlobalMonitor.Start();
         }
-        ChildProcessTracerPeriodicTimer.Default.WhiteList = ["ffmpeg", "ffprobe", "ffplay"];
-        ChildProcessTracerPeriodicTimer.Default.Start();
         DispatcherTimer.Start();
         AutoShutdownDispatcherTimer.Start();
         RecordingCleanupService.QueueRun();
@@ -513,19 +505,25 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     private void ReloadRoomStatus()
     {
+        bool refreshPlatformSummary = false;
+        bool refreshSelectedPreview = false;
         foreach (RoomStatus roomStatus in GlobalMonitor.RoomStatus.Values.ToArray())
         {
             RoomStatusReactive? roomStatusReactive = RoomStatuses.Where(room => room.RoomUrl == roomStatus.RoomUrl).FirstOrDefault();
 
             if (roomStatusReactive != null)
             {
+                StreamStatus previousStreamStatus = roomStatusReactive.StreamStatus;
+                bool previousCanPreview = roomStatusReactive.CanPreview;
+
                 roomStatusReactive.AvatarThumbUrl = roomStatus.AvatarThumbUrl;
                 roomStatusReactive.AvatarLocalPath = roomStatus.AvatarLocalPath;
                 roomStatusReactive.PlatformName = roomStatus.PlatformName;
-                roomStatusReactive.LiveTitle = roomStatus.LiveTitle;
                 roomStatusReactive.Uid = roomStatus.Uid;
+                roomStatusReactive.LiveTitle = roomStatus.LiveTitle;
                 roomStatusReactive.Quality = roomStatus.Quality;
                 roomStatusReactive.Resolution = roomStatus.Resolution;
+
                 roomStatusReactive.Bitrate = roomStatus.Bitrate;
                 roomStatusReactive.Headers = roomStatus.Headers;
                 roomStatusReactive.StreamStatus = roomStatus.StreamStatus;
@@ -535,28 +533,63 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 roomStatusReactive.RecordUrl = roomStatus.RecordUrl;
                 roomStatusReactive.StartTime = roomStatus.Recorder.StartTime;
                 roomStatusReactive.EndTime = roomStatus.Recorder.EndTime;
-                roomStatusReactive.RefreshDuration();
+
+                refreshPlatformSummary |= (previousStreamStatus == StreamStatus.Streaming)
+                    != (roomStatusReactive.StreamStatus == StreamStatus.Streaming);
+                refreshSelectedPreview |= ReferenceEquals(roomStatusReactive, SelectedItem) && previousCanPreview != roomStatusReactive.CanPreview;
             }
         }
-        RoomStatusesView.Refresh();
-        OnPropertyChanged(nameof(PlatformSummaryText));
+
+        if (refreshPlatformSummary)
+        {
+            OnPropertyChanged(nameof(PlatformSummaryText));
+        }
 
         IsRecording = RoomStatuses.Any(roomStatusReactive => roomStatusReactive.RecordStatus == RecordStatus.Recording);
 
-        StatusOfIsMonitorRunning = Configurations.IsMonitorRunning.Get();
-        StatusOfIsToNotify = Configurations.IsToNotify.Get();
-        StatusOfIsToMonitor = Configurations.IsToMonitor.Get();
-        StatusOfIsToRecord = Configurations.IsToRecord.Get();
+        if (refreshSelectedPreview)
+        {
+            OnPropertyChanged(nameof(CanPreviewSelectedRoom));
+        }
+
+        ClosePreviewIfCurrentRoomUnavailable();
+    }
+
+    private void ReloadConfigurationStatus()
+    {
+        bool isMonitorRunning = Configurations.IsMonitorRunning.Get();
+        bool isToNotify = Configurations.IsToNotify.Get();
+        bool isToMonitor = Configurations.IsToMonitor.Get();
+        bool isToRecord = Configurations.IsToRecord.Get();
+        bool refreshRoomEffectiveStates = StatusOfIsMonitorRunning != isMonitorRunning
+            || StatusOfIsToNotify != isToNotify
+            || StatusOfIsToMonitor != isToMonitor
+            || StatusOfIsToRecord != isToRecord;
+
+        StatusOfIsMonitorRunning = isMonitorRunning;
+        StatusOfIsToNotify = isToNotify;
+        StatusOfIsToMonitor = isToMonitor;
+        StatusOfIsToRecord = isToRecord;
         StatusOfIsUseProxy = Configurations.IsUseProxy.Get();
         StatusOfIsUseKeepAwake = Configurations.IsUseKeepAwake.Get();
         StatusOfIsUseAutoShutdown = Configurations.IsUseAutoShutdown.Get();
         StatusOfAutoShutdownTime = Configurations.AutoShutdownTime.Get();
         StatusOfRecordFormat = Configurations.RecordFormat.Get();
         StatusOfRoutineInterval = MonitorTiming.NormalizeRoutineInterval(Configurations.RoutineInterval.Get());
-        OnPropertyChanged(nameof(StatusOfAutoShutdownCountdown));
-        OnPropertyChanged(nameof(StatusOfAutoShutdownCountdownToolTip));
-        OnPropertyChanged(nameof(CanPreviewSelectedRoom));
-        ClosePreviewIfCurrentRoomUnavailable();
+
+        if (refreshRoomEffectiveStates)
+        {
+            RefreshRoomEffectiveStates();
+        }
+    }
+
+    private void UpdateOneSecondState()
+    {
+        UpdateAutoShutdownState();
+        foreach (RoomStatusReactive roomStatus in RoomStatuses)
+        {
+            roomStatus.RefreshDuration();
+        }
     }
 
     private void UpdateAutoShutdownState()
@@ -1056,7 +1089,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 }
 
                 previewQualityRefreshTimestamps[roomUrl] = Environment.TickCount64;
-                ApplyRoomInfoResult(targetRoom, result!);
+                string avatarLocalPath = await CacheAvatarAsync(targetRoom.RoomUrl, result!, cancellationToken);
+                ApplyRoomInfoResult(targetRoom, result!, avatarLocalPath);
                 return true;
             }, cancellationToken);
         }
@@ -1210,7 +1244,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     {
         bool isMonitorRunning = !Configurations.IsMonitorRunning.Get();
         Configurations.IsMonitorRunning.Set(isMonitorRunning);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
         StatusOfIsMonitorRunning = isMonitorRunning;
 
         if (isMonitorRunning)
@@ -1251,7 +1285,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     {
         StatusOfIsToMonitor = !StatusOfIsToMonitor;
         Configurations.IsToMonitor.Set(StatusOfIsToMonitor);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
         if (StatusOfIsToMonitor && Configurations.IsMonitorRunning.Get())
         {
             GlobalMonitor.Start();
@@ -1265,7 +1299,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     {
         StatusOfIsToNotify = !StatusOfIsToNotify;
         Configurations.IsToNotify.Set(StatusOfIsToNotify);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
         TrayIconManager.GetInstance().UpdateTrayIcon();
         RefreshRoomEffectiveStates();
     }
@@ -1275,7 +1309,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     {
         StatusOfIsToRecord = !StatusOfIsToRecord;
         Configurations.IsToRecord.Set(StatusOfIsToRecord);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
         TrayIconManager.GetInstance().UpdateTrayIcon();
 
         if (StatusOfIsToRecord && Configurations.IsMonitorRunning.Get())
@@ -1297,7 +1331,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     {
         StatusOfIsUseProxy = !StatusOfIsUseProxy;
         Configurations.IsUseProxy.Set(StatusOfIsUseProxy);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [RelayCommand]
@@ -1315,7 +1349,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
 
         Configurations.IsUseKeepAwake.Set(StatusOfIsUseKeepAwake);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [RelayCommand]
@@ -1323,7 +1357,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     {
         StatusOfIsUseAutoShutdown = !StatusOfIsUseAutoShutdown;
         Configurations.IsUseAutoShutdown.Set(StatusOfIsUseAutoShutdown);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [RelayCommand]
@@ -1340,7 +1374,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return;
         }
 
-        AddConfirmedRoom(dialog.NickName, dialog.RoomUrl, dialog.SpiderResult);
+        await AddConfirmedRoomAsync(dialog.NickName, dialog.RoomUrl, dialog.SpiderResult);
     }
 
     private static async Task<ContentDialogResult> ShowMainContentDialogAsync(ContentDialog dialog)
@@ -1358,7 +1392,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
     }
 
-    private void AddConfirmedRoom(string nickName, string roomUrl, ISpiderResult? spiderResult)
+    private async Task AddConfirmedRoomAsync(string nickName, string roomUrl, ISpiderResult? spiderResult)
     {
         RoomListHistoryState before = CaptureRoomListHistoryState();
         List<Room> rooms = [.. Configurations.Rooms.Get()];
@@ -1375,12 +1409,13 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             IsFollowGlobalSettings = true,
         });
         Configurations.Rooms.Set([.. rooms]);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
 
         RoomStatusReactive roomStatusReactive = new()
         {
             NickName = nickName,
             RoomUrl = roomUrl,
+            AvatarLocalPath = AvatarCache.GetCachedAvatarSource(roomUrl),
             PlatformName = Spider.GetPlatformName(roomUrl),
             IsToMonitor = Configurations.IsToMonitor.Get(),
             IsToRecord = Configurations.IsToRecord.Get(),
@@ -1389,7 +1424,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         };
         if (spiderResult != null)
         {
-            ApplyRoomInfoResult(roomStatusReactive, spiderResult);
+            string avatarLocalPath = await CacheAvatarAsync(roomUrl, spiderResult);
+            ApplyRoomInfoResult(roomStatusReactive, spiderResult, avatarLocalPath);
         }
 
         RoomStatuses.Add(roomStatusReactive);
@@ -1451,15 +1487,15 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     }
 
     [RelayCommand]
-    private void CopySelectedRoomUrl()
+    private async Task CopySelectedRoomUrlAsync()
     {
-        CopyTextToClipboard(SelectedItem?.RoomUrl);
+        await CopyTextToClipboardAsync(SelectedItem?.RoomUrl);
     }
 
     [RelayCommand]
-    private void CopySelectedPreviewUrl()
+    private async Task CopySelectedPreviewUrlAsync()
     {
-        CopyTextToClipboard(SelectedItem?.PreviewUrl);
+        await CopyTextToClipboardAsync(SelectedItem?.PreviewUrl);
     }
 
     [RelayCommand]
@@ -1536,9 +1572,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                         return false;
                     }
 
+                    string avatarLocalPath = await CacheAvatarAsync(room.RoomUrl, result);
                     Application.Current.Dispatcher.Invoke(() =>
                     {
-                        ApplyRoomInfoResult(room, result);
+                        ApplyRoomInfoResult(room, result, avatarLocalPath);
                     });
                     return true;
                 });
@@ -1590,7 +1627,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                     return false;
                 }
 
-                ApplyRoomInfoResult(selectedRoom, result);
+                string avatarLocalPath = await CacheAvatarAsync(roomUrl, result);
+                ApplyRoomInfoResult(selectedRoom, result, avatarLocalPath);
                 return true;
             });
             if (!updated)
@@ -1664,11 +1702,15 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             catch
             {
                 measuredBroadband = false;
-                measuredMbps = testRooms.Length == 0
-                    ? estimateRooms.Sum(EstimateRequiredMbps) * 1.25d
-                    : await MeasureNetworkThroughputMbpsAsync(GetPreferredNetworkTestUrl(testRooms[0]));
+                if (testRooms.Length == 0)
+                {
+                    throw new InvalidOperationException("No live stream is available for network capacity testing.");
+                }
+
+                measuredMbps = await MeasureNetworkThroughputMbpsAsync(GetPreferredNetworkTestUrl(testRooms[0]));
             }
-            int capacity = Math.Max(1, (int)Math.Floor(measuredMbps * 0.7d / Math.Max(1d, perRoomMbps)));
+            int capacity = CalculateNetworkCapacity(measuredMbps, perRoomMbps)
+                ?? throw new InvalidOperationException("Network capacity measurement did not return a valid result.");
 
             NetworkCapacityText = FormatNetworkCapacityResultShort(capacity);
             NetworkCapacityToolTip = "NetworkCapacityResultHint".Tr(measuredMbps, perRoomMbps, capacity, estimateRooms.Length);
@@ -1679,17 +1721,29 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         {
             Debug.WriteLine(e);
             AppSessionLogger.WriteException(e);
-            double perRoomMbps = estimateRooms.Select(EstimateRequiredMbps).DefaultIfEmpty(10d).Average();
-            double estimatedMbps = estimateRooms.Sum(EstimateRequiredMbps) * 1.25d;
-            int capacity = Math.Max(1, (int)Math.Floor(estimatedMbps * 0.7d / Math.Max(1d, perRoomMbps)));
-            NetworkCapacityText = FormatNetworkCapacityResultShort(capacity);
-            NetworkCapacityToolTip = "NetworkCapacityResultHint".Tr(estimatedMbps, perRoomMbps, capacity, estimateRooms.Length);
+            NetworkCapacityText = "NetworkCapacityFailed".Tr();
+            NetworkCapacityToolTip = NetworkCapacityText;
             Toast.Warning(NetworkCapacityToolTip);
         }
         finally
         {
             IsNetworkCapacityTesting = false;
         }
+    }
+
+    internal static int? CalculateNetworkCapacity(double? measuredMbps, double perRoomMbps)
+    {
+        if (measuredMbps is not > 0 ||
+            double.IsNaN(measuredMbps.Value) ||
+            double.IsInfinity(measuredMbps.Value) ||
+            perRoomMbps <= 0 ||
+            double.IsNaN(perRoomMbps) ||
+            double.IsInfinity(perRoomMbps))
+        {
+            return null;
+        }
+
+        return Math.Max(1, (int)Math.Floor(measuredMbps.Value * 0.7d / perRoomMbps));
     }
 
     private RoomStatusReactive[] GetNetworkCapacityEstimateRooms()
@@ -1953,7 +2007,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         return value;
     }
 
-    internal static void ApplyRoomInfoResult(RoomStatusReactive room, ISpiderResult result)
+    internal static void ApplyRoomInfoResult(RoomStatusReactive room, ISpiderResult result, string? avatarLocalPath = null)
     {
         string? title = SpiderResultMetadata.GetTitle(result);
         string? quality = SpiderResultMetadata.GetQuality(result);
@@ -1968,6 +2022,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         if (!string.IsNullOrWhiteSpace(result.AvatarThumbUrl))
         {
             room.AvatarThumbUrl = result.AvatarThumbUrl;
+            room.AvatarLocalPath = string.IsNullOrWhiteSpace(avatarLocalPath)
+                ? AvatarCache.GetCachedAvatarSource(room.RoomUrl)
+                : avatarLocalPath;
         }
 
         if (!string.IsNullOrWhiteSpace(result.PlatformName))
@@ -2046,6 +2103,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         status.HlsUrl = room.HlsUrl;
         status.RecordUrl = room.RecordUrl;
         status.StreamStatus = room.StreamStatus;
+        if (room.StreamStatus != StreamStatus.Streaming)
+        {
+            GlobalMonitor.ResetLiveSessionMetadata(status);
+        }
         SaveRoomInfo(room);
         room.FlashRefresh();
     }
@@ -2061,7 +2122,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         ApplyRoomStatusToRoom(source, room);
         Configurations.Rooms.Set(rooms);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     private static void ApplyRoomStatusToRoom(RoomStatusReactive source, Room target)
@@ -2069,7 +2130,6 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         target.NickName = source.NickName;
         target.RoomUrl = NormalizeRoomUrl(source.RoomUrl);
         target.AvatarThumbUrl = source.AvatarThumbUrl;
-        target.AvatarLocalPath = source.AvatarLocalPath;
         target.PlatformName = source.PlatformName;
         target.LiveTitle = source.LiveTitle;
         target.Uid = source.Uid;
@@ -2080,11 +2140,17 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         target.FlvUrl = source.FlvUrl;
         target.HlsUrl = source.HlsUrl;
         target.RecordUrl = source.RecordUrl;
-        target.LastInfoUpdatedAt = DateTime.Now;
         target.IsToNotify = source.IsToNotify;
         target.IsToRecord = source.IsToRecord;
         target.IsToMonitor = source.IsToMonitor;
         target.IsFollowGlobalSettings = source.IsFollowGlobalSettings;
+    }
+
+    private static Task<string> CacheAvatarAsync(string roomUrl, ISpiderResult result, CancellationToken token = default)
+    {
+        return string.IsNullOrWhiteSpace(result.AvatarThumbUrl)
+            ? Task.FromResult(AvatarCache.GetCachedAvatarSource(roomUrl))
+            : AvatarCache.UpdateAsync(roomUrl, result.AvatarThumbUrl, token);
     }
 
     public void MoveRoom(RoomStatusReactive source, int newVisibleIndex)
@@ -2403,7 +2469,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             .ToArray();
 
         Configurations.Rooms.Set(restoredConfiguration);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
         RoomStatuses.Reset(restoredRooms);
         RoomStatusesView.Refresh();
         RestoreRoomSelection(state.SelectedRoomUrls);
@@ -2427,7 +2493,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             .ToArray();
     }
 
-    private static void StopAndRemoveMonitoredRoom(string roomUrl)
+    private void StopAndRemoveMonitoredRoom(string roomUrl)
     {
         if (GlobalMonitor.RoomStatus.TryGetValue(roomUrl, out RoomStatus? roomStatus))
         {
@@ -2459,7 +2525,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             ?? new RoomStatusReactive();
     }
 
-    private static void CopyTextToClipboard(string? text)
+    private static async Task CopyTextToClipboardAsync(string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -2467,12 +2533,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return;
         }
 
-        try
+        if (await ClipboardService.SetTextAsync(text))
         {
-            System.Windows.Clipboard.SetText(text);
             Toast.Success("SuccOp".Tr());
         }
-        catch (ExternalException)
+        else
         {
             Toast.Warning("FailOp".Tr());
         }
@@ -2514,7 +2579,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         RoomStatuses.MoveUp(roomStatusReactive);
         SaveRoomOrder();
-        RoomStatusesView.Refresh();
+        RestoreSelectedRoomAfterReorder(roomStatusReactive);
     }
 
     [RelayCommand]
@@ -2534,7 +2599,15 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         RoomStatuses.MoveDown(roomStatusReactive);
         SaveRoomOrder();
+        RestoreSelectedRoomAfterReorder(roomStatusReactive);
+    }
+
+    private void RestoreSelectedRoomAfterReorder(RoomStatusReactive room)
+    {
         RoomStatusesView.Refresh();
+        SelectRoom(room, false, false);
+        SelectedItem = room;
+        OnPropertyChanged(nameof(SelectedItem));
     }
 
     private void SaveRoomOrder()
@@ -2579,7 +2652,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             .ToArray();
 
         Configurations.Rooms.Set(rooms);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
     }
 
     [RelayCommand]
@@ -2615,7 +2688,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             if (!Configurations.IsMonitorRunning.Get())
             {
                 Configurations.IsMonitorRunning.Set(true);
-                ConfigurationManager.Save();
+                ConfigurationSaveScheduler.Request();
                 StatusOfIsMonitorRunning = true;
             }
 
@@ -2665,7 +2738,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             if (!Configurations.IsMonitorRunning.Get())
             {
                 Configurations.IsMonitorRunning.Set(true);
-                ConfigurationManager.Save();
+                ConfigurationSaveScheduler.Request();
                 StatusOfIsMonitorRunning = true;
             }
 
@@ -2830,7 +2903,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             List<Room> rooms = [.. Configurations.Rooms.Get()];
             rooms.RemoveAll(room => roomUrls.Contains(room.RoomUrl));
             Configurations.Rooms.Set([.. rooms]);
-            ConfigurationManager.Save();
+            ConfigurationSaveScheduler.Request();
             SelectedItem = RoomStatuses.Count == 0
                 ? new RoomStatusReactive()
                 : RoomStatuses[Math.Clamp(removedIndex, 0, RoomStatuses.Count - 1)];
@@ -2955,7 +3028,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             room.IsToNotify = SelectedItem.IsToNotify;
         }
         Configurations.Rooms.Set(rooms);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
         RefreshRoomEffectiveStates();
     }
 
@@ -2982,7 +3055,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             room.IsToRecord = SelectedItem.IsToRecord;
         }
         Configurations.Rooms.Set(rooms);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
         RefreshRoomEffectiveStates();
     }
 
@@ -3011,7 +3084,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
 
         Configurations.Rooms.Set(rooms);
-        ConfigurationManager.Save();
+        ConfigurationSaveScheduler.Request();
         GlobalMonitor.RefreshRoutineInterval();
     }
 
@@ -3089,6 +3162,22 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             || string.Equals(room.PlatformName, SelectedPlatformFilter, StringComparison.OrdinalIgnoreCase);
     }
 
+    private void OnCultureChanged(object? sender, EventArgs e)
+    {
+        foreach (RoomStatusReactive roomStatusReactive in RoomStatuses)
+        {
+            roomStatusReactive.RefreshStatus();
+        }
+        OnPropertyChanged(nameof(PlatformSummaryText));
+        OnPropertyChanged(nameof(PreviewPlaybackToolTip));
+        OnPropertyChanged(nameof(PreviewMuteToolTip));
+        if (!IsNetworkCapacityTesting && NetworkCapacityText == "NetworkCapacityIdle".Tr())
+        {
+            NetworkCapacityText = "NetworkCapacityIdle".Tr();
+            NetworkCapacityToolTip = "NetworkCapacityHint".Tr();
+        }
+    }
+
     public void Dispose()
     {
         AbortAutoShutdownCountdown();
@@ -3097,9 +3186,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         lock (previewTransitionSync)
         {
             previewTransitionCancellation?.Cancel();
+            previewTransitionCancellation?.Dispose();
             previewTransitionCancellation = null;
         }
 
+        Locale.CultureChanged -= OnCultureChanged;
         livePreviewPlayer.PlaybackFailed -= OnLivePreviewPlaybackFailed;
         livePreviewPlayer.PlaybackEnded -= OnLivePreviewPlaybackEnded;
         livePreviewPlayer.Dispose();

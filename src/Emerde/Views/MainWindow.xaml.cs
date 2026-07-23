@@ -28,6 +28,7 @@ namespace Emerde.Views;
 
 public partial class MainWindow : FluentWindow
 {
+    private HwndSource? hwndSource;
     public MainViewModel ViewModel { get; }
 
     public static readonly DependencyProperty RoomCardItemWidthProperty = DependencyProperty.Register(nameof(RoomCardItemWidth), typeof(double), typeof(MainWindow), new PropertyMetadata(196d));
@@ -319,14 +320,14 @@ public partial class MainWindow : FluentWindow
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        HwndSource? source = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
-        source?.AddHook(MainWindowWindowProc);
+        hwndSource = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
+        hwndSource?.AddHook(MainWindowWindowProc);
     }
 
     protected override void OnClosed(EventArgs e)
     {
-        HwndSource? source = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
-        source?.RemoveHook(MainWindowWindowProc);
+        hwndSource?.RemoveHook(MainWindowWindowProc);
+        hwndSource = null;
         PreviewKeyDown -= MainWindowPreviewKeyDown;
         ComponentDispatcher.ThreadPreprocessMessage -= MainWindowThreadPreprocessMessage;
         ViewModel.IsPreviewDetached = false;
@@ -389,13 +390,38 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
-        if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control
-            || !ViewModel.IsHomePageSelected)
+        if (!ViewModel.IsHomePageSelected
+            || e.OriginalSource is System.Windows.Controls.Primitives.TextBoxBase or System.Windows.Controls.PasswordBox)
         {
             return;
         }
 
-        if (e.Key == Key.Z)
+        if (IsRoomCardKeyboardNavigationKey(e.Key)
+            && Keyboard.Modifiers == ModifierKeys.None
+            && RoomCardList.IsKeyboardFocusWithin)
+        {
+            _ = Dispatcher.BeginInvoke(DispatcherPriority.Input, SynchronizeRoomCardKeyboardSelection);
+            return;
+        }
+
+        if (e.Key == Key.Delete)
+        {
+            ViewModel.RemoveRoomUrlCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
+        {
+            return;
+        }
+
+        if (e.Key == Key.A)
+        {
+            ViewModel.SelectAllRoomCardsCommand.Execute(null);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Z)
         {
             ViewModel.UndoRoomSelection();
             e.Handled = true;
@@ -405,6 +431,23 @@ public partial class MainWindow : FluentWindow
             ViewModel.RedoRoomSelection();
             e.Handled = true;
         }
+    }
+
+    internal static bool IsRoomCardKeyboardNavigationKey(Key key)
+    {
+        return key is Key.Up or Key.Down or Key.Left or Key.Right;
+    }
+
+    private void SynchronizeRoomCardKeyboardSelection()
+    {
+        if (RoomCardList.SelectedItem is not RoomStatusReactive room)
+        {
+            return;
+        }
+
+        ViewModel.SelectRoom(room, false, false);
+        ViewModel.SelectedItem = room;
+        RoomCardList.ScrollIntoView(room);
     }
 
     private void MainWindowThreadPreprocessMessage(ref System.Windows.Interop.MSG msg, ref bool handled)
@@ -1250,7 +1293,7 @@ public partial class MainWindow : FluentWindow
             if (ShouldPersistStartupAboutNoticeAcknowledgement(result))
             {
                 Configurations.IsStartupAboutNoticeShown.Set(true);
-                ConfigurationManager.Save();
+                ConfigurationSaveScheduler.Request();
             }
         }
         finally
