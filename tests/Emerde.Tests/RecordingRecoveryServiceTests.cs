@@ -5,6 +5,42 @@ namespace Emerde.Tests;
 public sealed class RecordingRecoveryServiceTests
 {
     [Fact]
+    public void UpdateOptions_AppliesLatestFormatAndRemoveSourceOutsideCurrentSaveFolder()
+    {
+        string sourcePattern = Path.Combine(Path.GetTempPath(), $"emerde-recording-{Guid.NewGuid():N}.ts");
+        string? markerPath = RecordingRecoveryService.Register(sourcePattern, new RoomRecordingOptions
+        {
+            RecordFormat = "TS/FLV -> MP4",
+            IsRemoveTs = false,
+        });
+
+        Assert.NotNull(markerPath);
+        try
+        {
+            Assert.True(RecordingRecoveryService.UpdateOptions(markerPath!, new RoomRecordingOptions
+            {
+                RecordFormat = "TS/FLV -> MKV",
+                IsRemoveTs = true,
+            }));
+
+            string marker = File.ReadAllText(markerPath!);
+            Assert.Contains("\"TargetFormat\": \".mkv\"", marker);
+            Assert.Contains("\"RemoveSource\": true", marker);
+
+            Assert.False(RecordingRecoveryService.UpdateOptions(markerPath!, new RoomRecordingOptions
+            {
+                RecordFormat = "TS/FLV",
+            }));
+            Assert.False(File.Exists(markerPath));
+        }
+        finally
+        {
+            File.Delete(markerPath);
+            File.Delete(markerPath + ".tmp");
+        }
+    }
+
+    [Fact]
     public async Task ProcessAsync_PreservesMarkerWhenItIsTemporarilyUnreadable()
     {
         string path = Path.Combine(Path.GetTempPath(), $"emerde-recovery-{Guid.NewGuid():N}.json");
@@ -37,11 +73,39 @@ public sealed class RecordingRecoveryServiceTests
 
             Assert.False(File.Exists(path));
             Assert.True(File.Exists(path + ".invalid"));
+            Assert.Contains("JSON", await File.ReadAllTextAsync(path + ".invalid.reason.txt"));
         }
         finally
         {
             File.Delete(path);
             File.Delete(path + ".invalid");
+            File.Delete(path + ".invalid.reason.txt");
+        }
+    }
+
+    [Theory]
+    [InlineData("relative.ts", ".mp4")]
+    [InlineData("C:\\recording.txt", ".mp4")]
+    [InlineData("C:\\record_%02d.ts", ".mp4")]
+    [InlineData("C:\\record_%03d_%name.ts", ".mp4")]
+    [InlineData("C:\\record.ts", ".avi")]
+    public async Task ProcessAsync_QuarantinesSemanticallyInvalidMarker(string sourcePattern, string targetFormat)
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"emerde-recovery-{Guid.NewGuid():N}.json");
+        await File.WriteAllTextAsync(path, $$"""{"SourcePattern":"{{sourcePattern.Replace("\\", "\\\\", StringComparison.Ordinal)}}","TargetFormat":"{{targetFormat}}"}""");
+
+        try
+        {
+            await RecordingRecoveryService.ProcessAsync(path);
+
+            Assert.False(File.Exists(path));
+            Assert.True(File.Exists(path + ".invalid"));
+        }
+        finally
+        {
+            File.Delete(path);
+            File.Delete(path + ".invalid");
+            File.Delete(path + ".invalid.reason.txt");
         }
     }
 
@@ -88,5 +152,16 @@ public sealed class RecordingRecoveryServiceTests
         {
             Directory.Delete(directory, recursive: true);
         }
+    }
+
+    [Fact]
+    public void IsPathWithinRoot_RejectsSiblingDirectoriesWithTheSamePrefix()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "emerde-recordings");
+        string inside = Path.Combine(root, "room", "record.ts");
+        string sibling = Path.Combine(Path.GetTempPath(), "emerde-recordings-other", "record.ts");
+
+        Assert.True(RecordingRecoveryService.IsPathWithinRoot(inside, root));
+        Assert.False(RecordingRecoveryService.IsPathWithinRoot(sibling, root));
     }
 }

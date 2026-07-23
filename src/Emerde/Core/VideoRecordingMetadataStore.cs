@@ -26,8 +26,10 @@ internal static class VideoRecordingMetadataStore
                     return JsonSerializer.Deserialize<VideoRecordingMetadata>(File.ReadAllText(path)) ?? new VideoRecordingMetadata();
                 }
             }
-            catch
+            catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException)
             {
+                AppSessionLogger.WriteException(e);
+                QuarantineCorruptSidecar(path);
             }
         }
 
@@ -39,13 +41,61 @@ internal static class VideoRecordingMetadataStore
         try
         {
             string metadataPath = Path.Combine(saveFolder, $"{fileName}{MetadataSuffix}");
-            File.WriteAllText(metadataPath, JsonSerializer.Serialize(metadata, JsonOptions));
-            return metadataPath;
+            using StagedVideoMetadata? staged = StageSidecarPath(metadataPath, metadata, "metadata");
+            return staged?.Commit();
         }
         catch (Exception e)
         {
             Debug.WriteLine(e);
             return null;
+        }
+    }
+
+    public static StagedVideoMetadata? StageSidecarForMedia(
+        string mediaPath,
+        VideoRecordingMetadata metadata,
+        string purpose)
+    {
+        try
+        {
+            string metadataPath = GetDirectMetadataPath(new FileInfo(mediaPath));
+            return StageSidecarPath(metadataPath, WithFileName(metadata, Path.GetFileName(mediaPath)), purpose);
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e);
+            return null;
+        }
+    }
+
+    private static StagedVideoMetadata StageSidecarPath(
+        string metadataPath,
+        VideoRecordingMetadata metadata,
+        string purpose)
+    {
+        string temporaryPath = MediaFileCatalog.CreateTemporaryPath(metadataPath, purpose);
+        try
+        {
+            using (FileStream stream = new(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            using (StreamWriter writer = new(stream, new System.Text.UTF8Encoding(false)))
+            {
+                writer.Write(JsonSerializer.Serialize(metadata, JsonOptions));
+                writer.Flush();
+                stream.Flush(flushToDisk: true);
+            }
+            return new StagedVideoMetadata(temporaryPath, metadataPath);
+        }
+        catch
+        {
+            try
+            {
+                File.Delete(temporaryPath);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                AppSessionLogger.WriteException(e);
+            }
+            throw;
         }
     }
 
@@ -57,6 +107,14 @@ internal static class VideoRecordingMetadataStore
         {
             yield return GetSharedSegmentMetadataPath(file, baseStem);
         }
+    }
+
+    internal static string GetSidecarStem(string metadataPath)
+    {
+        string fileName = Path.GetFileName(metadataPath);
+        return fileName.EndsWith(MetadataSuffix, StringComparison.OrdinalIgnoreCase)
+            ? fileName[..^MetadataSuffix.Length]
+            : Path.GetFileNameWithoutExtension(fileName);
     }
 
     public static bool HasValidSidecar(FileInfo file)
@@ -292,6 +350,69 @@ internal static class VideoRecordingMetadataStore
         return false;
     }
 
+    public static int DeleteOrphanedSidecars(string root)
+    {
+        if (!Directory.Exists(root))
+        {
+            return 0;
+        }
+
+        int deleted = 0;
+        EnumerationOptions options = new()
+        {
+            IgnoreInaccessible = true,
+            RecurseSubdirectories = true,
+            AttributesToSkip = FileAttributes.ReparsePoint,
+        };
+        try
+        {
+            foreach (string metadataPath in Directory.EnumerateFiles(root, $"*{MetadataSuffix}", options))
+            {
+                if (HasRemainingSourceVideo(metadataPath))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    File.Delete(metadataPath);
+                    deleted++;
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    AppSessionLogger.WriteException(e);
+                }
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(e);
+        }
+        return deleted;
+    }
+
+    private static void QuarantineCorruptSidecar(string path)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return;
+            }
+
+            string quarantinePath = path + ".invalid";
+            for (int index = 2; File.Exists(quarantinePath); index++)
+            {
+                quarantinePath = path + $".invalid-{index}";
+            }
+            File.Move(path, quarantinePath);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(e);
+        }
+    }
+
     private static void AddMetadata(List<string> arguments, string key, string value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -328,5 +449,50 @@ internal static class VideoRecordingMetadataStore
         return value > DateTime.MinValue
             ? value.ToString("O", CultureInfo.InvariantCulture)
             : string.Empty;
+    }
+}
+
+internal sealed class StagedVideoMetadata(string temporaryPath, string finalPath) : IDisposable
+{
+    private string? pendingPath = temporaryPath;
+
+    public string FinalPath { get; } = finalPath;
+
+    public string Commit()
+    {
+        string source = pendingPath ?? throw new InvalidOperationException("The staged metadata has already been committed.");
+        File.Move(source, FinalPath, overwrite: true);
+        pendingPath = null;
+        return FinalPath;
+    }
+
+    public void DeleteCommitted()
+    {
+        try
+        {
+            File.Delete(FinalPath);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(e);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (pendingPath == null)
+        {
+            return;
+        }
+
+        try
+        {
+            File.Delete(pendingPath);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(e);
+        }
+        pendingPath = null;
     }
 }

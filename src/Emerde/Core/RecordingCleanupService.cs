@@ -1,9 +1,9 @@
-using Emerde.Extensions;
-
 namespace Emerde.Core;
 
 internal static class DataRetentionUnitHelper
 {
+    public const int MaximumValue = 9999;
+
     public const int Days = 0;
     public const int Weeks = 1;
     public const int Months = 2;
@@ -16,7 +16,7 @@ internal static class DataRetentionUnitHelper
 
     public static TimeSpan ToTimeSpan(int value, int unitIndex)
     {
-        int safeValue = Math.Max(1, value);
+        int safeValue = Math.Clamp(value, 1, MaximumValue);
         return NormalizeUnit(unitIndex) switch
         {
             Years => TimeSpan.FromDays(safeValue * 365d),
@@ -29,19 +29,16 @@ internal static class DataRetentionUnitHelper
 
 internal static class RecordingCleanupService
 {
-    private static readonly HashSet<string> MediaExtensions = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly EnumerationOptions DirectoryEnumerationOptions = new()
     {
-        ".ts",
-        ".flv",
-        ".mp4",
-        ".mkv",
-        ".mov",
-        ".m4v",
-        ".webm",
-        ".avi",
+        IgnoreInaccessible = true,
+        RecurseSubdirectories = true,
+        AttributesToSkip = FileAttributes.ReparsePoint,
     };
 
-    private static int isRunning;
+    private static readonly SemaphoreSlim RunGate = new(1, 1);
+    private static int queuedRunRequested;
+    private static int queuedWorkerRunning;
 
     public static void QueueRun()
     {
@@ -50,16 +47,13 @@ internal static class RecordingCleanupService
             return;
         }
 
-        _ = Task.Run(() => RunAsync());
+        Interlocked.Exchange(ref queuedRunRequested, 1);
+        StartQueuedWorker();
     }
 
     public static async Task RunAsync(CancellationToken cancellationToken = default)
     {
-        if (Interlocked.Exchange(ref isRunning, 1) == 1)
-        {
-            return;
-        }
-
+        await RunGate.WaitAsync(cancellationToken);
         try
         {
             await Task.Run(() => Cleanup(cancellationToken), cancellationToken);
@@ -74,7 +68,34 @@ internal static class RecordingCleanupService
         }
         finally
         {
-            Interlocked.Exchange(ref isRunning, 0);
+            RunGate.Release();
+        }
+    }
+
+    private static void StartQueuedWorker()
+    {
+        if (Interlocked.CompareExchange(ref queuedWorkerRunning, 1, 0) == 0)
+        {
+            _ = Task.Run(ProcessQueuedRunsAsync);
+        }
+    }
+
+    private static async Task ProcessQueuedRunsAsync()
+    {
+        try
+        {
+            while (Interlocked.Exchange(ref queuedRunRequested, 0) != 0)
+            {
+                await RunAsync();
+            }
+        }
+        finally
+        {
+            Interlocked.Exchange(ref queuedWorkerRunning, 0);
+            if (Volatile.Read(ref queuedRunRequested) != 0)
+            {
+                StartQueuedWorker();
+            }
         }
     }
 
@@ -85,44 +106,49 @@ internal static class RecordingCleanupService
             return;
         }
 
-        string root = SaveFolderHelper.GetSaveFolder(Configurations.SaveFolder.Get());
-        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+        string[] roots = MediaFileCatalog.GetConfiguredSaveFolders();
+        if (roots.Length == 0)
         {
             return;
         }
-
-        string fullRoot = Path.GetFullPath(root);
         DateTime cutoff = DateTime.Now - DataRetentionUnitHelper.ToTimeSpan(
             Configurations.DataRetentionValue.Get(),
             Configurations.DataRetentionUnit.Get());
+        string[] pendingSourcePatterns = RecordingRecoveryService.GetPendingSourcePatterns();
 
         int deletedCount = 0;
-        foreach (string filePath in EnumerateFilesSafe(fullRoot))
+        foreach (string root in roots.Where(Directory.Exists))
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (!MediaExtensions.Contains(Path.GetExtension(filePath)))
+            foreach (string filePath in EnumerateFilesSafe(root))
             {
-                continue;
-            }
+                cancellationToken.ThrowIfCancellationRequested();
 
-            try
-            {
-                FileInfo file = new(filePath);
-                if (file.Exists && file.LastWriteTime < cutoff && VideoRecordingMetadataStore.HasValidSidecar(file))
+                if (!MediaFileCatalog.IsMediaPath(filePath)
+                    || MediaFileCatalog.IsApplicationTemporaryPath(filePath)
+                    || MediaOperationRegistry.IsPathProtected(filePath)
+                    || RecordingRecoveryService.IsPendingSourcePath(filePath, pendingSourcePatterns))
                 {
-                    file.Delete();
-                    VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(filePath);
-                    deletedCount++;
+                    continue;
+                }
+
+                try
+                {
+                    FileInfo file = new(filePath);
+                    if (file.Exists && file.LastWriteTime < cutoff && VideoRecordingMetadataStore.HasValidSidecar(file))
+                    {
+                        file.Delete();
+                        VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(filePath);
+                        deletedCount++;
+                    }
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    AppSessionLogger.Write($"cleanup skipped file {filePath}: {exception.Message}");
                 }
             }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-                AppSessionLogger.Write($"cleanup skipped file {filePath}: {exception.Message}");
-            }
-        }
 
-        RemoveEmptyDirectories(fullRoot, cancellationToken);
+            RemoveEmptyDirectories(root, cancellationToken);
+        }
 
         if (deletedCount > 0)
         {
@@ -159,8 +185,23 @@ internal static class RecordingCleanupService
 
             foreach (string child in children)
             {
-                directories.Push(child);
+                if (ShouldTraverseDirectory(child))
+                {
+                    directories.Push(child);
+                }
             }
+        }
+    }
+
+    internal static bool ShouldTraverseDirectory(string path)
+    {
+        try
+        {
+            return (File.GetAttributes(path) & FileAttributes.ReparsePoint) == 0;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 
@@ -170,7 +211,7 @@ internal static class RecordingCleanupService
         try
         {
             directories = Directory
-                .EnumerateDirectories(root, "*", SearchOption.AllDirectories)
+                .EnumerateDirectories(root, "*", DirectoryEnumerationOptions)
                 .OrderByDescending(path => path.Length)
                 .ToArray();
         }
