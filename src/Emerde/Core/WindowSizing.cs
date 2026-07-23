@@ -8,6 +8,8 @@ internal static class WindowSizing
 {
     private const double ScreenRatio = 0.85d;
     private const double MainWindowWidthRatio = 0.70d;
+    private const double MainWindowMaximumWidthRatio = 0.85d;
+    private const double MainWindowDpiWidthCompensation = 0.30d;
     private const double MainWindowAspectRatio = 14d / 9d;
     private const double MainBaseWidth = 1440d;
     private const double MainBaseHeight = 926d;
@@ -154,7 +156,8 @@ internal static class WindowSizing
     {
         System.Windows.Forms.Screen screen = GetTargetScreen(window);
         DpiScale dpi = VisualTreeHelper.GetDpi(window);
-        double width = Math.Max(1d, Math.Floor(screen.WorkingArea.Width * MainWindowWidthRatio / dpi.DpiScaleX));
+        double widthRatio = CalculateMainWindowWidthRatio(dpi.DpiScaleX);
+        double width = Math.Max(1d, Math.Floor(screen.WorkingArea.Width * widthRatio / dpi.DpiScaleX));
         double height = Math.Max(1d, Math.Floor(width / MainWindowAspectRatio));
         double maxHeight = Math.Max(1d, screen.WorkingArea.Height / dpi.DpiScaleY);
 
@@ -168,6 +171,17 @@ internal static class WindowSizing
         window.Height = height;
         window.Left = screen.WorkingArea.Left / dpi.DpiScaleX + (screen.WorkingArea.Width / dpi.DpiScaleX - width) / 2d;
         window.Top = screen.WorkingArea.Top / dpi.DpiScaleY + (screen.WorkingArea.Height / dpi.DpiScaleY - height) / 2d;
+    }
+
+    internal static double CalculateMainWindowWidthRatio(double dpiScale)
+    {
+        if (double.IsNaN(dpiScale) || double.IsInfinity(dpiScale) || dpiScale <= 0d)
+        {
+            return MainWindowWidthRatio;
+        }
+
+        double compensatedRatio = MainWindowWidthRatio + Math.Max(0d, dpiScale - 1d) * MainWindowDpiWidthCompensation;
+        return Math.Clamp(compensatedRatio, MainWindowWidthRatio, MainWindowMaximumWidthRatio);
     }
 
     private static void ApplyMainWindowRelative(Window window, double baseWidth, double baseHeight)

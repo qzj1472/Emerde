@@ -194,7 +194,6 @@ public partial class MainWindow : FluentWindow
     private const double PreviewStandardDetailWidth = 220d;
     private const double RoomCardMinScale = 0.86d;
     private const double RoomCardMaxScale = 1.14d;
-    private const double RoomCardBoundaryTolerance = 1d;
     private const double RoomCardLargeSizeScale = 1.5d;
     private const double RoomCardMediumSizeScale = 1d;
     private const double RoomCardSmallSizeScale = 0.5d;
@@ -731,43 +730,23 @@ public partial class MainWindow : FluentWindow
     internal static (int Columns, double SlotWidth, double CardWidth) CalculateRoomCardLayout(double availableWidth, double baseWidth, double preference, double horizontalGap)
     {
         double targetWidth = Math.Max(1d, baseWidth * preference);
-        double minWidth = targetWidth * RoomCardMinScale;
-        double maxWidth = targetWidth * RoomCardMaxScale;
-
-        double minSlotWidth = minWidth + horizontalGap;
-        double maxSlotWidth = maxWidth + horizontalGap;
         double preferredSlotWidth = targetWidth + horizontalGap;
-        int columns = Math.Max(1, (int)Math.Ceiling(availableWidth / preferredSlotWidth));
+        int upperColumns = Math.Max(1, (int)Math.Ceiling(availableWidth / preferredSlotWidth));
+        int lowerColumns = Math.Max(1, upperColumns - 1);
+        double upperCardWidth = GetCardWidthForColumns(availableWidth, upperColumns, horizontalGap);
+        double lowerCardWidth = GetCardWidthForColumns(availableWidth, lowerColumns, horizontalGap);
+        int columns = lowerColumns < upperColumns && Math.Abs(lowerCardWidth - targetWidth) < Math.Abs(upperCardWidth - targetWidth)
+            ? lowerColumns
+            : upperColumns;
         double normalSlotWidth = availableWidth / columns;
-        double normalCardWidth = Math.Max(1d, normalSlotWidth - horizontalGap);
-
-        while (normalCardWidth > maxWidth)
-        {
-            columns++;
-            normalSlotWidth = availableWidth / columns;
-            normalCardWidth = Math.Max(1d, normalSlotWidth - horizontalGap);
-        }
-
-        while (columns > 1 && normalCardWidth < minWidth - RoomCardBoundaryTolerance)
-        {
-            columns--;
-            normalSlotWidth = availableWidth / columns;
-            normalCardWidth = Math.Max(1d, normalSlotWidth - horizontalGap);
-        }
-
-        if (normalCardWidth > maxWidth)
-        {
-            normalCardWidth = maxWidth;
-            normalSlotWidth = Math.Min(maxSlotWidth, normalCardWidth + horizontalGap);
-        }
-
-        if (normalCardWidth < minWidth - RoomCardBoundaryTolerance && availableWidth >= minSlotWidth)
-        {
-            normalCardWidth = minWidth;
-            normalSlotWidth = normalCardWidth + horizontalGap;
-        }
+        double normalCardWidth = GetCardWidthForColumns(availableWidth, columns, horizontalGap);
 
         return (columns, normalSlotWidth, normalCardWidth);
+    }
+
+    private static double GetCardWidthForColumns(double availableWidth, int columns, double horizontalGap)
+    {
+        return Math.Max(1d, availableWidth / columns - horizontalGap);
     }
 
     private void UpdateRoomCardVisualMetrics(double cardWidth, double baseWidth)

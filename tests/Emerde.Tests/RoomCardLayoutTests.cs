@@ -58,4 +58,24 @@ public sealed class RoomCardLayoutTests
         Assert.Equal(8d, MainWindow.GetRoomCardHorizontalGap(0.5d));
         Assert.Equal(8d, MainWindow.GetRoomCardVerticalGap(0.5d));
     }
+
+    [Fact]
+    public void ResponsiveLayout_FillsAvailableWidthAfterColumnChange()
+    {
+        const double availableWidth = 590d;
+
+        (int columns, double slotWidth, double cardWidth) = MainWindow.CalculateRoomCardLayout(availableWidth, 250d, 1d, 12d);
+
+        Assert.Equal(availableWidth, slotWidth * columns, 6);
+        Assert.Equal(slotWidth - 12d, cardWidth, 6);
+    }
+
+    [Fact]
+    public void ResponsiveLayout_DoesNotCreateOversizedCardAtColumnBoundary()
+    {
+        (int columns, _, double cardWidth) = MainWindow.CalculateRoomCardLayout(350d, 200d, 1d, 12d);
+
+        Assert.Equal(2, columns);
+        Assert.Equal(163d, cardWidth, 6);
+    }
 }
