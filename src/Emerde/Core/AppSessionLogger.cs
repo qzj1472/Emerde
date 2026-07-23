@@ -7,6 +7,10 @@ namespace Emerde.Core;
 
 internal static class AppSessionLogger
 {
+    private const int QueueCapacity = 10000;
+
+    private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(2);
+
     private static readonly object LockObject = new();
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -17,6 +21,8 @@ internal static class AppSessionLogger
     private static StreamWriter? errorWriter;
     private static BlockingCollection<LogLine>? queue;
     private static Task? worker;
+    private static CancellationTokenSource? workerCancellation;
+    private static DateTime currentLogDate = DateTime.MinValue;
 
     public static string? CurrentFilePath { get; private set; }
     public static string? CurrentErrorFilePath { get; private set; }
@@ -54,19 +60,10 @@ internal static class AppSessionLogger
             Directory.CreateDirectory(directory);
             DeleteExpiredLogs(directory);
 
-            string sessionName = $"{DateTime.Now:yyyyMMdd_HHmmss}_{Environment.ProcessId}";
-            CurrentFilePath = Path.Combine(directory, $"{sessionName}.log");
-            CurrentErrorFilePath = Path.Combine(directory, $"{sessionName}.error.log");
-            writer = new StreamWriter(new FileStream(CurrentFilePath, FileMode.CreateNew, FileAccess.Write, FileShare.Read), new UTF8Encoding(false))
-            {
-                AutoFlush = true,
-            };
-            errorWriter = new StreamWriter(new FileStream(CurrentErrorFilePath, FileMode.CreateNew, FileAccess.Write, FileShare.Read), new UTF8Encoding(false))
-            {
-                AutoFlush = true,
-            };
-            queue = new BlockingCollection<LogLine>(new ConcurrentQueue<LogLine>());
-            worker = Task.Run(DrainQueue);
+            OpenWriters(directory, DateTime.Now);
+            queue = new BlockingCollection<LogLine>(new ConcurrentQueue<LogLine>(), QueueCapacity);
+            workerCancellation = new CancellationTokenSource();
+            worker = Task.Run(() => DrainQueue(workerCancellation.Token));
 
             Enqueue(BuildEvent("info", "application", "start", message));
         }
@@ -74,6 +71,8 @@ internal static class AppSessionLogger
 
     public static void Stop(string reason = "application stopped")
     {
+        Task? stoppingWorker;
+        CancellationTokenSource? stoppingCancellation;
         lock (LockObject)
         {
             if (writer is null)
@@ -83,19 +82,62 @@ internal static class AppSessionLogger
 
             Enqueue(BuildEvent("info", "application", "stop", reason));
             queue?.CompleteAdding();
-            try
+            stoppingWorker = worker;
+            stoppingCancellation = workerCancellation;
+        }
+
+        bool completed = WaitForWorker(stoppingWorker, StopTimeout);
+        if (!completed)
+        {
+            stoppingCancellation?.Cancel();
+            completed = WaitForWorker(stoppingWorker, TimeSpan.FromMilliseconds(500));
+        }
+
+        if (completed)
+        {
+            Cleanup(stoppingWorker);
+        }
+        else if (stoppingWorker != null)
+        {
+            _ = stoppingWorker.ContinueWith(
+                _ => Cleanup(stoppingWorker),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
+    }
+
+    private static bool WaitForWorker(Task? stoppingWorker, TimeSpan timeout)
+    {
+        try
+        {
+            return stoppingWorker?.Wait(timeout) ?? true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ObjectDisposedException or AggregateException)
+        {
+            return true;
+        }
+    }
+
+    private static void Cleanup(Task? stoppingWorker)
+    {
+        lock (LockObject)
+        {
+            if (!ReferenceEquals(worker, stoppingWorker))
             {
-                worker?.GetAwaiter().GetResult();
+                return;
             }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException or ObjectDisposedException)
-            {
-            }
-            writer.Dispose();
+
+            writer?.Dispose();
             errorWriter?.Dispose();
+            queue?.Dispose();
+            workerCancellation?.Dispose();
             writer = null;
             errorWriter = null;
             queue = null;
             worker = null;
+            workerCancellation = null;
+            currentLogDate = DateTime.MinValue;
         }
     }
 
@@ -121,20 +163,22 @@ internal static class AppSessionLogger
 
     private static LogLine BuildEvent(string level, string category, string action, string message = "", object? data = null)
     {
+        DateTime timestamp = DateTime.Now;
+        (string filePath, _) = GetDailyLogPaths(AppPaths.LogsDirectory, timestamp);
         object payload = new
         {
-            timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"),
+            timestamp = timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff"),
             level,
             category,
             action,
             message = LogSanitizer.SanitizeText(message),
             processId = Environment.ProcessId,
             threadId = Environment.CurrentManagedThreadId,
-            file = CurrentFilePath,
+            file = filePath,
             data = LogSanitizer.SanitizeData(data, JsonOptions),
         };
 
-        return new LogLine(level, JsonSerializer.Serialize(payload, JsonOptions));
+        return new LogLine(timestamp, level, JsonSerializer.Serialize(payload, JsonOptions));
     }
 
     private static void Enqueue(LogLine line)
@@ -148,14 +192,22 @@ internal static class AppSessionLogger
 
         try
         {
-            currentQueue.Add(line);
+            if (currentQueue.TryAdd(line))
+            {
+                return;
+            }
+
+            if (IsDiagnosticLevel(line.Level) && currentQueue.TryTake(out _))
+            {
+                _ = currentQueue.TryAdd(line);
+            }
         }
         catch (InvalidOperationException)
         {
         }
     }
 
-    private static void DrainQueue()
+    private static void DrainQueue(CancellationToken token)
     {
         BlockingCollection<LogLine>? currentQueue = queue;
         if (currentQueue == null)
@@ -163,15 +215,62 @@ internal static class AppSessionLogger
             return;
         }
 
-        foreach (LogLine line in currentQueue.GetConsumingEnumerable())
+        try
         {
-            writer?.WriteLine(line.Text);
-
-            if (IsDiagnosticLevel(line.Level))
+            foreach (LogLine line in currentQueue.GetConsumingEnumerable(token))
             {
-                errorWriter?.WriteLine(line.Text);
+                EnsureLogDate(line.Timestamp);
+                writer?.WriteLine(line.Text);
+
+                if (IsDiagnosticLevel(line.Level))
+                {
+                    errorWriter?.WriteLine(line.Text);
+                }
             }
         }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private static void EnsureLogDate(DateTime timestamp)
+    {
+        if (currentLogDate == timestamp.Date)
+        {
+            return;
+        }
+
+        writer?.Dispose();
+        errorWriter?.Dispose();
+        Directory.CreateDirectory(AppPaths.LogsDirectory);
+        DeleteExpiredLogs(AppPaths.LogsDirectory);
+        OpenWriters(AppPaths.LogsDirectory, timestamp);
+    }
+
+    private static void OpenWriters(string directory, DateTime timestamp)
+    {
+        (string filePath, string errorFilePath) = GetDailyLogPaths(directory, timestamp);
+        CurrentFilePath = filePath;
+        CurrentErrorFilePath = errorFilePath;
+        currentLogDate = timestamp.Date;
+        writer = CreateWriter(filePath);
+        errorWriter = CreateWriter(errorFilePath);
+    }
+
+    private static StreamWriter CreateWriter(string filePath)
+    {
+        return new StreamWriter(new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.Read), new UTF8Encoding(false))
+        {
+            AutoFlush = true,
+        };
+    }
+
+    internal static (string FilePath, string ErrorFilePath) GetDailyLogPaths(string directory, DateTime timestamp)
+    {
+        string date = timestamp.ToString("yyyy-MM-dd");
+        return (
+            Path.Combine(directory, $"{date}.log"),
+            Path.Combine(directory, $"{date}.error.log"));
     }
 
     private static bool IsDiagnosticLevel(string level)
@@ -183,7 +282,7 @@ internal static class AppSessionLogger
 
     private static void DeleteExpiredLogs(string directory)
     {
-        DateTime threshold = DateTime.Now.AddDays(-7);
+        DateTime threshold = DateTime.Now.AddDays(-NormalizeRetentionDays(Configurations.SessionLogRetentionDays.Get()));
 
         foreach (string file in Directory.GetFiles(directory, "*.log", SearchOption.TopDirectoryOnly))
         {
@@ -203,5 +302,10 @@ internal static class AppSessionLogger
         }
     }
 
-    private sealed record LogLine(string Level, string Text);
+    internal static int NormalizeRetentionDays(int days)
+    {
+        return Math.Clamp(days, 1, 3650);
+    }
+
+    private sealed record LogLine(DateTime Timestamp, string Level, string Text);
 }

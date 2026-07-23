@@ -41,6 +41,18 @@ public sealed class LogSanitizerTests
         Assert.Equal("https://room.example/123?[redacted]", sanitized?["room"]?["url"]?.GetValue<string>());
     }
 
+    [Theory]
+    [InlineData("rtmp://media.example/live/key?wsSecret=private")]
+    [InlineData("rtmps://media.example/live/key?txSecret=private")]
+    [InlineData("https://media.example/live.flv?auth_key=private")]
+    public void SanitizeText_RedactsSignedStreamingUrls(string value)
+    {
+        string sanitized = LogSanitizer.SanitizeText(value);
+
+        Assert.DoesNotContain("private", sanitized, StringComparison.Ordinal);
+        Assert.EndsWith("?[redacted]", sanitized, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void SanitizeData_SanitizesStringValuesInsideArrays()
     {

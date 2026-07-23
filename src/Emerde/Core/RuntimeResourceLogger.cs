@@ -41,7 +41,13 @@ internal static class RuntimeResourceLogger
             stoppingTokenSource?.Cancel();
         }
 
-        stoppingWorkerTask?.GetAwaiter().GetResult();
+        try
+        {
+            _ = stoppingWorkerTask?.Wait(TimeSpan.FromSeconds(2));
+        }
+        catch (AggregateException)
+        {
+        }
 
         lock (SyncRoot)
         {
@@ -172,7 +178,7 @@ internal static class RuntimeResourceLogger
             return;
         }
 
-        Process current = Process.GetCurrentProcess();
+        using Process current = Process.GetCurrentProcess();
         AppSessionLogger.Event("info", "runtime", "resource_snapshot", "runtime resource snapshot", new
         {
             application = new

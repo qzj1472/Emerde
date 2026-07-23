@@ -94,12 +94,12 @@ internal static partial class LogSanitizer
             : $"{url[..(secretIndex + 1)]}[redacted]{suffix}";
     }
 
-    [GeneratedRegex(@"https?://[^\s""'<>]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?:https?|rtmps?)://[^\s""'<>]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex UrlRegex();
 
     [GeneratedRegex(@"\b(cookie|authorization)\s*([:=])\s*[^\r\n]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex HeaderRegex();
 
-    [GeneratedRegex(@"\b(token|signature|sig|auth|authorization|cookie)=([^&\s]+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\b(token|signature|sign|sig|auth|auth_key|authorization|cookie|wssecret|txsecret)=([^&\s]+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SensitiveAssignmentRegex();
 }
