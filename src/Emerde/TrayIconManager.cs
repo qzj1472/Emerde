@@ -1,4 +1,3 @@
-using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using System.Diagnostics;
 using System.Reflection;
@@ -6,6 +5,8 @@ using System.Windows;
 using System.Windows.Interop;
 using Emerde.Core;
 using Emerde.Extensions;
+using Emerde.Models;
+using Emerde.Threading;
 using Emerde.Views;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Violeta.Appearance;
@@ -20,7 +21,9 @@ internal sealed class TrayIconManager : IDisposable
 
     private readonly TrayIconHost _icon = null!;
 
-    private readonly TrayMenuItem? _itemAutoRun = null;
+    private Icon? currentIcon;
+
+    private TrayMenuWindow? trayMenuWindow;
 
     private bool isDisposed;
 
@@ -28,79 +31,11 @@ internal sealed class TrayIconManager : IDisposable
 
     private TrayIconManager()
     {
-        _icon = new TrayIconHost()
+        _icon = new EmerdeTrayIconHost(ShowTrayMenu)
         {
             ToolTipText = "Emerde",
-            Menu =
-            [
-                new TrayMenuItem()
-                {
-                    Header = $"v{Assembly.GetExecutingAssembly().GetName().Version!.ToString(3)}",
-                    IsEnabled = false,
-                },
-                new TraySeparator(),
-                new TrayMenuItem()
-                {
-                   Header = "TrayMenuShowMainWindow".Tr(),
-                   Tag = "TrayMenuShowMainWindow",
-                   Command = new RelayCommand(() =>
-                   {
-                        Application.Current.MainWindow.Show();
-                        Application.Current.MainWindow.Activate();
-                        Interop.RestoreWindow(new WindowInteropHelper(Application.Current.MainWindow).Handle);
-                    }),
-                },
-                new TrayMenuItem()
-                {
-                    Header = "TrayMenuOpenSettings".Tr(),
-                    Tag = "TrayMenuOpenSettings",
-                    Command = new RelayCommand(() =>
-                    {
-                        if (Application.Current.MainWindow is MainWindow mainWindow)
-                        {
-                            mainWindow.Show();
-                            mainWindow.Activate();
-                            Interop.RestoreWindow(new WindowInteropHelper(mainWindow).Handle);
-                            mainWindow.ViewModel.OpenSettingsDialogCommand.Execute(null);
-                        }
-                    }),
-                },
-                _itemAutoRun = new TrayMenuItem()
-                {
-                    Header = "TrayMenuAutoRun".Tr(),
-                    Tag = "TrayMenuAutoRun",
-                    Command = new RelayCommand(() =>
-                    {
-                        if (AutoStartupHelper.IsAutorun())
-                        {
-                            AutoStartupHelper.RemoveAutorunShortcut();
-                        }
-                        else
-                        {
-                            AutoStartupHelper.CreateAutorunShortcut();
-                        }
-                    }),
-                },
-                new TrayMenuItem()
-                {
-                    Header = "TrayMenuRestart".Tr(),
-                    Tag = "TrayMenuRestart",
-                    Command = new RelayCommand(() => RestartApplication()),
-                },
-                new TrayMenuItem()
-                {
-                    Header = "TrayMenuExit".Tr(),
-                    Tag = "TrayMenuExit",
-                    Command = new RelayCommand(ShutdownApplication),
-                },
-            ],
         };
         UpdateTrayIcon();
-
-        _icon.RightDown += (_, _) =>
-        {
-            _itemAutoRun.IsChecked = AutoStartupHelper.IsAutorun();
-        };
 
         _icon.LeftDoubleClick += (_, _) =>
         {
@@ -115,31 +50,12 @@ internal sealed class TrayIconManager : IDisposable
             }
             else
             {
-                Application.Current.MainWindow.Show();
-                Application.Current.MainWindow.Activate();
-                Interop.RestoreWindow(new WindowInteropHelper(Application.Current.MainWindow).Handle);
+                ActivateMainWindow();
             }
         };
 
-        Locale.CultureChanged += (_, _) =>
-        {
-            foreach (ITrayMenuItemBase item in _icon.Menu.Items)
-            {
-                if (item.Tag is string trKey)
-                {
-                    item.Header = trKey.Tr();
-                }
-            }
-        };
-
-        SystemEvents.UserPreferenceChanged += (_, _) =>
-        {
-            if (string.IsNullOrWhiteSpace(Configurations.Theme.Get()))
-            {
-                ThemeManager.Apply(ApplicationTheme.Unknown);
-            }
-            UpdateTrayIcon();
-        };
+        Locale.CultureChanged += OnCultureChanged;
+        SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
     }
 
     public static TrayIconManager GetInstance()
@@ -158,12 +74,17 @@ internal sealed class TrayIconManager : IDisposable
         _instance = null;
     }
 
-    public void ShutdownApplication()
+    public async void ShutdownApplication()
     {
-        ShutdownApplication(confirmRecording: true);
+        await ShutdownApplicationAsync(confirmRecording: true);
     }
 
-    public void ShutdownApplication(bool confirmRecording)
+    public async void ShutdownApplication(bool confirmRecording)
+    {
+        await ShutdownApplicationAsync(confirmRecording);
+    }
+
+    private async Task ShutdownApplicationAsync(bool confirmRecording)
     {
         if (confirmRecording && !ConfirmRecordingInterruption())
         {
@@ -172,21 +93,56 @@ internal sealed class TrayIconManager : IDisposable
 
         IsShutdownTriggered = true;
         Dispose();
-        Application.Current.Shutdown();
+        Application.Current.MainWindow?.Hide();
+        try
+        {
+            GlobalMonitor.Stop();
+            GlobalMonitor.StopAllRecorders(deferPostProcessing: true);
+            await GlobalMonitor.WaitForRecordersAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            CompleteApplicationShutdown(Application.Current.Shutdown, () => Environment.Exit(0));
+        }
     }
 
-    public void RestartApplication(bool confirmRecording = true)
+    internal static void CompleteApplicationShutdown(Action shutdown, Action exit)
+    {
+        try
+        {
+            shutdown();
+        }
+        finally
+        {
+            exit();
+        }
+    }
+
+    public async Task RestartApplicationAsync(bool confirmRecording = true)
     {
         if (confirmRecording && !ConfirmRecordingInterruption())
         {
             return;
         }
 
-        _ = RuntimeHelper.Restart(forced: true, beforeExit: () =>
+        Application.Current.MainWindow?.Hide();
+        GlobalMonitor.Stop();
+        GlobalMonitor.StopAllRecorders(deferPostProcessing: true);
+        await GlobalMonitor.WaitForRecordersAsync(TimeSpan.FromSeconds(5));
+
+        bool restarted = RuntimeHelper.Restart(forced: true, beforeExit: () =>
         {
             IsShutdownTriggered = true;
             Dispose();
+            ConfigurationSaveScheduler.Flush();
+            ChildProcessTracerPeriodicTimer.Default.Stop(killChildren: true);
+            RuntimeResourceLogger.Stop();
+            AppSessionLogger.Stop();
         });
+        if (!restarted)
+        {
+            ActivateMainWindow();
+        }
     }
 
     public void UpdateTrayIcon()
@@ -196,9 +152,12 @@ internal sealed class TrayIconManager : IDisposable
             return;
         }
 
-        _icon.Icon = GetTrayIcon();
+        Icon icon = GetTrayIcon();
+        _icon.Icon = icon.Handle;
+        currentIcon?.Dispose();
+        currentIcon = icon;
 
-        static nint GetTrayIcon()
+        static Icon GetTrayIcon()
         {
             try
             {
@@ -211,15 +170,35 @@ internal sealed class TrayIconManager : IDisposable
                         _ => "Light",
                     };
 
-                    return new Icon(ResourcesProvider.GetStream($"pack://application:,,,/Emerde;component/Assets/{status}{theme}.ico")).Handle;
+                    return new Icon(ResourcesProvider.GetStream($"pack://application:,,,/Emerde;component/Assets/{status}{theme}.ico"));
                 }
             }
             catch (Exception e)
             {
                 Debug.WriteLine(e);
             }
-            return Icon.ExtractAssociatedIcon(Process.GetCurrentProcess().MainModule?.FileName!)!.Handle;
+            return Icon.ExtractAssociatedIcon(Environment.ProcessPath!) ?? (Icon)SystemIcons.Application.Clone();
         }
+    }
+
+    private void OnCultureChanged(object? sender, EventArgs e)
+    {
+        if (isDisposed)
+        {
+            return;
+        }
+
+        trayMenuWindow?.Close();
+        _icon.ToolTipText = "Emerde";
+    }
+
+    private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(Configurations.Theme.Get()))
+        {
+            ThemeManager.Apply(ApplicationTheme.Unknown);
+        }
+        UpdateTrayIcon();
     }
 
     public void Dispose()
@@ -230,18 +209,133 @@ internal sealed class TrayIconManager : IDisposable
         }
 
         isDisposed = true;
+        Locale.CultureChanged -= OnCultureChanged;
+        SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+        trayMenuWindow?.Close();
+        trayMenuWindow = null;
         _icon.Dispose();
+        currentIcon?.Dispose();
+        currentIcon = null;
     }
 
     private static bool ConfirmRecordingInterruption()
     {
-        if (!GlobalMonitor.RoomStatus.Values.ToArray().Any(roomStatus => roomStatus.RecordStatus == RecordStatus.Recording))
+        if (!HasShutdownSensitiveWork(GlobalMonitor.HasActiveRecorders, Converter.HasActiveConversions))
         {
             return true;
         }
 
         using DialogBlurScope blurScope = new(Application.Current.MainWindow);
         return MessageBox.Question("SureOnRecording".Tr()) == MessageBoxResult.Yes;
+    }
+
+    internal static bool HasShutdownSensitiveWork(bool hasActiveRecorders, bool hasActiveConversions)
+    {
+        return hasActiveRecorders || hasActiveConversions;
+    }
+
+    private void ShowTrayMenu()
+    {
+        if (isDisposed)
+        {
+            return;
+        }
+
+        trayMenuWindow?.Close();
+        TrayMenuState state = CreateTrayMenuState();
+        _icon.ToolTipText = $"Emerde - {TrayMenuWindow.BuildStatusText(state)}";
+        TrayMenuWindow window = new(state, HandleTrayMenuAction);
+        trayMenuWindow = window;
+        window.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(trayMenuWindow, window))
+            {
+                trayMenuWindow = null;
+            }
+        };
+        window.Show();
+    }
+
+    private static TrayMenuState CreateTrayMenuState()
+    {
+        RoomStatus[] rooms = GlobalMonitor.RoomStatus.Values.ToArray();
+        return new TrayMenuState(
+            $"v{Assembly.GetExecutingAssembly().GetName().Version!.ToString(3)}",
+            rooms.Count(room => room.StreamStatus == StreamStatus.Streaming),
+            rooms.Count(room => room.RecordStatus == RecordStatus.Recording),
+            Configurations.IsMonitorRunning.Get(),
+            Configurations.IsToRecord.Get(),
+            AutoStartupHelper.IsAutorun());
+    }
+
+    private void HandleTrayMenuAction(TrayMenuAction action)
+    {
+        switch (action)
+        {
+            case TrayMenuAction.ShowMainWindow:
+                ActivateMainWindow(0);
+                break;
+            case TrayMenuAction.OpenSettings:
+                ActivateMainWindow(2);
+                break;
+            case TrayMenuAction.ToggleMonitor:
+                if (Application.Current.MainWindow is MainWindow monitorWindow)
+                {
+                    monitorWindow.ViewModel.ToggleMonitorCommand.Execute(null);
+                }
+                break;
+            case TrayMenuAction.ToggleRecord:
+                if (Application.Current.MainWindow is MainWindow recordWindow)
+                {
+                    recordWindow.ViewModel.ToggleStatusRecordCommand.Execute(null);
+                }
+                break;
+            case TrayMenuAction.ToggleAutoRun:
+                ToggleAutoRun();
+                break;
+            case TrayMenuAction.Restart:
+                _ = RestartApplicationAsync();
+                break;
+            case TrayMenuAction.Exit:
+                ShutdownApplication();
+                break;
+        }
+    }
+
+    private static void ActivateMainWindow(int? pageIndex = null)
+    {
+        if (Application.Current.MainWindow is not MainWindow mainWindow)
+        {
+            return;
+        }
+
+        if (pageIndex.HasValue)
+        {
+            mainWindow.ViewModel.SelectedMainPageIndex = pageIndex.Value;
+        }
+        mainWindow.Show();
+        mainWindow.Activate();
+        Interop.RestoreWindow(new WindowInteropHelper(mainWindow).Handle);
+    }
+
+    private static void ToggleAutoRun()
+    {
+        if (AutoStartupHelper.IsAutorun())
+        {
+            AutoStartupHelper.RemoveAutorunShortcut();
+        }
+        else
+        {
+            AutoStartupHelper.CreateAutorunShortcut();
+        }
+    }
+
+    private sealed class EmerdeTrayIconHost(Action showContextMenu) : TrayIconHost
+    {
+        public override void ShowContextMenu()
+        {
+            showContextMenu();
+        }
     }
 
     /// <summary>
