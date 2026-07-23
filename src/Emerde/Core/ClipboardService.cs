@@ -5,7 +5,7 @@ namespace Emerde.Core;
 internal static class ClipboardService
 {
     private const int MaxAttempts = 6;
-    private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(25);
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(100);
 
     public static Task<bool> SetTextAsync(string value)
     {
