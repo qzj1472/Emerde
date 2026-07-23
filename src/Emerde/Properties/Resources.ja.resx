@@ -202,6 +202,9 @@
   <data name="RecordStatusOfRecording" xml:space="preserve">
     <value>録画中</value>
   </data>
+  <data name="RecordStatusOfStarting" xml:space="preserve">
+    <value>起動中</value>
+  </data>
   <data name="RecordStatusOfNotRecording" xml:space="preserve">
     <value>録画完了</value>
   </data>
@@ -419,7 +422,7 @@
     <value>安定性を保証するため TS/FLV のみサポートし、後に他のフォーマットに変換可能</value>
   </data>
   <data name="RecordFormatAutoRemove" xml:space="preserve">
-    <value>変換後に元の TS/FLV ファイルを削除（即時反映）</value>
+    <value>変換後に元の TS/FLV ファイルを削除</value>
   </data>
   <data name="SaveFolderHint" xml:space="preserve">
     <value>録画ファイルの保存フォルダ</value>
@@ -730,6 +733,7 @@
   <data name="VideoSelectedCount" xml:space="preserve"><value>{0} 件選択</value></data>
   <data name="OpenVideoFailed" xml:space="preserve"><value>動画を開けませんでした</value></data>
   <data name="TranscodingVideo" xml:space="preserve"><value>変換中...</value></data>
+  <data name="TranscodingChip" xml:space="preserve"><value>変換中</value></data>
   <data name="TranscodeComplete" xml:space="preserve"><value>変換が完了しました</value></data>
   <data name="TranscodeFailed" xml:space="preserve"><value>変換に失敗しました</value></data>
   <data name="SplitDurationInvalid" xml:space="preserve"><value>分割間隔が無効です</value></data>

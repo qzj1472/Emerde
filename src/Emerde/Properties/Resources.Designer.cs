@@ -1736,6 +1736,10 @@ namespace Emerde.Properties {
             get { return ResourceManager.GetString("TranscodeVideo", resourceCulture); }
         }
 
+        public static string TranscodingChip {
+            get { return ResourceManager.GetString("TranscodingChip", resourceCulture); }
+        }
+
         public static string SplitButton {
             get { return ResourceManager.GetString("SplitButton", resourceCulture); }
         }

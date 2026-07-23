@@ -202,6 +202,9 @@
   <data name="RecordStatusOfRecording" xml:space="preserve">
     <value>Recording</value>
   </data>
+  <data name="RecordStatusOfStarting" xml:space="preserve">
+    <value>Starting</value>
+  </data>
   <data name="RecordStatusOfError" xml:space="preserve">
     <value>Error</value>
   </data>
@@ -416,7 +419,7 @@
     <value>To ensure stable recording, only supports TS/FLV or will be auto converted later</value>
   </data>
   <data name="RecordFormatAutoRemove" xml:space="preserve">
-    <value>Delete source TS/FLV files after conversion (applies immediately)</value>
+    <value>Delete source TS/FLV files after conversion</value>
   </data>
   <data name="SaveFolderHint" xml:space="preserve">
     <value>Specify the saving directory of recorded videos</value>
@@ -727,6 +730,7 @@
   <data name="VideoSelectedCount" xml:space="preserve"><value>{0} selected</value></data>
   <data name="OpenVideoFailed" xml:space="preserve"><value>Failed to open video</value></data>
   <data name="TranscodingVideo" xml:space="preserve"><value>Transcoding...</value></data>
+  <data name="TranscodingChip" xml:space="preserve"><value>Transcoding</value></data>
   <data name="TranscodeComplete" xml:space="preserve"><value>Transcoding complete</value></data>
   <data name="TranscodeFailed" xml:space="preserve"><value>Transcoding failed</value></data>
   <data name="SplitDurationInvalid" xml:space="preserve"><value>Invalid split interval</value></data>

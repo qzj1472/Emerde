@@ -125,7 +125,7 @@ public sealed class ResourceTextTests
             "SplitVideo", "SplitInterval", "Minutes", "Seconds", "Hours", "StartButton",
             "VideoAllStreamers", "CommonUnknown", "TimeRangeAll", "TimeRangeLast24Hours",
             "TimeRangeLastWeek", "TimeRangeLastMonth", "TimeRangeLastThreeMonths", "TimeRangeLastYear",
-            "SortDescending", "SortAscending", "VideoSelectedCount", "OpenVideoFailed", "TranscodingVideo",
+            "SortDescending", "SortAscending", "VideoSelectedCount", "OpenVideoFailed", "TranscodingVideo", "TranscodingChip",
             "TranscodeComplete", "TranscodeFailed", "SplitDurationInvalid", "SplittingVideo", "SplitComplete",
             "SplitFailed", "SelectAtLeastTwoVideos", "MergeFormatsMustMatch", "MergingVideos", "MergeComplete",
             "MergeFailed", "ConfirmDeleteVideos", "MovingVideos", "CopyingVideos", "StreamerChip",
@@ -188,7 +188,7 @@ public sealed class ResourceTextTests
         [
             "VideoListTitle", "RefreshButton", "ImportFolder", "MergeVideos", "DeleteButton",
             "MoveButton", "CopyButton", "SelectAll", "InvertSelection", "MultiSelect",
-            "StreamerLabel", "TimeRangeLabel", "OpenVideo", "TranscodeVideo", "SplitButton",
+            "StreamerLabel", "TimeRangeLabel", "OpenVideo", "TranscodeVideo", "TranscodingChip", "SplitButton",
             "SplitVideo", "SplitInterval", "Minutes", "Seconds", "Hours", "StartButton",
             "QualityLabel", "QualitySelectionHint", "PreviewPause", "PreviewMute", "PreviewUnmute",
             "PreviewFullScreen", "PreviewRestore", "AutoShutdownAfterTranscode", "AutoShutdownComputer",

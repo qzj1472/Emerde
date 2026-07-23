@@ -154,6 +154,9 @@
   <data name="RecordStatusOfRecording" xml:space="preserve">
     <value>錄製中</value>
   </data>
+  <data name="RecordStatusOfStarting" xml:space="preserve">
+    <value>正在啟動</value>
+  </data>
   <data name="RecordStatusOfError" xml:space="preserve">
     <value>出錯啦</value>
   </data>
@@ -416,7 +419,7 @@
     <value>為保證錄製穩定源格式僅支持 TS/FLV 或稍後自動轉格式</value>
   </data>
   <data name="RecordFormatAutoRemove" xml:space="preserve">
-    <value>轉碼完成後自動刪除原 TS/FLV 文件（即時生效）</value>
+    <value>轉碼完成後自動刪除原 TS/FLV 文件</value>
   </data>
   <data name="SaveFolderHint" xml:space="preserve">
     <value>指定錄製視頻的保存目錄</value>
@@ -727,6 +730,7 @@
   <data name="VideoSelectedCount" xml:space="preserve"><value>已選 {0} 個</value></data>
   <data name="OpenVideoFailed" xml:space="preserve"><value>開啟影片失敗</value></data>
   <data name="TranscodingVideo" xml:space="preserve"><value>正在轉碼...</value></data>
+  <data name="TranscodingChip" xml:space="preserve"><value>轉碼中</value></data>
   <data name="TranscodeComplete" xml:space="preserve"><value>轉碼完成</value></data>
   <data name="TranscodeFailed" xml:space="preserve"><value>轉碼失敗</value></data>
   <data name="SplitDurationInvalid" xml:space="preserve"><value>分割時間無效</value></data>
