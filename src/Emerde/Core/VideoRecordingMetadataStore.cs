@@ -1,12 +1,17 @@
 using System.Globalization;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
+using Microsoft.Win32.SafeHandles;
 
 namespace Emerde.Core;
 
 internal static class VideoRecordingMetadataStore
 {
     private const string MetadataSuffix = ".mplr.json";
+    private const string AttachedMetadataStream = ":emerde.metadata";
+    private const uint GenericRead = 0x80000000;
+    private const uint GenericWrite = 0x40000000;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -17,6 +22,12 @@ internal static class VideoRecordingMetadataStore
 
     public static VideoRecordingMetadata Load(FileInfo file)
     {
+        VideoRecordingMetadata? attached = ReadAttachedMetadata(file.FullName);
+        if (attached != null)
+        {
+            return attached;
+        }
+
         foreach (string path in GetMetadataCandidates(file))
         {
             try
@@ -34,6 +45,60 @@ internal static class VideoRecordingMetadataStore
         }
 
         return new VideoRecordingMetadata();
+    }
+
+    public static bool WriteCompletedMetadata(string mediaPath, VideoRecordingMetadata metadata)
+    {
+        VideoRecordingMetadata completed = WithFileName(metadata, Path.GetFileName(mediaPath));
+        if (WriteAttachedMetadata(mediaPath, completed))
+        {
+            return true;
+        }
+
+        string directory = Path.GetDirectoryName(mediaPath) ?? Environment.CurrentDirectory;
+        return WriteSidecar(directory, Path.GetFileNameWithoutExtension(mediaPath), completed) != null;
+    }
+
+    public static bool FinalizeSidecarForMedia(IEnumerable<string> mediaPaths, string? metadataPath)
+    {
+        string[] paths = mediaPaths.Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (paths.Length == 0 || string.IsNullOrWhiteSpace(metadataPath) || !File.Exists(metadataPath))
+        {
+            return false;
+        }
+
+        VideoRecordingMetadata? metadata;
+        try
+        {
+            metadata = JsonSerializer.Deserialize<VideoRecordingMetadata>(File.ReadAllText(metadataPath));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
+        {
+            AppSessionLogger.WriteException(e);
+            return false;
+        }
+
+        if (!HasAnyMetadata(metadata)
+            || paths.Any(path => !WriteAttachedMetadata(path, WithFileName(metadata!, Path.GetFileName(path)))))
+        {
+            return false;
+        }
+
+        try
+        {
+            File.Delete(metadataPath);
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(e);
+            return false;
+        }
+    }
+
+    internal static bool HasAttachedMetadata(string mediaPath)
+    {
+        return HasAnyMetadata(ReadAttachedMetadata(mediaPath));
     }
 
     public static string? WriteSidecar(string saveFolder, string fileName, VideoRecordingMetadata metadata)
@@ -141,6 +206,11 @@ internal static class VideoRecordingMetadataStore
         }
 
         return false;
+    }
+
+    public static bool HasValidMetadata(FileInfo file)
+    {
+        return HasAttachedMetadata(file.FullName) || HasValidSidecar(file);
     }
 
     public static bool NeedsEmbeddedMetadataProbe(VideoRecordingMetadata metadata)
@@ -450,6 +520,84 @@ internal static class VideoRecordingMetadataStore
             ? value.ToString("O", CultureInfo.InvariantCulture)
             : string.Empty;
     }
+
+    private static VideoRecordingMetadata? ReadAttachedMetadata(string mediaPath)
+    {
+        if (!OperatingSystem.IsWindows() || !File.Exists(mediaPath))
+        {
+            return null;
+        }
+
+        SafeFileHandle handle = CreateFile(
+            mediaPath + AttachedMetadataStream,
+            GenericRead,
+            FileShare.ReadWrite | FileShare.Delete,
+            IntPtr.Zero,
+            FileMode.Open,
+            FileAttributes.Normal,
+            IntPtr.Zero);
+        if (handle.IsInvalid)
+        {
+            handle.Dispose();
+            return null;
+        }
+
+        try
+        {
+            using FileStream stream = new(handle, FileAccess.Read);
+            return JsonSerializer.Deserialize<VideoRecordingMetadata>(stream);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or NotSupportedException)
+        {
+            AppSessionLogger.WriteException(e);
+            return null;
+        }
+    }
+
+    private static bool WriteAttachedMetadata(string mediaPath, VideoRecordingMetadata metadata)
+    {
+        if (!OperatingSystem.IsWindows() || !File.Exists(mediaPath))
+        {
+            return false;
+        }
+
+        SafeFileHandle handle = CreateFile(
+            mediaPath + AttachedMetadataStream,
+            GenericWrite,
+            FileShare.Read | FileShare.Delete,
+            IntPtr.Zero,
+            FileMode.Create,
+            FileAttributes.Normal,
+            IntPtr.Zero);
+        if (handle.IsInvalid)
+        {
+            handle.Dispose();
+            return false;
+        }
+
+        try
+        {
+            using FileStream stream = new(handle, FileAccess.Write);
+            JsonSerializer.Serialize(stream, metadata, JsonOptions);
+            stream.Flush(flushToDisk: true);
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            AppSessionLogger.WriteException(e);
+            return false;
+        }
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern SafeFileHandle CreateFile(
+        string fileName,
+        uint desiredAccess,
+        FileShare shareMode,
+        IntPtr securityAttributes,
+        FileMode creationDisposition,
+        FileAttributes flagsAndAttributes,
+        IntPtr templateFile);
 }
 
 internal sealed class StagedVideoMetadata(string temporaryPath, string finalPath) : IDisposable

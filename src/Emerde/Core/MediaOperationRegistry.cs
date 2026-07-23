@@ -75,6 +75,34 @@ internal static class MediaOperationRegistry
         return false;
     }
 
+    public static bool IsPathProtectedBy(MediaOperationKind kind, string path)
+    {
+        if (!TryNormalizePath(path, out string normalizedPath))
+        {
+            return false;
+        }
+
+        foreach (OperationState operation in Operations.Values.Where(operation => operation.Kind == kind))
+        {
+            IEnumerable<string?> patterns;
+            try
+            {
+                patterns = operation.ProtectedPaths() ?? [];
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (patterns.Any(pattern => PathMatches(normalizedPath, pattern)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static void CancelAll()
     {
         CancelWhere(static _ => true);

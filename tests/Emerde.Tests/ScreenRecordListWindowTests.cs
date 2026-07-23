@@ -907,10 +907,12 @@ public sealed class ScreenRecordListWindowTests
         {
             File.WriteAllText(sourceVideo, string.Empty);
             File.WriteAllText(sourceMetadata, "{\"NickName\":\"Host\"}");
+            File.WriteAllText(targetVideo, string.Empty);
 
             ScreenRecordListViewModel.CopyAssociatedMetadata(sourceVideo, targetVideo);
 
-            Assert.True(File.Exists(targetMetadata));
+            Assert.False(File.Exists(targetMetadata));
+            Assert.True(VideoRecordingMetadataStore.HasAttachedMetadata(targetVideo));
             VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(new FileInfo(targetVideo));
             Assert.Equal("Host", metadata.NickName);
             Assert.Equal(Path.GetFileName(targetVideo), metadata.FileName);
@@ -952,7 +954,8 @@ public sealed class ScreenRecordListWindowTests
             Assert.False(File.Exists(sourceVideo));
             Assert.False(File.Exists(sourceMetadata));
             Assert.True(File.Exists(targetVideo));
-            Assert.True(File.Exists(targetMetadata));
+            Assert.False(File.Exists(targetMetadata));
+            Assert.True(VideoRecordingMetadataStore.HasAttachedMetadata(targetVideo));
             VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(new FileInfo(targetVideo));
             Assert.Equal("new-name.mkv", metadata.FileName);
             Assert.Equal("Host", metadata.NickName);
@@ -967,7 +970,7 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
-    public void RenameVideoFile_RollsBackWhenTargetMetadataCannotBeWritten()
+    public void RenameVideoFile_DoesNotRequireLegacySidecarPath()
     {
         string root = Path.Combine(Path.GetTempPath(), $"emerde-rename-failure-{Guid.NewGuid():N}");
         Directory.CreateDirectory(root);
@@ -986,13 +989,14 @@ public sealed class ScreenRecordListWindowTests
             }));
             Directory.CreateDirectory(targetMetadata);
 
-            Assert.Throws<IOException>(() => ScreenRecordListViewModel.RenameVideoFile(sourceVideo, targetVideo));
+            ScreenRecordListViewModel.RenameVideoFile(sourceVideo, targetVideo);
 
-            Assert.True(File.Exists(sourceVideo));
-            Assert.True(File.Exists(sourceMetadata));
-            Assert.False(File.Exists(targetVideo));
-            VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(new FileInfo(sourceVideo));
-            Assert.Equal("old-name.mkv", metadata.FileName);
+            Assert.False(File.Exists(sourceVideo));
+            Assert.False(File.Exists(sourceMetadata));
+            Assert.True(File.Exists(targetVideo));
+            Assert.True(VideoRecordingMetadataStore.HasAttachedMetadata(targetVideo));
+            VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(new FileInfo(targetVideo));
+            Assert.Equal("new-name.mkv", metadata.FileName);
             Assert.Equal("Host", metadata.NickName);
         }
         finally

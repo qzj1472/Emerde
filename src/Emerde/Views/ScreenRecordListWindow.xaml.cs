@@ -792,6 +792,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
             foreach (RecordedVideoItem item in videos)
             {
                 item.IsInProgress = MediaOperationRegistry.IsPathProtected(item.FullPath);
+                item.IsConverting = MediaOperationRegistry.IsPathProtectedBy(MediaOperationKind.Conversion, item.FullPath);
             }
             VisibleItemsChanged?.Invoke(this, EventArgs.Empty);
             if (!e.IsActive)
@@ -1867,6 +1868,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
             foreach (RecordedVideoItem item in videos)
             {
                 item.IsInProgress = MediaOperationRegistry.IsPathProtected(item.FullPath);
+                item.IsConverting = MediaOperationRegistry.IsPathProtectedBy(MediaOperationKind.Conversion, item.FullPath);
             }
             VisibleItemsChanged?.Invoke(this, EventArgs.Empty);
             return;
@@ -1897,6 +1899,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
                     {
                         loadToken.ThrowIfCancellationRequested();
                         bool isInProgress = MediaOperationRegistry.IsPathProtected(snapshot.Path);
+                        bool isConverting = MediaOperationRegistry.IsPathProtectedBy(MediaOperationKind.Conversion, snapshot.Path);
                         if (existingByPath.TryGetValue(snapshot.Path, out RecordedVideoItem? existing)
                             && existing.SourceLength == snapshot.Length
                             && existing.SourceLastWriteTimeUtc == snapshot.LastWriteTimeUtc
@@ -1905,7 +1908,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
                             return existing;
                         }
 
-                        return CreateRecordedVideoItem(snapshot, isInProgress);
+                        return CreateRecordedVideoItem(snapshot, isInProgress, isConverting);
                     })
                     .ToArray();
             }, loadToken);
@@ -1923,6 +1926,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         foreach (RecordedVideoItem item in items)
         {
             item.IsInProgress = MediaOperationRegistry.IsPathProtected(item.FullPath);
+            item.IsConverting = MediaOperationRegistry.IsPathProtectedBy(MediaOperationKind.Conversion, item.FullPath);
         }
 
         HashSet<string> selectedPaths = videos
@@ -1993,7 +1997,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         return new VideoFileSnapshot(fileInfo.FullName, rootFolder, fileInfo.Length, fileInfo.LastWriteTimeUtc, metadataLastWriteTimeUtc);
     }
 
-    private static RecordedVideoItem CreateRecordedVideoItem(VideoFileSnapshot snapshot, bool isInProgress)
+    private static RecordedVideoItem CreateRecordedVideoItem(VideoFileSnapshot snapshot, bool isInProgress, bool isConverting)
     {
         FileInfo fileInfo = new(snapshot.Path);
         VideoRecordingMetadata metadata = LoadMetadata(fileInfo);
@@ -2018,6 +2022,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
             SupportsTranscode = fileInfo.Extension.Equals(".ts", StringComparison.OrdinalIgnoreCase)
                 || fileInfo.Extension.Equals(".flv", StringComparison.OrdinalIgnoreCase),
             IsInProgress = isInProgress,
+            IsConverting = isConverting,
             SourceLength = snapshot.Length,
             SourceLastWriteTimeUtc = snapshot.LastWriteTimeUtc,
             MetadataLastWriteTimeUtc = snapshot.MetadataLastWriteTimeUtc,
@@ -2328,13 +2333,10 @@ public partial class ScreenRecordListViewModel : ObservableObject
         VideoRecordingMetadata metadata = LoadMetadata(file);
         VideoProbeInfo probeInfo = ProbeVideoFileInfo(item.FullPath, file.Length);
         metadata = VideoRecordingMetadataStore.Merge(metadata, probeInfo.Metadata);
-        if (!VideoRecordingMetadataStore.HasValidSidecar(file)
+        if (!VideoRecordingMetadataStore.HasValidMetadata(file)
             && VideoRecordingMetadataStore.HasAnyMetadata(probeInfo.Metadata))
         {
-            _ = VideoRecordingMetadataStore.WriteSidecar(
-                file.DirectoryName ?? Environment.CurrentDirectory,
-                Path.GetFileNameWithoutExtension(file.Name),
-                VideoRecordingMetadataStore.WithFileName(metadata, file.Name));
+            _ = VideoRecordingMetadataStore.WriteCompletedMetadata(item.FullPath, metadata);
         }
         string coverPath = string.IsNullOrWhiteSpace(metadata.CoverPath) ? item.CoverPath : metadata.CoverPath;
         string thumbnailPath = File.Exists(coverPath) ? coverPath : await ExtractThumbnailAsync(item.FullPath, token);
@@ -2569,21 +2571,13 @@ public partial class ScreenRecordListViewModel : ObservableObject
     internal static void CopyAssociatedMetadata(string sourceFilePath, string targetFilePath)
     {
         FileInfo source = new(sourceFilePath);
-        string[] sourceCandidates = VideoRecordingMetadataStore.GetMetadataCandidates(source).ToArray();
         VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(source);
         if (!VideoRecordingMetadataStore.HasAnyMetadata(metadata))
         {
             return;
         }
 
-        int candidateIndex = Array.FindIndex(sourceCandidates, File.Exists);
-        string[] targetCandidates = VideoRecordingMetadataStore.GetMetadataCandidates(new FileInfo(targetFilePath)).ToArray();
-        string targetMetadataPath = targetCandidates[Math.Clamp(candidateIndex, 0, targetCandidates.Length - 1)];
-        string targetDirectory = Path.GetDirectoryName(targetFilePath) ?? Environment.CurrentDirectory;
-        if (VideoRecordingMetadataStore.WriteSidecar(
-            targetDirectory,
-            VideoRecordingMetadataStore.GetSidecarStem(targetMetadataPath),
-            VideoRecordingMetadataStore.WithFileName(metadata, Path.GetFileName(targetFilePath))) == null)
+        if (!VideoRecordingMetadataStore.WriteCompletedMetadata(targetFilePath, metadata))
         {
             throw new IOException("Failed to write recording metadata.");
         }
@@ -2613,10 +2607,15 @@ public partial class ScreenRecordListViewModel : ObservableObject
             return;
         }
 
+        VideoRecordingMetadata sourceMetadata = VideoRecordingMetadataStore.Load(new FileInfo(sourceFilePath));
         File.Move(sourceFilePath, targetFilePath);
         try
         {
-            CopyAssociatedMetadata(sourceFilePath, targetFilePath);
+            if (VideoRecordingMetadataStore.HasAnyMetadata(sourceMetadata)
+                && !VideoRecordingMetadataStore.WriteCompletedMetadata(targetFilePath, sourceMetadata))
+            {
+                throw new IOException("Failed to write recording metadata after moving the video.");
+            }
             VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(sourceFilePath);
         }
         catch
@@ -2645,12 +2644,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         {
             if (VideoRecordingMetadataStore.HasAnyMetadata(metadata))
             {
-                string directory = Path.GetDirectoryName(targetFilePath) ?? Environment.CurrentDirectory;
-                string? metadataPath = VideoRecordingMetadataStore.WriteSidecar(
-                    directory,
-                    Path.GetFileNameWithoutExtension(targetFilePath),
-                    VideoRecordingMetadataStore.WithFileName(metadata, Path.GetFileName(targetFilePath)));
-                if (metadataPath == null)
+                if (!VideoRecordingMetadataStore.WriteCompletedMetadata(targetFilePath, metadata))
                 {
                     throw new IOException("Failed to write recording metadata after renaming the video.");
                 }
@@ -3324,34 +3318,22 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
         VideoRecordingMetadata sourceMetadata = VideoRecordingMetadataStore.Load(source);
         bool hasMetadata = VideoRecordingMetadataStore.HasAnyMetadata(sourceMetadata);
-        List<(string Temporary, string Final, StagedVideoMetadata? Metadata)> preparedOutputs = [];
+        List<(string Temporary, string Final)> preparedOutputs = [];
         List<string> finalOutputs = [];
         try
         {
             for (int index = 0; index < temporaryOutputs.Length; index++)
             {
                 string finalOutput = Path.Combine(directory, $"{outputBase}_{index:000}{source.Extension}");
-                StagedVideoMetadata? stagedMetadata = hasMetadata
-                    ? VideoRecordingMetadataStore.StageSidecarForMedia(finalOutput, sourceMetadata, "split-metadata")
-                    : null;
-                if (hasMetadata && stagedMetadata == null)
-                {
-                    throw new IOException("Failed to stage split recording metadata.");
-                }
-                preparedOutputs.Add((temporaryOutputs[index], finalOutput, stagedMetadata));
+                preparedOutputs.Add((temporaryOutputs[index], finalOutput));
             }
 
-            foreach ((string temporary, string final, StagedVideoMetadata? metadata) in preparedOutputs)
+            foreach ((string temporary, string final) in preparedOutputs)
             {
-                metadata?.Commit();
-                try
+                File.Move(temporary, final, overwrite: false);
+                if (hasMetadata && !VideoRecordingMetadataStore.WriteCompletedMetadata(final, sourceMetadata))
                 {
-                    File.Move(temporary, final, overwrite: false);
-                }
-                catch
-                {
-                    metadata?.DeleteCommitted();
-                    throw;
+                    throw new IOException("Failed to store split recording metadata.");
                 }
                 finalOutputs.Add(final);
             }
@@ -3366,13 +3348,6 @@ public partial class ScreenRecordListViewModel : ObservableObject
                 VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(output);
             }
             return false;
-        }
-        finally
-        {
-            foreach (var prepared in preparedOutputs)
-            {
-                prepared.Metadata?.Dispose();
-            }
         }
     }
 
@@ -3427,22 +3402,10 @@ public partial class ScreenRecordListViewModel : ObservableObject
             {
                 VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(first);
                 bool hasMetadata = VideoRecordingMetadataStore.HasAnyMetadata(metadata);
-                using StagedVideoMetadata? stagedMetadata = hasMetadata
-                    ? VideoRecordingMetadataStore.StageSidecarForMedia(target, metadata, "merge-metadata")
-                    : null;
-                if (hasMetadata && stagedMetadata == null)
+                File.Move(temporaryTarget, target, overwrite: false);
+                if (hasMetadata && !VideoRecordingMetadataStore.WriteCompletedMetadata(target, metadata))
                 {
-                    throw new IOException("Failed to stage merged recording metadata.");
-                }
-                stagedMetadata?.Commit();
-                try
-                {
-                    File.Move(temporaryTarget, target, overwrite: false);
-                }
-                catch
-                {
-                    stagedMetadata?.DeleteCommitted();
-                    throw;
+                    throw new IOException("Failed to store merged recording metadata.");
                 }
                 return true;
             }
@@ -3702,6 +3665,9 @@ public partial class RecordedVideoItem : ObservableObject
     [NotifyPropertyChangedFor(nameof(CanModify))]
     [NotifyPropertyChangedFor(nameof(CanTranscode))]
     private bool isInProgress;
+
+    [ObservableProperty]
+    private bool isConverting;
 
     [ObservableProperty]
     private bool isSelected;

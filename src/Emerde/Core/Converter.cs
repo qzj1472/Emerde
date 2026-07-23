@@ -97,26 +97,10 @@ public sealed class Converter
             bool succeeded = process.ExitCode == 0 && IsUsableOutput(temporaryTargetFileName);
             if (succeeded)
             {
-                using StagedVideoMetadata? stagedMetadata = VideoRecordingMetadataStore.StageSidecarForMedia(
-                    targetFileName,
-                    metadata,
-                    "convert-metadata");
-                if (stagedMetadata == null)
+                File.Move(temporaryTargetFileName, targetFileName, false);
+                if (!VideoRecordingMetadataStore.WriteCompletedMetadata(targetFileName, metadata))
                 {
-                    succeeded = false;
-                }
-                else
-                {
-                    stagedMetadata.Commit();
-                    try
-                    {
-                        File.Move(temporaryTargetFileName, targetFileName, false);
-                    }
-                    catch
-                    {
-                        stagedMetadata.DeleteCommitted();
-                        throw;
-                    }
+                    AppSessionLogger.Event("warn", "converter", "conversion_metadata_fallback_failed", "converted video metadata could not be stored", new { targetFileName });
                 }
             }
             AppSessionLogger.Event(succeeded ? "info" : "error", "converter", "conversion_finished", "recording conversion finished", new
