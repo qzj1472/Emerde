@@ -40,4 +40,18 @@ public sealed class AddRoomContentDialogTests
 
         Assert.False(AddRoomContentDialog.HasAddableRoomInfo(result, result.RoomUrl));
     }
+
+    [Fact]
+    public void CanDeferRoomInfoResolution_AllowsOnlyTransientDouyinBlock()
+    {
+        Assert.True(AddRoomContentDialog.CanDeferRoomInfoResolution(
+            "https://live.douyin.com/72024000076",
+            StreamResolver.DouyinTransientBlockError));
+        Assert.False(AddRoomContentDialog.CanDeferRoomInfoResolution(
+            "https://live.douyin.com/72024000076",
+            "invalid response"));
+        Assert.False(AddRoomContentDialog.CanDeferRoomInfoResolution(
+            "https://www.twitch.tv/example",
+            StreamResolver.DouyinTransientBlockError));
+    }
 }

@@ -79,10 +79,18 @@ public sealed partial class AddRoomContentDialog : ContentDialog
                 try
                 {
                     string preferredQuality = RoomRecordingSettings.GetGlobal().PreferredStreamQuality;
-                    ISpiderResult? spider = await Task.Run(() => Spider.GetResult(normalizedRoomUrl, preferredQuality));
+                    ISpiderResult? spider = await Task.Run(() => Spider.GetResult(normalizedRoomUrl, preferredQuality, bypassDouyinThrottle: true));
                     string roomUrl = string.IsNullOrWhiteSpace(spider?.RoomUrl)
                         ? normalizedRoomUrl
                         : Spider.ParseUrl(spider.RoomUrl!) ?? spider.RoomUrl!;
+
+                    if (spider == null && CanDeferRoomInfoResolution(normalizedRoomUrl, ExternalStreamResolver.GetLastError(normalizedRoomUrl)))
+                    {
+                        NickName = normalizedRoomUrl;
+                        RoomUrl = normalizedRoomUrl;
+                        Toast.Warning("AddRoomSucc".Tr(RoomUrl));
+                        return;
+                    }
 
                     if (spider == null || !HasAddableRoomInfo(spider, roomUrl))
                     {
@@ -152,6 +160,13 @@ public sealed partial class AddRoomContentDialog : ContentDialog
             || !string.IsNullOrWhiteSpace(spider.FlvUrl)
             || !string.IsNullOrWhiteSpace(spider.HlsUrl)
             || !string.IsNullOrWhiteSpace(spider.RecordUrl);
+    }
+
+    internal static bool CanDeferRoomInfoResolution(string? roomUrl, string? error)
+    {
+        return !string.IsNullOrWhiteSpace(roomUrl)
+            && string.Equals(Spider.GetPlatformName(roomUrl), "Douyin", StringComparison.OrdinalIgnoreCase)
+            && StreamResolver.IsTransientDouyinFailure(error);
     }
 
     internal static string GetConfirmedNickName(ISpiderResult spider)
