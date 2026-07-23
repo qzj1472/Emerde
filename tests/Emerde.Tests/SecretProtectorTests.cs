@@ -19,4 +19,11 @@ public sealed class SecretProtectorTests
     {
         Assert.Equal("legacy", SecretProtector.Unprotect("legacy"));
     }
+
+    [Fact]
+    public void TryUnprotect_ReportsInvalidProtectedValue()
+    {
+        Assert.False(SecretProtector.TryUnprotect("dpapi:not-base64", out string result));
+        Assert.Equal(string.Empty, result);
+    }
 }

@@ -25,7 +25,7 @@ internal static class ConfigFileManager
     public static string Import(string sourcePath)
     {
         Validate(sourcePath);
-        return ConfigurationSaveScheduler.ExecuteExclusive(() =>
+        return ConfigurationSaveScheduler.ExecuteExclusive<string>(() =>
             ReplaceConfigurationFile(sourcePath, ConfigurationManager.FilePath, ConfigurationManager.Setup));
     }
 
@@ -43,18 +43,21 @@ internal static class ConfigFileManager
 
     public static string[] Reset()
     {
-        List<string> backupPaths = [];
-
-        foreach (string configPath in AppPaths.GetConfigFiles())
+        return ConfigurationSaveScheduler.ExecuteExclusive<string[]>(() =>
         {
-            string backupPath = GetResetBackupPath(configPath);
-            File.Copy(configPath, backupPath, overwrite: false);
-            File.Delete(configPath);
-            PruneResetBackups(configPath);
-            backupPaths.Add(backupPath);
-        }
+            List<string> backupPaths = [];
+            foreach (string configPath in AppPaths.GetConfigFiles())
+            {
+                string backupPath = GetResetBackupPath(configPath);
+                File.Copy(configPath, backupPath, overwrite: false);
+                File.Delete(configPath);
+                PruneResetBackups(configPath);
+                backupPaths.Add(backupPath);
+            }
 
-        return [.. backupPaths];
+            ConfigurationSaveScheduler.SuppressUntilRestart();
+            return [.. backupPaths];
+        });
     }
 
     internal static void Validate(string sourcePath, bool requireYamlExtension = true)

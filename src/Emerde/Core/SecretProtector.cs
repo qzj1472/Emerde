@@ -21,21 +21,39 @@ internal static class SecretProtector
 
     public static string Unprotect(string? value)
     {
+        return TryUnprotect(value, out string result) ? result : string.Empty;
+    }
+
+    public static bool TryUnprotect(string? value, out string result)
+    {
         if (string.IsNullOrEmpty(value) || !value.StartsWith(Prefix, StringComparison.Ordinal))
         {
-            return value ?? string.Empty;
+            result = value ?? string.Empty;
+            return true;
         }
 
         try
         {
             byte[] protectedBytes = Convert.FromBase64String(value[Prefix.Length..]);
-            return Encoding.UTF8.GetString(ProtectedData.Unprotect(protectedBytes, null, DataProtectionScope.CurrentUser));
+            result = Encoding.UTF8.GetString(ProtectedData.Unprotect(protectedBytes, null, DataProtectionScope.CurrentUser));
+            return true;
         }
         catch (Exception e) when (e is CryptographicException or FormatException)
         {
             AppSessionLogger.WriteException(e);
-            return string.Empty;
+            result = string.Empty;
+            return false;
         }
+    }
+
+    public static string[] GetUnavailableStoredSecretNames()
+    {
+        List<string> names = [];
+        AddIfUnavailable(Configurations.ToNotifyWithEmailPassword, names);
+        AddIfUnavailable(Configurations.PlatformCookies, names);
+        AddIfUnavailable(Configurations.CookieChina, names);
+        AddIfUnavailable(Configurations.CookieOversea, names);
+        return [.. names];
     }
 
     public static string GetChinaCookie()
@@ -71,5 +89,14 @@ internal static class SecretProtector
 
         definition.Set(protectedValue);
         return true;
+    }
+
+    private static void AddIfUnavailable(ConfigurationDefinition<string> definition, ICollection<string> names)
+    {
+        string value = definition.Get();
+        if (!string.IsNullOrWhiteSpace(value) && !TryUnprotect(value, out _))
+        {
+            names.Add(definition.Name);
+        }
     }
 }
