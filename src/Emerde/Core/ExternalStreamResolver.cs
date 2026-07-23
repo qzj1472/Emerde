@@ -26,7 +26,7 @@ internal static class ExternalStreamResolver
             }
         }
 
-        return LastError;
+        return string.IsNullOrWhiteSpace(url) ? LastError : string.Empty;
     }
 
     public static string GetPlatformName(string? url)
@@ -69,10 +69,11 @@ internal static class ExternalStreamResolver
         return NormalizeKnownPlatformUrl(value);
     }
 
-    public static ISpiderResult? GetResult(string url, string? streamQuality = null)
+    public static ISpiderResult? GetResult(string url, string? streamQuality = null, bool bypassDouyinThrottle = false, bool prioritizeDouyin = false)
     {
         string? normalizedUrl = NormalizeUrl(url, allowNetwork: true) ?? Spider.ParseLegacyUrl(url);
-        string lastError = SetLastError(url, normalizedUrl, string.Empty);
+        ClearLastError(url, normalizedUrl);
+        string lastError;
 
         if (string.IsNullOrWhiteSpace(normalizedUrl))
         {
@@ -80,11 +81,18 @@ internal static class ExternalStreamResolver
             return null;
         }
 
-        ISpiderResult? resolverResult = StreamResolver.GetResult(normalizedUrl, streamQuality);
+        ISpiderResult? resolverResult = StreamResolver.GetResult(normalizedUrl, streamQuality, bypassDouyinThrottle, prioritizeDouyin);
         if (!StreamResolver.NeedsSupplementalData(resolverResult))
         {
             SetLastError(url, normalizedUrl, string.Empty);
             return StreamResolver.MergeResults(normalizedUrl, resolverResult);
+        }
+
+        lastError = StreamResolver.GetLastError(normalizedUrl);
+        if (StreamResolver.IsTransientDouyinFailure(lastError))
+        {
+            SetLastError(url, normalizedUrl, lastError);
+            return resolverResult;
         }
 
         ISpiderResult? legacyResult = Spider.GetLegacyResult(normalizedUrl, streamQuality);
@@ -122,10 +130,40 @@ internal static class ExternalStreamResolver
 
         foreach (string key in GetErrorKeys(originalUrl).Concat(GetErrorKeys(normalizedUrl)))
         {
-            LastErrorsByUrl[key] = error;
+            if (string.IsNullOrWhiteSpace(error))
+            {
+                _ = LastErrorsByUrl.TryRemove(key, out _);
+            }
+            else
+            {
+                LastErrorsByUrl[key] = error;
+            }
         }
 
         return error;
+    }
+
+    internal static void ClearLastError(string? originalUrl, string? normalizedUrl = null)
+    {
+        foreach (string key in GetErrorKeys(originalUrl).Concat(GetErrorKeys(normalizedUrl)))
+        {
+            _ = LastErrorsByUrl.TryRemove(key, out _);
+        }
+
+        StreamResolver.ClearLastError(originalUrl);
+        StreamResolver.ClearLastError(normalizedUrl);
+    }
+
+    internal static void ClearDouyinThrottle(string? originalUrl, string? normalizedUrl = null)
+    {
+        StreamResolver.ClearDouyinThrottle(originalUrl);
+        StreamResolver.ClearDouyinThrottle(normalizedUrl);
+    }
+
+    internal static void ClearRoomState(string? originalUrl, string? normalizedUrl = null)
+    {
+        ClearLastError(originalUrl, normalizedUrl);
+        ClearDouyinThrottle(originalUrl, normalizedUrl);
     }
 
     private static IEnumerable<string> GetErrorKeys(string? url)

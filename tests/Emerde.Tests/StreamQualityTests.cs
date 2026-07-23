@@ -355,6 +355,135 @@ public sealed class StreamQualityTests
         Assert.True(result.IsLiveStreaming);
     }
 
+    [Fact]
+    public void DouyinResolver_ReflowExtractsLiveCoreStreamForNonOriginalPreference()
+    {
+        string streamData = CreateDouyinStreamData(
+            "https://example.test/reflow.flv",
+            "https://example.test/reflow.m3u8",
+            "h264",
+            8000000,
+            "1920x1080");
+        string json = $$"""
+            {
+              "data": {
+                "room": {
+                  "status": 2,
+                  "title": "linkmic live",
+                  "owner": {
+                    "nickname": "anchor",
+                    "sec_uid": "sec-user"
+                  },
+                  "stream_url": {
+                    "hls_pull_url_map": {},
+                    "flv_pull_url": {},
+                    "live_core_sdk_data": {
+                      "pull_data": {
+                        "stream_data": {{System.Text.Json.JsonSerializer.Serialize(streamData)}}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """;
+
+        StreamResolverResult result = StreamResolver.ExtractDouyinReflowData(
+            "https://live.douyin.com/123456",
+            json,
+            StreamQualityCatalog.High);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("linkmic live", result.Title);
+        Assert.Equal("https://example.test/reflow.flv?codec=h264", result.RecordUrl);
+        Assert.Equal("1920x1080", result.Resolution);
+        Assert.Equal("8 Mbps", result.Bitrate);
+    }
+
+    [Fact]
+    public void DouyinResolver_AppFallbackRequiresConfirmedLiveWithoutStream()
+    {
+        Assert.True(StreamResolver.NeedsDouyinAppFallback(new StreamResolverResult
+        {
+            IsLiveStreaming = true,
+            Title = "live",
+        }));
+        Assert.False(StreamResolver.NeedsDouyinAppFallback(new StreamResolverResult
+        {
+            IsLiveStreaming = true,
+            RecordUrl = "https://example.test/live.flv",
+        }));
+        Assert.False(StreamResolver.NeedsDouyinAppFallback(new StreamResolverResult
+        {
+            IsLiveStreaming = false,
+        }));
+    }
+
+    [Fact]
+    public void DouyinResolver_OfflineWithoutIdentityRequestsMetadataSupplement()
+    {
+        Assert.True(StreamResolver.NeedsDouyinMetadataSupplement(new StreamResolverResult
+        {
+            IsLiveStreaming = false,
+        }));
+        Assert.False(StreamResolver.NeedsDouyinMetadataSupplement(new StreamResolverResult
+        {
+            IsLiveStreaming = false,
+            Nickname = "anchor",
+        }));
+    }
+
+    [Fact]
+    public void DouyinResolver_CookieFallbackDoesNotReplaceConfirmedLiveIdentityWithEmptyOfflineData()
+    {
+        StreamResolverResult primary = new()
+        {
+            IsLiveStreaming = true,
+            Nickname = "anchor",
+        };
+        StreamResolverResult emptyOfflineFallback = new()
+        {
+            IsLiveStreaming = false,
+        };
+        StreamResolverResult identifiedOfflineFallback = new()
+        {
+            IsLiveStreaming = false,
+            Nickname = "anchor",
+        };
+
+        Assert.False(StreamResolver.ShouldUseDouyinCookieFallback(primary, emptyOfflineFallback));
+        Assert.True(StreamResolver.ShouldUseDouyinCookieFallback(emptyOfflineFallback, identifiedOfflineFallback));
+    }
+
+    [Fact]
+    public void DouyinResolver_ReflowIdentityRequiresRealRoomAndUserIds()
+    {
+        const string validJson = """
+            {
+              "data": {
+                "data": [{
+                  "id_str": "7350000000000000000",
+                  "owner": { "sec_uid": "sec-user" }
+                }]
+              }
+            }
+            """;
+        const string missingRoomJson = """
+            {
+              "data": {
+                "data": [],
+                "user": { "sec_uid": "sec-user" }
+              }
+            }
+            """;
+
+        Assert.True(StreamResolver.TryExtractDouyinReflowIdentity(validJson, out string roomId, out string secUid));
+        Assert.Equal("7350000000000000000", roomId);
+        Assert.Equal("sec-user", secUid);
+        Assert.False(StreamResolver.TryExtractDouyinReflowIdentity(missingRoomJson, out _, out _));
+    }
+
     private static string CreateDouyinStreamData(
         string flvUrl,
         string hlsUrl,

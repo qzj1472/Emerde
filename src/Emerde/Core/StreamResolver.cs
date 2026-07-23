@@ -14,18 +14,55 @@ internal static partial class StreamResolver
     private const int RedirectTimeoutSeconds = 3;
     private const int PlaylistTimeoutSeconds = 2;
     private const int HlsVariantCacheLimit = 256;
+    internal const int DouyinResolverConcurrency = 6;
+    internal const int DouyinResolverQueueTimeoutMilliseconds = 5000;
+    internal const int DouyinRequestSpacingMilliseconds = 200;
+    internal const string DouyinTransientBlockError = "Douyin room data was empty or blocked.";
+    internal const string DouyinResolverBusyError = "Douyin resolver queue was busy.";
+    internal const string DouyinGlobalCircuitOpenError = "Douyin background requests were paused after repeated blocking responses.";
+    internal const string DouyinInconclusiveError = "Douyin room state was inconclusive.";
     private const string DouyinDefaultCookie = "ttwid=1%7C2iDIYVmjzMcpZ20fcaFde0VghXAA3NaNXE_SLR68IyE%7C1761045455%7Cab35197d5cfb21df6cbb2fa7ef1c9262206b062c315b9d04da746d0b37dfbc7d";
     private const string DouyinWebUserAgent = "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.5845.97 Safari/537.36 Core/1.116.567.400 QQBrowser/19.7.6764.400";
     private static readonly TimeSpan HlsVariantPositiveCacheDuration = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan HlsVariantNegativeCacheDuration = TimeSpan.FromMinutes(2);
     private static readonly ConcurrentDictionary<string, string> LastErrors = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, HlsVariantCacheEntry> HlsVariantCache = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly SemaphoreSlim DouyinResolverSemaphore = new(MonitorTiming.MonitorBatchLimit, MonitorTiming.MonitorBatchLimit);
+    private static readonly ConcurrentDictionary<string, DouyinThrottleState> DouyinThrottleStates = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, DouyinRoomSession> DouyinRoomSessions = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly SemaphoreSlim DouyinResolverSemaphore = new(DouyinResolverConcurrency, DouyinResolverConcurrency);
+    private static readonly object DouyinThrottleSync = new();
+    private static readonly Queue<long> DouyinBlockingResponses = new();
+    private static long douyinNextRequestAt;
+    private static long douyinBackgroundBlockedUntil;
+    private static long douyinNextWebViewAt;
 
     public static string GetLastError(string url)
     {
         string key = NormalizeUrl(url, allowNetwork: false) ?? url.Trim();
         return LastErrors.TryGetValue(key, out string? error) ? error : string.Empty;
+    }
+
+    internal static void ClearLastError(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return;
+        }
+
+        string key = NormalizeUrl(url, allowNetwork: false) ?? url.Trim();
+        _ = LastErrors.TryRemove(key, out _);
+    }
+
+    internal static void ClearDouyinThrottle(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return;
+        }
+
+        string key = NormalizeUrl(url, allowNetwork: false) ?? url.Trim();
+        _ = DouyinThrottleStates.TryRemove(key, out _);
+        _ = DouyinRoomSessions.TryRemove(key, out _);
     }
 
     public static string GetPlatformName(string url)
@@ -110,7 +147,7 @@ internal static partial class StreamResolver
         return null;
     }
 
-    public static ISpiderResult? GetResult(string url, string? preferredQuality = null)
+    public static ISpiderResult? GetResult(string url, string? preferredQuality = null, bool bypassDouyinThrottle = false, bool prioritizeDouyin = false)
     {
         string? normalizedUrl = NormalizeUrl(url, allowNetwork: true);
         string resolverUrl = normalizedUrl ?? url.Trim();
@@ -133,10 +170,26 @@ internal static partial class StreamResolver
             string host = uri.Host.ToLowerInvariant();
             if (HostMatchesDomain(host, "douyin.com"))
             {
-                DouyinResolverSemaphore.Wait();
+                if (!DouyinResolverSemaphore.Wait(DouyinResolverQueueTimeoutMilliseconds))
+                {
+                    SetLastError(resolverUrl, DouyinResolverBusyError);
+                    return null;
+                }
+
                 try
                 {
-                    return ResolveDouyin(resolverUrl, preferredQuality);
+                    if (!TryWaitForDouyinRequestWindow(resolverUrl, bypassDouyinThrottle, prioritizeDouyin))
+                    {
+                        if (string.IsNullOrWhiteSpace(GetLastError(resolverUrl)))
+                        {
+                            SetLastError(resolverUrl, DouyinTransientBlockError);
+                        }
+                        return null;
+                    }
+
+                    StreamResolverResult? result = ResolveDouyin(resolverUrl, preferredQuality, bypassDouyinThrottle, prioritizeDouyin);
+                    UpdateDouyinThrottle(resolverUrl, result, GetLastError(resolverUrl));
+                    return result;
                 }
                 finally
                 {
@@ -230,6 +283,18 @@ internal static partial class StreamResolver
             merged.Headers = FirstNonEmpty(merged.Headers, SpiderResultMetadata.GetHeaders(result));
         }
 
+        if (string.Equals(merged.PlatformName, "Douyin", StringComparison.OrdinalIgnoreCase)
+            && merged.IsLiveStreaming == false)
+        {
+            merged.FlvUrl = null;
+            merged.HlsUrl = null;
+            merged.RecordUrl = null;
+            merged.Quality = null;
+            merged.Resolution = null;
+            merged.Bitrate = null;
+            merged.Headers = null;
+        }
+
         return merged;
     }
 
@@ -317,6 +382,10 @@ internal static partial class StreamResolver
             StreamCandidate hls = SelectPreferredStream(streamUrl?["hls_pull_url_map"], preferredQuality);
             StreamCandidate flv = SelectPreferredStream(streamUrl?["flv_pull_url"], preferredQuality);
             DouyinOriginStream originStream = SelectDouyinOriginStream(streamUrl, preferredQuality);
+            if (!originStream.HasStream && string.IsNullOrWhiteSpace(hls.Url) && string.IsNullOrWhiteSpace(flv.Url))
+            {
+                originStream = SelectDouyinOriginStream(streamUrl, StreamQualityCatalog.Original);
+            }
             result.HlsUrl = originStream.HasStream ? originStream.HlsUrl : hls.Url;
             result.FlvUrl = originStream.HasStream ? originStream.FlvUrl : flv.Url;
             result.RecordUrl = SelectDouyinRecordUrl(result.FlvUrl, result.HlsUrl);
@@ -328,6 +397,15 @@ internal static partial class StreamResolver
                 ? StreamQualityCatalog.FormatBitrate(originStream.Bitrate)
                 : StreamMetadataParser.GetBitrate(result.FlvUrl, result.HlsUrl);
 
+            if (result.IsLiveStreaming == false)
+            {
+                result.HlsUrl = null;
+                result.FlvUrl = null;
+                result.RecordUrl = null;
+                result.Quality = null;
+                result.Resolution = null;
+                result.Bitrate = null;
+            }
             if ((!string.IsNullOrWhiteSpace(result.HlsUrl) || !string.IsNullOrWhiteSpace(result.FlvUrl))
                 && result.IsLiveStreaming != false)
             {
@@ -340,6 +418,123 @@ internal static partial class StreamResolver
         }
 
         return result;
+    }
+
+    internal static bool IsTransientDouyinFailure(string? error)
+    {
+        return string.Equals(error, DouyinTransientBlockError, StringComparison.Ordinal)
+            || string.Equals(error, DouyinResolverBusyError, StringComparison.Ordinal)
+            || string.Equals(error, DouyinGlobalCircuitOpenError, StringComparison.Ordinal)
+            || string.Equals(error, DouyinInconclusiveError, StringComparison.Ordinal)
+            || (!string.IsNullOrWhiteSpace(error)
+                && error.StartsWith("Douyin request ", StringComparison.Ordinal));
+    }
+
+    internal static int GetDouyinBackoffMilliseconds(int failureCount)
+    {
+        int exponent = Math.Clamp(failureCount - 1, 0, 1);
+        return Math.Min(MonitorTiming.LiveRoutineIntervalMilliseconds, 5000 << exponent);
+    }
+
+    internal static bool IsDouyinRequestBlocked(long currentTimestamp, long blockedUntil)
+    {
+        return blockedUntil > currentTimestamp;
+    }
+
+    private static bool TryWaitForDouyinRequestWindow(string resolverUrl, bool bypassDouyinThrottle, bool prioritizeDouyin)
+    {
+        long now = Environment.TickCount64;
+        if (!bypassDouyinThrottle
+            && DouyinThrottleStates.TryGetValue(resolverUrl, out DouyinThrottleState state)
+            && IsDouyinRequestBlocked(now, state.BlockedUntil))
+        {
+            return false;
+        }
+
+        if (!bypassDouyinThrottle
+            && !prioritizeDouyin
+            && IsDouyinRequestBlocked(now, Volatile.Read(ref douyinBackgroundBlockedUntil)))
+        {
+            SetLastError(resolverUrl, DouyinGlobalCircuitOpenError);
+            return false;
+        }
+
+        return true;
+    }
+
+    private static void UpdateDouyinThrottle(string resolverUrl, ISpiderResult? result, string error)
+    {
+        if (HasConclusiveData(result))
+        {
+            _ = DouyinThrottleStates.TryRemove(resolverUrl, out _);
+            return;
+        }
+
+        if (!IsTransientDouyinFailure(error))
+        {
+            return;
+        }
+
+        long now = Environment.TickCount64;
+        _ = DouyinThrottleStates.AddOrUpdate(
+            resolverUrl,
+            new DouyinThrottleState(now + GetDouyinBackoffMilliseconds(1), 1),
+            (_, current) => CreateNextDouyinThrottleState(current, now));
+    }
+
+    private static DouyinThrottleState CreateNextDouyinThrottleState(DouyinThrottleState current, long now)
+    {
+        if (IsDouyinRequestBlocked(now, current.BlockedUntil))
+        {
+            return current;
+        }
+
+        int failureCount = Math.Min(current.FailureCount + 1, 4);
+        return new DouyinThrottleState(now + GetDouyinBackoffMilliseconds(failureCount), failureCount);
+    }
+
+    internal static StreamResolverResult ExtractDouyinReflowData(string roomUrl, string? json, string? preferredQuality = null)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return new StreamResolverResult
+            {
+                RoomUrl = roomUrl,
+                PlatformName = "Douyin",
+            };
+        }
+
+        try
+        {
+            JObject root = JObject.Parse(json);
+            JToken? room = root["data"]?["room"];
+            if (room == null)
+            {
+                return new StreamResolverResult
+                {
+                    RoomUrl = roomUrl,
+                    PlatformName = "Douyin",
+                };
+            }
+
+            JObject compatible = new()
+            {
+                ["data"] = new JObject
+                {
+                    ["data"] = new JArray(room.DeepClone()),
+                    ["user"] = room["owner"]?.DeepClone(),
+                },
+            };
+            return ExtractDouyinWebEnterData(roomUrl, compatible.ToString(Newtonsoft.Json.Formatting.None), preferredQuality);
+        }
+        catch
+        {
+            return new StreamResolverResult
+            {
+                RoomUrl = roomUrl,
+                PlatformName = "Douyin",
+            };
+        }
     }
 
     internal static StreamResolverResult ExtractTiktokData(string roomUrl, string? html, string? preferredQuality = null)
@@ -377,43 +572,96 @@ internal static partial class StreamResolver
         return result;
     }
 
-    private static StreamResolverResult? ResolveDouyin(string roomUrl, string? preferredQuality)
+    private static StreamResolverResult? ResolveDouyin(string roomUrl, string? preferredQuality, bool tryAllRoutes, bool prioritizeDouyin)
     {
-        StreamResolverResult? webEnterResult = ResolveDouyinWebEnter(roomUrl, preferredQuality);
-        if (!NeedsSupplementalData(webEnterResult))
+        DouyinRoomSession session = DouyinRoomSessions.GetOrAdd(roomUrl, static _ => new DouyinRoomSession());
+        DouyinResolveRoute firstRoute = tryAllRoutes ? DouyinResolveRoute.WebEnter : session.TakeNextRoute();
+        DouyinResolveRoute[] routes = GetDouyinRouteOrder(firstRoute, tryAllRoutes);
+        StreamResolverResult result = new()
         {
-            EnrichHighestHlsVariant(webEnterResult!, preferredQuality, roomUrl, PlatformCookieStore.GetCookie("Douyin", SecretProtector.GetChinaCookie()), DouyinWebUserAgent);
-            LastErrors.TryRemove(roomUrl, out _);
-            return webEnterResult;
+            RoomUrl = roomUrl,
+            PlatformName = "Douyin",
+        };
+
+        foreach (DouyinResolveRoute route in routes)
+        {
+            StreamResolverResult? routeResult = ResolveDouyinRoute(roomUrl, preferredQuality, session, route);
+            result = MergeResults(roomUrl, result, routeResult);
+            if (IsCompleteDouyinResult(result))
+            {
+                break;
+            }
         }
 
-        string? html = RequestText(
-            roomUrl,
-            "https://live.douyin.com/",
-            PlatformCookieStore.GetCookie("Douyin", SecretProtector.GetChinaCookie()),
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0");
-
-        StreamResolverResult pageResult = ExtractDouyinData(roomUrl, html, preferredQuality);
-        StreamResolverResult result = MergeResults(roomUrl, webEnterResult, pageResult);
-
-        if (!NeedsSupplementalData(result))
+        int failureCount = IsCompleteDouyinResult(result) ? 0 : session.RegisterFailure();
+        if (failureCount == 0)
         {
-            EnrichHighestHlsVariant(result, preferredQuality, roomUrl, PlatformCookieStore.GetCookie("Douyin", SecretProtector.GetChinaCookie()), DouyinWebUserAgent);
+            session.ResetFailures();
+        }
+        else if (TryReserveDouyinWebViewFallback(tryAllRoutes, prioritizeDouyin, failureCount))
+        {
+            DouyinWebViewSnapshot snapshot = DouyinWebViewResolver.Resolve(roomUrl, GetDouyinCookie(), tryAllRoutes);
+            StreamResolverResult browserResult = ExtractDouyinWebViewSnapshot(roomUrl, snapshot, preferredQuality, session);
+            result = MergeResults(roomUrl, result, browserResult);
+            if (IsCompleteDouyinResult(result))
+            {
+                session.ResetFailures();
+                AppSessionLogger.Event("info", "resolver", "douyin_webview_resolved", "Douyin room was resolved through the browser fallback", new
+                {
+                    roomUrl,
+                    result.IsLiveStreaming,
+                    hasStream = HasRecordableStream(result),
+                });
+            }
+        }
+
+        if (IsCompleteDouyinResult(result))
+        {
+            EnrichHighestHlsVariant(result, preferredQuality, roomUrl, GetDouyinCookie(), DouyinWebUserAgent);
             LastErrors.TryRemove(roomUrl, out _);
             return result;
         }
 
-        if (HasRoomData(result))
+        if (string.IsNullOrWhiteSpace(GetLastError(roomUrl)))
         {
-            SetLastError(roomUrl, "Douyin room state was inconclusive.");
-            return result;
+            SetLastError(roomUrl, HasRoomData(result) ? DouyinInconclusiveError : DouyinTransientBlockError);
         }
-
-        SetLastError(roomUrl, "Douyin room data was empty or blocked.");
-        return null;
+        if (!HasRoomData(result) && IsDouyinBlockingFailure(GetLastError(roomUrl)))
+        {
+            RegisterDouyinBlockingResponse();
+        }
+        return HasRoomData(result) ? result : null;
     }
 
-    private static StreamResolverResult? ResolveDouyinWebEnter(string roomUrl, string? preferredQuality)
+    internal static DouyinResolveRoute[] GetDouyinRouteOrder(DouyinResolveRoute firstRoute, bool tryAllRoutes)
+    {
+        if (tryAllRoutes || firstRoute == DouyinResolveRoute.WebEnter)
+        {
+            return [DouyinResolveRoute.WebEnter, DouyinResolveRoute.RoomPage, DouyinResolveRoute.AppReflow];
+        }
+
+        return firstRoute == DouyinResolveRoute.RoomPage
+            ? [DouyinResolveRoute.RoomPage, DouyinResolveRoute.WebEnter, DouyinResolveRoute.AppReflow]
+            : [DouyinResolveRoute.AppReflow, DouyinResolveRoute.WebEnter, DouyinResolveRoute.RoomPage];
+    }
+
+    private static StreamResolverResult? ResolveDouyinRoute(
+        string roomUrl,
+        string? preferredQuality,
+        DouyinRoomSession session,
+        DouyinResolveRoute route)
+    {
+        return route switch
+        {
+            DouyinResolveRoute.WebEnter => ResolveDouyinWebEnter(roomUrl, preferredQuality, session),
+            DouyinResolveRoute.RoomPage => ResolveDouyinRoomPage(roomUrl, preferredQuality, session),
+            DouyinResolveRoute.AppReflow when session.TryGetIdentity(out string roomId, out string secUid) =>
+                ResolveDouyinAppReflow(roomUrl, roomId, secUid, GetDouyinCookie(), preferredQuality),
+            _ => null,
+        };
+    }
+
+    private static StreamResolverResult? ResolveDouyinWebEnter(string roomUrl, string? preferredQuality, DouyinRoomSession session)
     {
         if (!Uri.TryCreate(roomUrl, UriKind.Absolute, out Uri? uri))
         {
@@ -442,17 +690,359 @@ internal static partial class StreamResolver
         ]);
         string aBogus = DouyinWebSignature.CreateABogus(query, DouyinWebUserAgent);
         string api = $"https://live.douyin.com/webcast/room/web/enter/?{query}&a_bogus={Uri.EscapeDataString(aBogus)}";
+        string? json = RequestDouyinText(
+            roomUrl,
+            api,
+            roomUrl,
+            GetDouyinCookie(),
+            DouyinWebUserAgent,
+            "application/json,text/plain,*/*");
+
+        StreamResolverResult result = ExtractDouyinWebEnterData(roomUrl, json, preferredQuality);
+        if (TryExtractDouyinReflowIdentity(json, out string roomId, out string secUid))
+        {
+            session.UpdateIdentity(roomId, secUid);
+            if (NeedsDouyinAppFallback(result))
+            {
+                session.SetNextRoute(DouyinResolveRoute.AppReflow);
+            }
+        }
+        return HasRoomData(result) ? result : null;
+    }
+
+    private static StreamResolverResult? ResolveDouyinRoomPage(string roomUrl, string? preferredQuality, DouyinRoomSession session)
+    {
+        string? html = RequestDouyinText(
+            roomUrl,
+            roomUrl,
+            "https://live.douyin.com/",
+            GetDouyinCookie(),
+            DouyinWebUserAgent);
+        if (TryExtractDouyinPageIdentity(html, out string roomId, out string secUid))
+        {
+            session.UpdateIdentity(roomId, secUid);
+        }
+        StreamResolverResult result = ExtractDouyinData(roomUrl, html, preferredQuality);
+        return HasRoomData(result) ? result : null;
+    }
+
+    private static StreamResolverResult ExtractDouyinWebViewSnapshot(
+        string roomUrl,
+        DouyinWebViewSnapshot snapshot,
+        string? preferredQuality,
+        DouyinRoomSession session)
+    {
+        StreamResolverResult apiResult = ExtractDouyinWebEnterData(roomUrl, snapshot.WebEnterJson, preferredQuality);
+        StreamResolverResult pageResult = ExtractDouyinData(roomUrl, snapshot.Html, preferredQuality);
+        if (TryExtractDouyinReflowIdentity(snapshot.WebEnterJson, out string roomId, out string secUid)
+            || TryExtractDouyinPageIdentity(snapshot.Html, out roomId, out secUid))
+        {
+            session.UpdateIdentity(roomId, secUid);
+        }
+        return MergeResults(roomUrl, apiResult, pageResult);
+    }
+
+    private static bool IsCompleteDouyinResult(ISpiderResult? result)
+    {
+        return result?.IsLiveStreaming == false
+            || (result?.IsLiveStreaming == true && HasRecordableStream(result));
+    }
+
+    internal static bool ShouldUseDouyinWebViewFallback(bool tryAllRoutes, bool prioritizeDouyin, int failureCount)
+    {
+        return tryAllRoutes || prioritizeDouyin && failureCount >= 2 || failureCount >= 3;
+    }
+
+    internal static bool IsDouyinBlockingFailure(string? error)
+    {
+        return string.Equals(error, DouyinTransientBlockError, StringComparison.Ordinal)
+            || (!string.IsNullOrWhiteSpace(error)
+                && (error.Contains("HTTP 403", StringComparison.Ordinal)
+                    || error.Contains("HTTP 429", StringComparison.Ordinal)));
+    }
+
+    private static bool TryReserveDouyinWebViewFallback(bool tryAllRoutes, bool prioritizeDouyin, int failureCount)
+    {
+        if (!ShouldUseDouyinWebViewFallback(tryAllRoutes, prioritizeDouyin, failureCount))
+        {
+            return false;
+        }
+        if (tryAllRoutes)
+        {
+            return true;
+        }
+
+        long now = Environment.TickCount64;
+        while (true)
+        {
+            long next = Volatile.Read(ref douyinNextWebViewAt);
+            if (next > now)
+            {
+                return false;
+            }
+            if (Interlocked.CompareExchange(ref douyinNextWebViewAt, now + 60000, next) == next)
+            {
+                return true;
+            }
+        }
+    }
+
+    private static string GetDouyinCookie()
+    {
         string configuredCookie = PlatformCookieStore.GetCookie("Douyin", SecretProtector.GetChinaCookie());
-        string cookie = string.IsNullOrWhiteSpace(configuredCookie) ? DouyinDefaultCookie : configuredCookie;
-        string? json = RequestText(
+        if (string.IsNullOrWhiteSpace(configuredCookie))
+        {
+            return DouyinDefaultCookie;
+        }
+        if (configuredCookie.Contains("ttwid=", StringComparison.OrdinalIgnoreCase))
+        {
+            return configuredCookie;
+        }
+        return configuredCookie.Trim().TrimEnd(';') + "; " + DouyinDefaultCookie;
+    }
+
+    internal static bool NeedsDouyinAppFallback(ISpiderResult? result)
+    {
+        return result?.IsLiveStreaming == true && !HasRecordableStream(result);
+    }
+
+    internal static bool NeedsDouyinMetadataSupplement(ISpiderResult? result)
+    {
+        return NeedsSupplementalData(result)
+            || (result?.IsLiveStreaming == false
+                && string.IsNullOrWhiteSpace(result.Nickname)
+                && string.IsNullOrWhiteSpace(result.Uid)
+                && string.IsNullOrWhiteSpace(result.AvatarThumbUrl));
+    }
+
+    internal static bool ShouldUseDouyinCookieFallback(ISpiderResult? primary, ISpiderResult? fallback)
+    {
+        return !NeedsDouyinMetadataSupplement(fallback)
+            || (!HasRoomData(primary) && HasRoomData(fallback));
+    }
+
+    internal static bool TryExtractDouyinReflowIdentity(string? json, out string roomId, out string secUid)
+    {
+        roomId = string.Empty;
+        secUid = string.Empty;
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return false;
+        }
+
+        try
+        {
+            JObject root = JObject.Parse(json);
+            JToken? room = root["data"]?["data"]?.FirstOrDefault();
+            JToken? user = root["data"]?["user"] ?? room?["owner"];
+            roomId = FirstNonEmpty(
+                CleanOptionalText(room?["id_str"]?.ToString()),
+                CleanOptionalText(room?["id"]?.ToString())) ?? string.Empty;
+            secUid = FirstNonEmpty(
+                CleanOptionalText(user?["sec_uid"]?.ToString()),
+                CleanOptionalText(room?["owner"]?["sec_uid"]?.ToString())) ?? string.Empty;
+            return !string.IsNullOrWhiteSpace(roomId) && !string.IsNullOrWhiteSpace(secUid);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    internal static bool TryExtractDouyinPageIdentity(string? html, out string roomId, out string secUid)
+    {
+        roomId = string.Empty;
+        secUid = string.Empty;
+        if (string.IsNullOrWhiteSpace(html))
+        {
+            return false;
+        }
+
+        string normalized = NormalizeEscapedText(html);
+        Match roomIdMatch = DouyinInternalRoomIdRegex.Match(normalized);
+        Match secUidMatch = DouyinSecUidRegex.Match(normalized);
+        if (roomIdMatch.Success)
+        {
+            roomId = HttpUtility.HtmlDecode(FirstNonEmpty(
+                roomIdMatch.Groups[1].Value,
+                roomIdMatch.Groups[2].Value) ?? string.Empty).Trim();
+        }
+        if (secUidMatch.Success)
+        {
+            secUid = HttpUtility.HtmlDecode(secUidMatch.Groups[1].Value).Trim();
+        }
+        return !string.IsNullOrWhiteSpace(roomId) && !string.IsNullOrWhiteSpace(secUid);
+    }
+
+    private static bool HasRecordableStream(ISpiderResult result)
+    {
+        return !string.IsNullOrWhiteSpace(result.RecordUrl)
+            || !string.IsNullOrWhiteSpace(result.HlsUrl)
+            || !string.IsNullOrWhiteSpace(result.FlvUrl);
+    }
+
+    private static StreamResolverResult? ResolveDouyinAppReflow(
+        string roomUrl,
+        string roomId,
+        string secUid,
+        string cookie,
+        string? preferredQuality)
+    {
+        string query = string.Join("&",
+        [
+            "verifyFp=verify_hwj52020_7szNlAB7_pxNY_48Vh_ALKF_GA1Uf3yteoOY",
+            "type_id=0",
+            "live_id=1",
+            $"room_id={Uri.EscapeDataString(roomId)}",
+            $"sec_user_id={Uri.EscapeDataString(secUid)}",
+            "version_code=99.99.99",
+            "app_id=1128",
+        ]);
+        string aBogus = DouyinWebSignature.CreateABogus(query, DouyinWebUserAgent);
+        string api = $"https://webcast.amemv.com/webcast/room/reflow/info/?{query}&a_bogus={Uri.EscapeDataString(aBogus)}";
+        string? json = RequestDouyinText(
+            roomUrl,
             api,
             roomUrl,
             cookie,
             DouyinWebUserAgent,
             "application/json,text/plain,*/*");
-
-        StreamResolverResult result = ExtractDouyinWebEnterData(roomUrl, json, preferredQuality);
+        StreamResolverResult result = ExtractDouyinReflowData(roomUrl, json, preferredQuality);
         return HasRoomData(result) ? result : null;
+    }
+
+    private static string? RequestDouyinText(
+        string roomUrl,
+        string url,
+        string referer,
+        string? cookie,
+        string userAgent,
+        string accept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+    {
+        WaitForDouyinHttpRequestSlot();
+        using HttpRequestMessage request = CreateRequest(url, referer, cookie, userAgent, accept);
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(RequestTimeoutSeconds));
+        try
+        {
+            using HttpResponseMessage response = ProxyHttpClientPool.GetCurrent().Send(
+                request,
+                HttpCompletionOption.ResponseContentRead,
+                timeout.Token);
+            string text = response.Content.ReadAsStringAsync(timeout.Token).GetAwaiter().GetResult();
+            if ((int)response.StatusCode is 403 or 429)
+            {
+                SetLastError(roomUrl, $"Douyin request blocked (HTTP {(int)response.StatusCode}).");
+                return null;
+            }
+            if (!response.IsSuccessStatusCode)
+            {
+                SetLastError(roomUrl, $"Douyin request failed (HTTP {(int)response.StatusCode}).");
+                return null;
+            }
+            if (IsDouyinBlockedContent(text))
+            {
+                SetLastError(roomUrl, DouyinTransientBlockError);
+                return null;
+            }
+            return text;
+        }
+        catch (OperationCanceledException)
+        {
+            SetLastError(roomUrl, "Douyin request timed out.");
+            return null;
+        }
+        catch (HttpRequestException e)
+        {
+            SetLastError(roomUrl, $"Douyin request failed: {e.Message}");
+            return null;
+        }
+    }
+
+    private static HttpRequestMessage CreateRequest(
+        string url,
+        string referer,
+        string? cookie,
+        string userAgent,
+        string accept)
+    {
+        HttpRequestMessage request = new(HttpMethod.Get, url);
+        request.Headers.TryAddWithoutValidation("User-Agent", string.IsNullOrWhiteSpace(Configurations.UserAgent.Get()) ? userAgent : Configurations.UserAgent.Get());
+        request.Headers.TryAddWithoutValidation("Accept", accept);
+        request.Headers.TryAddWithoutValidation("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.7");
+        request.Headers.TryAddWithoutValidation("Referer", referer);
+        if (!string.IsNullOrWhiteSpace(cookie))
+        {
+            request.Headers.TryAddWithoutValidation("Cookie", cookie);
+        }
+        return request;
+    }
+
+    private static void WaitForDouyinHttpRequestSlot()
+    {
+        long now = Environment.TickCount64;
+        long requestAt;
+        lock (DouyinThrottleSync)
+        {
+            requestAt = Math.Max(now, douyinNextRequestAt);
+            douyinNextRequestAt = requestAt + DouyinRequestSpacingMilliseconds;
+        }
+        long delay = requestAt - now;
+        if (delay > 0)
+        {
+            Thread.Sleep(TimeSpan.FromMilliseconds(delay));
+        }
+    }
+
+    private static void RegisterDouyinBlockingResponse()
+    {
+        const int threshold = 5;
+        const int windowMilliseconds = 10000;
+        const int pauseMilliseconds = 30000;
+        long now = Environment.TickCount64;
+        lock (DouyinThrottleSync)
+        {
+            while (DouyinBlockingResponses.TryPeek(out long timestamp) && now - timestamp > windowMilliseconds)
+            {
+                _ = DouyinBlockingResponses.Dequeue();
+            }
+            DouyinBlockingResponses.Enqueue(now);
+            if (DouyinBlockingResponses.Count >= threshold)
+            {
+                bool wasOpen = IsDouyinRequestBlocked(now, Volatile.Read(ref douyinBackgroundBlockedUntil));
+                Volatile.Write(ref douyinBackgroundBlockedUntil, now + pauseMilliseconds);
+                DouyinBlockingResponses.Clear();
+                if (!wasOpen)
+                {
+                    AppSessionLogger.Event(
+                        "warn",
+                        "resolver",
+                        "douyin_background_paused",
+                        "Douyin background requests were paused after repeated blocking responses",
+                        new { pauseMilliseconds });
+                }
+            }
+        }
+    }
+
+    internal static bool IsDouyinBlockedContent(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return true;
+        }
+        return ContainsDouyinChallenge(text);
+    }
+
+    internal static bool ContainsDouyinChallenge(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+        return text.Contains("captcha_verify_container", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("secsdk-captcha-drag-wrapper", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("verifycenter/captcha", StringComparison.OrdinalIgnoreCase)
+            || (text.Length < 4096 && text.Contains("captcha", StringComparison.OrdinalIgnoreCase));
     }
 
     private static StreamResolverResult? ResolveTiktok(string roomUrl, string? preferredQuality)
@@ -501,20 +1091,15 @@ internal static partial class StreamResolver
         string userAgent,
         string accept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
     {
-        using HttpClient client = CreateHttpClient();
-        using HttpRequestMessage request = new(HttpMethod.Get, url);
-        request.Headers.TryAddWithoutValidation("User-Agent", string.IsNullOrWhiteSpace(Configurations.UserAgent.Get()) ? userAgent : Configurations.UserAgent.Get());
-        request.Headers.TryAddWithoutValidation("Accept", accept);
-        request.Headers.TryAddWithoutValidation("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.7");
-        request.Headers.TryAddWithoutValidation("Referer", referer);
-
-        if (!string.IsNullOrWhiteSpace(cookie))
-        {
-            request.Headers.TryAddWithoutValidation("Cookie", cookie);
-        }
-
-        using HttpResponseMessage response = client.Send(request);
-        return response.IsSuccessStatusCode ? response.Content.ReadAsStringAsync().GetAwaiter().GetResult() : null;
+        using HttpRequestMessage request = CreateRequest(url, referer, cookie, userAgent, accept);
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(RequestTimeoutSeconds));
+        using HttpResponseMessage response = ProxyHttpClientPool.GetCurrent().Send(
+            request,
+            HttpCompletionOption.ResponseContentRead,
+            timeout.Token);
+        return response.IsSuccessStatusCode
+            ? response.Content.ReadAsStringAsync(timeout.Token).GetAwaiter().GetResult()
+            : null;
     }
 
     private static HttpClient CreateHttpClient(bool allowAutoRedirect = true, int timeoutSeconds = RequestTimeoutSeconds)
@@ -1436,6 +2021,9 @@ internal static partial class StreamResolver
     [GeneratedRegex("\"(?:sec_uid|secUid|sec_user_id)\"\\s*:\\s*\"([^\"]+)\"")]
     private static partial Regex DouyinSecUidRegex { get; }
 
+    [GeneratedRegex("\"(?:room_id|roomId)\"\\s*:\\s*(?:\"([^\"]+)\"|([0-9]+))")]
+    private static partial Regex DouyinInternalRoomIdRegex { get; }
+
     [GeneratedRegex("\"avatar_thumb\"\\s*:\\s*\\{[^\\{\\}]*\"url_list\"\\s*:\\s*\\[\"([^\"]+)\"", RegexOptions.IgnoreCase)]
     private static partial Regex AvatarThumbRegex { get; }
 
@@ -1491,6 +2079,68 @@ internal static partial class StreamResolver
 internal readonly record struct HlsVariant(string? Url, int Width, int Height, double Bandwidth);
 
 internal readonly record struct HlsVariantCacheEntry(HlsVariant Variant, DateTimeOffset ExpiresAt);
+
+internal readonly record struct DouyinThrottleState(long BlockedUntil, int FailureCount);
+
+internal enum DouyinResolveRoute
+{
+    WebEnter,
+    RoomPage,
+    AppReflow,
+}
+
+internal sealed class DouyinRoomSession
+{
+    private readonly object identitySync = new();
+    private int nextRoute;
+    private int failureCount;
+    private string roomId = string.Empty;
+    private string secUid = string.Empty;
+
+    public DouyinResolveRoute TakeNextRoute()
+    {
+        int value = Interlocked.Increment(ref nextRoute) - 1;
+        return (DouyinResolveRoute)((uint)value % 3);
+    }
+
+    public void SetNextRoute(DouyinResolveRoute route)
+    {
+        Interlocked.Exchange(ref nextRoute, (int)route);
+    }
+
+    public int RegisterFailure()
+    {
+        return Interlocked.Increment(ref failureCount);
+    }
+
+    public void ResetFailures()
+    {
+        Interlocked.Exchange(ref failureCount, 0);
+    }
+
+    public void UpdateIdentity(string valueRoomId, string valueSecUid)
+    {
+        if (string.IsNullOrWhiteSpace(valueRoomId) || string.IsNullOrWhiteSpace(valueSecUid))
+        {
+            return;
+        }
+        lock (identitySync)
+        {
+            roomId = valueRoomId;
+            secUid = valueSecUid;
+        }
+    }
+
+    public bool TryGetIdentity(out string valueRoomId, out string valueSecUid)
+    {
+        lock (identitySync)
+        {
+            valueRoomId = roomId;
+            valueSecUid = secUid;
+            return !string.IsNullOrWhiteSpace(valueRoomId) && !string.IsNullOrWhiteSpace(valueSecUid);
+        }
+    }
+}
 
 internal interface IStreamMetadataResult
 {

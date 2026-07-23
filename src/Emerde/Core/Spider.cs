@@ -83,9 +83,9 @@ internal static class Spider
         return null;
     }
 
-    public static ISpiderResult? GetResult(string url, string? preferredQuality = null)
+    public static ISpiderResult? GetResult(string url, string? preferredQuality = null, bool bypassDouyinThrottle = false, bool prioritizeDouyin = false)
     {
-        return ExternalStreamResolver.GetResult(url, preferredQuality);
+        return ExternalStreamResolver.GetResult(url, preferredQuality, bypassDouyinThrottle, prioritizeDouyin);
     }
 
     internal static ISpiderResult? GetLegacyResult(string url, string? preferredQuality = null)

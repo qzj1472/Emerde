@@ -4,6 +4,32 @@ namespace Emerde.Tests;
 
 public sealed class SpiderTests
 {
+    [Fact]
+    public void ResolverError_CanBeClearedWhenRoomIsRemoved()
+    {
+        string roomUrl = $"invalid-{Guid.NewGuid():N}";
+
+        Assert.Null(ExternalStreamResolver.GetResult(roomUrl));
+        Assert.NotEmpty(ExternalStreamResolver.GetLastError(roomUrl));
+
+        ExternalStreamResolver.ClearLastError(roomUrl);
+
+        Assert.Empty(ExternalStreamResolver.GetLastError(roomUrl));
+        Assert.Empty(StreamResolver.GetLastError(roomUrl));
+    }
+
+    [Fact]
+    public void ResolverError_DoesNotLeakToAnotherRoom()
+    {
+        string failedRoomUrl = $"invalid-{Guid.NewGuid():N}";
+        string otherRoomUrl = $"https://example.test/{Guid.NewGuid():N}";
+
+        Assert.Null(ExternalStreamResolver.GetResult(failedRoomUrl));
+
+        Assert.NotEmpty(ExternalStreamResolver.GetLastError(failedRoomUrl));
+        Assert.Empty(ExternalStreamResolver.GetLastError(otherRoomUrl));
+    }
+
     [Theory]
     [InlineData("douyin")]
     [InlineData("tiktok")]
@@ -583,6 +609,7 @@ public sealed class SpiderTests
 
     [Theory]
     [InlineData("https://live.douyin.com/123456?from=test", "https://live.douyin.com/123456")]
+    [InlineData("https://live.douyin.com/72024000076?enter_from_merge=link_share&enter_method=copy_link_share&action_type=click&from=web_code_link", "https://live.douyin.com/72024000076")]
     [InlineData("https://live.douyin.com/591184816437?enter_from_merge=link_share&enter_method=copy_link_share&action_type=click&from=web_code_link", "https://live.douyin.com/591184816437")]
     [InlineData("https://www.douyin.com/root/live/123456?from=test", "https://live.douyin.com/123456")]
     [InlineData("https://www.tiktok.com/@someone/live?from=test", "https://www.tiktok.com/@someone/live")]
@@ -694,6 +721,29 @@ public sealed class SpiderTests
     }
 
     [Fact]
+    public void StreamResolverMergeResults_DiscardsStaleDouyinStreamWhenOfflineIsExplicit()
+    {
+        StreamResolverResult stale = new()
+        {
+            PlatformName = "Douyin",
+            FlvUrl = "https://example.test/stale.flv",
+            HlsUrl = "https://example.test/stale.m3u8",
+        };
+        StreamResolverResult offline = new()
+        {
+            PlatformName = "Douyin",
+            IsLiveStreaming = false,
+        };
+
+        StreamResolverResult result = StreamResolver.MergeResults("https://live.douyin.com/123", stale, offline);
+
+        Assert.False(result.IsLiveStreaming);
+        Assert.Null(result.FlvUrl);
+        Assert.Null(result.HlsUrl);
+        Assert.Null(result.RecordUrl);
+    }
+
+    [Fact]
     public void StreamResolverNeedsSupplementalData_RequiresStreamForLiveRoom()
     {
         StreamResolverResult result = new()
@@ -722,6 +772,119 @@ public sealed class SpiderTests
         result.Nickname = "anchor";
 
         Assert.False(StreamResolver.NeedsSupplementalData(result));
+    }
+
+    [Theory]
+    [InlineData(1, 5000)]
+    [InlineData(2, 10000)]
+    [InlineData(3, 10000)]
+    [InlineData(4, 10000)]
+    [InlineData(10, 10000)]
+    public void DouyinResolverBackoff_IncreasesWithinLimit(int failures, int expectedMilliseconds)
+    {
+        Assert.Equal(expectedMilliseconds, StreamResolver.GetDouyinBackoffMilliseconds(failures));
+        Assert.Equal(6, StreamResolver.DouyinResolverConcurrency);
+        Assert.Equal(5000, StreamResolver.DouyinResolverQueueTimeoutMilliseconds);
+        Assert.Equal(200, StreamResolver.DouyinRequestSpacingMilliseconds);
+        Assert.True(StreamResolver.IsTransientDouyinFailure(StreamResolver.DouyinResolverBusyError));
+    }
+
+    [Theory]
+    [InlineData(1000, 1001, true)]
+    [InlineData(1000, 1000, false)]
+    [InlineData(1001, 1000, false)]
+    public void DouyinResolverBackoff_SkipsWithoutWaiting(long currentTimestamp, long blockedUntil, bool expected)
+    {
+        Assert.Equal(expected, StreamResolver.IsDouyinRequestBlocked(currentTimestamp, blockedUntil));
+    }
+
+    [Fact]
+    public void DouyinRoomSession_RotatesRequestRoutes()
+    {
+        DouyinRoomSession session = new();
+
+        Assert.Equal(DouyinResolveRoute.WebEnter, session.TakeNextRoute());
+        Assert.Equal(DouyinResolveRoute.RoomPage, session.TakeNextRoute());
+        Assert.Equal(DouyinResolveRoute.AppReflow, session.TakeNextRoute());
+        Assert.Equal(DouyinResolveRoute.WebEnter, session.TakeNextRoute());
+    }
+
+    [Theory]
+    [InlineData(0, false, 0, 1, 2)]
+    [InlineData(1, false, 1, 0, 2)]
+    [InlineData(2, false, 2, 0, 1)]
+    [InlineData(2, true, 0, 1, 2)]
+    public void DouyinRouteOrder_FallsBackToPrimaryDuringTheSameCheck(
+        int firstRoute,
+        bool tryAllRoutes,
+        int expectedFirst,
+        int expectedSecond,
+        int expectedThird)
+    {
+        Assert.Equal(
+            [expectedFirst, expectedSecond, expectedThird],
+            StreamResolver.GetDouyinRouteOrder((DouyinResolveRoute)firstRoute, tryAllRoutes).Select(route => (int)route));
+    }
+
+    [Theory]
+    [InlineData("Douyin room data was empty or blocked.", true)]
+    [InlineData("Douyin request blocked (HTTP 403).", true)]
+    [InlineData("Douyin request blocked (HTTP 429).", true)]
+    [InlineData("Douyin request timed out.", false)]
+    public void DouyinBlockingFailure_OnlyCountsConfirmedBlocking(string error, bool expected)
+    {
+        Assert.Equal(expected, StreamResolver.IsDouyinBlockingFailure(error));
+    }
+
+    [Fact]
+    public void DouyinRoomSession_CachesReflowIdentityAndCanPrioritizeIt()
+    {
+        DouyinRoomSession session = new();
+        session.UpdateIdentity("room-123", "sec-456");
+        session.SetNextRoute(DouyinResolveRoute.AppReflow);
+
+        Assert.True(session.TryGetIdentity(out string roomId, out string secUid));
+        Assert.Equal("room-123", roomId);
+        Assert.Equal("sec-456", secUid);
+        Assert.Equal(DouyinResolveRoute.AppReflow, session.TakeNextRoute());
+    }
+
+    [Theory]
+    [InlineData(true, false, 1, true)]
+    [InlineData(false, true, 1, false)]
+    [InlineData(false, true, 2, true)]
+    [InlineData(false, false, 2, false)]
+    [InlineData(false, false, 3, true)]
+    public void DouyinWebViewFallback_UsesManualAndFailureThresholds(
+        bool tryAllRoutes,
+        bool prioritizeDouyin,
+        int failureCount,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            StreamResolver.ShouldUseDouyinWebViewFallback(tryAllRoutes, prioritizeDouyin, failureCount));
+    }
+
+    [Theory]
+    [InlineData("", true)]
+    [InlineData("<html>captcha</html>", true)]
+    [InlineData("<html>verifycenter</html>", false)]
+    [InlineData("<script src=\"https://verifycenter.example/captcha.js\"></script>", true)]
+    [InlineData("<html>{\"status\":2}</html>", false)]
+    public void DouyinBlockedContent_DistinguishesUsableResponses(string content, bool expected)
+    {
+        Assert.Equal(expected, StreamResolver.IsDouyinBlockedContent(content));
+    }
+
+    [Theory]
+    [InlineData("{\"room_id\":\"123\",\"sec_uid\":\"sec-456\"}", "123", "sec-456")]
+    [InlineData("{\"roomId\":123,\"secUid\":\"sec-456\"}", "123", "sec-456")]
+    public void DouyinPageIdentity_ExtractsRoomAndUserIds(string html, string expectedRoomId, string expectedSecUid)
+    {
+        Assert.True(StreamResolver.TryExtractDouyinPageIdentity(html, out string roomId, out string secUid));
+        Assert.Equal(expectedRoomId, roomId);
+        Assert.Equal(expectedSecUid, secUid);
     }
 
     [Fact]
@@ -754,13 +917,16 @@ public sealed class SpiderTests
     public void StreamResolverExtractDouyinWebEnterData_DoesNotExposeOfflineTitle()
     {
         string json = """
-            {"data":{"user":{"nickname":"anchor"},"data":[{"status":4,"title":"old live title"}]}}
+            {"data":{"user":{"nickname":"anchor"},"data":[{"status":4,"title":"old live title","stream_url":{"hls_pull_url_map":{"FULL_HD1":"https:\/\/example.test\/stale.m3u8"},"flv_pull_url":{"FULL_HD1":"https:\/\/example.test\/stale.flv"}}}]}}
             """;
 
         StreamResolverResult result = StreamResolver.ExtractDouyinWebEnterData("https://live.douyin.com/123456", json);
 
         Assert.False(result.IsLiveStreaming);
         Assert.Null(result.Title);
+        Assert.Null(result.HlsUrl);
+        Assert.Null(result.FlvUrl);
+        Assert.Null(result.RecordUrl);
     }
 
     [Fact]
