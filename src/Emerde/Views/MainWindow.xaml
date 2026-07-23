@@ -790,7 +790,7 @@
                     </Border.ContextMenu>
                     <Grid x:Name="RoomCardPanelContent"
                           ClipToBounds="True"
-                          SizeChanged="RoundedPanelContentSizeChanged">
+                          SizeChanged="RoomCardPanelContentSizeChanged">
                         <ListBox x:Name="RoomCardList"
                                  Background="Transparent"
                                  BorderThickness="0"
@@ -804,15 +804,11 @@
                                  ScrollViewer.VerticalScrollBarVisibility="Visible"
                                  SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
                                  SelectionMode="Single"
-                                 SizeChanged="RoomCardListSizeChanged"
                                  Style="{StaticResource RoomCardListBoxStyle}">
                             <ListBox.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <WrapPanel IsItemsHost="True"
-                                               Width="{Binding RoomCardPanelWidth, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                               HorizontalAlignment="Center"
-                                               ItemWidth="{Binding RoomCardItemWidth, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                               ItemHeight="{Binding RoomCardItemHeight, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" />
+                                    <UniformGrid IsItemsHost="True"
+                                                 Columns="{Binding RoomCardColumnCount, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" />
                                 </ItemsPanelTemplate>
                             </ListBox.ItemsPanel>
                             <ListBox.ItemContainerStyle>

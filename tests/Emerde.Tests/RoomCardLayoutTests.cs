@@ -1,4 +1,5 @@
 using Emerde.Views;
+using System.Xml.Linq;
 
 namespace Emerde.Tests;
 
@@ -77,5 +78,34 @@ public sealed class RoomCardLayoutTests
 
         Assert.Equal(2, columns);
         Assert.Equal(163d, cardWidth, 6);
+    }
+
+    [Fact]
+    public void RoomCardItemsPanel_UsesExplicitColumnsWithoutAutomaticWrapping()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XElement itemsPanel = document.Descendants().First(element => element.Name.LocalName == "ItemsPanelTemplate");
+        XElement panel = itemsPanel.Elements().Single();
+
+        Assert.Equal("UniformGrid", panel.Name.LocalName);
+        Assert.Contains("RoomCardColumnCount", (string?)panel.Attribute("Columns") ?? string.Empty);
+        Assert.DoesNotContain(itemsPanel.Descendants(), element => element.Name.LocalName == "WrapPanel");
+    }
+
+    private static string FindRepositoryFile(params string[] parts)
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory != null)
+        {
+            string candidate = Path.Combine(new[] { directory.FullName }.Concat(parts).ToArray());
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException(string.Join(Path.DirectorySeparatorChar, parts));
     }
 }

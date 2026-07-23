@@ -31,9 +31,7 @@ public partial class MainWindow : FluentWindow
     private HwndSource? hwndSource;
     public MainViewModel ViewModel { get; }
 
-    public static readonly DependencyProperty RoomCardItemWidthProperty = DependencyProperty.Register(nameof(RoomCardItemWidth), typeof(double), typeof(MainWindow), new PropertyMetadata(196d));
-    public static readonly DependencyProperty RoomCardItemHeightProperty = DependencyProperty.Register(nameof(RoomCardItemHeight), typeof(double), typeof(MainWindow), new PropertyMetadata(132d));
-    public static readonly DependencyProperty RoomCardPanelWidthProperty = DependencyProperty.Register(nameof(RoomCardPanelWidth), typeof(double), typeof(MainWindow), new PropertyMetadata(196d));
+    public static readonly DependencyProperty RoomCardColumnCountProperty = DependencyProperty.Register(nameof(RoomCardColumnCount), typeof(int), typeof(MainWindow), new PropertyMetadata(RoomCardNormalBaseColumns));
     public static readonly DependencyProperty RoomCardWidthProperty = DependencyProperty.Register(nameof(RoomCardWidth), typeof(double), typeof(MainWindow), new PropertyMetadata(184d));
     public static readonly DependencyProperty RoomCardHeightProperty = DependencyProperty.Register(nameof(RoomCardHeight), typeof(double), typeof(MainWindow), new PropertyMetadata(122d));
     public static readonly DependencyProperty RoomCardPaddingProperty = DependencyProperty.Register(nameof(RoomCardPadding), typeof(Thickness), typeof(MainWindow), new PropertyMetadata(new Thickness(8)));
@@ -53,22 +51,10 @@ public partial class MainWindow : FluentWindow
     public static readonly DependencyProperty RoomCardChipPaddingProperty = DependencyProperty.Register(nameof(RoomCardChipPadding), typeof(Thickness), typeof(MainWindow), new PropertyMetadata(new Thickness(4, 1, 4, 1)));
     public static readonly DependencyProperty RoomCardChipMinHeightProperty = DependencyProperty.Register(nameof(RoomCardChipMinHeight), typeof(double), typeof(MainWindow), new PropertyMetadata(20d));
 
-    public double RoomCardItemWidth
+    public int RoomCardColumnCount
     {
-        get => (double)GetValue(RoomCardItemWidthProperty);
-        set => SetValue(RoomCardItemWidthProperty, value);
-    }
-
-    public double RoomCardItemHeight
-    {
-        get => (double)GetValue(RoomCardItemHeightProperty);
-        set => SetValue(RoomCardItemHeightProperty, value);
-    }
-
-    public double RoomCardPanelWidth
-    {
-        get => (double)GetValue(RoomCardPanelWidthProperty);
-        set => SetValue(RoomCardPanelWidthProperty, value);
+        get => (int)GetValue(RoomCardColumnCountProperty);
+        set => SetValue(RoomCardColumnCountProperty, value);
     }
 
     public double RoomCardWidth
@@ -309,11 +295,6 @@ public partial class MainWindow : FluentWindow
             Visibility = System.Windows.Visibility.Hidden;
             WindowState = System.Windows.WindowState.Minimized;
         }
-    }
-
-    private void RoomCardListSizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        UpdateRoomCardMetrics(e.NewSize.Width);
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -605,6 +586,12 @@ public partial class MainWindow : FluentWindow
         element.Clip = new RectangleGeometry(new Rect(0d, 0d, element.ActualWidth, element.ActualHeight), 8d, 8d);
     }
 
+    private void RoomCardPanelContentSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        RoundedPanelContentSizeChanged(sender, e);
+        UpdateRoomCardMetrics(e.NewSize.Width);
+    }
+
     private void HomePreviewLayoutRootSizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (!ViewModel.IsPreviewing || isPreviewFullScreen)
@@ -638,13 +625,10 @@ public partial class MainWindow : FluentWindow
         double effectivePreference = NormalizeRoomCardScale(availableWidth, baseWidth, roomCardSizePreference);
         double horizontalGap = GetRoomCardHorizontalGap(effectivePreference);
         double verticalGap = GetRoomCardVerticalGap(effectivePreference);
-        (int columns, double slotWidth, double cardWidth) = CalculateRoomCardLayout(availableWidth, baseWidth, effectivePreference, horizontalGap);
+        (int columns, _, double cardWidth) = CalculateRoomCardLayout(availableWidth, baseWidth, effectivePreference, horizontalGap);
         double cardHeight = Math.Floor(cardWidth * 2d / 3d);
-        double itemHeight = cardHeight + verticalGap;
 
-        RoomCardItemWidth = slotWidth;
-        RoomCardItemHeight = itemHeight;
-        RoomCardPanelWidth = slotWidth * columns;
+        RoomCardColumnCount = columns;
         RoomCardWidth = cardWidth;
         RoomCardHeight = cardHeight;
         RoomCardMargin = new Thickness(horizontalGap / 2d, verticalGap / 2d, horizontalGap / 2d, verticalGap / 2d);
