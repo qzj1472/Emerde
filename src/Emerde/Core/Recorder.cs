@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.Messaging;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using Emerde.Extensions;
@@ -59,6 +60,8 @@ public sealed class Recorder
 
     private readonly List<string> unregisteredRecordingPatterns = [];
 
+    private readonly List<(string SourcePattern, string TargetFormat)> unregisteredSessionRecordings = [];
+
     private IDisposable? mediaOperationRegistration;
 
     public bool IsBusy => recordingTask is { IsCompleted: false };
@@ -95,6 +98,7 @@ public sealed class Recorder
             Volatile.Write(ref hasMediaProgress, 0);
             pendingRecordingPaths.Clear();
             unregisteredRecordingPatterns.Clear();
+            unregisteredSessionRecordings.Clear();
             FileName = null;
             MetadataPath = null;
             RequestedAt = DateTime.Now;
@@ -128,6 +132,7 @@ public sealed class Recorder
     private async Task RunAsync(RecorderStartInfo startInfo, CancellationToken token)
     {
         RoomRecordingOptions recordingOptions = startInfo.Options;
+        OutputReservation? sessionOutputReservation = null;
         try
         {
             string? recorderPath = SearchFileHelper.SearchExecutable("ffmpeg.exe");
@@ -194,6 +199,9 @@ public sealed class Recorder
             bool isHls = IsHlsUrl(Url, startInfo);
             string? targetFormat = GetTargetFormat(recordingOptions.RecordFormat);
             bool useTransportStream = ShouldUseTransportStream(isHls, isToSegment, targetFormat);
+            bool useSessionPartFiles = !isToSegment;
+            string sessionSourceExtension = useTransportStream ? "ts" : "flv";
+            string sessionTargetFormat = targetFormat ?? "." + sessionSourceExtension;
             bool disableOptimizedAudio = false;
 
             if (string.IsNullOrWhiteSpace(userAgent))
@@ -206,28 +214,66 @@ public sealed class Recorder
             EndTime = DateTime.MinValue;
             int attempt = 0;
             int offlineRefreshChecks = 0;
-            while (!token.IsCancellationRequested && Volatile.Read(ref stopRequested) == 0)
+            int sessionPartIndex = 0;
+            DateTime sessionTimestamp = DateTime.Now;
+            string? sessionOutputPattern = null;
+            string? sessionBaseFileName = null;
+            string? sessionMetadataPath = null;
+            VideoRecordingMetadata? sessionMetadata = null;
+            if (useSessionPartFiles)
             {
-                DateTime now = DateTime.Now;
-                string requestedBaseFileName = BuildBaseFileName(startInfo, now).SanitizeFileName();
-                using OutputReservation outputReservation = ReserveOutput(saveFolder, requestedBaseFileName, isToSegment, useTransportStream);
-                string baseFileName = outputReservation.BaseFileName;
-                FileName = outputReservation.OutputPattern;
-                VideoRecordingMetadata metadata = BuildMetadata(baseFileName, useTransportStream ? "ts" : "flv", startInfo, now);
-                MetadataPath = VideoRecordingMetadataStore.WriteSidecar(saveFolder, baseFileName, metadata);
-                string? pendingRecordingPath = RecordingRecoveryService.Register(FileName, recordingOptions);
+                string sessionRequestedBaseFileName = BuildBaseFileName(startInfo, sessionTimestamp).SanitizeFileName();
+                sessionOutputReservation = ReserveSessionOutput(saveFolder, sessionRequestedBaseFileName, sessionSourceExtension);
+                sessionBaseFileName = sessionOutputReservation.BaseFileName;
+                sessionOutputPattern = sessionOutputReservation.OutputPattern;
+                sessionMetadata = BuildMetadata(sessionBaseFileName, sessionSourceExtension, startInfo, sessionTimestamp);
+                sessionMetadataPath = VideoRecordingMetadataStore.WriteSidecar(saveFolder, sessionBaseFileName, sessionMetadata);
+                string? pendingRecordingPath = RecordingRecoveryService.RegisterSessionParts(sessionOutputPattern, sessionTargetFormat);
                 if (!string.IsNullOrWhiteSpace(pendingRecordingPath))
                 {
                     pendingRecordingPaths.Add(pendingRecordingPath);
                 }
                 else
                 {
-                    unregisteredRecordingPatterns.Add(FileName);
+                    unregisteredSessionRecordings.Add((sessionOutputPattern, sessionTargetFormat));
+                }
+            }
+            while (!token.IsCancellationRequested && Volatile.Read(ref stopRequested) == 0)
+            {
+                DateTime now = DateTime.Now;
+                using OutputReservation? outputReservation = useSessionPartFiles
+                    ? null
+                    : ReserveOutput(saveFolder, BuildBaseFileName(startInfo, now).SanitizeFileName(), isToSegment, useTransportStream);
+                string outputFileName;
+                VideoRecordingMetadata metadata;
+                if (useSessionPartFiles)
+                {
+                    FileName = sessionOutputPattern!;
+                    MetadataPath = sessionMetadataPath;
+                    metadata = sessionMetadata!;
+                    outputFileName = BuildSessionPartOutputFileName(sessionOutputPattern!, sessionPartIndex);
+                }
+                else
+                {
+                    string baseFileName = outputReservation!.BaseFileName;
+                    FileName = outputReservation.OutputPattern;
+                    metadata = BuildMetadata(baseFileName, useTransportStream ? "ts" : "flv", startInfo, now);
+                    MetadataPath = VideoRecordingMetadataStore.WriteSidecar(saveFolder, baseFileName, metadata);
+                    string? pendingRecordingPath = RecordingRecoveryService.Register(FileName, recordingOptions);
+                    if (!string.IsNullOrWhiteSpace(pendingRecordingPath))
+                    {
+                        pendingRecordingPaths.Add(pendingRecordingPath);
+                    }
+                    else
+                    {
+                        unregisteredRecordingPatterns.Add(FileName);
+                    }
+                    outputFileName = FileName;
                 }
                 bool useOptimizedAudio = useTransportStream && !disableOptimizedAudio;
 
                 List<string> arguments = BuildArguments(
-                    FileName,
+                    outputFileName,
                     isUseProxy,
                     httpProxy,
                     headers,
@@ -248,34 +294,52 @@ public sealed class Recorder
                     inputKind = isHls ? "hls" : "flv",
                     hasHeaders = !string.IsNullOrWhiteSpace(headers),
                     FileName,
+                    outputFileName,
                     isToSegment,
+                    useSessionPartFiles,
                     useOptimizedAudio,
                     isUseProxy,
                     attempt,
                 });
 
                 int exitCode = await ExecuteRecorderAsync(recorderPath, arguments, isUseProxy, httpProxy, startInfo, token);
-                DeleteMetadataIfNoOutput(FileName, MetadataPath);
+                bool hasSessionOutput = useSessionPartFiles && GetRecordedSourceFilesForPattern(outputFileName).Length > 0;
+                if (!useSessionPartFiles)
+                {
+                    DeleteMetadataIfNoOutput(FileName, MetadataPath);
+                }
                 if (token.IsCancellationRequested || Volatile.Read(ref stopRequested) != 0)
                 {
-                    FinalizeMetadataForOutput(FileName, MetadataPath);
+                    if (!useSessionPartFiles)
+                    {
+                        FinalizeMetadataForOutput(FileName, MetadataPath);
+                    }
                     break;
                 }
 
                 if (useOptimizedAudio && IsMissingAudioError(lastProcessErrorOutput))
                 {
                     disableOptimizedAudio = true;
-                    DeleteFailedOutputFiles(FileName, MetadataPath);
+                    DeleteFailedOutputFiles(useSessionPartFiles ? outputFileName : FileName, useSessionPartFiles ? null : MetadataPath);
                     AppSessionLogger.Event("warn", "recorder", "optimized_audio_unavailable", "recording source has no audio stream and will retry without audio processing", new
                     {
                         startInfo.RoomUrl,
                         startInfo.NickName,
                         FileName,
+                        outputFileName,
                     });
                     continue;
                 }
 
-                FinalizeMetadataForOutput(FileName, MetadataPath);
+                if (hasSessionOutput)
+                {
+                    sessionPartIndex++;
+                }
+
+                if (!useSessionPartFiles)
+                {
+                    FinalizeMetadataForOutput(FileName, MetadataPath);
+                }
 
                 bool hasStreamRefresh = startInfo.RefreshStreamAsync != null;
                 bool? isLiveAfterRefresh = await TryRefreshInputAsync(startInfo, token);
@@ -307,7 +371,10 @@ public sealed class Recorder
                 {
                     headers = NormalizeHeaders(startInfo.Headers);
                     isHls = IsHlsUrl(Url!, startInfo);
-                    useTransportStream = ShouldUseTransportStream(isHls, isToSegment, targetFormat);
+                    if (!useSessionPartFiles)
+                    {
+                        useTransportStream = ShouldUseTransportStream(isHls, isToSegment, targetFormat);
+                    }
                 }
 
                 if (ShouldConsumeReconnectAttempt(isLiveAfterRefresh, lastAttemptHadMediaProgress))
@@ -347,6 +414,7 @@ public sealed class Recorder
                     startInfo.NickName,
                     exitCode,
                     attempt,
+                    useSessionPartFiles,
                     delaySeconds = delay.TotalSeconds,
                 });
                 await Task.Delay(delay, token);
@@ -365,6 +433,7 @@ public sealed class Recorder
             try
             {
                 EndTime = DateTime.Now;
+                FinalizeMetadataForOutput(FileName ?? string.Empty, MetadataPath);
                 DeleteMetadataIfNoOutput(FileName ?? string.Empty, MetadataPath);
                 lock (stateLock)
                 {
@@ -414,6 +483,19 @@ public sealed class Recorder
                     }
                 }
 
+                foreach ((string sourcePattern, string format) in unregisteredSessionRecordings)
+                {
+                    string? pendingPath = RecordingRecoveryService.RegisterSessionParts(sourcePattern, format);
+                    if (!string.IsNullOrWhiteSpace(pendingPath))
+                    {
+                        pendingRecordingPaths.Add(pendingPath);
+                        if (processNow)
+                        {
+                            await RecordingRecoveryService.ProcessAsync(pendingPath);
+                        }
+                    }
+                }
+
                 if (!processNow)
                 {
                     AppSessionLogger.Event("info", "recorder", "post_processing_deferred", "recording post-processing was deferred until the next startup", new
@@ -431,6 +513,7 @@ public sealed class Recorder
             }
             finally
             {
+                sessionOutputReservation?.Dispose();
                 mediaOperationRegistration?.Dispose();
                 mediaOperationRegistration = null;
             }
@@ -1086,7 +1169,7 @@ public sealed class Recorder
             || url == startInfo.HlsUrl;
     }
 
-    private static void DeleteFailedOutputFiles(string fileName, string? metadataPath)
+    internal static void DeleteFailedOutputFiles(string fileName, string? metadataPath)
     {
         foreach (string outputFile in GetRecordedSourceFilesForPattern(fileName))
         {
@@ -1231,6 +1314,17 @@ public sealed class Recorder
         return Path.Combine(saveFolder, $"{fileName}{suffix}");
     }
 
+    internal static string BuildSessionOutputFileName(string saveFolder, string fileName, string sourceExtension)
+    {
+        string extension = sourceExtension.TrimStart('.');
+        return Path.Combine(saveFolder, $"{fileName}_%03d.{extension}");
+    }
+
+    internal static string BuildSessionPartOutputFileName(string outputPattern, int partIndex)
+    {
+        return outputPattern.Replace("%03d", partIndex.ToString("000", CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
     internal static OutputReservation ReserveOutput(string saveFolder, string requestedBaseFileName, bool isToSegment, bool isHls)
     {
         lock (OutputReservationLock)
@@ -1251,6 +1345,26 @@ public sealed class Recorder
         }
     }
 
+    internal static OutputReservation ReserveSessionOutput(string saveFolder, string requestedBaseFileName, string sourceExtension)
+    {
+        lock (OutputReservationLock)
+        {
+            int suffix = 1;
+            while (true)
+            {
+                string baseFileName = suffix == 1 ? requestedBaseFileName : $"{requestedBaseFileName}_{suffix}";
+                string outputPattern = BuildSessionOutputFileName(saveFolder, baseFileName, sourceExtension);
+                if (!ReservedOutputPatterns.Contains(outputPattern) && !OutputExists(saveFolder, baseFileName, outputPattern, isToSegment: true))
+                {
+                    ReservedOutputPatterns.Add(outputPattern);
+                    return new OutputReservation(baseFileName, outputPattern);
+                }
+
+                suffix++;
+            }
+        }
+    }
+
     private static bool OutputExists(string saveFolder, string baseFileName, string outputPattern, bool isToSegment)
     {
         if (File.Exists(Path.Combine(saveFolder, $"{baseFileName}.mplr.json")))
@@ -1258,8 +1372,10 @@ public sealed class Recorder
             return true;
         }
 
+        string extension = Path.GetExtension(outputPattern);
         return isToSegment
-            ? Directory.EnumerateFiles(saveFolder, $"{baseFileName}_*.ts", SearchOption.TopDirectoryOnly).Any()
+            ? File.Exists(Path.Combine(saveFolder, $"{baseFileName}{extension}"))
+              || Directory.EnumerateFiles(saveFolder, $"{baseFileName}_*{extension}", SearchOption.TopDirectoryOnly).Any()
             : File.Exists(outputPattern);
     }
 

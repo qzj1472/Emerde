@@ -180,6 +180,51 @@ public sealed class RecorderTests
         Assert.Equal(expected, Recorder.ShouldUseTransportStream(isHls, isToSegment, targetFormat));
     }
 
+    [Theory]
+    [InlineData(0, "record_000.ts")]
+    [InlineData(1, "record_001.ts")]
+    [InlineData(12, "record_012.ts")]
+    [InlineData(1234, "record_1234.ts")]
+    public void BuildSessionPartOutputFileName_ExpandsSharedRecordingPattern(int index, string expected)
+    {
+        Assert.Equal(expected, Recorder.BuildSessionPartOutputFileName("record_%03d.ts", index));
+    }
+
+    [Theory]
+    [InlineData("ts", "record_%03d.ts")]
+    [InlineData(".flv", "record_%03d.flv")]
+    public void BuildSessionOutputFileName_UsesSourceContainerForInternalParts(string sourceExtension, string expected)
+    {
+        Assert.Equal(Path.Combine("D:\\records", expected), Recorder.BuildSessionOutputFileName("D:\\records", "record", sourceExtension));
+    }
+
+    [Fact]
+    public void DeleteFailedOutputFiles_RemovesOnlyCurrentSessionPart()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-recorder-delete-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string firstPart = Path.Combine(directory, "record_000.ts");
+        string failedPart = Path.Combine(directory, "record_001.ts");
+        string metadataPath = Path.Combine(directory, "record.mplr.json");
+
+        try
+        {
+            File.WriteAllBytes(firstPart, [1]);
+            File.WriteAllBytes(failedPart, [1]);
+            File.WriteAllText(metadataPath, "{}");
+
+            Recorder.DeleteFailedOutputFiles(failedPart, metadataPath: null);
+
+            Assert.True(File.Exists(firstPart));
+            Assert.False(File.Exists(failedPart));
+            Assert.True(File.Exists(metadataPath));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Fact]
     public void BuildAudioMappingArguments_AddsOriginalAndOptimizedTracks()
     {

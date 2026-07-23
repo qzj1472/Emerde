@@ -24,6 +24,21 @@ internal static class RecordingRecoveryService
             return null;
         }
 
+        return Register(sourcePattern, targetFormat, options.IsRemoveTs, mergeSessionParts: false);
+    }
+
+    internal static string? RegisterSessionParts(string sourcePattern, string targetFormat)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePattern) || string.IsNullOrWhiteSpace(targetFormat))
+        {
+            return null;
+        }
+
+        return Register(sourcePattern, targetFormat, removeSource: true, mergeSessionParts: true);
+    }
+
+    private static string? Register(string sourcePattern, string targetFormat, bool removeSource, bool mergeSessionParts)
+    {
         string? temporaryPath = null;
         try
         {
@@ -34,7 +49,8 @@ internal static class RecordingRecoveryService
             {
                 SourcePattern = sourcePattern,
                 TargetFormat = targetFormat,
-                RemoveSource = options.IsRemoveTs,
+                RemoveSource = removeSource,
+                MergeSessionParts = mergeSessionParts,
             };
             using (FileStream stream = new(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             using (StreamWriter writer = new(stream, new System.Text.UTF8Encoding(false)))
@@ -64,23 +80,27 @@ internal static class RecordingRecoveryService
     internal static bool UpdateOptions(string path, RoomRecordingOptions options)
     {
         string? targetFormat = Recorder.GetTargetFormat(options.RecordFormat);
-        if (string.IsNullOrWhiteSpace(targetFormat))
-        {
-            DeleteMarker(path);
-            return false;
-        }
-
         PendingRecording? item = Load(path, out _, validateAllowedDirectory: false);
         if (item == null)
         {
             return false;
+        }
+        if (string.IsNullOrWhiteSpace(targetFormat))
+        {
+            if (!item.MergeSessionParts)
+            {
+                DeleteMarker(path);
+                return false;
+            }
+
+            targetFormat = item.TargetFormat;
         }
 
         string temporaryPath = path + ".tmp";
         try
         {
             item.TargetFormat = targetFormat;
-            item.RemoveSource = options.IsRemoveTs;
+            item.RemoveSource = item.MergeSessionParts || options.IsRemoveTs;
             using (FileStream stream = new(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None))
             using (StreamWriter writer = new(stream, new System.Text.UTF8Encoding(false)))
             {
@@ -199,7 +219,7 @@ internal static class RecordingRecoveryService
             return;
         }
 
-        bool completed = await ProcessSourcePatternAsync(item.SourcePattern, item.TargetFormat, item.RemoveSource);
+        bool completed = await ProcessSourcePatternAsync(item.SourcePattern, item.TargetFormat, item.RemoveSource, item.MergeSessionParts);
         if (GetSourceFiles(item.SourcePattern).Length == 0)
         {
             DeleteMarker(path);
@@ -212,11 +232,35 @@ internal static class RecordingRecoveryService
         }
     }
 
-    internal static async Task<bool> ProcessSourcePatternAsync(string sourcePattern, string targetFormat, bool removeSource)
+    internal static Task<bool> ProcessSourcePatternAsync(string sourcePattern, string targetFormat, bool removeSource)
+    {
+        return ProcessSourcePatternAsync(sourcePattern, targetFormat, removeSource, mergeSessionParts: false);
+    }
+
+    internal static async Task<bool> ProcessSourcePatternAsync(string sourcePattern, string targetFormat, bool removeSource, bool mergeSessionParts)
     {
         string[] sources = GetSourceFiles(sourcePattern);
         if (sources.Length == 0)
         {
+            return true;
+        }
+
+        if (mergeSessionParts)
+        {
+            if (!await new Converter().ExecuteSessionPartsAsync(sourcePattern, sources, targetFormat))
+            {
+                return false;
+            }
+
+            if (removeSource)
+            {
+                foreach (string source in sources)
+                {
+                    File.Delete(source);
+                    VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(source);
+                }
+            }
+
             return true;
         }
 
@@ -350,9 +394,14 @@ internal static class RecordingRecoveryService
             return "分段占位符只能使用 %03d";
         }
 
-        if (item.TargetFormat is not (".mp4" or ".mkv"))
+        bool targetFormatAllowed = item.MergeSessionParts
+            ? item.TargetFormat is ".mp4" or ".mkv" or ".ts" or ".flv"
+            : item.TargetFormat is ".mp4" or ".mkv";
+        if (!targetFormatAllowed)
         {
-            return "目标格式只能是 MP4 或 MKV";
+            return item.MergeSessionParts
+                ? "目标格式只能是 MP4、MKV、TS 或 FLV"
+                : "目标格式只能是 MP4 或 MKV";
         }
 
         string sourcePath;
@@ -478,5 +527,7 @@ internal static class RecordingRecoveryService
         public string TargetFormat { get; set; } = string.Empty;
 
         public bool RemoveSource { get; set; }
+
+        public bool MergeSessionParts { get; set; }
     }
 }
