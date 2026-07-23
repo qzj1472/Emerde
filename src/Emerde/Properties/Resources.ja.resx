@@ -665,10 +665,10 @@
     <value>速度テスト</value>
   </data>
   <data name="NetworkCapacityHint" xml:space="preserve">
-    <value>現在の配信ストリームから同時録画可能数を測定します</value>
+    <value>3回のダウンロード測定から同時録画可能数を推定します</value>
   </data>
   <data name="NetworkCapacityTesting" xml:space="preserve">
-    <value>測定中...</value>
+    <value>測定中</value>
   </data>
   <data name="NetworkCapacityNoStream" xml:space="preserve">
     <value>測定できる配信中のルームがありません</value>
@@ -680,7 +680,7 @@
     <value>{0} 本録画可能</value>
   </data>
   <data name="NetworkCapacityResultHint" xml:space="preserve">
-    <value>測定 {0:0.##} Mbps、1本あたり推定 {1:0.##} Mbps、{3} 件の配信サンプルから同時録画は約 {2} 本です</value>
+    <value>3回の平均測定 {0:0.##} Mbps（国内 {4:0.##} / 海外 {5:0.##}）、1本あたり推定 {1:0.##} Mbps、{3} 件の配信サンプルから同時録画は約 {2} 本です</value>
   </data>
   <data name="NetworkCapacityFailed" xml:space="preserve">
     <value>速度テストに失敗しました</value>

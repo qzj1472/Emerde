@@ -662,10 +662,10 @@
     <value>Network test</value>
   </data>
   <data name="NetworkCapacityHint" xml:space="preserve">
-    <value>Test recording capacity based on the current live stream</value>
+    <value>Run three download test rounds to estimate simultaneous recording capacity</value>
   </data>
   <data name="NetworkCapacityTesting" xml:space="preserve">
-    <value>Testing...</value>
+    <value>Testing</value>
   </data>
   <data name="NetworkCapacityNoStream" xml:space="preserve">
     <value>No live stream is available for testing</value>
@@ -677,7 +677,7 @@
     <value>{0} streams</value>
   </data>
   <data name="NetworkCapacityResultHint" xml:space="preserve">
-    <value>Measured {0:0.##} Mbps, estimated {1:0.##} Mbps per stream, can record about {2} streams at once from {3} live samples</value>
+    <value>Three-round average {0:0.##} Mbps (domestic {4:0.##} / overseas {5:0.##}), estimated {1:0.##} Mbps per stream, can record about {2} streams at once from {3} live samples</value>
   </data>
   <data name="NetworkCapacityFailed" xml:space="preserve">
     <value>Network test failed</value>

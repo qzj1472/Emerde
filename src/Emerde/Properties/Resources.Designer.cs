@@ -1808,5 +1808,37 @@ namespace Emerde.Properties {
         public static string StartupAboutNoticeDescription {
             get { return ResourceManager.GetString("StartupAboutNoticeDescription", resourceCulture); }
         }
+
+        public static string NetworkCapacityIdle {
+            get { return ResourceManager.GetString("NetworkCapacityIdle", resourceCulture); }
+        }
+
+        public static string NetworkCapacityHint {
+            get { return ResourceManager.GetString("NetworkCapacityHint", resourceCulture); }
+        }
+
+        public static string NetworkCapacityTesting {
+            get { return ResourceManager.GetString("NetworkCapacityTesting", resourceCulture); }
+        }
+
+        public static string NetworkCapacityNoStream {
+            get { return ResourceManager.GetString("NetworkCapacityNoStream", resourceCulture); }
+        }
+
+        public static string NetworkCapacityNoStreamShort {
+            get { return ResourceManager.GetString("NetworkCapacityNoStreamShort", resourceCulture); }
+        }
+
+        public static string NetworkCapacityResultShort {
+            get { return ResourceManager.GetString("NetworkCapacityResultShort", resourceCulture); }
+        }
+
+        public static string NetworkCapacityResultHint {
+            get { return ResourceManager.GetString("NetworkCapacityResultHint", resourceCulture); }
+        }
+
+        public static string NetworkCapacityFailed {
+            get { return ResourceManager.GetString("NetworkCapacityFailed", resourceCulture); }
+        }
     }
 }

@@ -43,15 +43,41 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     internal const int RoomHistoryLimit = 200;
     private const long ManualRefreshCooldownMilliseconds = 5000;
     private const long PreviewQualityRefreshCooldownMilliseconds = 30000;
+    private const int NetworkThroughputRoundCount = 3;
+    private const int NetworkThroughputConnectionsPerEndpoint = 3;
+    private const long NetworkThroughputWarmupBytesPerConnection = 2L * 1024L * 1024L;
+    private const long NetworkThroughputBytesPerConnectionRound = 24L * 1024L * 1024L;
+    private static readonly NetworkThroughputEndpoint[] NetworkThroughputTestEndpoints =
+    [
+        new("TUNA", NetworkThroughputRegion.Domestic, "https://mirrors.tuna.tsinghua.edu.cn/ubuntu-releases/24.04.4/ubuntu-24.04.4-desktop-amd64.iso", true),
+        new("Ubuntu", NetworkThroughputRegion.Overseas, "https://releases.ubuntu.com/24.04.4/ubuntu-24.04.4-desktop-amd64.iso", true),
+        new("OVH", NetworkThroughputRegion.Overseas, "https://proof.ovh.net/files/100Mb.dat", true),
+        new("Hetzner", NetworkThroughputRegion.Overseas, "https://fsn1-speed.hetzner.com/100MB.bin", true),
+    ];
+    private static readonly HashSet<string> OverseasPlatformNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "17Live",
+        "Bigo",
+        "CatShow",
+        "CHZZK",
+        "Faceit",
+        "FlexTV",
+        "LangLive",
+        "LiveMe",
+        "Look",
+        "Picarto",
+        "PopkonTV",
+        "Shopee",
+        "ShowRoom",
+        "SOOP",
+        "TikTok",
+        "TwitCasting",
+        "Twitch",
+        "WinkTV",
+        "YouTube",
+    };
     private const string PreviewStreamQualityPreference = StreamQualityCatalog.Original;
     private const string AutoShutdownRecordBlockReason = "auto-shutdown";
-    private static readonly string[] NetworkThroughputTestUrls =
-    [
-        "https://speed.cloudflare.com/__down?bytes=50000000",
-        "https://cachefly.cachefly.net/10mb.test",
-        "https://proof.ovh.net/files/10Mb.dat",
-    ];
-
     protected internal ForeverDispatcherTimer DispatcherTimer { get; }
 
     protected internal ForeverDispatcherTimer AutoShutdownDispatcherTimer { get; }
@@ -447,6 +473,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NetworkCapacityDisplayText))]
     private bool isNetworkCapacityTesting;
 
     [ObservableProperty]
@@ -456,7 +483,23 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     [ObservableProperty]
     private string networkCapacityToolTip = "NetworkCapacityHint".Tr();
 
-    public string NetworkCapacityDisplayText => string.IsNullOrWhiteSpace(NetworkCapacityText) || NetworkCapacityText == "NetworkCapacityIdle" ? "测速" : NetworkCapacityText;
+    public string NetworkCapacityDisplayText
+    {
+        get
+        {
+            if (IsNetworkCapacityTesting)
+            {
+                string testingText = "NetworkCapacityTesting".Tr();
+                return string.IsNullOrWhiteSpace(testingText) || testingText == "NetworkCapacityTesting"
+                    ? "测速中"
+                    : testingText;
+            }
+
+            return string.IsNullOrWhiteSpace(NetworkCapacityText) || NetworkCapacityText == "NetworkCapacityIdle"
+                ? "测速"
+                : NetworkCapacityText;
+        }
+    }
 
     public CancellationTokenSource? ShutdownCancellationTokenSource { get; private set; } = null;
 
@@ -1689,32 +1732,20 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         try
         {
-            RoomStatusReactive[] testRooms = estimateRooms
-                .Where(room => !string.IsNullOrWhiteSpace(GetPreferredNetworkTestUrl(room)))
-                .ToArray();
             double perRoomMbps = estimateRooms.Select(EstimateRequiredMbps).DefaultIfEmpty(10d).Average();
-            bool measuredBroadband = true;
-            double measuredMbps;
-            try
-            {
-                measuredMbps = await MeasureBestNetworkThroughputMbpsAsync();
-            }
-            catch
-            {
-                measuredBroadband = false;
-                if (testRooms.Length == 0)
-                {
-                    throw new InvalidOperationException("No live stream is available for network capacity testing.");
-                }
-
-                measuredMbps = await MeasureNetworkThroughputMbpsAsync(GetPreferredNetworkTestUrl(testRooms[0]));
-            }
-            int capacity = CalculateNetworkCapacity(measuredMbps, perRoomMbps)
+            NetworkCapacityMeasurement measurement = await MeasureBestNetworkThroughputMbpsAsync(estimateRooms);
+            int capacity = CalculateNetworkCapacity(measurement.CapacityMbps, perRoomMbps)
                 ?? throw new InvalidOperationException("Network capacity measurement did not return a valid result.");
 
             NetworkCapacityText = FormatNetworkCapacityResultShort(capacity);
-            NetworkCapacityToolTip = "NetworkCapacityResultHint".Tr(measuredMbps, perRoomMbps, capacity, estimateRooms.Length);
-            AppSessionLogger.Write($"network capacity test completed, measuredMbps={measuredMbps:0.##}, perRoomMbps={perRoomMbps:0.##}, capacity={capacity}, source={(measuredBroadband ? "broadband" : "stream")}");
+            NetworkCapacityToolTip = "NetworkCapacityResultHint".Tr(
+                measurement.CapacityMbps,
+                perRoomMbps,
+                capacity,
+                estimateRooms.Length,
+                measurement.DomesticMbps ?? 0d,
+                measurement.OverseasMbps ?? 0d);
+            AppSessionLogger.Write($"network capacity test completed, measuredMbps={measurement.CapacityMbps:0.##}, domesticMbps={measurement.DomesticMbps:0.##}, overseasMbps={measurement.OverseasMbps:0.##}, rounds={NetworkThroughputRoundCount}, connectionsPerEndpoint={NetworkThroughputConnectionsPerEndpoint}, perRoomMbps={perRoomMbps:0.##}, capacity={capacity}");
             Toast.Success(NetworkCapacityToolTip);
         }
         catch (Exception e)
@@ -1746,6 +1777,15 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         return Math.Max(1, (int)Math.Floor(measuredMbps.Value * 0.7d / perRoomMbps));
     }
 
+    internal static double? CalculateAverageNetworkThroughput(IEnumerable<double> measurements)
+    {
+        double[] valid = measurements
+            .Where(value => value > 0d && !double.IsNaN(value) && !double.IsInfinity(value))
+            .ToArray();
+
+        return valid.Length == 0 ? null : valid.Average();
+    }
+
     private RoomStatusReactive[] GetNetworkCapacityEstimateRooms()
     {
         RoomStatusReactive[] activeRooms = RoomStatuses
@@ -1768,20 +1808,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         return string.IsNullOrWhiteSpace(text) || text == "NetworkCapacityResultShort" ? $"可录 {capacity} 路" : text;
     }
 
-    private static string GetPreferredNetworkTestUrl(RoomStatusReactive room)
+    private async Task<NetworkThroughputConnection> OpenNetworkThroughputConnectionAsync(
+        NetworkThroughputEndpoint endpoint,
+        CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(room.FlvUrl))
-        {
-            return room.FlvUrl;
-        }
-
-        return room.PreviewUrl;
-    }
-
-    private async Task<double> MeasureNetworkThroughputMbpsAsync(string url)
-    {
-        using CancellationTokenSource cancellationTokenSource = new(TimeSpan.FromSeconds(10));
-        using HttpClientHandler handler = new()
+        HttpClientHandler handler = new()
         {
             AllowAutoRedirect = true,
             AutomaticDecompression = DecompressionMethods.All,
@@ -1795,112 +1826,185 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             handler.UseProxy = true;
         }
 
-        using HttpClient client = new(handler)
+        HttpClient client = new(handler)
         {
-            Timeout = TimeSpan.FromSeconds(10),
+            Timeout = TimeSpan.FromSeconds(30),
         };
-
-        string testUrl = await ResolveNetworkTestUrlAsync(client, url, cancellationTokenSource.Token);
-        using HttpRequestMessage request = new(HttpMethod.Get, testUrl);
-        string userAgent = Configurations.UserAgent.Get();
-        if (!string.IsNullOrWhiteSpace(userAgent))
+        HttpResponseMessage? response = null;
+        try
         {
-            request.Headers.TryAddWithoutValidation("User-Agent", userAgent);
-        }
-
-        using HttpResponseMessage response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationTokenSource.Token);
-        response.EnsureSuccessStatusCode();
-        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationTokenSource.Token);
-
-        byte[] buffer = new byte[128 * 1024];
-        long totalBytes = 0;
-        Stopwatch stopwatch = Stopwatch.StartNew();
-        TimeSpan sampleDuration = TimeSpan.FromSeconds(4);
-        long maxBytes = 20L * 1024L * 1024L;
-
-        while (stopwatch.Elapsed < sampleDuration && totalBytes < maxBytes)
-        {
-            int read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationTokenSource.Token);
-            if (read == 0)
+            using HttpRequestMessage request = new(HttpMethod.Get, endpoint.Url);
+            request.Version = HttpVersion.Version11;
+            request.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
+            if (endpoint.UseRange)
             {
-                break;
+                request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 99_999_999);
             }
-
-            totalBytes += read;
-        }
-
-        stopwatch.Stop();
-        if (totalBytes < 64 * 1024 || stopwatch.Elapsed.TotalSeconds <= 0.25d)
-        {
-            throw new InvalidOperationException("Network sample is too small.");
-        }
-
-        return totalBytes * 8d / stopwatch.Elapsed.TotalSeconds / 1_000_000d;
-    }
-
-    private async Task<double> MeasureBestNetworkThroughputMbpsAsync()
-    {
-        List<double> samples = [];
-
-        foreach (string url in NetworkThroughputTestUrls)
-        {
-            try
-            {
-                double sample = await MeasureNetworkThroughputMbpsAsync(url);
-                samples.Add(sample);
-            }
-            catch (Exception e)
-            {
-                Debug.WriteLine(e);
-                AppSessionLogger.Write($"network capacity endpoint failed, url={url}, error={e.Message}");
-            }
-        }
-
-        if (samples.Count == 0)
-        {
-            throw new InvalidOperationException("No network capacity endpoint returned a valid sample.");
-        }
-
-        return samples.Max();
-    }
-
-    private async Task<string> ResolveNetworkTestUrlAsync(HttpClient client, string url, CancellationToken cancellationToken)
-    {
-        string currentUrl = url;
-
-        for (int depth = 0; depth < 2; depth++)
-        {
-            if (!currentUrl.Contains(".m3u8", StringComparison.OrdinalIgnoreCase))
-            {
-                return currentUrl;
-            }
-
-            using HttpRequestMessage request = new(HttpMethod.Get, currentUrl);
             string userAgent = Configurations.UserAgent.Get();
-            if (!string.IsNullOrWhiteSpace(userAgent))
-            {
-                request.Headers.TryAddWithoutValidation("User-Agent", userAgent);
-            }
+            request.Headers.TryAddWithoutValidation("User-Agent", string.IsNullOrWhiteSpace(userAgent) ? "Emerde/1.6.7" : userAgent);
 
-            using HttpResponseMessage response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             response.EnsureSuccessStatusCode();
-            string playlist = await response.Content.ReadAsStringAsync(cancellationToken);
+            Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            return new NetworkThroughputConnection(endpoint, handler, client, response, stream);
+        }
+        catch
+        {
+            response?.Dispose();
+            client.Dispose();
+            handler.Dispose();
+            throw;
+        }
+    }
 
-            string? entry = playlist
-                .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .FirstOrDefault(line => !line.StartsWith('#') && !string.IsNullOrWhiteSpace(line));
+    private async Task<NetworkCapacityMeasurement> MeasureBestNetworkThroughputMbpsAsync(
+        IReadOnlyCollection<RoomStatusReactive> estimateRooms)
+    {
+        double? domesticMbps = await MeasureNetworkRegionThroughputMbpsAsync(NetworkThroughputRegion.Domestic);
+        double? overseasMbps = await MeasureNetworkRegionThroughputMbpsAsync(NetworkThroughputRegion.Overseas);
+        bool needsDomestic = estimateRooms.Any(room => !IsOverseasPlatform(room.PlatformName));
+        bool needsOverseas = estimateRooms.Any(room => IsOverseasPlatform(room.PlatformName));
 
-            if (string.IsNullOrWhiteSpace(entry) ||
-                !Uri.TryCreate(currentUrl, UriKind.Absolute, out Uri? baseUri) ||
-                !Uri.TryCreate(baseUri, entry, out Uri? resolved))
-            {
-                return currentUrl;
-            }
-
-            currentUrl = resolved.ToString();
+        double capacityMbps;
+        if (needsDomestic && needsOverseas)
+        {
+            capacityMbps = Math.Min(
+                domesticMbps ?? throw new InvalidOperationException("Domestic network capacity test failed."),
+                overseasMbps ?? throw new InvalidOperationException("Overseas network capacity test failed."));
+        }
+        else if (needsOverseas)
+        {
+            capacityMbps = overseasMbps
+                ?? throw new InvalidOperationException("Overseas network capacity test failed.");
+        }
+        else
+        {
+            capacityMbps = domesticMbps
+                ?? throw new InvalidOperationException("Domestic network capacity test failed.");
         }
 
-        return currentUrl;
+        return new NetworkCapacityMeasurement(capacityMbps, domesticMbps, overseasMbps);
+    }
+
+    private async Task<double?> MeasureNetworkRegionThroughputMbpsAsync(NetworkThroughputRegion region)
+    {
+        foreach (NetworkThroughputEndpoint endpoint in NetworkThroughputTestEndpoints.Where(endpoint => endpoint.Region == region))
+        {
+            double? result = await MeasureNetworkEndpointThroughputMbpsAsync(endpoint);
+            if (result.HasValue)
+            {
+                return result;
+            }
+        }
+
+        return null;
+    }
+
+    private async Task<double?> MeasureNetworkEndpointThroughputMbpsAsync(NetworkThroughputEndpoint endpoint)
+    {
+        using CancellationTokenSource cancellationTokenSource = new(TimeSpan.FromSeconds(30));
+        List<NetworkThroughputConnection> connections = [];
+        try
+        {
+            for (int index = 0; index < NetworkThroughputConnectionsPerEndpoint; index++)
+            {
+                try
+                {
+                    connections.Add(await OpenNetworkThroughputConnectionAsync(endpoint, cancellationTokenSource.Token));
+                }
+                catch (Exception e)
+                {
+                    Debug.WriteLine(e);
+                    AppSessionLogger.Write($"network capacity connection failed, endpoint={endpoint.Name}, index={index}, error={e.Message}");
+                    return null;
+                }
+            }
+            await Task.WhenAll(connections.Select(connection =>
+                ReadNetworkThroughputBytesSafelyAsync(
+                    connection,
+                    0,
+                    NetworkThroughputWarmupBytesPerConnection,
+                    cancellationTokenSource.Token)));
+
+            List<double> rounds = [];
+            for (int round = 1; round <= NetworkThroughputRoundCount; round++)
+            {
+                Stopwatch stopwatch = Stopwatch.StartNew();
+                long?[] connectionSamples = await Task.WhenAll(connections.Select(connection =>
+                    ReadNetworkThroughputBytesSafelyAsync(
+                        connection,
+                        round,
+                        NetworkThroughputBytesPerConnectionRound,
+                        cancellationTokenSource.Token)));
+                stopwatch.Stop();
+                if (connectionSamples.Any(value => !value.HasValue))
+                {
+                    return null;
+                }
+                double measuredMbps = CalculateNetworkThroughputMbps(
+                    connectionSamples.Sum(value => value!.Value),
+                    stopwatch.Elapsed.TotalSeconds)
+                    ?? throw new InvalidOperationException("Network capacity round did not return a valid sample.");
+                rounds.Add(measuredMbps);
+                AppSessionLogger.Write($"network capacity round completed, endpoint={endpoint.Name}, region={endpoint.Region}, round={round}/{NetworkThroughputRoundCount}, measuredMbps={measuredMbps:0.##}");
+            }
+
+            return CalculateAverageNetworkThroughput(rounds);
+        }
+        finally
+        {
+            foreach (NetworkThroughputConnection connection in connections)
+            {
+                await connection.DisposeAsync();
+            }
+        }
+    }
+
+    internal static bool IsOverseasPlatform(string? platformName)
+    {
+        return !string.IsNullOrWhiteSpace(platformName) && OverseasPlatformNames.Contains(platformName);
+    }
+
+    internal static double? CalculateNetworkThroughputMbps(long totalBytes, double elapsedSeconds)
+    {
+        if (totalBytes < 64 * 1024 || elapsedSeconds <= 0.1d || double.IsNaN(elapsedSeconds) || double.IsInfinity(elapsedSeconds))
+        {
+            return null;
+        }
+
+        return totalBytes * 8d / elapsedSeconds / 1_000_000d;
+    }
+
+    private async Task<long?> ReadNetworkThroughputBytesSafelyAsync(
+        NetworkThroughputConnection connection,
+        int round,
+        long maxBytes,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            long totalBytes = 0;
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            TimeSpan sampleDuration = TimeSpan.FromSeconds(4);
+            while (stopwatch.Elapsed < sampleDuration && totalBytes < maxBytes)
+            {
+                int read = await connection.Stream.ReadAsync(connection.Buffer, cancellationToken);
+                if (read == 0)
+                {
+                    break;
+                }
+                totalBytes += read;
+            }
+
+            stopwatch.Stop();
+            return totalBytes >= 64 * 1024 ? totalBytes : null;
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e);
+            AppSessionLogger.Write($"network capacity round connection failed, round={round}, error={e.Message}");
+            return null;
+        }
     }
 
     private static double EstimateRequiredMbps(RoomStatusReactive room)
@@ -3204,3 +3308,42 @@ internal sealed record RoomSelectionHistoryEntry(HashSet<string> Before, HashSet
 internal sealed record RoomListHistoryState(Room[] Rooms, HashSet<string> SelectedRoomUrls, string SelectedRoomUrl);
 
 internal sealed record RoomListHistoryEntry(RoomListHistoryState Before, RoomListHistoryState After) : RoomHistoryEntry;
+
+internal sealed class NetworkThroughputConnection(
+    NetworkThroughputEndpoint endpoint,
+    HttpClientHandler handler,
+    HttpClient client,
+    HttpResponseMessage response,
+    Stream stream) : IAsyncDisposable
+{
+    public NetworkThroughputEndpoint Endpoint { get; } = endpoint;
+
+    public byte[] Buffer { get; } = new byte[128 * 1024];
+
+    public Stream Stream { get; } = stream;
+
+    public async ValueTask DisposeAsync()
+    {
+        await Stream.DisposeAsync();
+        response.Dispose();
+        client.Dispose();
+        handler.Dispose();
+    }
+}
+
+internal sealed record NetworkThroughputEndpoint(
+    string Name,
+    NetworkThroughputRegion Region,
+    string Url,
+    bool UseRange);
+
+internal sealed record NetworkCapacityMeasurement(
+    double CapacityMbps,
+    double? DomesticMbps,
+    double? OverseasMbps);
+
+internal enum NetworkThroughputRegion
+{
+    Domestic,
+    Overseas,
+}

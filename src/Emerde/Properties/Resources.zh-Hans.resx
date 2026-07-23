@@ -662,10 +662,10 @@
     <value>测速</value>
   </data>
   <data name="NetworkCapacityHint" xml:space="preserve">
-    <value>根据当前直播流测试录制承载数量</value>
+    <value>连续进行三轮下载测速，估算当前网络可同时录制的直播路数</value>
   </data>
   <data name="NetworkCapacityTesting" xml:space="preserve">
-    <value>测速中...</value>
+    <value>测速中</value>
   </data>
   <data name="NetworkCapacityNoStream" xml:space="preserve">
     <value>没有可用于测速的开播直播间</value>
@@ -677,7 +677,7 @@
     <value>可录 {0} 路</value>
   </data>
   <data name="NetworkCapacityResultHint" xml:space="preserve">
-    <value>实测 {0:0.##} Mbps，单路估算 {1:0.##} Mbps，基于 {3} 个开播样本预计可同时录制 {2} 路</value>
+    <value>三轮平均实测 {0:0.##} Mbps（国内 {4:0.##} / 国外 {5:0.##}），单路估算 {1:0.##} Mbps，基于 {3} 个开播样本预计可同时录制 {2} 路</value>
   </data>
   <data name="NetworkCapacityFailed" xml:space="preserve">
     <value>测速失败</value>
