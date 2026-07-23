@@ -1,25 +1,7 @@
-using System.Text.RegularExpressions;
-
 namespace Emerde.Extensions;
 
 internal static class SearchFileHelper
 {
-    public static IEnumerable<string> SearchFiles(string directory, string regexPattern, bool searchSubdirectories = true)
-    {
-        try
-        {
-            string[] files = Directory.GetFiles(directory, "*",
-                searchSubdirectories ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly);
-            Regex regex = new(regexPattern, RegexOptions.IgnoreCase);
-            return files.Where(file => regex.IsMatch(Path.GetFileName(file)));
-        }
-        catch (UnauthorizedAccessException e)
-        {
-            Console.WriteLine($"Unauthorized: {directory}, Detail: {e.Message}");
-            return [];
-        }
-    }
-
     public static string? SearchExecutable(string fileName)
     {
         return SearchExecutable(fileName, [AppContext.BaseDirectory, Environment.CurrentDirectory], Environment.GetEnvironmentVariable("PATH"));
@@ -40,13 +22,6 @@ internal static class SearchFileHelper
             if (File.Exists(candidate))
             {
                 return Path.GetFullPath(candidate);
-            }
-
-            string? localPath = SearchFiles(directory, $"^{Regex.Escape(executableName)}$").FirstOrDefault();
-
-            if (!string.IsNullOrWhiteSpace(localPath))
-            {
-                return Path.GetFullPath(localPath);
             }
         }
 

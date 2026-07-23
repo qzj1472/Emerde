@@ -48,6 +48,27 @@ public sealed class SearchFileHelperTests
     }
 
     [Fact]
+    public void SearchExecutable_DoesNotRecursivelyScanApplicationData()
+    {
+        string directory = CreateTempDirectory();
+        string nestedDirectory = Path.Combine(directory, "downloads", "streamer");
+        Directory.CreateDirectory(nestedDirectory);
+
+        try
+        {
+            File.WriteAllText(Path.Combine(nestedDirectory, "ffmpeg.exe"), string.Empty);
+
+            string? result = SearchFileHelper.SearchExecutable("ffmpeg.exe", [directory], string.Empty);
+
+            Assert.Null(result);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
     public void SearchExecutable_UsesPathValue()
     {
         string directory = CreateTempDirectory();

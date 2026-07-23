@@ -15,6 +15,8 @@ internal static class AppPaths
 
     public static string PendingRecordingsDirectory => Path.Combine(CacheDirectory, "pending_recordings");
 
+    public static string DouyinWebViewDataDirectory => Path.Combine(CacheDirectory, "douyin_webview2");
+
     public static string[] GetConfigFiles()
     {
         if (!Directory.Exists(ConfigDirectory))
@@ -34,6 +36,7 @@ internal static class AppPaths
     {
         string fileName = Path.GetFileName(filePath);
         return !fileName.Contains(".bak-", StringComparison.OrdinalIgnoreCase)
-            && !fileName.Contains(".reset-bak-", StringComparison.OrdinalIgnoreCase);
+            && !fileName.Contains(".reset-bak-", StringComparison.OrdinalIgnoreCase)
+            && !fileName.Contains(".invalid-", StringComparison.OrdinalIgnoreCase);
     }
 }
