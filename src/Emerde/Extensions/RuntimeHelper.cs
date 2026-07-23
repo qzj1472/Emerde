@@ -33,9 +33,14 @@ internal static class RuntimeHelper
             {
                 Application.Current.Dispatcher.BeginInvoke(() =>
                 {
-                    Application.Current.MainWindow?.Activate();
-                    Application.Current.MainWindow?.Show();
-                    Interop.RestoreWindow(new WindowInteropHelper(Application.Current.MainWindow).Handle);
+                    if (Application.Current.MainWindow is not System.Windows.Window mainWindow)
+                    {
+                        return;
+                    }
+
+                    mainWindow.Activate();
+                    mainWindow.Show();
+                    Interop.RestoreWindow(new WindowInteropHelper(mainWindow).Handle);
                 });
             }
         }, TaskCreationOptions.LongRunning).ConfigureAwait(false);
