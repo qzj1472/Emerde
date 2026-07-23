@@ -190,8 +190,29 @@
                                            Text="监控开关决定是否主动检查直播状态；只打开录制而未开启监控时，软件不会主动发现开播。" />
                                 <TextBlock Style="{StaticResource AboutBodyTextStyle}"
                                            Text="抖音直播间已经开启连麦时，软件会继续按直播状态和实际可用流判断录制，不依赖单一房间状态字段。" />
+                            </ui:StackPanel>
+                        </Border>
+
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="10">
+                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border Background="#1420A060" Style="{StaticResource AboutIconHostStyle}">
+                                        <ui:FontIcon HorizontalAlignment="Center"
+                                                     VerticalAlignment="Center"
+                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                                     Foreground="#168A55"
+                                                     Glyph="{x:Static ui:FontSymbols.Calendar}" />
+                                    </Border>
+                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="检测间隔" />
+                                </ui:StackPanel>
                                 <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="头像、平台和主播 UID 等固定信息低频刷新；标题在开播时更新，录制期间重点刷新码率与运行状态。" />
+                                           Text="“检测间隔”决定未开播房间多久检查一次，默认 5 秒。间隔越短不代表越稳定，通常保持默认值即可。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="直播中的房间以 1 分钟为一个检测周期：每个周期会随机安排 2 次抽样检查，并在周期结束时再检查 1 次，避免所有房间同时请求平台。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="直播结束后的 30 分钟内约每 20 秒检查一次，之后恢复设置中的检测间隔。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="状态确认并非实时轮询，直播状态和录制状态可能延迟几秒结束，录制文件末尾可能出现几秒黑屏；这是为了减少高频请求并降低平台风控风险。" />
                             </ui:StackPanel>
                         </Border>
 
@@ -226,14 +247,14 @@
                                                      Foreground="#A15C00"
                                                      Glyph="{x:Static ui:FontSymbols.History}" />
                                     </Border>
-                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="退出、恢复与后台任务" />
+                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="退出按钮、关闭窗口与恢复" />
                                 </ui:StackPanel>
                                 <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="正常退出会尽快停止当前录制，不会为了长时间转码而让窗口无响应。" />
+                                           Text="标题栏右上角关闭按钮只隐藏主窗口，Emerde 会继续在系统托盘运行；需要完全结束程序时，请使用侧边栏或托盘菜单中的“退出”。" />
                                 <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="未完成的收尾、分割或转码任务会保留恢复信息，并在下次启动时继续处理。" />
+                                           Text="存在录制或转码任务时，点击“退出”会先请求确认；确认后会停止监控和当前录制，不会等待耗时较长的分割或转码完成。" />
                                 <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="标题栏关闭只隐藏主窗口，侧边栏“退出”才会结束后台运行。" />
+                                           Text="未完成的收尾、分割或转码任务会保留恢复信息，并在下次启动时继续处理；请勿使用任务管理器强制结束进程。" />
                             </ui:StackPanel>
                         </Border>
 
@@ -247,14 +268,14 @@
                                                      Foreground="#7A4DA0"
                                                      Glyph="{x:Static ui:FontSymbols.Globe}" />
                                     </Border>
-                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="网络、画质与平台" />
+                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="网络测速与录制路数" />
                                 </ui:StackPanel>
                                 <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="实际带宽取决于平台返回的分辨率和码率，同时录制多路直播时应预留额外上传与磁盘写入空间。" />
+                                           Text="点击首页底部状态栏的“测速”，可以查看当前网络状态以及预计能同时录制多少路直播。" />
                                 <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="登录 Cookie 可能影响可用画质；敏感 Cookie 与邮箱密码会使用当前 Windows 用户凭据加密保存。" />
+                                           Text="测速会分别检查国内和国外线路，每条线路都会先预热连接，再连续完成三轮下载并取平均值；可录路数会按当前开播房间的平台选择对应线路。" />
                                 <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="预览正常不代表录制链路一定可用，无法录制时应同时检查日志中的流地址解析与 FFmpeg 输出。" />
+                                           Text="可录路数是按当前网络与直播码率估算的参考值；实际多路录制时还应预留下载带宽和磁盘写入空间。" />
                             </ui:StackPanel>
                         </Border>
                     </WrapPanel>
@@ -339,9 +360,9 @@
                                     <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="日志、配置与排查" />
                                 </ui:StackPanel>
                                 <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="普通日志和错误日志按日期分文件保存；重复检查失败会按房间限频，避免长期运行时刷屏。" />
+                                           Text="普通日志和错误日志按日期保存；遇到无法发现开播、录制中断或转码失败时，请先在设置中打开日志目录。" />
                                 <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="导入配置前会完整解析 YAML，异常配置启动时会被隔离并恢复默认值。" />
+                                           Text="导入配置前会自动检查文件；无效配置不会覆盖当前设置。" />
                                 <TextBlock Style="{StaticResource AboutBodyTextStyle}"
                                            Text="反馈问题时请提供日志、直播间链接、发生时间、操作步骤和截图。" />
                             </ui:StackPanel>
@@ -433,7 +454,7 @@
                                     <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Enter  确认输入" /></Border>
                                 </WrapPanel>
                                 <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="侧边栏“退出”结束程序；标题栏关闭按钮只隐藏主窗口，程序继续在系统托盘运行。" />
+                                           Text="关闭窗口不等于退出软件；需要彻底结束时，请使用侧边栏或托盘菜单中的“退出”。" />
                             </ui:StackPanel>
                         </Border>
                     </WrapPanel>
