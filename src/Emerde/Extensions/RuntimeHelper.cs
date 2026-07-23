@@ -8,6 +8,8 @@ namespace Emerde.Extensions;
 
 internal static class RuntimeHelper
 {
+    private const string RestartParentArgumentPrefix = "--emerde-restart-parent=";
+
     public static void CheckSingleInstance(string instanceName, Action<bool> callback = null!)
     {
         EventWaitHandle? handle;
@@ -41,7 +43,10 @@ internal static class RuntimeHelper
 
     public static string ReArguments()
     {
-        string[] args = Environment.GetCommandLineArgs().Skip(1).ToArray();
+        string[] args = Environment.GetCommandLineArgs()
+            .Skip(1)
+            .Where(arg => !arg.StartsWith(RestartParentArgumentPrefix, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
 
         for (int i = default; i < args.Length; i++)
         {
@@ -50,10 +55,40 @@ internal static class RuntimeHelper
         return string.Join(" ", args);
     }
 
+    public static void WaitForRestartParent(IEnumerable<string>? args)
+    {
+        int? parentProcessId = GetRestartParentProcessId(args);
+        if (!parentProcessId.HasValue || parentProcessId.Value == Environment.ProcessId)
+        {
+            return;
+        }
+
+        try
+        {
+            using Process parent = Process.GetProcessById(parentProcessId.Value);
+            _ = parent.WaitForExit(5000);
+        }
+        catch (Exception e) when (e is ArgumentException or InvalidOperationException or Win32Exception)
+        {
+        }
+    }
+
+    internal static int? GetRestartParentProcessId(IEnumerable<string>? args)
+    {
+        string? argument = args?.LastOrDefault(arg => arg.StartsWith(RestartParentArgumentPrefix, StringComparison.OrdinalIgnoreCase));
+        return int.TryParse(argument?[RestartParentArgumentPrefix.Length..], out int processId) && processId > 0
+            ? processId
+            : null;
+    }
+
+    internal static string BuildRestartArguments(string? args, int parentProcessId)
+    {
+        string restartArgument = $"{RestartParentArgumentPrefix}{parentProcessId}";
+        return string.IsNullOrWhiteSpace(args) ? restartArgument : $"{args} {restartArgument}";
+    }
+
     public static bool Restart(string fileName = null!, string dir = null!, string args = null!, int? exitCode = null, bool forced = false, Action? beforeExit = null)
     {
-        _ = args;
-
         try
         {
             using Process process = new()
@@ -62,22 +97,28 @@ internal static class RuntimeHelper
                 {
                     FileName = fileName ?? GetExecutablePath(),
                     WorkingDirectory = dir ?? Environment.CurrentDirectory,
+                    Arguments = BuildRestartArguments(args ?? ReArguments(), Environment.ProcessId),
                     UseShellExecute = true,
                 },
             };
-            process.Start();
+            if (!process.Start())
+            {
+                return false;
+            }
         }
         catch (Win32Exception)
         {
             return false;
         }
 
-        beforeExit?.Invoke();
-        if (forced)
+        CompleteRestart(beforeExit, () =>
         {
-            Process.GetCurrentProcess().Kill();
-        }
-        Environment.Exit(exitCode ?? 'r' + 'e' + 's' + 't' + 'a' + 'r' + 't');
+            if (forced)
+            {
+                Process.GetCurrentProcess().Kill();
+            }
+            Environment.Exit(exitCode ?? 'r' + 'e' + 's' + 't' + 'a' + 'r' + 't');
+        });
         return true;
 
         static string GetExecutablePath()
@@ -90,6 +131,18 @@ internal static class RuntimeHelper
             }
 
             return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, fileName);
+        }
+    }
+
+    internal static void CompleteRestart(Action? beforeExit, Action exit)
+    {
+        try
+        {
+            beforeExit?.Invoke();
+        }
+        finally
+        {
+            exit();
         }
     }
 }

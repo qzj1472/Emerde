@@ -6,7 +6,7 @@ namespace Emerde.Extensions;
 
 public static class ShortcutHelper
 {
-    public static void CreateShortcut(string directory, string shortcutName, string targetPath, string arguments = null!, string description = null!, string iconLocation = null!)
+    public static bool CreateShortcut(string directory, string shortcutName, string targetPath, string arguments = null!, string description = null!, string iconLocation = null!)
     {
         if (!Directory.Exists(directory))
         {
@@ -29,6 +29,7 @@ public static class ShortcutHelper
             shortcut.Description = description;
             shortcut.IconLocation = string.IsNullOrWhiteSpace(iconLocation) ? targetPath : iconLocation;
             shortcut.Save();
+            return true;
         }
         catch (Exception e)
         {
@@ -45,12 +46,14 @@ public static class ShortcutHelper
                 _ = Marshal.FinalReleaseComObject(shell);
             }
         }
+
+        return false;
     }
 
-    public static void CreateShortcutOnDesktop(string shortcutName, string targetPath, string arguments = null!, string description = null!, string iconLocation = null!)
+    public static bool CreateShortcutOnDesktop(string shortcutName, string targetPath, string arguments = null!, string description = null!, string iconLocation = null!)
     {
         string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
 
-        CreateShortcut(desktop, shortcutName, targetPath, arguments, description, iconLocation);
+        return CreateShortcut(desktop, shortcutName, targetPath, arguments, description, iconLocation);
     }
 }

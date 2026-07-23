@@ -32,7 +32,7 @@ internal static class AutoStartupHelper
 
     internal static string GetLaunchCommand()
     {
-        return $"\"{Process.GetCurrentProcess().MainModule?.FileName!}\" /autorun";
+        return $"\"{Environment.ProcessPath}\" /autorun";
     }
 }
 

@@ -2,6 +2,7 @@ using Fischless.Configuration;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Threading;
 using Emerde.Core;
@@ -16,6 +17,12 @@ namespace Emerde;
 
 public partial class App : Application
 {
+    private static string? recoveredConfigurationPath;
+
+    private static Exception? configurationRecoveryException;
+
+    private static Exception? cultureRecoveryException;
+
     static App()
     {
         SystemMenuThemeManager.Apply();
@@ -23,8 +30,30 @@ public partial class App : Application
         _ = DpiAware.SetProcessDpiAwareness();
         ConfigurationManager.ConfigurationSerializer = new YamlConfigurationSerializer();
         ConfigurationMigrationHelper.MigrateLegacyConfiguration();
-        ConfigurationManager.Setup(ConfigurationSpecialPath.GetPath("config.yaml", AppConfig.PackName));
-        Locale.Culture = string.IsNullOrWhiteSpace(Configurations.Language.Get()) ? CultureInfo.CurrentUICulture : new CultureInfo(Configurations.Language.Get());
+        string configurationPath = ConfigurationSpecialPath.GetPath("config.yaml", AppConfig.PackName);
+        try
+        {
+            ConfigurationManager.Setup(configurationPath);
+        }
+        catch (Exception e) when (IsInvalidConfiguration(configurationPath))
+        {
+            configurationRecoveryException = e;
+            recoveredConfigurationPath = PreserveInvalidConfiguration(configurationPath);
+            ConfigurationManager.Setup(configurationPath);
+        }
+
+        string language = Configurations.Language.Get();
+        try
+        {
+            Locale.Culture = string.IsNullOrWhiteSpace(language) ? CultureInfo.CurrentUICulture : new CultureInfo(language);
+        }
+        catch (CultureNotFoundException e)
+        {
+            cultureRecoveryException = e;
+            Locale.Culture = CultureInfo.CurrentUICulture;
+            Configurations.Language.Set(string.Empty);
+            ConfigurationSaveScheduler.SaveNow();
+        }
     }
 
     public App()
@@ -75,6 +104,24 @@ public partial class App : Application
         AppThemeBrushes.Apply();
     }
 
+    private static bool IsInvalidConfiguration(string configurationPath)
+    {
+        if (!File.Exists(configurationPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            ConfigFileManager.Validate(configurationPath);
+            return false;
+        }
+        catch (Exception e) when (e is InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            return true;
+        }
+    }
+
     /// <summary>
     /// Occurs when the application is loading.
     /// </summary>
@@ -82,8 +129,27 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        RuntimeHelper.WaitForRestartParent(e.Args);
         RuntimeHelper.CheckSingleInstance(AppConfig.PackName + (Debugger.IsAttached ? "_DEBUG" : string.Empty));
         AppSessionLogger.Start();
+        try
+        {
+            SecretProtector.MigrateStoredSecrets();
+        }
+        catch (Exception secretMigrationException) when (secretMigrationException is CryptographicException or IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(secretMigrationException);
+        }
+        if (cultureRecoveryException != null)
+        {
+            AppSessionLogger.WriteException(cultureRecoveryException);
+        }
+        if (configurationRecoveryException != null)
+        {
+            AppSessionLogger.WriteException(configurationRecoveryException);
+            AppSessionLogger.Event("warn", "configuration", "startup_recovered", "invalid startup configuration was preserved and defaults were loaded", new { recoveredConfigurationPath });
+            _ = MessageBox.Warning("ConfigurationRecovered".Tr(recoveredConfigurationPath ?? string.Empty));
+        }
         RuntimeResourceLogger.Start();
         TrayIconManager.Start();
     }
@@ -93,12 +159,42 @@ public partial class App : Application
     /// </summary>
     protected override void OnExit(ExitEventArgs e)
     {
+        ConfigurationSaveScheduler.Flush();
         TrayIconManager.Stop();
         GlobalMonitor.Stop();
-        GlobalMonitor.StopAllRecorders();
-        RuntimeResourceLogger.Stop();
+        GlobalMonitor.StopAllRecorders(deferPostProcessing: true);
+        GlobalMonitor.WaitForRecordersAsync(TimeSpan.FromSeconds(1)).GetAwaiter().GetResult();
         ChildProcessTracerPeriodicTimer.Default.Stop(killChildren: true);
+        RuntimeResourceLogger.Stop();
         AppSessionLogger.Stop();
         base.OnExit(e);
+    }
+
+    private static string? PreserveInvalidConfiguration(string configurationPath)
+    {
+        try
+        {
+            if (!File.Exists(configurationPath))
+            {
+                return null;
+            }
+
+            string directory = Path.GetDirectoryName(configurationPath) ?? AppContext.BaseDirectory;
+            string fileName = Path.GetFileNameWithoutExtension(configurationPath);
+            string extension = Path.GetExtension(configurationPath);
+            string timestamp = DateTime.Now.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+            string backupPath = Path.Combine(directory, $"{fileName}.invalid-{timestamp}{extension}");
+            for (int index = 2; File.Exists(backupPath); index++)
+            {
+                backupPath = Path.Combine(directory, $"{fileName}.invalid-{timestamp}-{index}{extension}");
+            }
+            File.Move(configurationPath, backupPath, false);
+            return backupPath;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Debug.WriteLine(e);
+            return null;
+        }
     }
 }
