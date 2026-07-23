@@ -3,6 +3,7 @@ using Microsoft.Toolkit.Uwp.Notifications;
 using NAudio.Wave;
 using System.Net;
 using System.Net.Mail;
+using System.Text.Encodings.Web;
 
 namespace Emerde.Core;
 
@@ -65,41 +66,46 @@ internal static class Notifier
     public static async Task PlayMusicAsync(Stream stream)
     {
         using MusicPlayer player = new(stream);
+        using CancellationTokenSource source = new(TimeSpan.FromSeconds(30));
         player.Play();
-
-        CancellationTokenSource source = new();
-        _ = Task.Run(async () =>
+        try
         {
-            await Task.Delay(30000);
-            if (source.Token.CanBeCanceled)
-            {
-                source.Cancel();
-            }
-        });
-        await player.WaitAsync(source.Token);
+            await player.WaitAsync(source.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            player.Stop();
+        }
     }
 
-    public static bool SendEmail(string smtpServer, string userName, string password, string nickName, string roomUrl)
+    public static async Task<bool> SendEmailAsync(string smtpServer, int port, string userName, string password, string nickName, string roomUrl, CancellationToken token = default)
     {
         try
         {
             using MailMessage mail = new();
             mail.From = new MailAddress(userName);
             mail.To.Add(userName);
+            string safeNickName = HtmlEncoder.Default.Encode(nickName);
+            string safeRoomUrl = HtmlEncoder.Default.Encode(roomUrl);
             mail.Subject = $"{nickName}{Locale.Culture.WordSpace()}{"LiveNotification".Tr()} - Emerde";
-            mail.Body = $"<html><body>{"MailBodyElement".Tr(nickName)} <a href=\"{roomUrl}\">{roomUrl}</a></body></html>";
+            mail.Body = $"<html><body>{"MailBodyElement".Tr(safeNickName)} <a href=\"{safeRoomUrl}\">{safeRoomUrl}</a></body></html>";
             mail.IsBodyHtml = true;
 
-            using SmtpClient smtp = new(smtpServer, 25);
+            using SmtpClient smtp = new(smtpServer, Math.Clamp(port, 1, 65535));
             smtp.Credentials = new NetworkCredential(userName, password);
             smtp.EnableSsl = true;
-            smtp.Send(mail);
+            smtp.Timeout = 15000;
+            await smtp.SendMailAsync(mail).WaitAsync(TimeSpan.FromSeconds(15), token);
 
             return true;
         }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            return false;
+        }
         catch (Exception ex)
         {
-            Console.WriteLine("Error sending email: " + ex.Message);
+            AppSessionLogger.Event("error", "notification", "email_failed", ex.Message, new { smtpServer, port, userName });
         }
         return false;
     }
@@ -165,12 +171,14 @@ file sealed partial class MusicPlayer : IDisposable
     private bool disposed = false;
     private readonly Mp3FileReader mp3FileReader;
     private readonly WaveOut waveOut;
+    private readonly TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public MusicPlayer(Stream stream)
     {
         mp3FileReader = new Mp3FileReader(stream);
         waveOut = new WaveOut();
         waveOut.Init(mp3FileReader);
+        waveOut.PlaybackStopped += OnPlaybackStopped;
     }
 
     public void Play()
@@ -191,26 +199,19 @@ file sealed partial class MusicPlayer : IDisposable
 
     public async Task WaitAsync(CancellationToken token = default)
     {
-        await Task.Run(() =>
-        {
-            try
-            {
-                SpinWait.SpinUntil(() =>
-                {
-                    if (token.IsCancellationRequested)
-                    {
-                        Stop();
-                        token.ThrowIfCancellationRequested();
-                    }
+        await completion.Task.WaitAsync(token);
+    }
 
-                    return waveOut.PlaybackState != PlaybackState.Playing;
-                });
-            }
-            catch (OperationCanceledException)
-            {
-                ///
-            }
-        }, token);
+    private void OnPlaybackStopped(object? sender, StoppedEventArgs e)
+    {
+        if (e.Exception == null)
+        {
+            completion.TrySetResult();
+        }
+        else
+        {
+            completion.TrySetException(e.Exception);
+        }
     }
 
     public void Closed()
@@ -230,6 +231,7 @@ file sealed partial class MusicPlayer : IDisposable
         {
             if (disposing)
             {
+                waveOut.PlaybackStopped -= OnPlaybackStopped;
                 waveOut.Dispose();
                 mp3FileReader.Dispose();
             }
