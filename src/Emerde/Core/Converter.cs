@@ -11,9 +11,7 @@ public sealed class Converter
 {
     private const string OptimizedAudioFilter = "[0:a:0]volume=30dB,acompressor=threshold=-10dB:ratio=3,alimiter=limit=0.316227766:level=false[aopt]";
     private const int ProcessOutputTailLimit = 8192;
-    private static int activeCount;
-
-    public static int ActiveConversionCount => Math.Max(0, Volatile.Read(ref activeCount));
+    public static int ActiveConversionCount => MediaOperationRegistry.Count(MediaOperationKind.Conversion);
 
     public static bool HasActiveConversions => ActiveConversionCount > 0;
 
@@ -66,8 +64,14 @@ public sealed class Converter
             process.StartInfo.ArgumentList.Add(argument);
         }
 
-        CancellationToken token = tokenSource?.Token ?? default;
-        Interlocked.Increment(ref activeCount);
+        using CancellationTokenSource operationCancellation = tokenSource == null
+            ? new CancellationTokenSource()
+            : CancellationTokenSource.CreateLinkedTokenSource(tokenSource.Token);
+        using IDisposable operation = MediaOperationRegistry.Register(
+            MediaOperationKind.Conversion,
+            () => [sourceFileName, temporaryTargetFileName, targetFileName],
+            operationCancellation.Cancel);
+        CancellationToken token = operationCancellation.Token;
         AppSessionLogger.Event("info", "converter", "conversion_starting", "recording conversion is starting", new
         {
             sourceFileName,
@@ -93,10 +97,27 @@ public sealed class Converter
             bool succeeded = process.ExitCode == 0 && IsUsableOutput(temporaryTargetFileName);
             if (succeeded)
             {
-                File.Move(temporaryTargetFileName, targetFileName, false);
-                string targetDirectory = Path.GetDirectoryName(targetFileName) ?? string.Empty;
-                string targetStem = Path.GetFileNameWithoutExtension(targetFileName);
-                _ = VideoRecordingMetadataStore.WriteSidecar(targetDirectory, targetStem, metadata);
+                using StagedVideoMetadata? stagedMetadata = VideoRecordingMetadataStore.StageSidecarForMedia(
+                    targetFileName,
+                    metadata,
+                    "convert-metadata");
+                if (stagedMetadata == null)
+                {
+                    succeeded = false;
+                }
+                else
+                {
+                    stagedMetadata.Commit();
+                    try
+                    {
+                        File.Move(temporaryTargetFileName, targetFileName, false);
+                    }
+                    catch
+                    {
+                        stagedMetadata.DeleteCommitted();
+                        throw;
+                    }
+                }
             }
             AppSessionLogger.Event(succeeded ? "info" : "error", "converter", "conversion_finished", "recording conversion finished", new
             {
@@ -124,7 +145,6 @@ public sealed class Converter
         finally
         {
             DeleteTemporaryOutput(temporaryTargetFileName);
-            Interlocked.Decrement(ref activeCount);
         }
     }
 
@@ -153,7 +173,7 @@ public sealed class Converter
         string directory = Path.GetDirectoryName(targetPath) ?? string.Empty;
         string stem = Path.GetFileNameWithoutExtension(targetPath);
         string extension = Path.GetExtension(targetPath);
-        return Path.Combine(directory, $".{stem}.emerde-{Guid.NewGuid():N}{extension}");
+        return MediaFileCatalog.CreateTemporaryPath(Path.Combine(directory, stem + extension), "convert");
     }
 
     private static bool IsUsableOutput(string path)
