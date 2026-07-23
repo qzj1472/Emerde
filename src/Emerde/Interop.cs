@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
@@ -105,94 +106,6 @@ internal static class Interop
         return true;
     }
 
-    public static bool SetRoundedCorners(nint hWnd, bool enable = true)
-    {
-        if (IsWindows10Version1809OrAbove())
-        {
-            int preference = enable ? (int)DwmWindowCornerPreference.DWMWCP_ROUND : (int)DwmWindowCornerPreference.DWMWCP_DONOTROUND;
-            int hr = DwmSetWindowAttribute(hWnd, DwmWindowAttribute.WindowCornerPreference, ref preference, sizeof(int));
-            return hr >= 0;
-        }
-        return true;
-    }
-
-    public static void SetWindowIcon(nint hWnd, Icon icon)
-    {
-        const uint WM_SETICON = 0x0080;
-        const nint ICON_SMALL = 0;
-        const nint ICON_BIG = 1;
-
-        int hIcon = (int)icon.Handle;
-        _ = User32.SendMessage(hWnd, WM_SETICON, ICON_SMALL, hIcon);
-        _ = User32.SendMessage(hWnd, WM_SETICON, ICON_BIG, hIcon);
-    }
-
-    public static void SetWindowTitle(nint hWnd, string title)
-    {
-        _ = User32.SetWindowText(hWnd, title);
-    }
-
-    public static void SetHideFromTaskBar(nint hWnd)
-    {
-        int exStyle = User32.GetWindowLong(hWnd, User32.WindowLongFlags.GWL_EXSTYLE);
-
-        exStyle &= ~((int)User32.WindowStylesEx.WS_EX_APPWINDOW);
-        exStyle |= (int)User32.WindowStylesEx.WS_EX_TOOLWINDOW;
-        _ = User32.SetWindowLong(hWnd, User32.WindowLongFlags.GWL_EXSTYLE, exStyle);
-        _ = User32.SetWindowPos(hWnd, nint.Zero, 0, 0, 0, 0, User32.SetWindowPosFlags.SWP_NOMOVE | User32.SetWindowPosFlags.SWP_NOSIZE | User32.SetWindowPosFlags.SWP_NOZORDER | User32.SetWindowPosFlags.SWP_FRAMECHANGED);
-    }
-
-    /// <param name="ratio">Screen ratio in maximum orientation</param>
-    public static void SetWindowCenterRatio(nint hWnd, double ratio = 1d)
-    {
-        // Fit the window size and center it.
-        if (User32.GetWindowRect(hWnd, out RECT lpRect))
-        {
-            Screen screen = Screen.FromHandle(hWnd);
-            int screenWidth = screen.WorkingArea.Width;
-            int screenHeight = screen.WorkingArea.Height;
-
-            // Calculate the current width and height of the window
-            int windowWidth = lpRect.Right - lpRect.Left;
-            int windowHeight = lpRect.Bottom - lpRect.Top;
-
-            // Define the maximum allowed width and height (80% of the screen size)
-            int maxWidth = (int)(screenWidth * ratio);
-            int maxHeight = (int)(screenHeight * ratio);
-
-            // Check if the window exceeds the screen's 80% size and scale down if necessary
-            if (windowWidth > maxWidth || windowHeight > maxHeight)
-            {
-                // Calculate the scaling factor
-                float scaleWidth = (float)maxWidth / windowWidth;
-                float scaleHeight = (float)maxHeight / windowHeight;
-
-                // Use the smaller scaling factor to maintain the aspect ratio
-                float scaleFactor = Math.Min(scaleWidth, scaleHeight);
-
-                // Calculate the new size
-                int newWidth = (int)(windowWidth * scaleFactor);
-                int newHeight = (int)(windowHeight * scaleFactor);
-
-                // Calculate the new position to center the window on the screen
-                int newX = (screenWidth - newWidth) / 2;
-                int newY = (screenHeight - newHeight) / 2;
-
-                // Set the new window size and position (you can use SetWindowPos or a similar API)
-                User32.SetWindowPos(hWnd, nint.Zero, newX, newY, newWidth, newHeight, User32.SetWindowPosFlags.SWP_NOZORDER);
-            }
-            else
-            {
-                // If the window doesn't exceed 80% of the screen, just center it
-                int newX = (screenWidth - windowWidth) / 2;
-                int newY = (screenHeight - windowHeight) / 2;
-
-                // Move the window to the centered position without resizing
-                User32.SetWindowPos(hWnd, nint.Zero, newX, newY, windowWidth, windowHeight, User32.SetWindowPosFlags.SWP_NOZORDER);
-            }
-        }
-    }
-
     public static void RestoreWindow(nint hWnd)
     {
         if (User32.IsWindow(hWnd))
@@ -249,19 +162,49 @@ internal static class Interop
     [SuppressMessage("Style", "IDE0305:Simplify collection initialization")]
     public static int[] GetChildProcessId(int pid)
     {
-        return Process.GetProcesses()
-            .Where(p => GetParentProcessId(p.Id) == pid)
-            .Select(p => p.Id)
-            .ToArray();
+        List<int> children = [];
+        foreach (Process process in Process.GetProcesses())
+        {
+            using (process)
+            {
+                try
+                {
+                    if (GetParentProcessId(process.Id) == pid)
+                    {
+                        children.Add(process.Id);
+                    }
+                }
+                catch (Exception e) when (e is InvalidOperationException or ArgumentException or Win32Exception)
+                {
+                }
+            }
+        }
+
+        return children.ToArray();
     }
 
     [SuppressMessage("Style", "IDE0305:Simplify collection initialization")]
     public static (int, string)[] GetChildProcessIdAndName(int pid)
     {
-        return Process.GetProcesses()
-            .Where(p => GetParentProcessId(p.Id) == pid)
-            .Select(p => (p.Id, p.ProcessName))
-            .ToArray();
+        List<(int, string)> children = [];
+        foreach (Process process in Process.GetProcesses())
+        {
+            using (process)
+            {
+                try
+                {
+                    if (GetParentProcessId(process.Id) == pid)
+                    {
+                        children.Add((process.Id, process.ProcessName));
+                    }
+                }
+                catch (Exception e) when (e is InvalidOperationException or ArgumentException or Win32Exception)
+                {
+                }
+            }
+        }
+
+        return children.ToArray();
     }
 
     public static string GetUserDefaultLocaleName()
