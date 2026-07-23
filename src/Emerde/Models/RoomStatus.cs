@@ -32,6 +32,16 @@ public sealed class RoomStatus
 
     public string RecordUrl { get; set; } = string.Empty;
 
+    internal long? FixedMetadataRefreshTimestamp { get; set; }
+
+    internal bool IsLiveSessionMetadataInitialized { get; set; }
+
+    internal bool IsLiveTitleLoaded { get; set; }
+
+    internal bool IsQualityLoaded { get; set; }
+
+    internal bool IsResolutionLoaded { get; set; }
+
     public StreamStatus StreamStatus { get; set; } = default;
 
     public RecordStatus RecordStatus

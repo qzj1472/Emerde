@@ -5,6 +5,74 @@ namespace Emerde.Tests;
 
 public sealed class GlobalMonitorTests
 {
+    [Theory]
+    [InlineData(null, 1000L, true)]
+    [InlineData(1000L, 1000L, false)]
+    [InlineData(1000L, 3600999L, false)]
+    [InlineData(1000L, 3601000L, true)]
+    [InlineData(3601000L, 1000L, true)]
+    public void RoomCheckInconclusiveLog_UsesHourlyInterval(long? lastTimestamp, long currentTimestamp, bool expected)
+    {
+        Assert.Equal(expected, GlobalMonitor.ShouldLogRoomCheckInconclusive(lastTimestamp, currentTimestamp));
+    }
+
+    [Fact]
+    public void RoomCheckInconclusiveLog_LogsAgainAfterSuccessfulCheck()
+    {
+        string roomUrl = $"https://example.test/{Guid.NewGuid():N}";
+
+        Assert.True(GlobalMonitor.TryAcquireInconclusiveLog(roomUrl, 1000));
+        Assert.False(GlobalMonitor.TryAcquireInconclusiveLog(roomUrl, 2000));
+
+        GlobalMonitor.ResetRoomCheckInconclusiveLog(roomUrl);
+
+        Assert.True(GlobalMonitor.TryAcquireInconclusiveLog(roomUrl, 3000));
+        GlobalMonitor.ResetRoomCheckInconclusiveLog(roomUrl);
+    }
+
+    [Theory]
+    [InlineData(null, false, false)]
+    [InlineData(null, true, true)]
+    [InlineData(false, false, true)]
+    [InlineData(true, false, true)]
+    public void RoomCheckConclusion_RequiresStateOrFreshStream(
+        bool? resolvedLiveState,
+        bool hasFreshStream,
+        bool expected)
+    {
+        Assert.Equal(expected, GlobalMonitor.IsConclusiveRoomCheck(resolvedLiveState, hasFreshStream));
+    }
+
+    [Fact]
+    public void LiveSessionMetadata_ClearsStaleValuesAndFillsMissingFieldsLater()
+    {
+        RoomStatus status = new()
+        {
+            LiveTitle = "stale title",
+            Quality = "stale quality",
+            Resolution = "stale resolution",
+        };
+
+        GlobalMonitor.ApplyLiveSessionMetadata(status, "first title", null, string.Empty);
+
+        Assert.Equal("first title", status.LiveTitle);
+        Assert.Equal(string.Empty, status.Quality);
+        Assert.Equal(string.Empty, status.Resolution);
+
+        GlobalMonitor.ApplyLiveSessionMetadata(status, "changed title", "原画", "1920x1080");
+
+        Assert.Equal("first title", status.LiveTitle);
+        Assert.Equal("原画", status.Quality);
+        Assert.Equal("1920x1080", status.Resolution);
+
+        GlobalMonitor.ResetLiveSessionMetadata(status);
+        GlobalMonitor.ApplyLiveSessionMetadata(status, "next title", "高清", "1280x720");
+
+        Assert.Equal("next title", status.LiveTitle);
+        Assert.Equal("高清", status.Quality);
+        Assert.Equal("1280x720", status.Resolution);
+    }
+
     [Fact]
     public void RoomRecordingOptions_DefaultRoutineIntervalIsFiveSeconds()
     {
@@ -286,5 +354,101 @@ public sealed class GlobalMonitorTests
         StreamStatus expected)
     {
         Assert.Equal(expected, GlobalMonitor.ResolveStreamStatus(currentStatus, isLiveStreaming, hasRecordableStream));
+    }
+
+    [Theory]
+    [InlineData("Douyin", true, false, false, 1, true)]
+    [InlineData("Douyin", true, false, false, 2, false)]
+    [InlineData("Douyin", false, false, false, 1, false)]
+    [InlineData("Douyin", true, true, true, 1, false)]
+    [InlineData("TikTok", true, false, false, 1, false)]
+    public void ShouldDeferDouyinOffline_RequiresASecondOfflineConfirmation(
+        string platformName,
+        bool isRecording,
+        bool? isLiveStreaming,
+        bool hasFreshStream,
+        int offlineChecks,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            GlobalMonitor.ShouldDeferDouyinOffline(platformName, isRecording, isLiveStreaming, hasFreshStream, offlineChecks));
+    }
+
+    [Theory]
+    [InlineData(true, "Douyin", StreamStatus.Streaming, true, true)]
+    [InlineData(false, "Douyin", StreamStatus.Streaming, true, false)]
+    [InlineData(true, "TikTok", StreamStatus.Streaming, true, false)]
+    [InlineData(true, "Douyin", StreamStatus.NotStreaming, true, false)]
+    [InlineData(true, "Douyin", StreamStatus.Streaming, false, false)]
+    public void ShouldStartFromPreservedDouyinStream_RequiresConfirmedLivePreviewStream(
+        bool shouldRecord,
+        string platformName,
+        StreamStatus streamStatus,
+        bool hasRecordableStream,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            GlobalMonitor.ShouldStartFromPreservedDouyinStream(shouldRecord, platformName, streamStatus, hasRecordableStream));
+    }
+
+    [Theory]
+    [InlineData("Douyin", StreamStatus.Initialized, true, true)]
+    [InlineData("Douyin", StreamStatus.NotStreaming, true, true)]
+    [InlineData("Douyin", StreamStatus.Streaming, true, true)]
+    [InlineData("TikTok", StreamStatus.Initialized, true, false)]
+    [InlineData("Douyin", StreamStatus.Initialized, false, false)]
+    public void ShouldProbePreservedDouyinStream_UsesAnyDouyinCache(
+        string platformName,
+        StreamStatus streamStatus,
+        bool hasRecordableStream,
+        bool expected)
+    {
+        Assert.Equal(expected, GlobalMonitor.ShouldProbePreservedDouyinStream(platformName, streamStatus, hasRecordableStream));
+    }
+
+    [Theory]
+    [InlineData("Douyin", StreamStatus.Streaming, 1, true)]
+    [InlineData("Douyin", StreamStatus.Streaming, 2, false)]
+    [InlineData("Douyin", StreamStatus.Initialized, 1, false)]
+    [InlineData("TikTok", StreamStatus.Streaming, 1, false)]
+    public void ShouldPreserveDouyinStreamingAfterProbeFailure_RequiresFirstStreamingFailure(
+        string platformName,
+        StreamStatus streamStatus,
+        int failureCount,
+        bool expected)
+    {
+        Assert.Equal(expected, GlobalMonitor.ShouldPreserveDouyinStreamingAfterProbeFailure(platformName, streamStatus, failureCount));
+    }
+
+    [Theory]
+    [InlineData("Douyin", StreamStatus.Initialized, true)]
+    [InlineData("Douyin", StreamStatus.NotStreaming, false)]
+    [InlineData("TikTok", StreamStatus.Initialized, false)]
+    public void ShouldLeaveInitializationAfterInconclusiveCheck_OnlyChangesInitialDouyinState(
+        string platformName,
+        StreamStatus streamStatus,
+        bool expected)
+    {
+        Assert.Equal(expected, GlobalMonitor.ShouldLeaveInitializationAfterInconclusiveCheck(platformName, streamStatus));
+    }
+
+    [Theory]
+    [InlineData("Douyin", "https://example.test/live.flv?t_id=037-20260722073816ABC", 0, StreamStatus.Streaming)]
+    [InlineData("Douyin", "https://example.test/live.flv?t_id=037-20260722073816ABC", 121, StreamStatus.Initialized)]
+    [InlineData("Douyin", "https://example.test/live.flv", 0, StreamStatus.Initialized)]
+    [InlineData("TikTok", "https://example.test/live.flv?t_id=037-20260722073816ABC", 0, StreamStatus.Initialized)]
+    public void ResolveInitialStreamStatus_OnlyTrustsRecentDouyinStreamUrls(
+        string platformName,
+        string streamUrl,
+        int elapsedMinutes,
+        StreamStatus expected)
+    {
+        DateTime issuedAt = new(2026, 7, 22, 7, 38, 16, DateTimeKind.Local);
+
+        Assert.Equal(
+            expected,
+            GlobalMonitor.ResolveInitialStreamStatus(platformName, streamUrl, string.Empty, string.Empty, issuedAt.AddMinutes(elapsedMinutes)));
     }
 }
