@@ -137,7 +137,7 @@ public sealed class RecorderTests
     {
         Assert.Equal(expected, Recorder.ShouldRetryRecording(exitCode, hasStreamRefresh, isLiveAfterRefresh, offlineRefreshChecks));
         Assert.Equal(1, Recorder.OfflineRefreshConfirmationCount);
-        Assert.Equal(TimeSpan.FromSeconds(10), Recorder.ProgressStallTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(90), Recorder.ProgressStallTimeout);
     }
 
     [Theory]
@@ -224,8 +224,9 @@ public sealed class RecorderTests
         Assert.True(argumentList.IndexOf("-reconnect") < inputIndex);
         Assert.True(argumentList.IndexOf("-reconnect_at_eof") < inputIndex);
         Assert.True(argumentList.IndexOf("-reconnect_on_network_error") < inputIndex);
-        Assert.Equal("15000000", argumentList[argumentList.IndexOf("-rw_timeout") + 1]);
-        Assert.Equal("10", argumentList[argumentList.IndexOf("-reconnect_delay_total_max") + 1]);
+        Assert.Equal("45000000", argumentList[argumentList.IndexOf("-rw_timeout") + 1]);
+        Assert.Equal("90", argumentList[argumentList.IndexOf("-reconnect_delay_total_max") + 1]);
+        Assert.Equal("12", argumentList[argumentList.IndexOf("-reconnect_max_retries") + 1]);
         Assert.Equal("pipe:1", argumentList[argumentList.IndexOf("-progress") + 1]);
         Assert.Equal("1", argumentList[argumentList.IndexOf("-stats_period") + 1]);
     }

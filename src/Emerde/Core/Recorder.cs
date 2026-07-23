@@ -14,7 +14,7 @@ public sealed class Recorder
     internal const int OfflineRefreshConfirmationCount = 1;
     private const int ProcessOutputTailLimit = 8192;
     private static readonly TimeSpan ProgressStartupTimeout = TimeSpan.FromSeconds(30);
-    internal static readonly TimeSpan ProgressStallTimeout = TimeSpan.FromSeconds(10);
+    internal static readonly TimeSpan ProgressStallTimeout = TimeSpan.FromSeconds(90);
     private const string OptimizedAudioFilter = "[0:a:0]volume=30dB,acompressor=threshold=-10dB:ratio=3,alimiter=limit=0.316227766:level=false[aopt]";
 
     internal static readonly TimeSpan ProcessStopGracePeriod = TimeSpan.FromSeconds(3);
@@ -463,7 +463,7 @@ public sealed class Recorder
         [
             "-n",
             "-v", "verbose",
-            "-rw_timeout", "15000000",
+            "-rw_timeout", "45000000",
             "-loglevel", "error",
             "-hide_banner",
             "-progress", "pipe:1",
@@ -481,8 +481,8 @@ public sealed class Recorder
             .AddIf(!string.IsNullOrWhiteSpace(headers), "-headers", headers)
             .AddIf(true,
                 "-reconnect_delay_max", "8",
-                "-reconnect_delay_total_max", "10",
-                "-reconnect_max_retries", "4",
+                "-reconnect_delay_total_max", "90",
+                "-reconnect_max_retries", "12",
                 "-reconnect", "1",
                 "-reconnect_streamed", "1",
                 "-reconnect_at_eof", "1",
