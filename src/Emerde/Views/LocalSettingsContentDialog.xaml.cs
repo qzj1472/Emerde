@@ -547,13 +547,16 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
     [RelayCommand]
     private async Task OpenSaveFolderAsync()
     {
-        string folder = SaveFolderHelper.GetSaveFolder(SaveFolder);
-        if (!Directory.Exists(folder))
+        try
         {
-            Directory.CreateDirectory(folder);
+            string folder = SaveFolderHelper.GetSaveFolder(SaveFolder);
+            await Launcher.LaunchFolderAsync(await StorageFolder.GetFolderFromPathAsync(folder));
         }
-
-        await Launcher.LaunchFolderAsync(await StorageFolder.GetFolderFromPathAsync(folder));
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(e);
+            Wpf.Ui.Violeta.Controls.Toast.Warning($"无法打开保存目录：{e.Message}");
+        }
     }
 
     private string BuildRoutineScheduleDays()

@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using ComputedConverters;
 using Fischless.Configuration;
 using System.Diagnostics;
@@ -11,6 +12,7 @@ using System.Net.Http;
 using System.Windows.Threading;
 using Emerde.Core;
 using Emerde.Extensions;
+using Emerde.Models;
 using Emerde.Views;
 using Vanara.PInvoke;
 using Windows.Storage;
@@ -414,6 +416,7 @@ public partial class SettingsViewModel : ReactiveObject
     {
         Configurations.IsToNotify.Set(value);
         ConfigurationSaveScheduler.Request();
+        NotifyRuntimeConfigurationChanged();
     }
 
     [ObservableProperty]
@@ -504,6 +507,8 @@ public partial class SettingsViewModel : ReactiveObject
     {
         Configurations.IsToMonitor.Set(value);
         ConfigurationSaveScheduler.Request();
+        GlobalMonitor.ClearTemporaryMonitorOverrides();
+        NotifyRuntimeConfigurationChanged(recheckRooms: true);
     }
 
     [ObservableProperty]
@@ -513,6 +518,8 @@ public partial class SettingsViewModel : ReactiveObject
     {
         Configurations.IsToRecord.Set(value);
         ConfigurationSaveScheduler.Request();
+        GlobalMonitor.ClearTemporaryRecordOverrides();
+        NotifyRuntimeConfigurationChanged(recheckRooms: true);
     }
 
     [ObservableProperty]
@@ -529,6 +536,7 @@ public partial class SettingsViewModel : ReactiveObject
 
         Configurations.PreferredStreamQuality.Set(normalized);
         ConfigurationSaveScheduler.Request();
+        NotifyRuntimeConfigurationChanged(recheckRooms: true);
     }
 
     [ObservableProperty]
@@ -583,6 +591,7 @@ public partial class SettingsViewModel : ReactiveObject
         Configurations.RoutineIntervalUnit.Set(nextUnitIndex);
         ConfigurationSaveScheduler.Request();
         GlobalMonitor.RefreshRoutineInterval();
+        NotifyRuntimeConfigurationChanged();
     }
 
     [ObservableProperty]
@@ -620,6 +629,8 @@ public partial class SettingsViewModel : ReactiveObject
 
         Configurations.RoutineScheduleMode.Set(next);
         ConfigurationSaveScheduler.Request();
+        GlobalMonitor.RefreshRoutineInterval();
+        NotifyRuntimeConfigurationChanged(recheckRooms: true);
     }
 
     [ObservableProperty]
@@ -685,6 +696,7 @@ public partial class SettingsViewModel : ReactiveObject
             0 or _ => "TS/FLV",
         });
         ConfigurationSaveScheduler.Request();
+        NotifyRuntimeConfigurationChanged();
     }
 
     [ObservableProperty]
@@ -694,6 +706,7 @@ public partial class SettingsViewModel : ReactiveObject
     {
         Configurations.IsRemoveTs.Set(value);
         ConfigurationSaveScheduler.Request();
+        NotifyRuntimeConfigurationChanged();
     }
 
     [ObservableProperty]
@@ -779,15 +792,6 @@ public partial class SettingsViewModel : ReactiveObject
         Configurations.SaveFolder.Set(value);
         ConfigurationSaveScheduler.Request();
         RecordingCleanupService.QueueRun();
-    }
-
-    [ObservableProperty]
-    private bool saveFolderDistinguishedByAuthors = Configurations.SaveFolderDistinguishedByAuthors.Get();
-
-    partial void OnSaveFolderDistinguishedByAuthorsChanged(bool value)
-    {
-        Configurations.SaveFolderDistinguishedByAuthors.Set(value);
-        ConfigurationSaveScheduler.Request();
     }
 
     [ObservableProperty]
@@ -920,12 +924,19 @@ public partial class SettingsViewModel : ReactiveObject
     [SuppressMessage("Performance", "CA1822:Mark members as static")]
     private async Task OpenSaveFolderAsync()
     {
-        // TODO: Implement for other platforms
-        await Launcher.LaunchFolderAsync(
-            await StorageFolder.GetFolderFromPathAsync(
-                SaveFolderHelper.GetSaveFolder(Configurations.SaveFolder.Get())
-            )
-        );
+        try
+        {
+            await Launcher.LaunchFolderAsync(
+                await StorageFolder.GetFolderFromPathAsync(
+                    SaveFolderHelper.GetSaveFolder(Configurations.SaveFolder.Get())
+                )
+            );
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(e);
+            Toast.Warning($"无法打开保存目录：{e.Message}");
+        }
     }
 
     [ObservableProperty]
@@ -945,6 +956,7 @@ public partial class SettingsViewModel : ReactiveObject
         }
         Configurations.IsUseKeepAwake.Set(value);
         ConfigurationSaveScheduler.Request();
+        NotifyRuntimeConfigurationChanged();
     }
 
     [ObservableProperty]
@@ -954,6 +966,7 @@ public partial class SettingsViewModel : ReactiveObject
     {
         Configurations.IsUseAutoShutdown.Set(value);
         ConfigurationSaveScheduler.Request();
+        NotifyRuntimeConfigurationChanged();
     }
 
     [ObservableProperty]
@@ -970,6 +983,7 @@ public partial class SettingsViewModel : ReactiveObject
 
         Configurations.AutoShutdownTime.Set($"{normalized:D2}:{AutoShutdownTimeMinute:D2}");
         ConfigurationSaveScheduler.Request();
+        NotifyRuntimeConfigurationChanged();
     }
 
     [ObservableProperty]
@@ -986,6 +1000,7 @@ public partial class SettingsViewModel : ReactiveObject
 
         Configurations.AutoShutdownTime.Set($"{AutoShutdownTimeHour:D2}:{normalized:D2}");
         ConfigurationSaveScheduler.Request();
+        NotifyRuntimeConfigurationChanged();
     }
 
     [ObservableProperty]
@@ -995,6 +1010,7 @@ public partial class SettingsViewModel : ReactiveObject
     {
         Configurations.IsAutoShutdownAfterTranscode.Set(value);
         ConfigurationSaveScheduler.Request();
+        NotifyRuntimeConfigurationChanged();
     }
 
     [ObservableProperty]
@@ -1004,6 +1020,7 @@ public partial class SettingsViewModel : ReactiveObject
     {
         Configurations.IsAutoShutdownComputer.Set(value);
         ConfigurationSaveScheduler.Request();
+        NotifyRuntimeConfigurationChanged();
     }
 
     [ObservableProperty]
@@ -1013,6 +1030,7 @@ public partial class SettingsViewModel : ReactiveObject
     {
         Configurations.IsUseProxy.Set(value);
         ConfigurationSaveScheduler.Request();
+        NotifyRuntimeConfigurationChanged();
     }
 
     [ObservableProperty]
@@ -1022,6 +1040,7 @@ public partial class SettingsViewModel : ReactiveObject
     {
         Configurations.ProxyUrl.Set(value);
         ConfigurationSaveScheduler.Request();
+        NotifyRuntimeConfigurationChanged();
     }
 
     [RelayCommand]
@@ -1192,21 +1211,21 @@ public partial class SettingsViewModel : ReactiveObject
         ContentDialogResult result = await WindowSizing.ShowContentDialogAsync(dialog, OwnerWindow);
         if (result == ContentDialogResult.Primary)
         {
-            ExportLogsToFolder(latest: false);
+            ExportLogsToArchive(latest: false);
         }
         else if (result == ContentDialogResult.Secondary)
         {
-            ExportLogsToFolder(latest: true);
+            ExportLogsToArchive(latest: true);
         }
     }
 
-    private static void ExportLogsToFolder(bool latest)
+    private static void ExportLogsToArchive(bool latest)
     {
         using CommonOpenFileDialog dialog = new()
         {
             IsFolderPicker = true,
             EnsurePathExists = true,
-            Title = "选择日志导出目录",
+            Title = "选择日志压缩包保存位置",
         };
 
         if (dialog.ShowDialog() != CommonFileDialogResult.Ok)
@@ -1260,8 +1279,16 @@ public partial class SettingsViewModel : ReactiveObject
         try
         {
             string backupPath = ConfigFileManager.Import(dialog.FileName);
+            string[] unavailableSecrets = SecretProtector.GetUnavailableStoredSecretNames();
             AppSessionLogger.Write($"config imported from {dialog.FileName}; backup={backupPath}");
-            Toast.Success("配置已导入");
+            if (unavailableSecrets.Length == 0)
+            {
+                Toast.Success("配置已导入");
+            }
+            else
+            {
+                Toast.Warning($"配置已导入，但以下凭据属于其他 Windows 账户，需要重新填写：{string.Join("、", unavailableSecrets)}");
+            }
             await RestartIfConfirmedAsync($"配置已导入，重启后生效。当前配置备份：{Environment.NewLine}{backupPath}{Environment.NewLine}{Environment.NewLine}是否立即重启软件？");
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
@@ -1344,6 +1371,11 @@ public partial class SettingsViewModel : ReactiveObject
         }
     }
 
+    private static void NotifyRuntimeConfigurationChanged(bool recheckRooms = false)
+    {
+        _ = WeakReferenceMessenger.Default.Send(new RuntimeConfigurationChangedMessage(recheckRooms));
+    }
+
     private void SaveRoutineScheduleDays()
     {
         List<string> days = [];
@@ -1358,6 +1390,8 @@ public partial class SettingsViewModel : ReactiveObject
 
         Configurations.RoutineScheduleDays.Set(string.Join(",", days));
         ConfigurationSaveScheduler.Request();
+        GlobalMonitor.RefreshRoutineInterval();
+        NotifyRuntimeConfigurationChanged(recheckRooms: true);
     }
 
     private void SaveRoutineScheduleTime(int hour, int minute, bool isStart)
@@ -1401,6 +1435,8 @@ public partial class SettingsViewModel : ReactiveObject
         }
 
         ConfigurationSaveScheduler.Request();
+        GlobalMonitor.RefreshRoutineInterval();
+        NotifyRuntimeConfigurationChanged(recheckRooms: true);
     }
 
     private static int ConvertTimeUnitToMilliseconds(double value, int unitIndex)
