@@ -36,6 +36,28 @@ public sealed class NetworkCapacityTests
             (string?)trigger.Attribute("Value") == "False");
     }
 
+    [Fact]
+    public void NetworkCapacity_MeasuresDomesticAndOverseasRegionsConcurrently()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "ViewModels", "MainViewModel.cs"));
+
+        Assert.Contains("domesticTask = MeasureNetworkRegionThroughputMbpsAsync(NetworkThroughputRegion.Domestic)", source);
+        Assert.Contains("overseasTask = MeasureNetworkRegionThroughputMbpsAsync(NetworkThroughputRegion.Overseas)", source);
+        Assert.Contains("Task.WhenAll(domesticTask, overseasTask)", source);
+    }
+
+    [Fact]
+    public void NetworkCapacity_BoundsFullEndpointMeasurements()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "ViewModels", "MainViewModel.cs"));
+
+        Assert.Contains("NetworkThroughputMeasuredEndpointCount = 2", source);
+        Assert.Contains("NetworkThroughputSingleOverseasProbeMbps = 20d", source);
+        Assert.Contains("NetworkThroughputWarmupBytesPerConnection = 256L * 1024L", source);
+        Assert.Contains("bestProbeMbps < NetworkThroughputSingleOverseasProbeMbps", source);
+        Assert.Contains(".Take(measuredEndpointCount)", source);
+    }
+
     [Theory]
     [InlineData(0d, 5d, null)]
     [InlineData(100d, 0d, null)]
@@ -52,6 +74,14 @@ public sealed class NetworkCapacityTests
     public void CalculateNetworkCapacity_DoesNotEstimateMissingMeasurement()
     {
         Assert.Null(MainViewModel.CalculateNetworkCapacity(null, 5d));
+    }
+
+    [Fact]
+    public void FormatNetworkCapacityResultShort_SeparatesDomesticAndOverseasResults()
+    {
+        Assert.Equal("国内可录 19 路，国外可录 1 路", MainViewModel.FormatNetworkCapacityResultShort(19, 1));
+        Assert.Equal("国内可录 19 路", MainViewModel.FormatNetworkCapacityResultShort(19, null));
+        Assert.Equal("国外可录 1 路", MainViewModel.FormatNetworkCapacityResultShort(null, 1));
     }
 
     [Theory]

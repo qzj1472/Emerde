@@ -45,7 +45,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private const long PreviewQualityRefreshCooldownMilliseconds = 30000;
     private const int NetworkThroughputRoundCount = 3;
     private const int NetworkThroughputConnectionsPerEndpoint = 2;
-    private const long NetworkThroughputWarmupBytesPerConnection = 1L * 1024L * 1024L;
+    private const int NetworkThroughputMeasuredEndpointCount = 2;
+    private const double NetworkThroughputSingleOverseasProbeMbps = 20d;
+    private const long NetworkThroughputWarmupBytesPerConnection = 256L * 1024L;
     private const long NetworkThroughputBytesPerConnectionRound = 16L * 1024L * 1024L;
     private const long NetworkThroughputProbeBytes = 8L * 1024L * 1024L;
     private static readonly NetworkThroughputEndpoint[] NetworkThroughputTestEndpoints =
@@ -1808,15 +1810,13 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         try
         {
-            double perRoomMbps = estimateRooms.Select(EstimateRequiredMbps).DefaultIfEmpty(10d).Average();
-            NetworkCapacityMeasurement measurement = await MeasureBestNetworkThroughputMbpsAsync(estimateRooms);
-            int capacity = CalculateNetworkCapacity(measurement.CapacityMbps, perRoomMbps)
-                ?? throw new InvalidOperationException("Network capacity measurement did not return a valid result.");
+            NetworkCapacityMeasurement measurement = await MeasureBestNetworkThroughputMbpsAsync();
+            NetworkCapacityPresentation presentation = CreateNetworkCapacityPresentation(measurement, estimateRooms);
 
             networkCapacityState = NetworkCapacityState.Result;
-            networkCapacityPresentation = new NetworkCapacityPresentation(measurement, perRoomMbps, capacity, estimateRooms.Length);
+            networkCapacityPresentation = presentation;
             RefreshNetworkCapacityLocalization();
-            AppSessionLogger.Write($"network capacity test completed, measuredMbps={measurement.CapacityMbps:0.##}, domesticMbps={measurement.Domestic?.Mbps:0.##}, overseasMbps={measurement.Overseas?.Mbps:0.##}, samples={measurement.SuccessfulSamples}/{measurement.AttemptedSamples}, confidence={measurement.Confidence}, perRoomMbps={perRoomMbps:0.##}, capacity={capacity}");
+            AppSessionLogger.Write($"network capacity test completed, domesticMbps={measurement.Domestic?.Mbps:0.##}, overseasMbps={measurement.Overseas?.Mbps:0.##}, samples={measurement.SuccessfulSamples}/{measurement.AttemptedSamples}, confidence={measurement.Confidence}, domesticPerRoomMbps={presentation.DomesticPerRoomMbps:0.##}, overseasPerRoomMbps={presentation.OverseasPerRoomMbps:0.##}, domesticCapacity={presentation.DomesticCapacity}, overseasCapacity={presentation.OverseasCapacity}");
             Toast.Success(NetworkCapacityToolTip);
         }
         catch (Exception e)
@@ -1866,6 +1866,37 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             : valid[middle];
     }
 
+    private static NetworkCapacityPresentation CreateNetworkCapacityPresentation(
+        NetworkCapacityMeasurement measurement,
+        IReadOnlyCollection<RoomStatusReactive> estimateRooms)
+    {
+        double fallbackPerRoomMbps = estimateRooms.Select(EstimateRequiredMbps).DefaultIfEmpty(10d).Average();
+        double domesticPerRoomMbps = estimateRooms
+            .Where(room => !IsOverseasPlatform(room.PlatformName))
+            .Select(EstimateRequiredMbps)
+            .DefaultIfEmpty(fallbackPerRoomMbps)
+            .Average();
+        double overseasPerRoomMbps = estimateRooms
+            .Where(room => IsOverseasPlatform(room.PlatformName))
+            .Select(EstimateRequiredMbps)
+            .DefaultIfEmpty(fallbackPerRoomMbps)
+            .Average();
+        int? domesticCapacity = CalculateNetworkCapacity(measurement.Domestic?.Mbps, domesticPerRoomMbps);
+        int? overseasCapacity = CalculateNetworkCapacity(measurement.Overseas?.Mbps, overseasPerRoomMbps);
+        if (!domesticCapacity.HasValue && !overseasCapacity.HasValue)
+        {
+            throw new InvalidOperationException("Network capacity measurement did not return a valid result.");
+        }
+
+        return new NetworkCapacityPresentation(
+            measurement,
+            domesticPerRoomMbps,
+            overseasPerRoomMbps,
+            domesticCapacity,
+            overseasCapacity,
+            estimateRooms.Count);
+    }
+
     private RoomStatusReactive[] GetNetworkCapacityEstimateRooms()
     {
         RoomStatusReactive[] activeRooms = RoomStatuses
@@ -1882,10 +1913,19 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         return activeRooms;
     }
 
-    private static string FormatNetworkCapacityResultShort(int capacity)
+    internal static string FormatNetworkCapacityResultShort(int? domesticCapacity, int? overseasCapacity)
     {
-        string text = "NetworkCapacityResultShort".Tr(capacity);
-        return string.IsNullOrWhiteSpace(text) || text == "NetworkCapacityResultShort" ? $"可录 {capacity} 路" : text;
+        List<string> parts = [];
+        if (domesticCapacity.HasValue)
+        {
+            parts.Add($"国内可录 {domesticCapacity.Value} 路");
+        }
+        if (overseasCapacity.HasValue)
+        {
+            parts.Add($"国外可录 {overseasCapacity.Value} 路");
+        }
+
+        return parts.Count == 0 ? "测速失败" : string.Join("，", parts);
     }
 
     private void RefreshNetworkCapacityLocalization()
@@ -1906,16 +1946,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 break;
             case NetworkCapacityState.Result when networkCapacityPresentation != null:
                 NetworkCapacityPresentation result = networkCapacityPresentation;
-                NetworkCapacityText = FormatNetworkCapacityResultShort(result.Capacity);
-                NetworkCapacityToolTip = "NetworkCapacityResultHint".Tr(
-                    result.Measurement.CapacityMbps,
-                    result.PerRoomMbps,
-                    result.Capacity,
-                    result.RoomCount,
-                    FormatNetworkRegionMeasurement(result.Measurement.Domestic),
-                    FormatNetworkRegionMeasurement(result.Measurement.Overseas),
-                    result.Measurement.SuccessfulSamples,
-                    GetNetworkMeasurementConfidenceText(result.Measurement.Confidence));
+                NetworkCapacityText = FormatNetworkCapacityResultShort(result.DomesticCapacity, result.OverseasCapacity);
+                NetworkCapacityToolTip = FormatNetworkCapacityResultToolTip(result);
                 break;
             default:
                 NetworkCapacityText = "NetworkCapacityIdle".Tr();
@@ -1924,11 +1956,33 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
     }
 
-    private static string FormatNetworkRegionMeasurement(NetworkRegionMeasurement? measurement)
+    private static string FormatNetworkCapacityResultToolTip(NetworkCapacityPresentation result)
     {
-        return measurement == null
-            ? "NetworkCapacityNotTested".Tr()
-            : "NetworkCapacityRegionMeasured".Tr(measurement.Mbps, measurement.SuccessfulSamples);
+        string domestic = FormatNetworkRegionCapacity(
+            "国内",
+            result.Measurement.Domestic,
+            result.DomesticCapacity,
+            result.DomesticPerRoomMbps);
+        string overseas = FormatNetworkRegionCapacity(
+            "国外",
+            result.Measurement.Overseas,
+            result.OverseasCapacity,
+            result.OverseasPerRoomMbps);
+        return $"多节点三轮实测：{domestic}，{overseas}。单路按当前直播码率估算，基于 {result.RoomCount} 个开播样本；共 {result.Measurement.SuccessfulSamples} 个有效样本，可信度 {GetNetworkMeasurementConfidenceText(result.Measurement.Confidence)}。";
+    }
+
+    private static string FormatNetworkRegionCapacity(
+        string regionName,
+        NetworkRegionMeasurement? measurement,
+        int? capacity,
+        double perRoomMbps)
+    {
+        if (measurement == null || !capacity.HasValue)
+        {
+            return $"{regionName}未测通";
+        }
+
+        return $"{regionName} {measurement.Mbps:0.##} Mbps，可录 {capacity.Value} 路，单路 {perRoomMbps:0.##} Mbps";
     }
 
     private static string GetNetworkMeasurementConfidenceText(NetworkMeasurementConfidence confidence)
@@ -1990,41 +2044,24 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
     }
 
-    private async Task<NetworkCapacityMeasurement> MeasureBestNetworkThroughputMbpsAsync(
-        IReadOnlyCollection<RoomStatusReactive> estimateRooms)
+    private async Task<NetworkCapacityMeasurement> MeasureBestNetworkThroughputMbpsAsync()
     {
-        bool needsDomestic = estimateRooms.Any(room => !IsOverseasPlatform(room.PlatformName));
-        bool needsOverseas = estimateRooms.Any(room => IsOverseasPlatform(room.PlatformName));
-        NetworkRegionMeasurement? domestic = needsDomestic
-            ? await MeasureNetworkRegionThroughputMbpsAsync(NetworkThroughputRegion.Domestic)
-            : null;
-        NetworkRegionMeasurement? overseas = needsOverseas
-            ? await MeasureNetworkRegionThroughputMbpsAsync(NetworkThroughputRegion.Overseas)
-            : null;
+        Task<NetworkRegionMeasurement?> domesticTask = MeasureNetworkRegionThroughputMbpsAsync(NetworkThroughputRegion.Domestic);
+        Task<NetworkRegionMeasurement?> overseasTask = MeasureNetworkRegionThroughputMbpsAsync(NetworkThroughputRegion.Overseas);
+        await Task.WhenAll(domesticTask, overseasTask);
 
-        double capacityMbps;
-        if (needsDomestic && needsOverseas)
-        {
-            capacityMbps = Math.Min(
-                domestic?.Mbps ?? throw new InvalidOperationException("Domestic network capacity test failed."),
-                overseas?.Mbps ?? throw new InvalidOperationException("Overseas network capacity test failed."));
-        }
-        else if (needsOverseas)
-        {
-            capacityMbps = overseas?.Mbps
-                ?? throw new InvalidOperationException("Overseas network capacity test failed.");
-        }
-        else
-        {
-            capacityMbps = domestic?.Mbps
-                ?? throw new InvalidOperationException("Domestic network capacity test failed.");
-        }
+        NetworkRegionMeasurement? domestic = await domesticTask;
+        NetworkRegionMeasurement? overseas = await overseasTask;
 
         int successfulSamples = (domestic?.SuccessfulSamples ?? 0) + (overseas?.SuccessfulSamples ?? 0);
         int attemptedSamples = (domestic?.AttemptedSamples ?? 0) + (overseas?.AttemptedSamples ?? 0);
         int successfulEndpoints = (domestic?.SuccessfulEndpoints ?? 0) + (overseas?.SuccessfulEndpoints ?? 0);
+        if (successfulSamples <= 0)
+        {
+            throw new InvalidOperationException("Network capacity test failed.");
+        }
+
         return new NetworkCapacityMeasurement(
-            capacityMbps,
             domestic,
             overseas,
             successfulSamples,
@@ -2050,11 +2087,18 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             .ToArray();
         (NetworkThroughputEndpoint Endpoint, double? Mbps)[] probes = await Task.WhenAll(probeTasks);
 
-        NetworkThroughputEndpoint[] candidates = probes
+        (NetworkThroughputEndpoint Endpoint, double Mbps)[] successfulProbes = probes
             .Where(probe => probe.Mbps.HasValue)
+            .Select(probe => (probe.Endpoint, probe.Mbps!.Value))
+            .ToArray();
+        double bestProbeMbps = successfulProbes.Select(probe => probe.Mbps).DefaultIfEmpty(0d).Max();
+        int measuredEndpointCount = region == NetworkThroughputRegion.Overseas && bestProbeMbps < NetworkThroughputSingleOverseasProbeMbps
+            ? 1
+            : NetworkThroughputMeasuredEndpointCount;
+        NetworkThroughputEndpoint[] candidates = successfulProbes
             .OrderByDescending(probe => probe.Mbps)
             .Select(probe => probe.Endpoint)
-            .Take(3)
+            .Take(measuredEndpointCount)
             .ToArray();
         List<NetworkEndpointMeasurement> results = [];
         foreach (NetworkThroughputEndpoint endpoint in candidates)
@@ -3599,7 +3643,6 @@ internal sealed record NetworkThroughputEndpoint(
     bool UseRange);
 
 internal sealed record NetworkCapacityMeasurement(
-    double CapacityMbps,
     NetworkRegionMeasurement? Domestic,
     NetworkRegionMeasurement? Overseas,
     int SuccessfulSamples,
@@ -3620,8 +3663,10 @@ internal sealed record NetworkEndpointMeasurement(
 
 internal sealed record NetworkCapacityPresentation(
     NetworkCapacityMeasurement Measurement,
-    double PerRoomMbps,
-    int Capacity,
+    double DomesticPerRoomMbps,
+    double OverseasPerRoomMbps,
+    int? DomesticCapacity,
+    int? OverseasCapacity,
     int RoomCount);
 
 internal enum NetworkCapacityState
