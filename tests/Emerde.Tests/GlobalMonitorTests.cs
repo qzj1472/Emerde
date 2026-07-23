@@ -44,6 +44,92 @@ public sealed class GlobalMonitorTests
     }
 
     [Fact]
+    public void StreamConnectionMetadata_PreservesWorkingStreamWhenLiveResultIsPartial()
+    {
+        RoomStatus status = new()
+        {
+            FlvUrl = "https://example.test/old.flv",
+            HlsUrl = "https://example.test/old.m3u8",
+            RecordUrl = "https://example.test/old-record.flv",
+            Headers = "Referer: https://example.test/",
+        };
+
+        GlobalMonitor.ApplyStreamConnectionMetadata(status, null, null, null, null, true, false);
+
+        Assert.Equal("https://example.test/old.flv", status.FlvUrl);
+        Assert.Equal("https://example.test/old.m3u8", status.HlsUrl);
+        Assert.Equal("https://example.test/old-record.flv", status.RecordUrl);
+        Assert.Equal("Referer: https://example.test/", status.Headers);
+    }
+
+    [Fact]
+    public void StreamConnectionMetadata_ClearsWorkingStreamWhenOfflineIsConfirmed()
+    {
+        RoomStatus status = new()
+        {
+            FlvUrl = "https://example.test/old.flv",
+            HlsUrl = "https://example.test/old.m3u8",
+            RecordUrl = "https://example.test/old-record.flv",
+            Headers = "Referer: https://example.test/",
+        };
+
+        GlobalMonitor.ApplyStreamConnectionMetadata(status, null, null, null, null, false, false);
+
+        Assert.Equal(string.Empty, status.FlvUrl);
+        Assert.Equal(string.Empty, status.HlsUrl);
+        Assert.Equal(string.Empty, status.RecordUrl);
+        Assert.Equal(string.Empty, status.Headers);
+    }
+
+    [Fact]
+    public void StreamConnectionMetadata_IgnoresStaleStreamAttachedToOfflineResult()
+    {
+        RoomStatus status = new()
+        {
+            FlvUrl = "https://example.test/old.flv",
+            Headers = "old",
+        };
+
+        GlobalMonitor.ApplyStreamConnectionMetadata(
+            status,
+            "https://example.test/stale.flv",
+            "https://example.test/stale.m3u8",
+            "https://example.test/stale-record.flv",
+            "stale",
+            false,
+            true);
+
+        Assert.Equal(string.Empty, status.FlvUrl);
+        Assert.Equal(string.Empty, status.HlsUrl);
+        Assert.Equal(string.Empty, status.RecordUrl);
+        Assert.Equal(string.Empty, status.Headers);
+    }
+
+    [Fact]
+    public void StreamConnectionMetadata_ReplacesWorkingStreamWhenFreshStreamIsAvailable()
+    {
+        RoomStatus status = new()
+        {
+            FlvUrl = "https://example.test/old.flv",
+            Headers = "old",
+        };
+
+        GlobalMonitor.ApplyStreamConnectionMetadata(
+            status,
+            "https://example.test/new.flv",
+            null,
+            "https://example.test/new-record.flv",
+            "new",
+            true,
+            true);
+
+        Assert.Equal("https://example.test/new.flv", status.FlvUrl);
+        Assert.Equal(string.Empty, status.HlsUrl);
+        Assert.Equal("https://example.test/new-record.flv", status.RecordUrl);
+        Assert.Equal("new", status.Headers);
+    }
+
+    [Fact]
     public void LiveSessionMetadata_ClearsStaleValuesAndFillsMissingFieldsLater()
     {
         RoomStatus status = new()
@@ -79,32 +165,48 @@ public sealed class GlobalMonitorTests
         Assert.Equal(5000, new RoomRecordingOptions().RoutineInterval);
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(5)]
-    [InlineData(6)]
-    [InlineData(17)]
-    [InlineData(100)]
-    public void CreateMonitorBatchSizes_CoversEveryRoomWithOneToFivePerBatch(int roomCount)
+    [Fact]
+    public void GetRoutinePeriod_UsesOneSecondSchedulerResolution()
     {
-        IReadOnlyList<int> batchSizes = GlobalMonitor.CreateMonitorBatchSizes(roomCount, new Random(20260713));
-
-        Assert.Equal(roomCount, batchSizes.Sum());
-        Assert.All(batchSizes, batchSize => Assert.InRange(batchSize, 1, MonitorTiming.MonitorBatchLimit));
+        Assert.Equal(TimeSpan.FromSeconds(1), GlobalMonitor.GetRoutinePeriod());
     }
 
-    [Fact]
-    public void CreateStreamingCycleOffsets_UsesTwoRandomChecksAndOneMinuteBoundary()
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(4, 4)]
+    [InlineData(5, 5)]
+    [InlineData(6, 5)]
+    [InlineData(100, 5)]
+    public void GetMonitorConcurrency_LimitsOnlyConcurrentChecks(int roomCount, int expected)
     {
-        IReadOnlyList<TimeSpan> offsets = GlobalMonitor.CreateStreamingCycleOffsets(new Random(20260713));
+        Assert.Equal(expected, GlobalMonitor.GetMonitorConcurrency(roomCount));
+    }
 
-        Assert.Equal(3, offsets.Count);
-        Assert.InRange(offsets[0], TimeSpan.FromSeconds(12), TimeSpan.FromSeconds(23));
-        Assert.InRange(offsets[1], TimeSpan.FromSeconds(34), TimeSpan.FromSeconds(50));
-        Assert.Equal(TimeSpan.FromMinutes(1), offsets[2]);
-        Assert.True(offsets[0] < offsets[1]);
-        Assert.True(offsets[1] < offsets[2]);
+    [Theory]
+    [InlineData(22, false, 22)]
+    [InlineData(3, false, 3)]
+    [InlineData(22, true, 22)]
+    public void GetRoutineBatchSize_QueuesEveryDueRoomAndLimitsOnlyExecutionConcurrency(int roomCount, bool force, int expected)
+    {
+        Assert.Equal(expected, GlobalMonitor.GetRoutineBatchSize(roomCount, force));
+    }
+
+    [Theory]
+    [InlineData(StreamStatus.Streaming, RecordStatus.Recording, 0)]
+    [InlineData(StreamStatus.NotStreaming, RecordStatus.Recording, 0)]
+    [InlineData(StreamStatus.Streaming, RecordStatus.NotRecording, 1)]
+    [InlineData(StreamStatus.NotStreaming, RecordStatus.NotRecording, 2)]
+    public void GetRoomCheckPriority_PrioritizesRecordingAndLiveRooms(StreamStatus streamStatus, RecordStatus recordStatus, int expected)
+    {
+        Assert.Equal(expected, GlobalMonitor.GetRoomCheckPriority(streamStatus, recordStatus));
+    }
+
+    [Theory]
+    [InlineData(false, 10)]
+    [InlineData(true, 1)]
+    public void GetStreamingFollowUpInterval_AcceleratesOfflineConfirmation(bool offlineConfirmationPending, int expectedSeconds)
+    {
+        Assert.Equal(TimeSpan.FromSeconds(expectedSeconds), GlobalMonitor.GetStreamingFollowUpInterval(offlineConfirmationPending));
     }
 
     [Fact]
@@ -113,10 +215,10 @@ public sealed class GlobalMonitorTests
         DateTime now = new(2026, 7, 13, 12, 0, 0, DateTimeKind.Local);
 
         Assert.Equal(
-            TimeSpan.FromMinutes(1),
+            TimeSpan.FromSeconds(10),
             GlobalMonitor.GetFallbackInterval(StreamStatus.Streaming, 9000, null, now));
         Assert.Equal(
-            TimeSpan.FromSeconds(20),
+            TimeSpan.FromSeconds(10),
             GlobalMonitor.GetFallbackInterval(StreamStatus.NotStreaming, 9000, now.AddMinutes(-29), now));
         Assert.Equal(
             TimeSpan.FromSeconds(9),
@@ -280,14 +382,15 @@ public sealed class GlobalMonitorTests
     }
 
     [Fact]
-    public void ClearTemporaryRoomOverrides_PreservesRoomCheckLock()
+    public async Task RoomCheckLock_IsReleasedAfterRoomUpdate()
     {
         const string roomUrl = "https://example.test/locked-room";
-        SemaphoreSlim firstLock = GlobalMonitor.GetRoomCheckLock(roomUrl);
+        int before = GlobalMonitor.RoomCheckLockCount;
 
-        GlobalMonitor.ClearTemporaryRoomOverrides(roomUrl);
+        int result = await GlobalMonitor.RunRoomUpdateAsync(roomUrl, () => Task.FromResult(1));
 
-        Assert.Same(firstLock, GlobalMonitor.GetRoomCheckLock(roomUrl));
+        Assert.Equal(1, result);
+        Assert.Equal(before, GlobalMonitor.RoomCheckLockCount);
     }
 
     [Fact]
@@ -376,30 +479,32 @@ public sealed class GlobalMonitorTests
     }
 
     [Theory]
-    [InlineData(true, "Douyin", StreamStatus.Streaming, true, true)]
-    [InlineData(false, "Douyin", StreamStatus.Streaming, true, false)]
-    [InlineData(true, "TikTok", StreamStatus.Streaming, true, false)]
-    [InlineData(true, "Douyin", StreamStatus.NotStreaming, true, false)]
-    [InlineData(true, "Douyin", StreamStatus.Streaming, false, false)]
+    [InlineData(true, "Douyin", StreamStatus.Streaming, true, true, true)]
+    [InlineData(true, "Douyin", StreamStatus.Streaming, true, false, false)]
+    [InlineData(false, "Douyin", StreamStatus.Streaming, true, true, false)]
+    [InlineData(true, "TikTok", StreamStatus.Streaming, true, true, false)]
+    [InlineData(true, "Douyin", StreamStatus.NotStreaming, true, true, false)]
+    [InlineData(true, "Douyin", StreamStatus.Streaming, false, true, false)]
     public void ShouldStartFromPreservedDouyinStream_RequiresConfirmedLivePreviewStream(
         bool shouldRecord,
         string platformName,
         StreamStatus streamStatus,
         bool hasRecordableStream,
+        bool isReachable,
         bool expected)
     {
         Assert.Equal(
             expected,
-            GlobalMonitor.ShouldStartFromPreservedDouyinStream(shouldRecord, platformName, streamStatus, hasRecordableStream));
+            GlobalMonitor.ShouldStartFromPreservedDouyinStream(shouldRecord, platformName, streamStatus, hasRecordableStream, isReachable));
     }
 
     [Theory]
-    [InlineData("Douyin", StreamStatus.Initialized, true, true)]
-    [InlineData("Douyin", StreamStatus.NotStreaming, true, true)]
+    [InlineData("Douyin", StreamStatus.Initialized, true, false)]
+    [InlineData("Douyin", StreamStatus.NotStreaming, true, false)]
     [InlineData("Douyin", StreamStatus.Streaming, true, true)]
     [InlineData("TikTok", StreamStatus.Initialized, true, false)]
     [InlineData("Douyin", StreamStatus.Initialized, false, false)]
-    public void ShouldProbePreservedDouyinStream_UsesAnyDouyinCache(
+    public void ShouldProbePreservedDouyinStream_RequiresConfirmedStreamingState(
         string platformName,
         StreamStatus streamStatus,
         bool hasRecordableStream,
@@ -409,37 +514,11 @@ public sealed class GlobalMonitorTests
     }
 
     [Theory]
-    [InlineData("Douyin", StreamStatus.Streaming, 1, true)]
-    [InlineData("Douyin", StreamStatus.Streaming, 2, false)]
-    [InlineData("Douyin", StreamStatus.Initialized, 1, false)]
-    [InlineData("TikTok", StreamStatus.Streaming, 1, false)]
-    public void ShouldPreserveDouyinStreamingAfterProbeFailure_RequiresFirstStreamingFailure(
-        string platformName,
-        StreamStatus streamStatus,
-        int failureCount,
-        bool expected)
-    {
-        Assert.Equal(expected, GlobalMonitor.ShouldPreserveDouyinStreamingAfterProbeFailure(platformName, streamStatus, failureCount));
-    }
-
-    [Theory]
-    [InlineData("Douyin", StreamStatus.Initialized, true)]
-    [InlineData("Douyin", StreamStatus.NotStreaming, false)]
-    [InlineData("TikTok", StreamStatus.Initialized, false)]
-    public void ShouldLeaveInitializationAfterInconclusiveCheck_OnlyChangesInitialDouyinState(
-        string platformName,
-        StreamStatus streamStatus,
-        bool expected)
-    {
-        Assert.Equal(expected, GlobalMonitor.ShouldLeaveInitializationAfterInconclusiveCheck(platformName, streamStatus));
-    }
-
-    [Theory]
-    [InlineData("Douyin", "https://example.test/live.flv?t_id=037-20260722073816ABC", 0, StreamStatus.Streaming)]
+    [InlineData("Douyin", "https://example.test/live.flv?t_id=037-20260722073816ABC", 0, StreamStatus.Initialized)]
     [InlineData("Douyin", "https://example.test/live.flv?t_id=037-20260722073816ABC", 121, StreamStatus.Initialized)]
     [InlineData("Douyin", "https://example.test/live.flv", 0, StreamStatus.Initialized)]
     [InlineData("TikTok", "https://example.test/live.flv?t_id=037-20260722073816ABC", 0, StreamStatus.Initialized)]
-    public void ResolveInitialStreamStatus_OnlyTrustsRecentDouyinStreamUrls(
+    public void ResolveInitialStreamStatus_DoesNotTrustPersistedStreamUrls(
         string platformName,
         string streamUrl,
         int elapsedMinutes,
@@ -450,5 +529,14 @@ public sealed class GlobalMonitorTests
         Assert.Equal(
             expected,
             GlobalMonitor.ResolveInitialStreamStatus(platformName, streamUrl, string.Empty, string.Empty, issuedAt.AddMinutes(elapsedMinutes)));
+    }
+
+    [Theory]
+    [InlineData(true, RecordStatus.Recording, false)]
+    [InlineData(false, RecordStatus.Recording, true)]
+    [InlineData(false, RecordStatus.NotRecording, false)]
+    public void ShouldStopRecorderAfterRoomCheck_RequiresConfirmedOffline(bool isLiveStreaming, RecordStatus recordStatus, bool expected)
+    {
+        Assert.Equal(expected, GlobalMonitor.ShouldStopRecorderAfterRoomCheck(isLiveStreaming, recordStatus));
     }
 }

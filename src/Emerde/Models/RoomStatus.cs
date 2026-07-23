@@ -44,6 +44,8 @@ public sealed class RoomStatus
 
     public StreamStatus StreamStatus { get; set; } = default;
 
+    public bool IsStreamCheckFailed { get; set; }
+
     public RecordStatus RecordStatus
     {
         get => Recorder.RecordStatus;

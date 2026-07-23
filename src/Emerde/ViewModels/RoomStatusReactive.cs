@@ -133,9 +133,13 @@ public partial class RoomStatusReactive : ReactiveObject
     private StreamStatus streamStatus = default;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StreamStatusText))]
+    private bool isStreamCheckFailed;
+
+    [ObservableProperty]
     private bool isRefreshFlashActive;
 
-    public string StreamStatusText => StreamStatus switch
+    public string StreamStatusText => IsStreamCheckFailed ? "StreamStatusOfCheckFailed".Tr() : StreamStatus switch
     {
         StreamStatus.Initialized => "StreamStatusOfInitialized".Tr(),
         StreamStatus.Disabled => "StreamStatusOfDisabled".Tr(),
@@ -299,7 +303,7 @@ public partial class RoomStatusReactive : ReactiveObject
         if (GlobalMonitor.RoomStatus.TryGetValue(RoomUrl, out RoomStatus? roomStatus)
          && File.Exists(roomStatus.Recorder.FileName))
         {
-            await Player.PlayAsync(roomStatus.Recorder.FileName, isSeekable: roomStatus.RecordStatus == RecordStatus.Recording);
+            await Player.PlayAsync(roomStatus.Recorder.FileName);
         }
         else
         {
