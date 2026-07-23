@@ -30,6 +30,7 @@ namespace Emerde.Views;
 public partial class ScreenRecordListWindow : System.Windows.Controls.UserControl
 {
     private readonly DispatcherTimer visibleVideoLoadTimer = new() { Interval = TimeSpan.FromMilliseconds(180) };
+    private Task? visibleVideoRefreshTask;
     private bool videoMarqueeCandidate;
     private bool isVideoMarqueeSelecting;
     private Point videoMarqueeStart;
@@ -55,6 +56,7 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
     private async void ScreenRecordListWindowLoaded(object sender, RoutedEventArgs e)
     {
         DialogBlurScope.ApplyBackdropBrush(VideoListModalOverlay);
+        ViewModel.StartMonitoring();
         if (IsVisible)
         {
             FocusVideoList();
@@ -65,6 +67,7 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
     private void ScreenRecordListWindowUnloaded(object sender, RoutedEventArgs e)
     {
         visibleVideoLoadTimer.Stop();
+        ViewModel.StopMonitoring();
         ViewModel.CancelBackgroundLoading();
     }
 
@@ -78,6 +81,22 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
     }
 
     private async Task RefreshVisibleVideoListAsync()
+    {
+        Task refreshTask = visibleVideoRefreshTask ??= RefreshVisibleVideoListCoreAsync();
+        try
+        {
+            await refreshTask;
+        }
+        finally
+        {
+            if (ReferenceEquals(visibleVideoRefreshTask, refreshTask))
+            {
+                visibleVideoRefreshTask = null;
+            }
+        }
+    }
+
+    private async Task RefreshVisibleVideoListCoreAsync()
     {
         await ViewModel.RefreshForDisplayAsync();
         ScheduleVisibleVideoLoading();
@@ -622,20 +641,9 @@ public partial class ScreenRecordListViewModel : ObservableObject
         AttributesToSkip = FileAttributes.ReparsePoint,
     };
 
-    private static readonly string[] VideoExtensions = [".mp4", ".mkv", ".flv", ".ts", ".mov", ".webm"];
-    private static readonly string AllStreamerOption = GetResourceText("VideoAllStreamers", "All streamers");
-    private static readonly string UnknownStreamerText = GetResourceText("CommonUnknown", "Unknown");
-    private static readonly string UnknownResolutionText = GetResourceText("CommonUnknown", "Unknown");
-    private static readonly string UnknownBitrateText = GetResourceText("CommonUnknown", "Unknown");
-    private static readonly string[] TimeRangeOptionsInternal =
-    [
-        GetResourceText("TimeRangeAll", "All time"),
-        GetResourceText("TimeRangeLast24Hours", "Last 24 hours"),
-        GetResourceText("TimeRangeLastWeek", "Last week"),
-        GetResourceText("TimeRangeLastMonth", "Last month"),
-        GetResourceText("TimeRangeLastThreeMonths", "Last 3 months"),
-        GetResourceText("TimeRangeLastYear", "Last year"),
-    ];
+    private static string UnknownStreamerText => GetResourceText("CommonUnknown", "Unknown");
+    private static string UnknownResolutionText => GetResourceText("CommonUnknown", "Unknown");
+    private static string UnknownBitrateText => GetResourceText("CommonUnknown", "Unknown");
 
     private readonly ObservableCollection<RecordedVideoItem> videos = [];
     internal const int SelectionHistoryLimit = 200;
@@ -649,16 +657,204 @@ public partial class ScreenRecordListViewModel : ObservableObject
     private CancellationTokenSource? videoEnrichmentCancellationTokenSource;
     private RecordedVideoItem? lastSelectedItem;
     private bool isRestoringSelection;
+    private readonly Dictionary<string, FileSystemWatcher> directoryWatchers = new(StringComparer.OrdinalIgnoreCase);
+    private string[] watchedRoots = [];
+    private int directorySnapshotDirty = 1;
+    private int operationRefreshPending;
+    private int directoryRefreshPending;
+    private bool isMonitoring;
 
     public ICollectionView Videos { get; }
-    public ObservableCollection<string> StreamerOptions { get; } = [AllStreamerOption];
-    public IReadOnlyList<string> TimeRangeOptions => TimeRangeOptionsInternal;
+    private string allStreamerOption = string.Empty;
+
+    public ObservableCollection<string> StreamerOptions { get; } = [];
+    public ObservableCollection<string> TimeRangeOptions { get; } = [];
     public event EventHandler? VisibleItemsChanged;
 
     public ScreenRecordListViewModel()
     {
         Videos = CollectionViewSource.GetDefaultView(videos);
         Videos.Filter = FilterVideo;
+        ReloadLocalizedOptions();
+        Locale.CultureChanged += OnCultureChanged;
+    }
+
+    internal void StartMonitoring()
+    {
+        if (isMonitoring)
+        {
+            return;
+        }
+
+        isMonitoring = true;
+        MediaOperationRegistry.OperationsChanged += MediaOperationRegistryOperationsChanged;
+        ConfigureDirectoryWatchers(MediaFileCatalog.GetConfiguredSaveFolders(createDirectories: true));
+    }
+
+    internal void StopMonitoring()
+    {
+        if (!isMonitoring)
+        {
+            return;
+        }
+
+        isMonitoring = false;
+        MediaOperationRegistry.OperationsChanged -= MediaOperationRegistryOperationsChanged;
+        foreach (FileSystemWatcher watcher in directoryWatchers.Values)
+        {
+            watcher.Dispose();
+        }
+        directoryWatchers.Clear();
+        watchedRoots = [];
+        Interlocked.Exchange(ref directorySnapshotDirty, 1);
+    }
+
+    private void ConfigureDirectoryWatchers(IEnumerable<string> roots)
+    {
+        string[] normalizedRoots = roots
+            .Where(Directory.Exists)
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (watchedRoots.SequenceEqual(normalizedRoots, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        foreach (FileSystemWatcher watcher in directoryWatchers.Values)
+        {
+            watcher.Dispose();
+        }
+        directoryWatchers.Clear();
+        watchedRoots = normalizedRoots;
+        Interlocked.Exchange(ref directorySnapshotDirty, 1);
+        if (!isMonitoring)
+        {
+            return;
+        }
+
+        foreach (string root in normalizedRoots)
+        {
+            try
+            {
+                FileSystemWatcher watcher = new(root)
+                {
+                    IncludeSubdirectories = true,
+                    NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Size | NotifyFilters.LastWrite,
+                };
+                watcher.Changed += DirectoryWatcherChanged;
+                watcher.Created += DirectoryWatcherChanged;
+                watcher.Deleted += DirectoryWatcherChanged;
+                watcher.Renamed += DirectoryWatcherChanged;
+                watcher.Error += DirectoryWatcherError;
+                watcher.EnableRaisingEvents = true;
+                directoryWatchers[root] = watcher;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                AppSessionLogger.WriteException(e);
+            }
+        }
+    }
+
+    private void DirectoryWatcherChanged(object sender, FileSystemEventArgs e)
+    {
+        Interlocked.Exchange(ref directorySnapshotDirty, 1);
+        if (e.ChangeType is WatcherChangeTypes.Created or WatcherChangeTypes.Deleted or WatcherChangeTypes.Renamed
+            && MediaFileCatalog.IsMediaPath(e.FullPath)
+            && !MediaFileCatalog.IsApplicationTemporaryPath(e.FullPath))
+        {
+            QueueDirectoryRefresh();
+        }
+    }
+
+    private void DirectoryWatcherError(object sender, ErrorEventArgs e)
+    {
+        Interlocked.Exchange(ref directorySnapshotDirty, 1);
+        if (e.GetException() is Exception error)
+        {
+            AppSessionLogger.WriteException(error);
+        }
+    }
+
+    private void MediaOperationRegistryOperationsChanged(object? sender, MediaOperationsChangedEventArgs e)
+    {
+        Interlocked.Exchange(ref directorySnapshotDirty, 1);
+        Dispatcher? dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        _ = dispatcher.InvokeAsync(() =>
+        {
+            foreach (RecordedVideoItem item in videos)
+            {
+                item.IsInProgress = MediaOperationRegistry.IsPathProtected(item.FullPath);
+            }
+            VisibleItemsChanged?.Invoke(this, EventArgs.Empty);
+            if (!e.IsActive)
+            {
+                _ = RefreshAfterOperationAsync();
+            }
+        });
+    }
+
+    private void QueueDirectoryRefresh()
+    {
+        if (Interlocked.Exchange(ref directoryRefreshPending, 1) != 0)
+        {
+            return;
+        }
+
+        Dispatcher? dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.HasShutdownStarted)
+        {
+            Interlocked.Exchange(ref directoryRefreshPending, 0);
+            return;
+        }
+
+        _ = dispatcher.InvokeAsync(async () =>
+        {
+            try
+            {
+                await Task.Delay(180);
+                if (isMonitoring)
+                {
+                    await RefreshForDisplayAsync();
+                }
+            }
+            finally
+            {
+                Interlocked.Exchange(ref directoryRefreshPending, 0);
+            }
+        });
+    }
+
+    private async Task RefreshAfterOperationAsync()
+    {
+        if (Interlocked.Exchange(ref operationRefreshPending, 1) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await Task.Delay(150);
+            if (isMonitoring)
+            {
+                await RefreshForDisplayAsync();
+            }
+        }
+        finally
+        {
+            Interlocked.Exchange(ref operationRefreshPending, 0);
+            if (isMonitoring && Volatile.Read(ref directorySnapshotDirty) != 0)
+            {
+                _ = RefreshAfterOperationAsync();
+            }
+        }
     }
 
     [ObservableProperty]
@@ -675,7 +871,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         : "当前按录制时间顺序排列，最早录制的视频在最前面";
 
     [ObservableProperty]
-    private string selectedStreamer = AllStreamerOption;
+    private string selectedStreamer = string.Empty;
 
     partial void OnSelectedStreamerChanged(string value)
     {
@@ -687,7 +883,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     partial void OnSelectedTimeRangeIndexChanged(int value)
     {
-        int next = Math.Clamp(value, 0, TimeRangeOptionsInternal.Length - 1);
+        int next = Math.Clamp(value, 0, Math.Max(0, TimeRangeOptions.Count - 1));
         if (next != value)
         {
             SelectedTimeRangeIndex = next;
@@ -695,6 +891,48 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
 
         ApplyFilters();
+    }
+
+    private void OnCultureChanged(object? sender, EventArgs e)
+    {
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            bool selectedAll = string.IsNullOrWhiteSpace(SelectedStreamer)
+                || string.Equals(SelectedStreamer, allStreamerOption, StringComparison.Ordinal);
+            ReloadLocalizedOptions();
+            if (selectedAll)
+            {
+                SelectedStreamer = allStreamerOption;
+            }
+            foreach (RecordedVideoItem item in videos)
+            {
+                item.RefreshLocalizedText();
+            }
+            OnPropertyChanged(nameof(SortDirectionText));
+            OnPropertyChanged(nameof(SortDirectionToolTip));
+            RefreshSelectionSummary();
+            ApplyFilters();
+        });
+    }
+
+    private void ReloadLocalizedOptions()
+    {
+        allStreamerOption = GetResourceText("VideoAllStreamers", "All streamers");
+        TimeRangeOptions.Clear();
+        foreach ((string key, string fallback) in new[]
+        {
+            ("TimeRangeAll", "All time"),
+            ("TimeRangeLast24Hours", "Last 24 hours"),
+            ("TimeRangeLastWeek", "Last week"),
+            ("TimeRangeLastMonth", "Last month"),
+            ("TimeRangeLastThreeMonths", "Last 3 months"),
+            ("TimeRangeLastYear", "Last year"),
+        })
+        {
+            TimeRangeOptions.Add(GetResourceText(key, fallback));
+        }
+
+        UpdateStreamerOptions();
     }
 
     [ObservableProperty]
@@ -757,14 +995,12 @@ public partial class ScreenRecordListViewModel : ObservableObject
     [RelayCommand]
     public async Task RefreshAsync()
     {
-        string root = SaveFolderHelper.GetSaveFolder(Configurations.SaveFolder.Get());
-        await LoadVideosFromFolderAsync(root, false);
+        await LoadVideosFromFoldersAsync(MediaFileCatalog.GetConfiguredSaveFolders(createDirectories: true), false);
     }
 
     internal async Task RefreshForDisplayAsync()
     {
-        string root = SaveFolderHelper.GetSaveFolder(Configurations.SaveFolder.Get());
-        await LoadVideosFromFolderAsync(root, true);
+        await LoadVideosFromFoldersAsync(MediaFileCatalog.GetConfiguredSaveFolders(createDirectories: true), true);
     }
 
     [RelayCommand]
@@ -794,8 +1030,14 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
 
         string sourceFolder = dialog.FileName;
-        string root = SaveFolderHelper.GetSaveFolder(Configurations.SaveFolder.Get());
-        if (IsSameOrAncestorDirectory(sourceFolder, root) || IsSameOrAncestorDirectory(root, sourceFolder))
+        if (!TryChooseImportDestination(out string root))
+        {
+            return;
+        }
+        string[] configuredRoots = MediaFileCatalog.GetConfiguredSaveFolders(createDirectories: true);
+        if (configuredRoots.Any(configuredRoot =>
+                IsSameOrAncestorDirectory(sourceFolder, configuredRoot)
+                || IsSameOrAncestorDirectory(configuredRoot, sourceFolder)))
         {
             Toast.Warning("不能从保存目录、保存目录的上级或子目录导入视频");
             return;
@@ -829,13 +1071,51 @@ public partial class ScreenRecordListViewModel : ObservableObject
     [RelayCommand]
     private async Task OpenSaveFolderAsync()
     {
-        string root = SaveFolderHelper.GetSaveFolder(Configurations.SaveFolder.Get());
-        if (!Directory.Exists(root))
+        string[] roots = MediaFileCatalog.GetConfiguredSaveFolders(createDirectories: true);
+        if (!TryChooseConfiguredFolder(roots, "选择要打开的保存目录", out string root))
         {
-            Directory.CreateDirectory(root);
+            return;
         }
 
         await Launcher.LaunchFolderPathAsync(root);
+    }
+
+    private static bool TryChooseImportDestination(out string root)
+    {
+        string[] roots = MediaFileCatalog.GetConfiguredSaveFolders(createDirectories: true);
+        return TryChooseConfiguredFolder(roots, "选择导入目标保存目录", out root);
+    }
+
+    private static bool TryChooseConfiguredFolder(string[] roots, string title, out string root)
+    {
+        if (roots.Length == 0)
+        {
+            root = string.Empty;
+            Toast.Warning("没有可用的保存目录");
+            return false;
+        }
+        if (roots.Length == 1)
+        {
+            root = roots[0];
+            return true;
+        }
+
+        using CommonOpenFileDialog dialog = new()
+        {
+            IsFolderPicker = true,
+            Title = title,
+            InitialDirectory = roots[0],
+        };
+        if (dialog.ShowDialog() == CommonFileDialogResult.Ok
+            && roots.Any(configuredRoot => IsSameOrAncestorDirectory(configuredRoot, dialog.FileName)))
+        {
+            root = dialog.FileName;
+            return true;
+        }
+
+        root = string.Empty;
+        Toast.Warning("所选目录必须位于已配置的保存目录中");
+        return false;
     }
 
     [RelayCommand]
@@ -1559,7 +1839,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
     }
 
-    private async Task LoadVideosFromFolderAsync(string folder, bool reuseExistingItems)
+    private async Task LoadVideosFromFoldersAsync(IEnumerable<string> folders, bool reuseExistingItems)
     {
         videoLoadCancellationTokenSource?.Cancel();
         videoLoadCancellationTokenSource?.Dispose();
@@ -1574,26 +1854,58 @@ public partial class ScreenRecordListViewModel : ObservableObject
             queuedVideoEnrichmentPaths.Clear();
         }
 
-        if (!Directory.Exists(folder))
+        string[] roots = folders
+            .Where(folder => !string.IsNullOrWhiteSpace(folder))
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        bool rootsChanged = !watchedRoots.SequenceEqual(roots, StringComparer.OrdinalIgnoreCase);
+        ConfigureDirectoryWatchers(roots);
+        if (reuseExistingItems && !rootsChanged && Volatile.Read(ref directorySnapshotDirty) == 0)
         {
-            Directory.CreateDirectory(folder);
+            foreach (RecordedVideoItem item in videos)
+            {
+                item.IsInProgress = MediaOperationRegistry.IsPathProtected(item.FullPath);
+            }
+            VisibleItemsChanged?.Invoke(this, EventArgs.Empty);
+            return;
         }
+        Interlocked.Exchange(ref directorySnapshotDirty, 0);
 
         RecordedVideoItem[] items;
         try
         {
             items = await Task.Run(() =>
             {
-                string[] videoPaths = EnumerateVideoFiles(folder)
-                    .Where(path => VideoExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
-                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                Dictionary<string, RecordedVideoItem> existingByPath = reuseExistingItems
+                    ? videos.Where(item => !string.IsNullOrWhiteSpace(item.FullPath))
+                        .GroupBy(item => item.FullPath, StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, RecordedVideoItem>(StringComparer.OrdinalIgnoreCase);
+                VideoFileSnapshot[] snapshots = roots
+                    .Where(Directory.Exists)
+                    .SelectMany(root => EnumerateVideoFiles(root).Select(path => (Path: path, Root: root)))
+                    .Where(item => MediaFileCatalog.IsMediaPath(item.Path) && !MediaFileCatalog.IsApplicationTemporaryPath(item.Path))
+                    .GroupBy(item => item.Path, StringComparer.OrdinalIgnoreCase)
+                    .Select(group => CreateVideoFileSnapshot(group.First().Path, group.First().Root))
+                    .OrderBy(snapshot => snapshot.Path, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
-                CleanupOrphanedThumbnailCache(videoPaths);
-                return videoPaths
-                    .Select(path =>
+                CleanupOrphanedThumbnailCache(snapshots.Select(snapshot => snapshot.Path));
+                return snapshots
+                    .Select(snapshot =>
                     {
                         loadToken.ThrowIfCancellationRequested();
-                        return CreateRecordedVideoItem(path, folder);
+                        bool isInProgress = MediaOperationRegistry.IsPathProtected(snapshot.Path);
+                        if (existingByPath.TryGetValue(snapshot.Path, out RecordedVideoItem? existing)
+                            && existing.SourceLength == snapshot.Length
+                            && existing.SourceLastWriteTimeUtc == snapshot.LastWriteTimeUtc
+                            && existing.MetadataLastWriteTimeUtc == snapshot.MetadataLastWriteTimeUtc)
+                        {
+                            return existing;
+                        }
+
+                        return CreateRecordedVideoItem(snapshot, isInProgress);
                     })
                     .ToArray();
             }, loadToken);
@@ -1606,6 +1918,11 @@ public partial class ScreenRecordListViewModel : ObservableObject
         if (loadToken.IsCancellationRequested)
         {
             return;
+        }
+
+        foreach (RecordedVideoItem item in items)
+        {
+            item.IsInProgress = MediaOperationRegistry.IsPathProtected(item.FullPath);
         }
 
         HashSet<string> selectedPaths = videos
@@ -1665,22 +1982,27 @@ public partial class ScreenRecordListViewModel : ObservableObject
             .ToArray();
     }
 
-    private static RecordedVideoItem CreateRecordedVideoItem(string path, string rootFolder)
+    private static VideoFileSnapshot CreateVideoFileSnapshot(string path, string rootFolder)
     {
         FileInfo fileInfo = new(path);
-        VideoRecordingMetadata metadata = LoadMetadata(fileInfo);
-        string resolution = NormalizeResolution(metadata.Resolution);
-        string bitrate = NormalizeBitrate(metadata.Bitrate);
-
-        string nickName = NormalizeStreamerName(string.IsNullOrWhiteSpace(metadata.NickName) ? InferNickName(path, rootFolder) : metadata.NickName);
-        DateTime createdAt = metadata.RecordedAt > DateTime.MinValue ? metadata.RecordedAt : fileInfo.LastWriteTime;
-        string thumbnailPath = GetExistingThumbnailPath(fileInfo.FullName, metadata.CoverPath);
         DateTime metadataLastWriteTimeUtc = VideoRecordingMetadataStore.GetMetadataCandidates(fileInfo)
             .Where(File.Exists)
             .Select(File.GetLastWriteTimeUtc)
             .DefaultIfEmpty(DateTime.MinValue)
             .Max();
+        return new VideoFileSnapshot(fileInfo.FullName, rootFolder, fileInfo.Length, fileInfo.LastWriteTimeUtc, metadataLastWriteTimeUtc);
+    }
 
+    private static RecordedVideoItem CreateRecordedVideoItem(VideoFileSnapshot snapshot, bool isInProgress)
+    {
+        FileInfo fileInfo = new(snapshot.Path);
+        VideoRecordingMetadata metadata = LoadMetadata(fileInfo);
+        string resolution = NormalizeResolution(metadata.Resolution);
+        string bitrate = NormalizeBitrate(metadata.Bitrate);
+
+        string nickName = NormalizeStreamerName(string.IsNullOrWhiteSpace(metadata.NickName) ? InferNickName(snapshot.Path, snapshot.RootFolder) : metadata.NickName);
+        DateTime createdAt = metadata.RecordedAt > DateTime.MinValue ? metadata.RecordedAt : fileInfo.LastWriteTime;
+        string thumbnailPath = GetExistingThumbnailPath(fileInfo.FullName, metadata.CoverPath);
         return new RecordedVideoItem
         {
             FileName = fileInfo.Name,
@@ -1693,11 +2015,12 @@ public partial class ScreenRecordListViewModel : ObservableObject
             ThumbnailPath = thumbnailPath,
             Title = BuildDisplayTitle(metadata.Title, createdAt, fileInfo),
             CreatedAt = createdAt,
-            CanTranscode = fileInfo.Extension.Equals(".ts", StringComparison.OrdinalIgnoreCase)
+            SupportsTranscode = fileInfo.Extension.Equals(".ts", StringComparison.OrdinalIgnoreCase)
                 || fileInfo.Extension.Equals(".flv", StringComparison.OrdinalIgnoreCase),
-            SourceLength = fileInfo.Length,
-            SourceLastWriteTimeUtc = fileInfo.LastWriteTimeUtc,
-            MetadataLastWriteTimeUtc = metadataLastWriteTimeUtc,
+            IsInProgress = isInProgress,
+            SourceLength = snapshot.Length,
+            SourceLastWriteTimeUtc = snapshot.LastWriteTimeUtc,
+            MetadataLastWriteTimeUtc = snapshot.MetadataLastWriteTimeUtc,
         };
     }
 
@@ -1949,7 +2272,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     private void QueueVideoEnrichment(RecordedVideoItem item, CancellationToken token)
     {
-        if (item.IsEnriched || token.IsCancellationRequested)
+        if (item.IsEnriched || item.IsInProgress || MediaOperationRegistry.IsPathProtected(item.FullPath) || token.IsCancellationRequested)
         {
             return;
         }
@@ -1996,7 +2319,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
     private async Task EnrichVideoAsync(RecordedVideoItem item, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        if (!File.Exists(item.FullPath))
+        if (!File.Exists(item.FullPath) || MediaOperationRegistry.IsPathProtected(item.FullPath))
         {
             return;
         }
@@ -2005,6 +2328,14 @@ public partial class ScreenRecordListViewModel : ObservableObject
         VideoRecordingMetadata metadata = LoadMetadata(file);
         VideoProbeInfo probeInfo = ProbeVideoFileInfo(item.FullPath, file.Length);
         metadata = VideoRecordingMetadataStore.Merge(metadata, probeInfo.Metadata);
+        if (!VideoRecordingMetadataStore.HasValidSidecar(file)
+            && VideoRecordingMetadataStore.HasAnyMetadata(probeInfo.Metadata))
+        {
+            _ = VideoRecordingMetadataStore.WriteSidecar(
+                file.DirectoryName ?? Environment.CurrentDirectory,
+                Path.GetFileNameWithoutExtension(file.Name),
+                VideoRecordingMetadataStore.WithFileName(metadata, file.Name));
+        }
         string coverPath = string.IsNullOrWhiteSpace(metadata.CoverPath) ? item.CoverPath : metadata.CoverPath;
         string thumbnailPath = File.Exists(coverPath) ? coverPath : await ExtractThumbnailAsync(item.FullPath, token);
         DateTime createdAt = metadata.RecordedAt > DateTime.MinValue ? metadata.RecordedAt : file.LastWriteTime;
@@ -2040,7 +2371,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
     private async Task<string> ExtractThumbnailAsync(string filePath, CancellationToken token)
     {
         string? ffmpegPath = SearchFileHelper.SearchExecutable("ffmpeg.exe");
-        if (string.IsNullOrWhiteSpace(ffmpegPath) || !File.Exists(filePath))
+        if (string.IsNullOrWhiteSpace(ffmpegPath) || !File.Exists(filePath) || MediaOperationRegistry.IsPathProtected(filePath))
         {
             return string.Empty;
         }
@@ -2057,7 +2388,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         Lazy<Task<string>> extraction = thumbnailExtractionTasks.GetOrAdd(
             imagePath,
             _ => new Lazy<Task<string>>(
-                () => ExtractThumbnailCoreAsync(ffmpegPath, filePath, imagePath, token),
+                () => ExtractThumbnailSharedAsync(ffmpegPath, filePath, imagePath),
                 LazyThreadSafetyMode.ExecutionAndPublication));
         Task<string> extractionTask = extraction.Value;
         _ = extractionTask.ContinueWith(
@@ -2066,6 +2397,12 @@ public partial class ScreenRecordListViewModel : ObservableObject
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
         return await extractionTask.WaitAsync(token);
+    }
+
+    private static async Task<string> ExtractThumbnailSharedAsync(string ffmpegPath, string filePath, string imagePath)
+    {
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(45));
+        return await ExtractThumbnailCoreAsync(ffmpegPath, filePath, imagePath, timeout.Token);
     }
 
     private static async Task<string> ExtractThumbnailCoreAsync(string ffmpegPath, string filePath, string imagePath, CancellationToken token)
@@ -2520,7 +2857,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     private static bool IsVideoFile(string path)
     {
-        return VideoExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
+        return MediaFileCatalog.IsMediaPath(path) && !MediaFileCatalog.IsApplicationTemporaryPath(path);
     }
 
     private static string BuildDisplayTitle(string? title, DateTime createdAt, FileInfo file)
@@ -2591,7 +2928,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
 
         bool streamerMatched = string.IsNullOrWhiteSpace(SelectedStreamer)
-            || string.Equals(SelectedStreamer, AllStreamerOption, StringComparison.Ordinal)
+            || string.Equals(SelectedStreamer, allStreamerOption, StringComparison.Ordinal)
             || string.Equals(video.NickName, SelectedStreamer, StringComparison.OrdinalIgnoreCase);
         if (!streamerMatched)
         {
@@ -2622,7 +2959,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
             .ToArray();
 
         StreamerOptions.Clear();
-        StreamerOptions.Add(AllStreamerOption);
+        StreamerOptions.Add(allStreamerOption);
         foreach (string streamer in streamers)
         {
             StreamerOptions.Add(streamer);
@@ -3175,6 +3512,13 @@ internal readonly record struct VideoProbeInfo(string Resolution, string Bitrate
     public static VideoProbeInfo Empty { get; } = new(string.Empty, string.Empty, null);
 }
 
+internal readonly record struct VideoFileSnapshot(
+    string Path,
+    string RootFolder,
+    long Length,
+    DateTime LastWriteTimeUtc,
+    DateTime MetadataLastWriteTimeUtc);
+
 internal sealed record SelectionSnapshot(
     HashSet<string> Before,
     HashSet<string> After,
@@ -3183,6 +3527,8 @@ internal sealed record SelectionSnapshot(
 
 public partial class RecordedVideoItem : ObservableObject
 {
+    internal bool SupportsTranscode { get; init; }
+
     internal long SourceLength { get; init; }
 
     internal DateTime SourceLastWriteTimeUtc { get; init; }
@@ -3224,7 +3570,9 @@ public partial class RecordedVideoItem : ObservableObject
     private DateTime createdAt;
 
     [ObservableProperty]
-    private bool canTranscode;
+    [NotifyPropertyChangedFor(nameof(CanModify))]
+    [NotifyPropertyChangedFor(nameof(CanTranscode))]
+    private bool isInProgress;
 
     [ObservableProperty]
     private bool isSelected;
@@ -3233,6 +3581,17 @@ public partial class RecordedVideoItem : ObservableObject
     private bool isEnriched;
 
     public bool HasThumbnail => !string.IsNullOrWhiteSpace(ThumbnailPath) && File.Exists(ThumbnailPath);
+
+    public bool CanModify => !IsInProgress;
+
+    public bool CanTranscode => SupportsTranscode && !IsInProgress;
+
+    internal void RefreshLocalizedText()
+    {
+        OnPropertyChanged(nameof(StreamerChipText));
+        OnPropertyChanged(nameof(ResolutionChipText));
+        OnPropertyChanged(nameof(BitrateChipText));
+    }
 
     public string StreamerChipText => ScreenRecordListViewModel.FormatResourceText(
         "StreamerChip",

@@ -262,13 +262,15 @@
                                 <ContextMenu DataContext="{Binding PlacementTarget, RelativeSource={RelativeSource Self}}">
                                     <MenuItem Header="打开视频"
                                               Command="{Binding Tag.OpenVideoCommand}"
-                                              CommandParameter="{Binding DataContext}" />
+                                              CommandParameter="{Binding DataContext}"
+                                              IsEnabled="{Binding DataContext.CanModify}" />
                                     <MenuItem Header="打开目录"
                                               Command="{Binding Tag.OpenDirectoryCommand}"
                                               CommandParameter="{Binding DataContext}" />
                                     <MenuItem Header="重命名"
                                               Command="{Binding Tag.RenameVideoCommand}"
-                                              CommandParameter="{Binding DataContext}" />
+                                              CommandParameter="{Binding DataContext}"
+                                              IsEnabled="{Binding DataContext.CanModify}" />
                                     <MenuItem Header="转码"
                                               Command="{Binding Tag.TranscodeVideoCommand}"
                                               CommandParameter="{Binding DataContext}"
@@ -279,16 +281,20 @@
                                               IsEnabled="{Binding Tag.CanMergeSelectedVideos}" />
                                     <MenuItem Header="分割"
                                               Command="{Binding Tag.SplitContextCommand}"
-                                              CommandParameter="{Binding DataContext}" />
+                                              CommandParameter="{Binding DataContext}"
+                                              IsEnabled="{Binding DataContext.CanModify}" />
                                     <MenuItem Header="移动"
                                               Command="{Binding Tag.MoveContextCommand}"
-                                              CommandParameter="{Binding DataContext}" />
+                                              CommandParameter="{Binding DataContext}"
+                                              IsEnabled="{Binding DataContext.CanModify}" />
                                     <MenuItem Header="复制"
                                               Command="{Binding Tag.CopyContextCommand}"
-                                              CommandParameter="{Binding DataContext}" />
+                                              CommandParameter="{Binding DataContext}"
+                                              IsEnabled="{Binding DataContext.CanModify}" />
                                     <MenuItem Header="删除"
                                               Command="{Binding Tag.DeleteContextCommand}"
-                                              CommandParameter="{Binding DataContext}" />
+                                              CommandParameter="{Binding DataContext}"
+                                              IsEnabled="{Binding DataContext.CanModify}" />
                                 </ContextMenu>
                             </Border.ContextMenu>
                             <Grid>
@@ -366,7 +372,8 @@
                                 <StackPanel Grid.Column="2"
                                             HorizontalAlignment="Right"
                                             VerticalAlignment="Center"
-                                            Orientation="Horizontal">
+                                            Orientation="Horizontal"
+                                            IsEnabled="{Binding CanModify}">
                                     <StackPanel.Style>
                                         <Style TargetType="{x:Type StackPanel}">
                                             <Setter Property="Visibility" Value="Visible" />
