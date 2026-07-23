@@ -349,6 +349,45 @@ public sealed class LivePreviewTests
         }
     }
 
+    [Fact]
+    public void ApplyRoomInfoResult_StopsRecorderStateWhenManualRefreshConfirmsOffline()
+    {
+        const string roomUrl = "https://example.test/recording-room";
+        RoomStatusReactive room = new()
+        {
+            RoomUrl = roomUrl,
+            PlatformName = "Direct",
+            StreamStatus = StreamStatus.Streaming,
+            RecordStatus = RecordStatus.Recording,
+        };
+        RoomStatus status = new()
+        {
+            RoomUrl = roomUrl,
+            PlatformName = "Direct",
+            StreamStatus = StreamStatus.Streaming,
+            RecordStatus = RecordStatus.Recording,
+        };
+        StreamResolverResult result = new()
+        {
+            IsLiveStreaming = false,
+        };
+
+        try
+        {
+            GlobalMonitor.RoomStatus[roomUrl] = status;
+
+            MainViewModel.ApplyRoomInfoResult(room, result);
+
+            Assert.Equal(StreamStatus.NotStreaming, room.StreamStatus);
+            Assert.Equal(RecordStatus.NotRecording, room.RecordStatus);
+            Assert.Equal(RecordStatus.NotRecording, status.RecordStatus);
+        }
+        finally
+        {
+            _ = GlobalMonitor.RoomStatus.TryRemove(roomUrl, out _);
+        }
+    }
+
     [Theory]
     [InlineData(0x0100)]
     [InlineData(0x0104)]

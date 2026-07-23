@@ -4,7 +4,7 @@ namespace Emerde.Core;
 
 public sealed class Player
 {
-    public static Task PlayAsync(string mediaPath, bool isSeekable = false)
+    public static Task PlayAsync(string mediaPath)
     {
         if (!File.Exists(mediaPath))
         {
