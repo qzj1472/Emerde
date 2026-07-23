@@ -1891,6 +1891,8 @@ public partial class ScreenRecordListViewModel : ObservableObject
                     .Where(item => MediaFileCatalog.IsMediaPath(item.Path) && !MediaFileCatalog.IsApplicationTemporaryPath(item.Path))
                     .GroupBy(item => item.Path, StringComparer.OrdinalIgnoreCase)
                     .Select(group => CreateVideoFileSnapshot(group.First().Path, group.First().Root))
+                    .Where(snapshot => snapshot.HasValue)
+                    .Select(snapshot => snapshot.GetValueOrDefault())
                     .OrderBy(snapshot => snapshot.Path, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
                 CleanupOrphanedThumbnailCache(snapshots.Select(snapshot => snapshot.Path));
@@ -1908,8 +1910,10 @@ public partial class ScreenRecordListViewModel : ObservableObject
                             return existing;
                         }
 
-                        return CreateRecordedVideoItem(snapshot, isInProgress, isConverting);
+                        return TryCreateRecordedVideoItem(snapshot, isInProgress, isConverting);
                     })
+                    .Where(item => item != null)
+                    .Select(item => item!)
                     .ToArray();
             }, loadToken);
         }
@@ -1986,15 +1990,39 @@ public partial class ScreenRecordListViewModel : ObservableObject
             .ToArray();
     }
 
-    private static VideoFileSnapshot CreateVideoFileSnapshot(string path, string rootFolder)
+    private static VideoFileSnapshot? CreateVideoFileSnapshot(string path, string rootFolder)
     {
-        FileInfo fileInfo = new(path);
-        DateTime metadataLastWriteTimeUtc = VideoRecordingMetadataStore.GetMetadataCandidates(fileInfo)
-            .Where(File.Exists)
-            .Select(File.GetLastWriteTimeUtc)
-            .DefaultIfEmpty(DateTime.MinValue)
-            .Max();
-        return new VideoFileSnapshot(fileInfo.FullName, rootFolder, fileInfo.Length, fileInfo.LastWriteTimeUtc, metadataLastWriteTimeUtc);
+        try
+        {
+            FileInfo fileInfo = new(path);
+            if (!fileInfo.Exists)
+            {
+                return null;
+            }
+
+            DateTime metadataLastWriteTimeUtc = VideoRecordingMetadataStore.GetMetadataCandidates(fileInfo)
+                .Where(File.Exists)
+                .Select(File.GetLastWriteTimeUtc)
+                .DefaultIfEmpty(DateTime.MinValue)
+                .Max();
+            return new VideoFileSnapshot(fileInfo.FullName, rootFolder, fileInfo.Length, fileInfo.LastWriteTimeUtc, metadataLastWriteTimeUtc);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private static RecordedVideoItem? TryCreateRecordedVideoItem(VideoFileSnapshot snapshot, bool isInProgress, bool isConverting)
+    {
+        try
+        {
+            return CreateRecordedVideoItem(snapshot, isInProgress, isConverting);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     private static RecordedVideoItem CreateRecordedVideoItem(VideoFileSnapshot snapshot, bool isInProgress, bool isConverting)
