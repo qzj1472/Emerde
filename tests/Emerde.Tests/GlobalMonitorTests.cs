@@ -506,6 +506,45 @@ public sealed class GlobalMonitorTests
             GlobalMonitor.ShouldDeferOffline(streamStatus, recordStatus, isLiveStreaming, hasFreshStream, offlineChecks));
     }
 
+    [Fact]
+    public void IsWithinRecordingStartupOfflineGuard_ProtectsFreshRecordingsOnly()
+    {
+        DateTime now = new(2026, 7, 24, 1, 30, 0);
+
+        Assert.True(GlobalMonitor.IsWithinRecordingStartupOfflineGuard(
+            RecordStatus.Recording,
+            now - TimeSpan.FromSeconds(30),
+            DateTime.MinValue,
+            now));
+        Assert.False(GlobalMonitor.IsWithinRecordingStartupOfflineGuard(
+            RecordStatus.Recording,
+            now - GlobalMonitor.RecordingStartupOfflineGuardWindow,
+            DateTime.MinValue,
+            now));
+        Assert.False(GlobalMonitor.IsWithinRecordingStartupOfflineGuard(
+            RecordStatus.Recording,
+            now - TimeSpan.FromSeconds(30),
+            now - TimeSpan.FromSeconds(20),
+            now));
+        Assert.False(GlobalMonitor.IsWithinRecordingStartupOfflineGuard(
+            RecordStatus.NotRecording,
+            now - TimeSpan.FromSeconds(30),
+            DateTime.MinValue,
+            now));
+    }
+
+    [Fact]
+    public void IsRoomRecordStartPaused_ExpiresRoomPause()
+    {
+        string roomUrl = $"https://example.test/{Guid.NewGuid():N}";
+        DateTime now = new(2026, 7, 24, 1, 30, 0);
+
+        GlobalMonitor.SetRoomRecordStartPause(roomUrl, now + TimeSpan.FromSeconds(30));
+
+        Assert.True(GlobalMonitor.IsRoomRecordStartPaused(roomUrl, now));
+        Assert.False(GlobalMonitor.IsRoomRecordStartPaused(roomUrl, now + TimeSpan.FromSeconds(31)));
+    }
+
     [Theory]
     [InlineData(true, "Douyin", StreamStatus.Streaming, true, true, true)]
     [InlineData(true, "Douyin", StreamStatus.Streaming, true, false, false)]

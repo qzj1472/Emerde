@@ -41,6 +41,14 @@ public sealed class Recorder
 
     private int hasMediaProgress;
 
+    private bool lastAttemptHadMediaProgress;
+
+    private bool lastAttemptWasCanceled;
+
+    private bool lastAttemptWasStalled;
+
+    private double lastAttemptDurationSeconds;
+
     private string lastProcessErrorOutput = string.Empty;
 
     private bool lastStreamRefreshHadUrl;
@@ -67,6 +75,8 @@ public sealed class Recorder
 
     public DateTime StartTime { get; private set; } = DateTime.MinValue;
 
+    public DateTime RequestedAt { get; private set; } = DateTime.MinValue;
+
     public DateTime EndTime { get; private set; } = DateTime.MinValue;
 
     public bool IsToSegment { get; set; } = false;
@@ -87,6 +97,7 @@ public sealed class Recorder
             unregisteredRecordingPatterns.Clear();
             FileName = null;
             MetadataPath = null;
+            RequestedAt = DateTime.Now;
             StartTime = DateTime.MinValue;
             EndTime = DateTime.MinValue;
             RecordStatus = RecordStatus.Recording;
@@ -268,6 +279,19 @@ public sealed class Recorder
 
                 bool hasStreamRefresh = startInfo.RefreshStreamAsync != null;
                 bool? isLiveAfterRefresh = await TryRefreshInputAsync(startInfo, token);
+                if (ShouldSuppressRapidRetry(exitCode, lastAttemptWasCanceled, lastAttemptWasStalled, lastAttemptDurationSeconds, isLiveAfterRefresh))
+                {
+                    AppSessionLogger.Event("warn", "recorder", "record_rapid_retry_suppressed", "rapid recording retry was suppressed", new
+                    {
+                        startInfo.RoomUrl,
+                        startInfo.NickName,
+                        exitCode,
+                        durationSeconds = lastAttemptDurationSeconds,
+                        isLiveAfterRefresh,
+                    });
+                    startInfo.RapidExitDetected?.Invoke();
+                    break;
+                }
                 offlineRefreshChecks = isLiveAfterRefresh == false ? offlineRefreshChecks + 1 : 0;
                 bool offlineConfirmed = isLiveAfterRefresh == false && offlineRefreshChecks >= OfflineRefreshConfirmationCount;
                 if (!ShouldRetryRecording(exitCode, hasStreamRefresh, isLiveAfterRefresh, offlineRefreshChecks))
@@ -286,7 +310,7 @@ public sealed class Recorder
                     useTransportStream = ShouldUseTransportStream(isHls, isToSegment, targetFormat);
                 }
 
-                if (ShouldConsumeReconnectAttempt(isLiveAfterRefresh))
+                if (ShouldConsumeReconnectAttempt(isLiveAfterRefresh, lastAttemptHadMediaProgress))
                 {
                     attempt++;
                 }
@@ -302,7 +326,9 @@ public sealed class Recorder
                         startInfo.NickName,
                         exitCode,
                         attempt,
+                        lastAttemptHadMediaProgress,
                     });
+                    startInfo.ReconnectExhausted?.Invoke();
                     break;
                 }
 
@@ -526,6 +552,10 @@ public sealed class Recorder
 
     private async Task<int> ExecuteRecorderAsync(string recorderPath, List<string> arguments, bool isUseProxy, string httpProxy, RecorderStartInfo startInfo, CancellationToken token)
     {
+        lastAttemptHadMediaProgress = false;
+        lastAttemptWasCanceled = false;
+        lastAttemptWasStalled = false;
+        lastAttemptDurationSeconds = 0;
         ProcessStartInfo processStartInfo = new()
         {
             FileName = recorderPath,
@@ -630,9 +660,13 @@ public sealed class Recorder
         }
 
         await Task.WhenAll(errorTask, outputTask);
+        lastAttemptHadMediaProgress = progressTracker.HasProgress;
+        lastAttemptWasCanceled = wasCanceled;
+        lastAttemptWasStalled = wasStalled;
         processLifetime.Stop();
         lastProcessErrorOutput = errorTail.ToString();
         double durationSeconds = processLifetime.Elapsed.TotalSeconds;
+        lastAttemptDurationSeconds = durationSeconds;
         AppSessionLogger.Event(GetProcessExitLogLevel(process.ExitCode, wasCanceled, wasStalled), "recorder", "record_process_exited", "ffmpeg recording process exited", new
         {
             startInfo.RoomUrl,
@@ -896,9 +930,19 @@ public sealed class Recorder
         return !offlineConfirmed && (exitCode != 0 || hasStreamRefresh);
     }
 
-    internal static bool ShouldConsumeReconnectAttempt(bool? isLiveAfterRefresh)
+    internal static bool ShouldConsumeReconnectAttempt(bool? isLiveAfterRefresh, bool hadMediaProgress)
     {
-        return isLiveAfterRefresh != true;
+        return isLiveAfterRefresh != true || !hadMediaProgress;
+    }
+
+    internal static bool ShouldSuppressRapidRetry(int exitCode, bool wasCanceled, bool wasStalled, double durationSeconds, bool? isLiveAfterRefresh)
+    {
+        return !wasCanceled
+            && !wasStalled
+            && exitCode == 0
+            && durationSeconds > 0
+            && durationSeconds < 20
+            && isLiveAfterRefresh != false;
     }
 
     private static string FormatArgument(string argument)
@@ -1352,6 +1396,17 @@ internal sealed class RecorderProgressTracker(DateTime startedAt)
             return now > lastProgressAt ? now - lastProgressAt : TimeSpan.Zero;
         }
     }
+
+    public bool HasProgress
+    {
+        get
+        {
+            lock (syncRoot)
+            {
+                return hasProgress;
+            }
+        }
+    }
 }
 
 public record RecorderStartInfo
@@ -1385,6 +1440,10 @@ public record RecorderStartInfo
     internal Func<CancellationToken, Task<RecorderStreamRefreshResult?>>? RefreshStreamAsync { get; set; }
 
     internal Action? OfflineConfirmed { get; set; }
+
+    internal Action? ReconnectExhausted { get; set; }
+
+    internal Action? RapidExitDetected { get; set; }
 }
 
 internal sealed record RecorderStreamRefreshResult

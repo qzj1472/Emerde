@@ -26,6 +26,8 @@ internal static class GlobalMonitor
     private static readonly TimeSpan StreamingCycleInterval = TimeSpan.FromMilliseconds(MonitorTiming.LiveRoutineIntervalMilliseconds);
     private static readonly TimeSpan RecentlyClosedInterval = TimeSpan.FromMilliseconds(MonitorTiming.RecentlyClosedRoutineIntervalMilliseconds);
     private static readonly TimeSpan RecentlyClosedWindow = MonitorTiming.RecentlyClosedWindow;
+    internal static readonly TimeSpan RecordingStartupOfflineGuardWindow = TimeSpan.FromSeconds(45);
+    internal static readonly TimeSpan RoomRecordStartPause = TimeSpan.FromMinutes(2);
 
     /// <summary>
     /// ConcurrentDictionary{RoomUrl: string, RoomStatus: RoomStatus>}
@@ -45,6 +47,8 @@ internal static class GlobalMonitor
     private static readonly ConcurrentDictionary<string, int> OfflineConfirmationChecks = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly ConcurrentDictionary<string, byte> RecordStartBlocks = new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly ConcurrentDictionary<string, DateTime> RoomRecordStartPausedUntil = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly ConcurrentDictionary<string, long> InconclusiveLogTimestamps = new(StringComparer.OrdinalIgnoreCase);
 
@@ -1188,6 +1192,21 @@ internal static class GlobalMonitor
             return false;
         }
 
+        if (IsWithinRecordingStartupOfflineGuard(roomStatus, DateTime.Now))
+        {
+            ResetOfflineConfirmation(roomUrl);
+            AppSessionLogger.Event("info", "business", "room_startup_offline_deferred", "offline result was deferred during recording startup", new
+            {
+                RoomUrl = roomUrl,
+                NickName = nickName,
+                roomStatus.PlatformName,
+                roomStatus.StreamStatus,
+                roomStatus.RecordStatus,
+                roomStatus.Recorder.RequestedAt,
+            });
+            return true;
+        }
+
         int offlineChecks = OfflineConfirmationChecks.AddOrUpdate(roomUrl, 1, static (_, current) => current + 1);
         bool defer = ShouldDeferOffline(roomStatus.StreamStatus, roomStatus.RecordStatus, isLiveStreaming, hasFreshStream, offlineChecks);
         if (defer)
@@ -1252,6 +1271,20 @@ internal static class GlobalMonitor
             && isLiveStreaming == false
             && !hasFreshStream
             && offlineChecks < 2;
+    }
+
+    internal static bool IsWithinRecordingStartupOfflineGuard(RecordStatus recordStatus, DateTime requestedAt, DateTime startedAt, DateTime now)
+    {
+        return recordStatus == RecordStatus.Recording
+            && requestedAt > DateTime.MinValue
+            && startedAt == DateTime.MinValue
+            && now >= requestedAt
+            && now - requestedAt < RecordingStartupOfflineGuardWindow;
+    }
+
+    private static bool IsWithinRecordingStartupOfflineGuard(RoomStatus roomStatus, DateTime now)
+    {
+        return IsWithinRecordingStartupOfflineGuard(roomStatus.RecordStatus, roomStatus.Recorder.RequestedAt, roomStatus.Recorder.StartTime, now);
     }
 
     private static bool ShouldConfirmOffline(StreamStatus streamStatus, RecordStatus recordStatus)
@@ -1366,6 +1399,11 @@ internal static class GlobalMonitor
 
     private static bool StartRecorderIfNeeded(Room room, RoomStatus roomStatus, RoomRecordingOptions settings, bool isLiveStreaming, bool usingPreservedStream)
     {
+        if (IsRoomRecordStartPaused(room.RoomUrl, DateTime.Now))
+        {
+            return false;
+        }
+
         if (roomStatus.Recorder.IsBusy && roomStatus.RecordStatus != RecordStatus.Recording)
         {
             AppSessionLogger.Event("info", "business", "record_start_waiting_for_cleanup", "record start delayed while recorder cleanup is still running", new
@@ -1437,8 +1475,44 @@ internal static class GlobalMonitor
                     roomStatus,
                     RoomRecordingSettings.GetCurrent(room.RoomUrl, settings))
                 : null,
+            ReconnectExhausted = () => PauseRoomRecordStart(room.RoomUrl, room.NickName, "reconnect_exhausted"),
+            RapidExitDetected = () => PauseRoomRecordStart(room.RoomUrl, room.NickName, "rapid_exit"),
         });
         return true;
+    }
+
+    internal static bool IsRoomRecordStartPaused(string roomUrl, DateTime now)
+    {
+        if (!RoomRecordStartPausedUntil.TryGetValue(roomUrl, out DateTime pausedUntil))
+        {
+            return false;
+        }
+
+        if (pausedUntil > now)
+        {
+            return true;
+        }
+
+        _ = RoomRecordStartPausedUntil.TryRemove(roomUrl, out _);
+        return false;
+    }
+
+    internal static void SetRoomRecordStartPause(string roomUrl, DateTime pausedUntil)
+    {
+        RoomRecordStartPausedUntil[roomUrl] = pausedUntil;
+    }
+
+    private static void PauseRoomRecordStart(string roomUrl, string nickName, string reason)
+    {
+        DateTime pausedUntil = DateTime.Now + RoomRecordStartPause;
+        SetRoomRecordStartPause(roomUrl, pausedUntil);
+        AppSessionLogger.Event("warn", "business", "room_record_start_paused", "room recording was paused after unstable media startup", new
+        {
+            RoomUrl = roomUrl,
+            NickName = nickName,
+            reason,
+            pausedUntil,
+        });
     }
 
     internal static bool SupportsRecorderStreamRefresh(string? platformName)

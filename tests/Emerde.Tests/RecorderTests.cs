@@ -141,12 +141,32 @@ public sealed class RecorderTests
     }
 
     [Theory]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(null, true)]
-    public void ShouldConsumeReconnectAttempt_OnlyConsumesUnconfirmedStates(bool? isLiveAfterRefresh, bool expected)
+    [InlineData(true, true, false)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(null, true, true)]
+    public void ShouldConsumeReconnectAttempt_ConsumesLiveAttemptsWithoutMediaProgress(bool? isLiveAfterRefresh, bool hadMediaProgress, bool expected)
     {
-        Assert.Equal(expected, Recorder.ShouldConsumeReconnectAttempt(isLiveAfterRefresh));
+        Assert.Equal(expected, Recorder.ShouldConsumeReconnectAttempt(isLiveAfterRefresh, hadMediaProgress));
+    }
+
+    [Theory]
+    [InlineData(0, false, false, 12, true, true)]
+    [InlineData(0, false, false, 12, null, true)]
+    [InlineData(0, false, false, 12, false, false)]
+    [InlineData(0, false, true, 12, true, false)]
+    [InlineData(0, true, false, 12, true, false)]
+    [InlineData(1, false, false, 12, true, false)]
+    [InlineData(0, false, false, 60, true, false)]
+    public void ShouldSuppressRapidRetry_OnlySuppressesShortCleanUnconfirmedRetries(
+        int exitCode,
+        bool wasCanceled,
+        bool wasStalled,
+        double durationSeconds,
+        bool? isLiveAfterRefresh,
+        bool expected)
+    {
+        Assert.Equal(expected, Recorder.ShouldSuppressRapidRetry(exitCode, wasCanceled, wasStalled, durationSeconds, isLiveAfterRefresh));
     }
 
     [Theory]
