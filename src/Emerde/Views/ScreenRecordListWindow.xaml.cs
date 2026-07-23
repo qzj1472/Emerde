@@ -1282,7 +1282,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
     [RelayCommand]
     private void OpenVideo(RecordedVideoItem? item)
     {
-        if (item == null)
+        if (item == null || !CanModifyVideo(item))
         {
             return;
         }
@@ -1363,7 +1363,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
     [RelayCommand]
     private async Task RenameVideoAsync(RecordedVideoItem? item)
     {
-        if (item == null || IsOperating || !File.Exists(item.FullPath))
+        if (item == null || IsOperating || !CanModifyVideo(item) || !File.Exists(item.FullPath))
         {
             return;
         }
@@ -1426,7 +1426,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
     [RelayCommand]
     private async Task TranscodeVideoAsync(RecordedVideoItem? item)
     {
-        if (item == null || !item.CanTranscode || IsOperating)
+        if (item == null || !item.CanTranscode || !CanModifyVideo(item) || IsOperating)
         {
             return;
         }
@@ -1459,7 +1459,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
     [RelayCommand]
     private void SplitVideo(RecordedVideoItem? item)
     {
-        if (item == null || !File.Exists(item.FullPath))
+        if (item == null || !CanModifyVideo(item) || !File.Exists(item.FullPath))
         {
             Toast.Warning("视频文件不存在");
             return;
@@ -1475,7 +1475,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
     private void SplitSelected()
     {
         RecordedVideoItem[] selected = GetSelectedVideos();
-        if (selected.Length == 0)
+        if (selected.Length == 0 || selected.Any(item => !CanModifyVideo(item)))
         {
             Toast.Warning("请先选择要分割的视频");
             return;
@@ -1525,7 +1525,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
 
         RecordedVideoItem[] targets = splitTargetItem != null ? [splitTargetItem] : GetSelectedVideos();
-        if (targets.Length == 0)
+        if (targets.Length == 0 || targets.Any(item => !CanModifyVideo(item)))
         {
             Toast.Warning("请先选择要分割的视频");
             return;
@@ -1575,7 +1575,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
     private void OpenMergeSelected()
     {
         RecordedVideoItem[] selected = GetSelectedVideos();
-        if (selected.Length < 2)
+        if (selected.Length < 2 || selected.Any(item => !CanModifyVideo(item)))
         {
             Toast.Warning(GetResourceText("SelectAtLeastTwoVideos", "Select at least two videos"));
             return;
@@ -1597,7 +1597,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
         RecordedVideoItem[] selected = OrderVideosForMerge(GetSelectedVideos()).ToArray();
 
-        if (selected.Length < 2)
+        if (selected.Length < 2 || selected.Any(item => !CanModifyVideo(item)))
         {
             Toast.Warning(GetResourceText("SelectAtLeastTwoVideos", "Select at least two videos"));
             return;
@@ -1686,7 +1686,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     private async Task DeleteVideosAsync(IReadOnlyCollection<RecordedVideoItem> items)
     {
-        if (IsOperating || items.Count == 0)
+        if (IsOperating || items.Count == 0 || items.Any(item => !CanModifyVideo(item)))
         {
             return;
         }
@@ -1768,7 +1768,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     private async Task CopyOrMoveVideosAsync(IReadOnlyCollection<RecordedVideoItem> items, bool move)
     {
-        if (IsOperating || items.Count == 0)
+        if (IsOperating || items.Count == 0 || items.Any(item => !CanModifyVideo(item)))
         {
             return;
         }
@@ -2705,6 +2705,43 @@ public partial class ScreenRecordListViewModel : ObservableObject
             Debug.WriteLine(e);
             return false;
         }
+    }
+
+    private static bool IsSameVolume(string sourceFilePath, string targetFilePath)
+    {
+        string sourceRoot = Path.GetPathRoot(Path.GetFullPath(sourceFilePath)) ?? string.Empty;
+        string targetRoot = Path.GetPathRoot(Path.GetFullPath(targetFilePath)) ?? string.Empty;
+        return string.Equals(sourceRoot, targetRoot, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void TransferAcrossVolumes(string sourceFilePath, string targetFilePath)
+    {
+        string temporaryTargetPath = MediaFileCatalog.CreateTemporaryPath(targetFilePath, "move");
+        try
+        {
+            File.Copy(sourceFilePath, temporaryTargetPath, overwrite: false);
+            if (new FileInfo(sourceFilePath).Length != new FileInfo(temporaryTargetPath).Length)
+            {
+                throw new IOException("The copied video length does not match the source.");
+            }
+
+            File.Move(temporaryTargetPath, targetFilePath, overwrite: false);
+            CopyAssociatedMetadata(sourceFilePath, targetFilePath);
+            File.Delete(sourceFilePath);
+            VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(sourceFilePath);
+        }
+        catch
+        {
+            DeleteFileIfExists(temporaryTargetPath);
+            DeleteFileIfExists(targetFilePath);
+            VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(targetFilePath);
+            throw;
+        }
+    }
+
+    private static bool CanModifyVideo(RecordedVideoItem item)
+    {
+        return item.CanModify && !MediaOperationRegistry.IsPathProtected(item.FullPath);
     }
 
     internal static string InferNickName(string filePath, string rootFolder)
