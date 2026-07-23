@@ -2570,37 +2570,23 @@ public partial class ScreenRecordListViewModel : ObservableObject
     {
         FileInfo source = new(sourceFilePath);
         string[] sourceCandidates = VideoRecordingMetadataStore.GetMetadataCandidates(source).ToArray();
-        int sourceIndex = Array.FindIndex(sourceCandidates, File.Exists);
-        if (sourceIndex < 0)
-        {
-            return;
-        }
-
-        string[] targetCandidates = VideoRecordingMetadataStore.GetMetadataCandidates(new FileInfo(targetFilePath)).ToArray();
-        if (targetCandidates.Length == 0)
-        {
-            return;
-        }
-
-        string targetMetadataPath = targetCandidates[Math.Min(sourceIndex, targetCandidates.Length - 1)];
-        Directory.CreateDirectory(Path.GetDirectoryName(targetMetadataPath) ?? Environment.CurrentDirectory);
-        if (!File.Exists(targetMetadataPath))
-        {
-            File.Copy(sourceCandidates[sourceIndex], targetMetadataPath);
-            return;
-        }
-
-        if (File.ReadAllBytes(sourceCandidates[sourceIndex]).SequenceEqual(File.ReadAllBytes(targetMetadataPath)))
-        {
-            return;
-        }
-
         VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(source);
+        if (!VideoRecordingMetadataStore.HasAnyMetadata(metadata))
+        {
+            return;
+        }
+
+        int candidateIndex = Array.FindIndex(sourceCandidates, File.Exists);
+        string[] targetCandidates = VideoRecordingMetadataStore.GetMetadataCandidates(new FileInfo(targetFilePath)).ToArray();
+        string targetMetadataPath = targetCandidates[Math.Clamp(candidateIndex, 0, targetCandidates.Length - 1)];
         string targetDirectory = Path.GetDirectoryName(targetFilePath) ?? Environment.CurrentDirectory;
-        _ = VideoRecordingMetadataStore.WriteSidecar(
+        if (VideoRecordingMetadataStore.WriteSidecar(
             targetDirectory,
-            Path.GetFileNameWithoutExtension(targetFilePath),
-            VideoRecordingMetadataStore.WithFileName(metadata, Path.GetFileName(targetFilePath)));
+            VideoRecordingMetadataStore.GetSidecarStem(targetMetadataPath),
+            VideoRecordingMetadataStore.WithFileName(metadata, Path.GetFileName(targetFilePath))) == null)
+        {
+            throw new IOException("Failed to write recording metadata.");
+        }
     }
 
     internal static void TransferVideoFile(string sourceFilePath, string targetFilePath, bool move)
@@ -2619,6 +2605,12 @@ public partial class ScreenRecordListViewModel : ObservableObject
                 VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(targetFilePath);
                 throw;
             }
+        }
+
+        if (!IsSameVolume(sourceFilePath, targetFilePath))
+        {
+            TransferAcrossVolumes(sourceFilePath, targetFilePath);
+            return;
         }
 
         File.Move(sourceFilePath, targetFilePath);
@@ -2682,7 +2674,8 @@ public partial class ScreenRecordListViewModel : ObservableObject
     {
         string directory = Path.GetDirectoryName(Path.GetFullPath(filePath)) ?? string.Empty;
         string stem = Path.GetFileNameWithoutExtension(filePath);
-        if (VideoExtensions.Any(extension => File.Exists(Path.Combine(directory, stem + extension))))
+        if (Directory.Exists(directory)
+            && Directory.EnumerateFiles(directory, stem + ".*", System.IO.SearchOption.TopDirectoryOnly).Any(MediaFileCatalog.IsMediaPath))
         {
             return false;
         }

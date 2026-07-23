@@ -911,7 +911,9 @@ public sealed class ScreenRecordListWindowTests
             ScreenRecordListViewModel.CopyAssociatedMetadata(sourceVideo, targetVideo);
 
             Assert.True(File.Exists(targetMetadata));
-            Assert.Equal(File.ReadAllText(sourceMetadata), File.ReadAllText(targetMetadata));
+            VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(new FileInfo(targetVideo));
+            Assert.Equal("Host", metadata.NickName);
+            Assert.Equal(Path.GetFileName(targetVideo), metadata.FileName);
         }
         finally
         {
