@@ -826,6 +826,10 @@ public partial class ScreenRecordListViewModel : ObservableObject
                     await RefreshForDisplayAsync();
                 }
             }
+            catch (Exception e)
+            {
+                AppSessionLogger.WriteException(e);
+            }
             finally
             {
                 Interlocked.Exchange(ref directoryRefreshPending, 0);
@@ -847,6 +851,10 @@ public partial class ScreenRecordListViewModel : ObservableObject
             {
                 await RefreshForDisplayAsync();
             }
+        }
+        catch (Exception e)
+        {
+            AppSessionLogger.WriteException(e);
         }
         finally
         {
@@ -1919,6 +1927,11 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
         catch (OperationCanceledException) when (loadToken.IsCancellationRequested)
         {
+            return;
+        }
+        catch (Exception e)
+        {
+            AppSessionLogger.WriteException(e);
             return;
         }
 
