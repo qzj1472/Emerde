@@ -118,9 +118,6 @@
   <data name="MailBodyElement" xml:space="preserve">
     <value>直ちに{0}さんの配信ルームへ</value>
   </data>
-  <data name="PlayerErrorOfFFplayNotFound" xml:space="preserve">
-    <value>ファイル ffplay が見つからないため再生できません！</value>
-  </data>
   <data name="TrayMenuShowMainWindow" xml:space="preserve">
     <value>画面表示 (&amp;V)</value>
   </data>
@@ -135,6 +132,27 @@
   </data>
   <data name="TrayMenuExit" xml:space="preserve">
     <value>終了 (&amp;E)</value>
+  </data>
+  <data name="TrayMenuMonitor" xml:space="preserve">
+    <value>監視</value>
+  </data>
+  <data name="TrayMenuPauseMonitor" xml:space="preserve">
+    <value>監視を一時停止</value>
+  </data>
+  <data name="TrayMenuResumeMonitor" xml:space="preserve">
+    <value>監視を再開</value>
+  </data>
+  <data name="TrayMenuMonitorRunning" xml:space="preserve">
+    <value>監視中</value>
+  </data>
+  <data name="TrayMenuMonitorPaused" xml:space="preserve">
+    <value>監視は一時停止中</value>
+  </data>
+  <data name="TrayMenuLiveSummary" xml:space="preserve">
+    <value>{0} 件のライブ配信中</value>
+  </data>
+  <data name="TrayMenuRecordingSummary" xml:space="preserve">
+    <value>{0} 件を録画中</value>
   </data>
   <data name="PlayerErrorOfNoFile" xml:space="preserve">
     <value>再生できる録画ファイルがありません</value>
@@ -485,7 +503,7 @@
     <value>この機能は録画中ではサポートされていません</value>
   </data>
   <data name="SureOnRecording" xml:space="preserve">
-    <value>録画中です。操作を続行してもよろしいですか？</value>
+    <value>録画または変換が進行中です。現在の処理を停止し、未完了の変換は次回起動時に再開します。終了しますか？</value>
   </data>
   <data name="ComingSoon" xml:space="preserve">
     <value>乞うご期待</value>
@@ -730,4 +748,5 @@
   <data name="PreviewRestore" xml:space="preserve"><value>全画面を終了</value></data>
   <data name="StartupAboutNoticeTitle" xml:space="preserve"><value>使用前に説明をお読みください</value></data>
   <data name="StartupAboutNoticeDescription" xml:space="preserve"><value>誤操作やプラットフォームのリスク制御を避けるため、初回利用前に左側の「概要」を開き、監視間隔、動的チェック、録画、プレビュー、全画面表示に関する説明を確認してください。内容を理解してから配信ルームを追加し、監視を開始することをおすすめします。</value></data>
+  <data name="ConfigurationRecovered" xml:space="preserve"><value>設定ファイルが無効なため、{0} に保存しました。Emerde は既定の設定で起動しました。</value></data>
 </root>

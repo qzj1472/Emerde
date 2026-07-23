@@ -115,9 +115,6 @@
   <data name="MailBodyElement" xml:space="preserve">
     <value>立即進入{0}的直播間</value>
   </data>
-  <data name="PlayerErrorOfFFplayNotFound" xml:space="preserve">
-    <value>未找到文件 ffplay 因此無法播放！</value>
-  </data>
   <data name="FailOp" xml:space="preserve">
     <value>操作失敗</value>
   </data>
@@ -171,6 +168,27 @@
   </data>
   <data name="TrayMenuExit" xml:space="preserve">
     <value>退出 (&amp;E)</value>
+  </data>
+  <data name="TrayMenuMonitor" xml:space="preserve">
+    <value>監控</value>
+  </data>
+  <data name="TrayMenuPauseMonitor" xml:space="preserve">
+    <value>暫停監控</value>
+  </data>
+  <data name="TrayMenuResumeMonitor" xml:space="preserve">
+    <value>恢復監控</value>
+  </data>
+  <data name="TrayMenuMonitorRunning" xml:space="preserve">
+    <value>監控運行中</value>
+  </data>
+  <data name="TrayMenuMonitorPaused" xml:space="preserve">
+    <value>監控已暫停</value>
+  </data>
+  <data name="TrayMenuLiveSummary" xml:space="preserve">
+    <value>{0} 個直播間正在直播</value>
+  </data>
+  <data name="TrayMenuRecordingSummary" xml:space="preserve">
+    <value>正在錄製 {0} 個直播間</value>
   </data>
   <data name="TrayMenuRestart" xml:space="preserve">
     <value>重啟 (&amp;R)</value>
@@ -482,7 +500,7 @@
     <value>此功能在錄製模式下不受支援</value>
   </data>
   <data name="SureOnRecording" xml:space="preserve">
-    <value>正在錄製中，您確定要繼續您的操作嗎？</value>
+    <value>錄製或轉碼仍在進行。Emerde 會停止當前處理，未完成的轉碼將在下次啟動時繼續，是否退出？</value>
   </data>
   <data name="ComingSoon" xml:space="preserve">
     <value>敬請期待</value>
@@ -727,4 +745,5 @@
   <data name="PreviewRestore" xml:space="preserve"><value>離開全螢幕</value></data>
   <data name="StartupAboutNoticeTitle" xml:space="preserve"><value>使用前請先閱讀說明</value></data>
   <data name="StartupAboutNoticeDescription" xml:space="preserve"><value>為了避免誤操作和平台風控，首次使用前建議先打開左側「關於」，仔細閱讀監控間隔、動態檢測、錄製、預覽與全螢幕等說明。理解這些規則後再添加直播間和開啟監控，會更穩一些。</value></data>
+  <data name="ConfigurationRecovered" xml:space="preserve"><value>設定檔無效，已保留到：{0}。Emerde 已使用預設設定啟動。</value></data>
 </root>

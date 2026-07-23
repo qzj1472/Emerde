@@ -115,9 +115,6 @@
   <data name="MailBodyElement" xml:space="preserve">
     <value>Goto {0}'s live room immediately</value>
   </data>
-  <data name="PlayerErrorOfFFplayNotFound" xml:space="preserve">
-    <value>File ffplay not found so cannot be played!</value>
-  </data>
   <data name="TrayMenuShowMainWindow" xml:space="preserve">
     <value>Show (&amp;V)</value>
   </data>
@@ -132,6 +129,27 @@
   </data>
   <data name="TrayMenuExit" xml:space="preserve">
     <value>Exit (&amp;E)</value>
+  </data>
+  <data name="TrayMenuMonitor" xml:space="preserve">
+    <value>Monitor</value>
+  </data>
+  <data name="TrayMenuPauseMonitor" xml:space="preserve">
+    <value>Pause monitoring</value>
+  </data>
+  <data name="TrayMenuResumeMonitor" xml:space="preserve">
+    <value>Resume monitoring</value>
+  </data>
+  <data name="TrayMenuMonitorRunning" xml:space="preserve">
+    <value>Monitoring is running</value>
+  </data>
+  <data name="TrayMenuMonitorPaused" xml:space="preserve">
+    <value>Monitoring is paused</value>
+  </data>
+  <data name="TrayMenuLiveSummary" xml:space="preserve">
+    <value>{0} live rooms online</value>
+  </data>
+  <data name="TrayMenuRecordingSummary" xml:space="preserve">
+    <value>Recording {0} live rooms</value>
   </data>
   <data name="PlayerErrorOfNoFile" xml:space="preserve">
     <value>No playable recording file</value>
@@ -482,7 +500,7 @@
     <value>This feature is not supported in recording mode</value>
   </data>
   <data name="SureOnRecording" xml:space="preserve">
-    <value>Recording is in progress. Are you sure you want to continue your operation?</value>
+    <value>Recording or transcoding is still active. Emerde will stop current processing and resume pending conversion on the next startup. Exit now?</value>
   </data>
   <data name="ComingSoon" xml:space="preserve">
     <value>Coming soon</value>
@@ -727,4 +745,5 @@
   <data name="PreviewRestore" xml:space="preserve"><value>Exit full screen</value></data>
   <data name="StartupAboutNoticeTitle" xml:space="preserve"><value>Read before using</value></data>
   <data name="StartupAboutNoticeDescription" xml:space="preserve"><value>To avoid misconfiguration and platform risk control, open About before first use and review the monitoring interval, dynamic checks, recording, preview, and full-screen behavior. Add live rooms and enable monitoring after understanding these rules.</value></data>
+  <data name="ConfigurationRecovered" xml:space="preserve"><value>The configuration file was invalid and has been preserved at: {0}. Emerde has started with default settings.</value></data>
 </root>

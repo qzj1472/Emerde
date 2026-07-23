@@ -709,15 +709,6 @@ namespace Emerde.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to File ffplay not found so cannot be played!.
-        /// </summary>
-        public static string PlayerErrorOfFFplayNotFound {
-            get {
-                return ResourceManager.GetString("PlayerErrorOfFFplayNotFound", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to No playable recording file.
         /// </summary>
         public static string PlayerErrorOfNoFile {

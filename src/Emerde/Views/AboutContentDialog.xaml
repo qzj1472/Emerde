@@ -6,238 +6,469 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              FontSize="14"
+             SizeChanged="AboutContentDialogSizeChanged"
              mc:Ignorable="d">
+    <UserControl.Resources>
+        <Style x:Key="AboutSectionTitleStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Margin" Value="0,10,0,2" />
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+        <Style x:Key="AboutSectionDescriptionStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="AboutCardStyle" TargetType="{x:Type Border}">
+            <Setter Property="Margin" Value="0,0,12,12" />
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="Background" Value="{DynamicResource EmerdeCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
+        </Style>
+        <Style x:Key="AboutCardTitleStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="AboutBodyTextStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="LineHeight" Value="20" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="AboutIconHostStyle" TargetType="{x:Type Border}">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+        <Style x:Key="AboutKeyStyle" TargetType="{x:Type Border}">
+            <Setter Property="Margin" Value="0,0,6,6" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+    </UserControl.Resources>
+
     <Grid ClipToBounds="True">
-        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-            <Border Padding="18">
-            <ui:StackPanel Spacing="18">
-            <TextBlock FontSize="22"
-                       FontWeight="SemiBold"
-                       Text="{I18N About}" />
-
-            <Grid MaxWidth="760" HorizontalAlignment="Left">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-
-                <Border Grid.Column="0"
-                        Width="72"
-                        Height="72"
-                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                        CornerRadius="{StaticResource Win11ControlCornerRadius}"
-                        ClipToBounds="True">
-                    <Image Width="72"
-                           Height="72"
-                           RenderOptions.BitmapScalingMode="HighQuality"
-                           Source="pack://application:,,,/Assets/Favicon.png"
-                           Stretch="UniformToFill" />
-                </Border>
-
-                <ui:StackPanel Grid.Column="1"
-                               Margin="18,0,0,0"
-                               VerticalAlignment="Center"
-                               Spacing="7">
-                    <TextBlock FontSize="22"
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <Border Padding="24,18,12,28">
+                <ui:StackPanel MaxWidth="1120"
+                               HorizontalAlignment="Left"
+                               Spacing="16">
+                    <TextBlock FontSize="24"
                                FontWeight="SemiBold"
-                               Text="{x:Static base:AppConfig.PackName}" />
-                    <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                               Text="{x:Static base:AppConfig.Version}" />
-                    <ui:HyperlinkButton Command="{Binding OpenHyperlinkCommand}"
-                                        Content="{x:Static base:AppConfig.Url}"
-                                        Cursor="Hand"
-                                        Padding="0" />
+                               Text="{I18N About}" />
+
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="76"
+                                Height="76"
+                                Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                CornerRadius="8"
+                                ClipToBounds="True">
+                            <Image RenderOptions.BitmapScalingMode="HighQuality"
+                                   Source="pack://application:,,,/Assets/Favicon.png"
+                                   Stretch="UniformToFill" />
+                        </Border>
+                        <ui:StackPanel Grid.Column="1"
+                                       Margin="18,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Spacing="5">
+                            <WrapPanel>
+                                <TextBlock Margin="0,0,10,0"
+                                           FontSize="22"
+                                           FontWeight="SemiBold"
+                                           Text="{x:Static base:AppConfig.PackName}" />
+                                <Border Padding="8,3"
+                                        VerticalAlignment="Center"
+                                        Background="#14337DFF"
+                                        CornerRadius="6">
+                                    <TextBlock Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                               Text="{x:Static base:AppConfig.Version}" />
+                                </Border>
+                            </WrapPanel>
+                            <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       Text="桌面直播监控、预览与录制工具"
+                                       TextWrapping="Wrap" />
+                            <WrapPanel>
+                                <ui:HyperlinkButton Command="{Binding OpenHyperlinkCommand}"
+                                                    Content="项目主页"
+                                                    Cursor="Hand"
+                                                    Padding="0" />
+                                <TextBlock Margin="10,0"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                           Text="·" />
+                                <ui:HyperlinkButton Command="{Binding OpenHyperlinkCommand}"
+                                                    CommandParameter="https://github.com/ihmily/DouyinLiveRecorder"
+                                                    Content="参考仓库"
+                                                    Cursor="Hand"
+                                                    Padding="0" />
+                            </WrapPanel>
+                        </ui:StackPanel>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource AboutSectionTitleStyle}"
+                               Text="从直播间到录制文件" />
+                    <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}"
+                               Text="四个步骤构成完整录制流程，监控负责发现状态，录制负责保存可用直播流。" />
                     <WrapPanel>
-                        <TextBlock Margin="0,0,6,0"
-                                   VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   Text="参考仓库：" />
-                        <ui:HyperlinkButton Command="{Binding OpenHyperlinkCommand}"
-                                            CommandParameter="https://github.com/ihmily/DouyinLiveRecorder"
-                                            Content="DouyinLiveRecorder"
-                                            Cursor="Hand"
-                                            Padding="0" />
+                        <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="8">
+                                <TextBlock FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                           Text="01" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="添加直播间" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="在首页新建房间，粘贴平台链接并确认主播信息。" />
+                            </ui:StackPanel>
+                        </Border>
+                        <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="8">
+                                <TextBlock FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="#168A55"
+                                           Text="02" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="开启监控" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="监控定期检查直播状态，并在开播或状态变化时刷新信息。" />
+                            </ui:StackPanel>
+                        </Border>
+                        <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="8">
+                                <TextBlock FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="#A15C00"
+                                           Text="03" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="允许录制" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="录制开关允许软件在检测到可用直播流后启动 FFmpeg。" />
+                            </ui:StackPanel>
+                        </Border>
+                        <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="8">
+                                <TextBlock FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="#7A4DA0"
+                                           Text="04" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="管理文件" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="在视频列表中查看、分割、转码、移动、复制或删除录制。" />
+                            </ui:StackPanel>
+                        </Border>
                     </WrapPanel>
+
+                    <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="录制与运行" />
+                    <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}"
+                               Text="影响直播发现、文件完整性和持续运行的核心规则。" />
+                    <WrapPanel>
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="10">
+                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border Background="#14337DFF" Style="{StaticResource AboutIconHostStyle}">
+                                        <ui:FontIcon HorizontalAlignment="Center"
+                                                     VerticalAlignment="Center"
+                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                                     Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                                     Glyph="{x:Static ui:FontSymbols.Sync}" />
+                                    </Border>
+                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="监控、直播状态与连麦" />
+                                </ui:StackPanel>
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="监控开关决定是否主动检查直播状态；只打开录制而未开启监控时，软件不会主动发现开播。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="抖音直播间已经开启连麦时，软件会继续按直播状态和实际可用流判断录制，不依赖单一房间状态字段。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="头像、平台和主播 UID 等固定信息低频刷新；标题在开播时更新，录制期间重点刷新码率与运行状态。" />
+                            </ui:StackPanel>
+                        </Border>
+
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="10">
+                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border Background="#1420A060" Style="{StaticResource AboutIconHostStyle}">
+                                        <ui:FontIcon HorizontalAlignment="Center"
+                                                     VerticalAlignment="Center"
+                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                                     Foreground="#168A55"
+                                                     Glyph="{x:Static ui:FontSymbols.Record}" />
+                                    </Border>
+                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="格式、分段与音频" />
+                                </ui:StackPanel>
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="TS/FLV 更适合直接保存直播原始数据；MP4/MKV 会在录制结束后进行转换。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="文件可按时长或大小分段；同名输出会自动增加序号，FFmpeg 不会覆盖现有录制。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="带音轨的视频会保留原音频并生成优化音频，可在播放器中切换。" />
+                            </ui:StackPanel>
+                        </Border>
+
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="10">
+                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border Background="#14A15C00" Style="{StaticResource AboutIconHostStyle}">
+                                        <ui:FontIcon HorizontalAlignment="Center"
+                                                     VerticalAlignment="Center"
+                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                                     Foreground="#A15C00"
+                                                     Glyph="{x:Static ui:FontSymbols.History}" />
+                                    </Border>
+                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="退出、恢复与后台任务" />
+                                </ui:StackPanel>
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="正常退出会尽快停止当前录制，不会为了长时间转码而让窗口无响应。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="未完成的收尾、分割或转码任务会保留恢复信息，并在下次启动时继续处理。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="标题栏关闭只隐藏主窗口，侧边栏“退出”才会结束后台运行。" />
+                            </ui:StackPanel>
+                        </Border>
+
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="10">
+                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border Background="#147A4DA0" Style="{StaticResource AboutIconHostStyle}">
+                                        <ui:FontIcon HorizontalAlignment="Center"
+                                                     VerticalAlignment="Center"
+                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                                     Foreground="#7A4DA0"
+                                                     Glyph="{x:Static ui:FontSymbols.Globe}" />
+                                    </Border>
+                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="网络、画质与平台" />
+                                </ui:StackPanel>
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="实际带宽取决于平台返回的分辨率和码率，同时录制多路直播时应预留额外上传与磁盘写入空间。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="登录 Cookie 可能影响可用画质；敏感 Cookie 与邮箱密码会使用当前 Windows 用户凭据加密保存。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="预览正常不代表录制链路一定可用，无法录制时应同时检查日志中的流地址解析与 FFmpeg 输出。" />
+                            </ui:StackPanel>
+                        </Border>
+                    </WrapPanel>
+
+                    <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="文件管理与维护" />
+                    <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}"
+                               Text="查看录制、保护数据以及定位问题时需要了解的行为。" />
+                    <WrapPanel>
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="10">
+                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border Background="#14337DFF" Style="{StaticResource AboutIconHostStyle}">
+                                        <ui:FontIcon HorizontalAlignment="Center"
+                                                     VerticalAlignment="Center"
+                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                                     Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                                     Glyph="{x:Static ui:FontSymbols.Video}" />
+                                    </Border>
+                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="视频列表" />
+                                </ui:StackPanel>
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="刷新会扫描当前保存目录；导入文件夹只复制导入时已有的视频，不会持续监控原目录。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="视频可打开、分割、转码、合并、重命名、移动和复制；默认使用 Windows 关联的播放器打开。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="空列表不会进入多选；手动删除会先确认并将文件发送到回收站。" />
+                            </ui:StackPanel>
+                        </Border>
+
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="10">
+                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border Background="#1420A060" Style="{StaticResource AboutIconHostStyle}">
+                                        <ui:FontIcon HorizontalAlignment="Center"
+                                                     VerticalAlignment="Center"
+                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                                     Foreground="#168A55"
+                                                     Glyph="{x:Static ui:FontSymbols.Play}" />
+                                    </Border>
+                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="预览与全屏" />
+                                </ui:StackPanel>
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="点击直播间预览可打开画面，切换其他房间会复用同一播放器并切换媒体。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="再次点击同一直播间会关闭预览；全屏时移动鼠标可显示控制区，按 Esc 可退出全屏。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="不要短时间连续开关预览，播放器和网络资源需要时间释放。" />
+                            </ui:StackPanel>
+                        </Border>
+
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="10">
+                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border Background="#14A15C00" Style="{StaticResource AboutIconHostStyle}">
+                                        <ui:FontIcon HorizontalAlignment="Center"
+                                                     VerticalAlignment="Center"
+                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                                     Foreground="#A15C00"
+                                                     Glyph="{x:Static ui:FontSymbols.Folder}" />
+                                    </Border>
+                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="保存目录、清理与备份" />
+                                </ui:StackPanel>
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="保存目录应位于空间充足且不会被清理软件自动删除的位置，重要录制应定期备份到其他磁盘。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="保留期清理只处理带有有效 Emerde 元数据的录制，避免误删保存目录中的普通媒体文件。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="更新版本时保留 downloads、video_thumbnails、logs、cache 和配置文件。" />
+                            </ui:StackPanel>
+                        </Border>
+
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="10">
+                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border Background="#147A4DA0" Style="{StaticResource AboutIconHostStyle}">
+                                        <ui:FontIcon HorizontalAlignment="Center"
+                                                     VerticalAlignment="Center"
+                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                                     Foreground="#7A4DA0"
+                                                     Glyph="{x:Static ui:FontSymbols.Document}" />
+                                    </Border>
+                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="日志、配置与排查" />
+                                </ui:StackPanel>
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="普通日志和错误日志按日期分文件保存；重复检查失败会按房间限频，避免长期运行时刷屏。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="导入配置前会完整解析 YAML，异常配置启动时会被隔离并恢复默认值。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="反馈问题时请提供日志、直播间链接、发生时间、操作步骤和截图。" />
+                            </ui:StackPanel>
+                        </Border>
+
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="10">
+                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border Background="#14337DFF" Style="{StaticResource AboutIconHostStyle}">
+                                        <ui:FontIcon HorizontalAlignment="Center"
+                                                     VerticalAlignment="Center"
+                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                                     Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                                     Glyph="{x:Static ui:FontSymbols.Settings}" />
+                                    </Border>
+                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="定时关闭" />
+                                </ui:StackPanel>
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="定时关闭默认只退出 Emerde；只有启用“关闭电脑”后才会请求系统关机。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="触发前会停止启动新的录制并显示倒计时，可在执行前取消本次计划。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="启用系统关机前，请先保存其他应用中的工作。" />
+                            </ui:StackPanel>
+                        </Border>
+
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="10">
+                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border Background="#1420A060" Style="{StaticResource AboutIconHostStyle}">
+                                        <ui:FontIcon HorizontalAlignment="Center"
+                                                     VerticalAlignment="Center"
+                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                                     Foreground="#168A55"
+                                                     Glyph="{x:Static ui:FontSymbols.Info}" />
+                                    </Border>
+                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="日常检查建议" />
+                                </ui:StackPanel>
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="定期确认保存目录剩余空间、FFmpeg 文件完整性和平台 Cookie 是否仍然有效。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="直播平台接口可能随时变化；某个平台突然无法解析时，应保留日志并避免反复删除配置。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="运行时间较长时，可通过状态栏和日志确认监控轮次、录制进程与待恢复任务。" />
+                            </ui:StackPanel>
+                        </Border>
+                    </WrapPanel>
+
+                    <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="操作速查" />
+                    <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}"
+                               Text="快捷键只在对应页面生效，输入框内仍保留系统文字编辑行为。" />
+                    <WrapPanel>
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="10">
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="首页" />
+                                <WrapPanel>
+                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Ctrl+A  全选" /></Border>
+                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Del  移除房间" /></Border>
+                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Ctrl+Z  撤销" /></Border>
+                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Ctrl+Y  恢复" /></Border>
+                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Esc  清除选择" /></Border>
+                                </WrapPanel>
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="普通点击单选，Ctrl 点击增减选择，Shift 点击连续选择；卡片可直接拖动排序，空白区域可拖动框选。" />
+                            </ui:StackPanel>
+                        </Border>
+
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="10">
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="视频列表" />
+                                <WrapPanel>
+                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Ctrl+A  全选" /></Border>
+                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Del  删除" /></Border>
+                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Shift+S  移动" /></Border>
+                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Ctrl+Shift+S  复制" /></Border>
+                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Esc  退出多选" /></Border>
+                                </WrapPanel>
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="双击打开视频；Ctrl 或 Shift 点击可进入多选，多选时点击卡片可增减选择，空列表不会显示多选入口。" />
+                            </ui:StackPanel>
+                        </Border>
+
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="10">
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="通用操作" />
+                                <WrapPanel>
+                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Esc  退出预览全屏" /></Border>
+                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="↑ / ↓  调整数值" /></Border>
+                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Enter  确认输入" /></Border>
+                                </WrapPanel>
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="侧边栏“退出”结束程序；标题栏关闭按钮只隐藏主窗口，程序继续在系统托盘运行。" />
+                            </ui:StackPanel>
+                        </Border>
+                    </WrapPanel>
+
+                    <Border Margin="0,0,12,0"
+                            Padding="16"
+                            Background="#14D83B01"
+                            BorderBrush="#55D83B01"
+                            BorderThickness="1"
+                            CornerRadius="8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Width="34"
+                                    Height="34"
+                                    Background="#20D83B01"
+                                    CornerRadius="6">
+                                <ui:FontIcon HorizontalAlignment="Center"
+                                             VerticalAlignment="Center"
+                                             FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                             Foreground="#D83B01"
+                                             Glyph="{x:Static ui:FontSymbols.Important}" />
+                            </Border>
+                            <ui:StackPanel Grid.Column="1" Margin="12,0,0,0" Spacing="6">
+                                <TextBlock FontWeight="SemiBold"
+                                           Foreground="#D83B01"
+                                           Text="重要注意事项" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="不要在录制文件仍在写入时强制结束进程、断电或直接删除软件目录；不要删除或单独移动 ffmpeg.exe、ffprobe.exe 及程序依赖文件。平台接口发生变化时请先保留日志，系统关机功能启用前请保存其他应用中的工作。" />
+                            </ui:StackPanel>
+                        </Grid>
+                    </Border>
                 </ui:StackPanel>
-            </Grid>
-
-            <UniformGrid MaxWidth="1040"
-                         HorizontalAlignment="Left"
-                         Columns="2">
-                <Border Margin="0,0,10,10"
-                        Padding="18"
-                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                        CornerRadius="{StaticResource Win11ControlCornerRadius}">
-                    <ui:StackPanel Spacing="8">
-                        <TextBlock FontWeight="SemiBold" Text="快速开始" />
-                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   LineHeight="20"
-                                   Text="1. 将整个软件文件夹解压到固定位置，建议使用非系统盘。&#x0a;2. 在首页点击“新建”，粘贴直播间链接并确认主播信息。&#x0a;3. 打开顶部“监控”和“录制”，软件会检查直播状态并自动开始录制。"
-                                   TextWrapping="Wrap" />
-                    </ui:StackPanel>
-                </Border>
-
-                <Border Margin="10,0,0,10"
-                        Padding="18"
-                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                        CornerRadius="{StaticResource Win11ControlCornerRadius}">
-                    <ui:StackPanel Spacing="8">
-                        <TextBlock FontWeight="SemiBold" Text="监控与录制" />
-                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   LineHeight="20"
-                                   Text="顶部“监控”控制是否检查直播状态，“录制”控制是否允许开始录制。&#x0a;跟随全局的直播间使用顶部和全局设置；关闭跟随全局后，局部设置优先。&#x0a;自动监控会分批检查，一次请求 1-5 个直播间；开播后约 1 分钟一轮并穿插 2 次随机检测；直播关闭后半小时内约 20 秒一次，之后恢复设置间隔。&#x0a;只打开录制但没有开启监控时，软件不会主动发现开播。"
-                                   TextWrapping="Wrap" />
-                    </ui:StackPanel>
-                </Border>
-
-                <Border Margin="0,10,10,0"
-                        Padding="18"
-                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                        CornerRadius="{StaticResource Win11ControlCornerRadius}">
-                    <ui:StackPanel Spacing="8">
-                        <TextBlock FontWeight="SemiBold" Text="日志与排查" />
-                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   LineHeight="20"
-                                   Text="运行日志建议保持开启。&#x0a;遇到问题时请导出日志，并说明直播间链接、操作步骤和异常现象。&#x0a;不要只描述结果，日志能直接定位失败位置。"
-                                   TextWrapping="Wrap" />
-                    </ui:StackPanel>
-                </Border>
-
-                <Border Margin="10,10,0,0"
-                        Padding="18"
-                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                        CornerRadius="{StaticResource Win11ControlCornerRadius}">
-                    <ui:StackPanel Spacing="8">
-                        <TextBlock FontWeight="SemiBold" Text="网络与格式" />
-                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   LineHeight="20"
-                                   Text="单路直播通常需要约 10 Mbps，实际取决于平台画质和码率。&#x0a;默认直接保存 TS/FLV；选择转 MP4 或 MKV 时，会保留原音频并生成优化音频。&#x0a;网络不稳定时应减少同时监控和录制的直播间数量。"
-                                   TextWrapping="Wrap" />
-                    </ui:StackPanel>
-                </Border>
-            </UniformGrid>
-
-            <TextBlock Margin="0,8,0,0"
-                       FontSize="18"
-                       FontWeight="SemiBold"
-                       Text="完整使用手册" />
-
-            <UniformGrid MaxWidth="1040"
-                         HorizontalAlignment="Left"
-                         Columns="2">
-                <Border Margin="0,0,10,10"
-                        Padding="18"
-                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                        CornerRadius="{StaticResource Win11ControlCornerRadius}">
-                    <ui:StackPanel Spacing="8">
-                        <TextBlock FontWeight="SemiBold" Text="录制文件与音频" />
-                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   LineHeight="20"
-                                   Text="TS/FLV 适合稳定保存直播原始数据，录制中断时通常更容易保留已写入内容。&#x0a;转 MP4/MKV 会在录制结束后运行 FFmpeg，请等待转码完成再关闭软件。&#x0a;带音轨的视频会包含“原音频”和“优化音频”，播放器中可自行切换。"
-                                   TextWrapping="Wrap" />
-                    </ui:StackPanel>
-                </Border>
-
-                <Border Margin="10,0,0,10"
-                        Padding="18"
-                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                        CornerRadius="{StaticResource Win11ControlCornerRadius}">
-                    <ui:StackPanel Spacing="8">
-                        <TextBlock FontWeight="SemiBold" Text="视频列表" />
-                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   LineHeight="20"
-                                   Text="刷新会扫描当前保存目录中的视频；导入文件夹会复制导入时已有的视频，不会持续监控原目录。&#x0a;卡片可直接打开、分割、转码或打开目录，右键可删除、重命名和另存为。&#x0a;多选模式支持合并、删除、移动、复制、全选和反选；合并要求视频格式和媒体流参数一致。"
-                                   TextWrapping="Wrap" />
-                    </ui:StackPanel>
-                </Border>
-
-                <Border Margin="0,10,10,10"
-                        Padding="18"
-                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                        CornerRadius="{StaticResource Win11ControlCornerRadius}">
-                    <ui:StackPanel Spacing="8">
-                        <TextBlock FontWeight="SemiBold" Text="预览与全屏" />
-                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   LineHeight="20"
-                                   Text="在直播间信息栏点击预览可打开画面；点击其他直播间的预览会切换画面。&#x0a;同一直播间再次点击预览会关闭画面。&#x0a;全屏时移动鼠标可显示视频控件，按 Esc 或点击全屏按钮可退出。"
-                                   TextWrapping="Wrap" />
-                    </ui:StackPanel>
-                </Border>
-
-                <Border Margin="10,10,0,10"
-                        Padding="18"
-                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                        CornerRadius="{StaticResource Win11ControlCornerRadius}">
-                    <ui:StackPanel Spacing="8">
-                        <TextBlock FontWeight="SemiBold" Text="保存目录与备份" />
-                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   LineHeight="20"
-                                   Text="保存目录应放在空间充足且不会被清理软件自动删除的位置。&#x0a;更换软件版本时不要删除 downloads、video_thumbnails、日志和配置文件。&#x0a;录像列表中的手动删除会发送到回收站；保留期清理和转码后删除源文件属于永久删除。重要录制应定期备份到其他磁盘。"
-                                   TextWrapping="Wrap" />
-                    </ui:StackPanel>
-                </Border>
-
-                <Border Margin="0,10,10,0"
-                        Padding="18"
-                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                        CornerRadius="{StaticResource Win11ControlCornerRadius}">
-                    <ui:StackPanel Spacing="8">
-                        <TextBlock FontWeight="SemiBold" Text="定时关闭" />
-                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   LineHeight="20"
-                                   Text="定时关闭默认只退出 Emerde，不会关闭电脑。&#x0a;勾选“关闭电脑”后才会请求系统关机；勾选“转码完成后再关闭”会等待录制清理和转码结束。&#x0a;触发前一分钟会停止新录制并显示提示，可取消本次计划。"
-                                   TextWrapping="Wrap" />
-                    </ui:StackPanel>
-                </Border>
-
-                <Border Margin="10,10,0,0"
-                        Padding="18"
-                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                        CornerRadius="{StaticResource Win11ControlCornerRadius}">
-                    <ui:StackPanel Spacing="8">
-                        <TextBlock FontWeight="SemiBold" Text="问题排查" />
-                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   LineHeight="20"
-                                   Text="无法录制时先确认监控、录制、直播间局部设置和保存目录权限。&#x0a;预览或录制画质取决于平台实际返回的可用直播流，登录 Cookie 可能影响最高画质。&#x0a;反馈问题时请提供日志、直播间链接、发生时间、操作步骤和截图。"
-                                   TextWrapping="Wrap" />
-                    </ui:StackPanel>
-                </Border>
-            </UniformGrid>
-
-            <Border MaxWidth="1040"
-                    Padding="18"
-                    HorizontalAlignment="Left"
-                    Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                    CornerRadius="{StaticResource Win11ControlCornerRadius}">
-                <ui:StackPanel Spacing="8">
-                    <TextBlock FontWeight="SemiBold" Text="快捷键与选择操作" />
-                    <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                               LineHeight="21"
-                               Text="首页：卡片可直接拖动排序；普通点击单选，按住 Ctrl 点击可增减选择，按住 Shift 点击可连续选择；Ctrl+Z 撤销最近 200 步选择、添加或删除操作，Ctrl+Y 恢复，Esc 清除选择。&#x0a;视频列表：普通点击为常规选中，双击打开视频；点击“多选”或按住 Ctrl、Shift 点击可进入多选，多选时点击卡片可增减选择；Ctrl+Z 撤销最近 200 步选择，Ctrl+Y 恢复，Esc 退出多选。&#x0a;预览全屏：按 Esc 退出全屏。&#x0a;数字输入框：按 ↑ 或 ↓ 调整数值，按 Enter 确认当前输入。&#x0a;首页和视频列表均可在空白区域按住鼠标左键拖动框选；视频列表空框不会进入多选。&#x0a;退出软件：侧边栏“退出”会结束 Emerde 并停止后台运行；标题栏右上角关闭按钮只关闭主窗口，Emerde 会继续在系统托盘后台运行。"
-                               TextWrapping="Wrap" />
-                </ui:StackPanel>
-            </Border>
-
-            <Border MaxWidth="1040"
-                    Padding="18"
-                    HorizontalAlignment="Left"
-                    Background="#18D83B01"
-                    BorderBrush="#66D83B01"
-                    BorderThickness="1"
-                    CornerRadius="{StaticResource Win11ControlCornerRadius}">
-                <ui:StackPanel Spacing="8">
-                    <TextBlock FontWeight="SemiBold"
-                               Foreground="#D83B01"
-                               Text="重要注意事项" />
-                    <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                               LineHeight="21"
-                               Text="不要在正在录制或转码时强制结束进程、断电或直接删除软件目录。&#x0a;不要删除或单独移动 ffmpeg.exe、ffprobe.exe 以及软件依赖文件，否则录制、分割、转码和视频信息读取会失败。&#x0a;不要短时间连续刷新或频繁开关预览；平台可能限制请求频率，软件也需要时间释放播放器和网络资源。&#x0a;关闭电脑功能会真正请求系统关机，启用前请先保存其他软件中的工作。&#x0a;直播平台接口随时可能变化；某个平台突然无法解析时，请保留日志，不要反复删除配置。"
-                               TextWrapping="Wrap" />
-                </ui:StackPanel>
-            </Border>
-            </ui:StackPanel>
             </Border>
         </ScrollViewer>
+
         <Border Height="6"
                 VerticalAlignment="Top"
                 Panel.ZIndex="20"

@@ -115,9 +115,6 @@
   <data name="MailBodyElement" xml:space="preserve">
     <value>立即进入{0}的直播间</value>
   </data>
-  <data name="PlayerErrorOfFFplayNotFound" xml:space="preserve">
-    <value>未找到文件 ffplay 因此无法播放！</value>
-  </data>
   <data name="TrayMenuShowMainWindow" xml:space="preserve">
     <value>显示界面 (&amp;V)</value>
   </data>
@@ -132,6 +129,27 @@
   </data>
   <data name="TrayMenuExit" xml:space="preserve">
     <value>退出 (&amp;E)</value>
+  </data>
+  <data name="TrayMenuMonitor" xml:space="preserve">
+    <value>监控</value>
+  </data>
+  <data name="TrayMenuPauseMonitor" xml:space="preserve">
+    <value>暂停监控</value>
+  </data>
+  <data name="TrayMenuResumeMonitor" xml:space="preserve">
+    <value>恢复监控</value>
+  </data>
+  <data name="TrayMenuMonitorRunning" xml:space="preserve">
+    <value>监控运行中</value>
+  </data>
+  <data name="TrayMenuMonitorPaused" xml:space="preserve">
+    <value>监控已暂停</value>
+  </data>
+  <data name="TrayMenuLiveSummary" xml:space="preserve">
+    <value>{0} 个直播间正在直播</value>
+  </data>
+  <data name="TrayMenuRecordingSummary" xml:space="preserve">
+    <value>正在录制 {0} 个直播间</value>
   </data>
   <data name="PlayerErrorOfNoFile" xml:space="preserve">
     <value>没有可播放的录制文件</value>
@@ -482,7 +500,7 @@
     <value>此功能在录制模式下不受支持</value>
   </data>
   <data name="SureOnRecording" xml:space="preserve">
-    <value>正在录制中，您确定要继续您的操作吗？</value>
+    <value>录制或转码仍在进行。Emerde 会停止当前处理，未完成的转码将在下次启动时继续，是否退出？</value>
   </data>
   <data name="ComingSoon" xml:space="preserve">
     <value>敬请期待</value>
@@ -727,4 +745,5 @@
   <data name="PreviewRestore" xml:space="preserve"><value>退出全屏</value></data>
   <data name="StartupAboutNoticeTitle" xml:space="preserve"><value>使用前请先阅读说明</value></data>
   <data name="StartupAboutNoticeDescription" xml:space="preserve"><value>为了避免误操作和平台风控，首次使用前建议先打开左侧“关于”，仔细阅读监控间隔、动态检测、录制、预览与全屏等说明。理解这些规则后再添加直播间和开启监控，会更稳一些。</value></data>
+  <data name="ConfigurationRecovered" xml:space="preserve"><value>配置文件无效，已保留到：{0}。Emerde 已使用默认配置启动。</value></data>
 </root>
