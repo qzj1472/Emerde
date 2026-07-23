@@ -11,8 +11,13 @@ namespace Emerde.Core;
 public sealed class Recorder
 {
     private const int MaxRecordingAttempts = 4;
+    internal const int OfflineRefreshConfirmationCount = 1;
     private const int ProcessOutputTailLimit = 8192;
+    private static readonly TimeSpan ProgressStartupTimeout = TimeSpan.FromSeconds(30);
+    internal static readonly TimeSpan ProgressStallTimeout = TimeSpan.FromSeconds(10);
     private const string OptimizedAudioFilter = "[0:a:0]volume=30dB,acompressor=threshold=-10dB:ratio=3,alimiter=limit=0.316227766:level=false[aopt]";
+
+    internal static readonly TimeSpan ProcessStopGracePeriod = TimeSpan.FromSeconds(3);
 
     private static readonly object OutputReservationLock = new();
 
@@ -36,9 +41,15 @@ public sealed class Recorder
 
     private string lastProcessErrorOutput = string.Empty;
 
+    private bool lastStreamRefreshHadUrl;
+
+    private DateTime lastLiveWithoutStreamLogAt = DateTime.MinValue;
+
     private readonly List<string> pendingRecordingPaths = [];
 
     private readonly List<string> unregisteredRecordingPatterns = [];
+
+    private IDisposable? mediaOperationRegistration;
 
     public bool IsBusy => recordingTask is { IsCompleted: false };
 
@@ -67,14 +78,33 @@ public sealed class Recorder
 
             Volatile.Write(ref stopRequested, 0);
             Volatile.Write(ref deferPostProcessing, 0);
+            pendingRecordingPaths.Clear();
+            unregisteredRecordingPatterns.Clear();
+            FileName = null;
+            MetadataPath = null;
+            StartTime = DateTime.MinValue;
+            EndTime = DateTime.MinValue;
             RecordStatus = RecordStatus.Recording;
             TokenSource = tokenSource ?? new CancellationTokenSource();
-            recordingTask = Task.Factory.StartNew(
-                () => RunAsync(startInfo, TokenSource.Token),
-                CancellationToken.None,
-                TaskCreationOptions.LongRunning,
-                TaskScheduler.Default
-            ).Unwrap();
+            mediaOperationRegistration = MediaOperationRegistry.Register(
+                MediaOperationKind.Recording,
+                () => [FileName],
+                () => Stop(deferPostProcessing: true));
+            try
+            {
+                recordingTask = Task.Factory.StartNew(
+                    () => RunAsync(startInfo, TokenSource.Token),
+                    CancellationToken.None,
+                    TaskCreationOptions.LongRunning,
+                    TaskScheduler.Default
+                ).Unwrap();
+            }
+            catch
+            {
+                mediaOperationRegistration.Dispose();
+                mediaOperationRegistration = null;
+                throw;
+            }
             return recordingTask;
         }
     }
@@ -97,7 +127,25 @@ public sealed class Recorder
                 return;
             }
 
-            string saveFolder = SaveFolderHelper.GetSaveFolder(recordingOptions.SaveFolder);
+            SaveFolderResolution saveFolderResolution = SaveFolderHelper.ResolveForRecording(recordingOptions.SaveFolder);
+            string saveFolder = saveFolderResolution.Folder;
+            if (saveFolderResolution.UsedFallback)
+            {
+                AppSessionLogger.Event("warn", "storage", "recording_save_folder_fallback", saveFolderResolution.Error?.Message ?? string.Empty, new
+                {
+                    configuredFolder = recordingOptions.SaveFolder,
+                    fallbackFolder = saveFolder,
+                    startInfo.RoomUrl,
+                });
+                try
+                {
+                    Notifier.AddNotice("Emerde", "保存目录不可用", $"本次录制已临时保存到：{saveFolder}");
+                }
+                catch (Exception notificationError)
+                {
+                    AppSessionLogger.WriteException(notificationError);
+                }
+            }
             saveFolder = BuildSaveFolder(saveFolder, startInfo.NickName, DateTime.Now, recordingOptions.SaveFolderPathLevel);
             Directory.CreateDirectory(saveFolder);
 
@@ -141,9 +189,6 @@ public sealed class Recorder
 
             EndTime = DateTime.MinValue;
             StartTime = DateTime.Now;
-            pendingRecordingPaths.Clear();
-            unregisteredRecordingPatterns.Clear();
-
             int attempt = 0;
             int offlineRefreshChecks = 0;
             while (!token.IsCancellationRequested && Volatile.Read(ref stopRequested) == 0)
@@ -160,7 +205,7 @@ public sealed class Recorder
                 {
                     pendingRecordingPaths.Add(pendingRecordingPath);
                 }
-                else if (GetTargetFormat(recordingOptions.RecordFormat) != null)
+                else
                 {
                     unregisteredRecordingPatterns.Add(FileName);
                 }
@@ -217,8 +262,13 @@ public sealed class Recorder
                 bool hasStreamRefresh = startInfo.RefreshStreamAsync != null;
                 bool? isLiveAfterRefresh = await TryRefreshInputAsync(startInfo, token);
                 offlineRefreshChecks = isLiveAfterRefresh == false ? offlineRefreshChecks + 1 : 0;
+                bool offlineConfirmed = isLiveAfterRefresh == false && offlineRefreshChecks >= OfflineRefreshConfirmationCount;
                 if (!ShouldRetryRecording(exitCode, hasStreamRefresh, isLiveAfterRefresh, offlineRefreshChecks))
                 {
+                    if (offlineConfirmed)
+                    {
+                        startInfo.OfflineConfirmed?.Invoke();
+                    }
                     break;
                 }
 
@@ -229,8 +279,15 @@ public sealed class Recorder
                     useTransportStream = ShouldUseTransportStream(isHls, isToSegment, targetFormat);
                 }
 
-                attempt++;
-                if (!CanRetryRecording(attempt))
+                if (ShouldConsumeReconnectAttempt(isLiveAfterRefresh))
+                {
+                    attempt++;
+                }
+                else
+                {
+                    attempt = 0;
+                }
+                if (attempt > 0 && !CanRetryRecording(attempt))
                 {
                     AppSessionLogger.Event("error", "recorder", "record_reconnect_exhausted", "record reconnect attempts exhausted", new
                     {
@@ -242,8 +299,11 @@ public sealed class Recorder
                     break;
                 }
 
-                TimeSpan delay = TimeSpan.FromSeconds(Math.Min(8, attempt switch
+                TimeSpan delay = isLiveAfterRefresh == true && !lastStreamRefreshHadUrl
+                    ? TimeSpan.FromSeconds(3)
+                    : TimeSpan.FromSeconds(Math.Min(8, attempt switch
                 {
+                    0 => 1,
                     1 => 1,
                     2 => 3,
                     _ => 8,
@@ -269,58 +329,77 @@ public sealed class Recorder
         }
         finally
         {
-            EndTime = DateTime.Now;
-            lock (stateLock)
+            try
             {
-                if (RecordStatus == RecordStatus.Recording)
+                EndTime = DateTime.Now;
+                lock (stateLock)
                 {
-                    RecordStatus = RecordStatus.NotRecording;
-                }
-            }
-            AppSessionLogger.Event("info", "recorder", "record_finished", "recording task finished", new
-            {
-                startInfo.RoomUrl,
-                startInfo.NickName,
-                FileName,
-                stopRequested = Volatile.Read(ref stopRequested) != 0,
-                startedAt = StartTime,
-                endedAt = EndTime,
-                durationSeconds = StartTime == DateTime.MinValue ? 0 : Math.Max(0, (EndTime - StartTime).TotalSeconds),
-            });
-            if (Volatile.Read(ref deferPostProcessing) == 0)
-            {
-                foreach (string pendingRecordingPath in pendingRecordingPaths)
-                {
-                    await RecordingRecoveryService.ProcessAsync(pendingRecordingPath);
-                }
-
-                foreach (string sourcePattern in unregisteredRecordingPatterns)
-                {
-                    await RecordingRecoveryService.ProcessSourcePatternAsync(
-                        sourcePattern,
-                        GetTargetFormat(recordingOptions.RecordFormat)!,
-                        recordingOptions.IsRemoveTs);
-                }
-            }
-            else
-            {
-                foreach (string sourcePattern in unregisteredRecordingPatterns)
-                {
-                    string? pendingPath = RecordingRecoveryService.Register(sourcePattern, recordingOptions);
-                    if (!string.IsNullOrWhiteSpace(pendingPath))
+                    if (RecordStatus == RecordStatus.Recording)
                     {
-                        pendingRecordingPaths.Add(pendingPath);
+                        RecordStatus = RecordStatus.NotRecording;
                     }
                 }
-
-                AppSessionLogger.Event("info", "recorder", "post_processing_deferred", "recording post-processing was deferred until the next startup", new
+                AppSessionLogger.Event("info", "recorder", "record_finished", "recording task finished", new
                 {
                     startInfo.RoomUrl,
                     startInfo.NickName,
-                    pendingCount = pendingRecordingPaths.Count,
+                    FileName,
+                    stopRequested = Volatile.Read(ref stopRequested) != 0,
+                    startedAt = StartTime,
+                    endedAt = EndTime,
+                    durationSeconds = StartTime == DateTime.MinValue ? 0 : Math.Max(0, (EndTime - StartTime).TotalSeconds),
                 });
+                try
+                {
+                    _ = WeakReferenceMessenger.Default.Send(new RoomRecordingStateChangedMessage(startInfo.RoomUrl));
+                }
+                catch (Exception e)
+                {
+                    AppSessionLogger.WriteException(e);
+                }
+                RoomRecordingOptions postProcessingOptions = startInfo.ResolveCurrentOptions?.Invoke() ?? recordingOptions;
+                bool processNow = Volatile.Read(ref deferPostProcessing) == 0;
+                foreach (string pendingRecordingPath in pendingRecordingPaths.ToArray())
+                {
+                    if (RecordingRecoveryService.UpdateOptions(pendingRecordingPath, postProcessingOptions) && processNow)
+                    {
+                        await RecordingRecoveryService.ProcessAsync(pendingRecordingPath);
+                    }
+                }
+
+                foreach (string sourcePattern in unregisteredRecordingPatterns)
+                {
+                    string? pendingPath = RecordingRecoveryService.Register(sourcePattern, postProcessingOptions);
+                    if (!string.IsNullOrWhiteSpace(pendingPath))
+                    {
+                        pendingRecordingPaths.Add(pendingPath);
+                        if (processNow)
+                        {
+                            await RecordingRecoveryService.ProcessAsync(pendingPath);
+                        }
+                    }
+                }
+
+                if (!processNow)
+                {
+                    AppSessionLogger.Event("info", "recorder", "post_processing_deferred", "recording post-processing was deferred until the next startup", new
+                    {
+                        startInfo.RoomUrl,
+                        startInfo.NickName,
+                        pendingCount = pendingRecordingPaths.Count,
+                    });
+                }
+                RecordingCleanupService.QueueRun();
             }
-            RecordingCleanupService.QueueRun();
+            catch (Exception e)
+            {
+                AppSessionLogger.WriteException(e);
+            }
+            finally
+            {
+                mediaOperationRegistration?.Dispose();
+                mediaOperationRegistration = null;
+            }
         }
     }
 
@@ -376,9 +455,11 @@ public sealed class Recorder
         [
             "-n",
             "-v", "verbose",
-            "-rw_timeout", "30000000",
+            "-rw_timeout", "15000000",
             "-loglevel", "error",
             "-hide_banner",
+            "-progress", "pipe:1",
+            "-stats_period", "1",
             "-user_agent", userAgent,
             "-protocol_whitelist", "rtmp,crypto,file,http,https,tcp,tls,udp,rtp,httpproxy",
             "-thread_queue_size", "1024",
@@ -391,15 +472,17 @@ public sealed class Recorder
             .AddIf(isUseProxy, "-http_proxy", httpProxy)
             .AddIf(!string.IsNullOrWhiteSpace(headers), "-headers", headers)
             .AddIf(true,
-                "-i", Url ?? string.Empty,
-                "-sn",
-                "-dn",
-                "-reconnect_delay_max", "60",
+                "-reconnect_delay_max", "8",
+                "-reconnect_delay_total_max", "10",
+                "-reconnect_max_retries", "4",
                 "-reconnect", "1",
                 "-reconnect_streamed", "1",
                 "-reconnect_at_eof", "1",
                 "-reconnect_on_network_error", "1",
                 "-reconnect_on_http_error", "4xx,5xx",
+                "-i", Url ?? string.Empty,
+                "-sn",
+                "-dn",
                 "-max_muxing_queue_size", "1024",
                 "-correct_ts_overflow", "1",
                 "-avoid_negative_ts", "1"
@@ -459,6 +542,7 @@ public sealed class Recorder
         }
 
         using Process process = new() { StartInfo = processStartInfo };
+        Stopwatch processLifetime = Stopwatch.StartNew();
         process.Start();
         TryTraceProcess(process);
         RuntimeResourceLogger.Register(process, "ffmpeg", "record", startInfo.RoomUrl, startInfo.NickName, new
@@ -478,24 +562,50 @@ public sealed class Recorder
             AppendOutputTail(errorTail, data);
             await OnStandardErrorReceived(data, readToken);
         }, CancellationToken.None);
-        Task outputTask = ReadPipeAsync(process.StandardOutput, OnStandardOutputReceived, CancellationToken.None);
+        RecorderProgressTracker progressTracker = new(DateTime.UtcNow);
+        Task outputTask = ReadPipeAsync(process.StandardOutput, (data, _) =>
+        {
+            progressTracker.Observe(data, DateTime.UtcNow);
+            return Task.CompletedTask;
+        }, CancellationToken.None);
         bool wasCanceled = false;
+        bool wasStalled = false;
 
         try
         {
             Task exitTask = process.WaitForExitAsync(CancellationToken.None);
-            Task cancellationTask = WaitForCancellationAsync(token);
-            Task completedTask = await Task.WhenAny(exitTask, cancellationTask);
+            using CancellationTokenSource cancellationWaitSource = CancellationTokenSource.CreateLinkedTokenSource(token);
+            using CancellationTokenSource progressWaitSource = new();
+            Task cancellationTask = WaitForCancellationAsync(cancellationWaitSource.Token);
+            Task<bool> progressStallTask = WaitForProgressStallAsync(progressTracker, progressWaitSource.Token);
+            Task completedTask = await Task.WhenAny(exitTask, cancellationTask, progressStallTask);
 
-            if (completedTask == cancellationTask && token.IsCancellationRequested)
+            if (token.IsCancellationRequested)
             {
                 wasCanceled = true;
+                await StopProcessGracefullyAsync(process);
+            }
+            else if (completedTask == progressStallTask && await progressStallTask)
+            {
+                wasStalled = true;
+                AppSessionLogger.Event("warn", "recorder", "record_progress_stalled", "ffmpeg media progress stopped and the stream will be refreshed", new
+                {
+                    startInfo.RoomUrl,
+                    startInfo.NickName,
+                    process.Id,
+                    FileName,
+                    stalledSeconds = progressTracker.GetStalledDuration(DateTime.UtcNow).TotalSeconds,
+                });
                 await StopProcessGracefullyAsync(process);
             }
             else
             {
                 await exitTask;
             }
+            cancellationWaitSource.Cancel();
+            progressWaitSource.Cancel();
+            await cancellationTask;
+            await progressStallTask;
         }
         finally
         {
@@ -509,17 +619,34 @@ public sealed class Recorder
         }
 
         await Task.WhenAll(errorTask, outputTask);
+        processLifetime.Stop();
         lastProcessErrorOutput = errorTail.ToString();
-        AppSessionLogger.Event(process.ExitCode == 0 ? "info" : "warn", "recorder", "record_process_exited", "ffmpeg recording process exited", new
+        double durationSeconds = processLifetime.Elapsed.TotalSeconds;
+        AppSessionLogger.Event(GetProcessExitLogLevel(process.ExitCode, wasCanceled, wasStalled), "recorder", "record_process_exited", "ffmpeg recording process exited", new
         {
             startInfo.RoomUrl,
             startInfo.NickName,
             process.Id,
             process.ExitCode,
             wasCanceled,
+            wasStalled,
             FileName,
+            durationSeconds,
             errorOutput = process.ExitCode == 0 ? string.Empty : lastProcessErrorOutput,
         });
+        if (ShouldLogRapidExit(wasCanceled, wasStalled, durationSeconds))
+        {
+            AppSessionLogger.Event("warn", "recorder", "record_rapid_exit", "ffmpeg recording process exited in less than one minute", new
+            {
+                startInfo.RoomUrl,
+                startInfo.NickName,
+                process.Id,
+                process.ExitCode,
+                FileName,
+                durationSeconds,
+                hasErrorOutput = !string.IsNullOrWhiteSpace(lastProcessErrorOutput),
+            });
+        }
 
         if (wasCanceled)
         {
@@ -527,6 +654,16 @@ public sealed class Recorder
         }
 
         return process.ExitCode;
+    }
+
+    internal static string GetProcessExitLogLevel(int exitCode, bool wasCanceled, bool wasStalled)
+    {
+        return exitCode == 0 || wasCanceled || wasStalled ? "info" : "warn";
+    }
+
+    internal static bool ShouldLogRapidExit(bool wasCanceled, bool wasStalled, double durationSeconds)
+    {
+        return !wasCanceled && !wasStalled && durationSeconds < 60;
     }
 
     private static async Task WaitForCancellationAsync(CancellationToken token)
@@ -626,7 +763,7 @@ public sealed class Recorder
     {
         RequestProcessExit(process);
 
-        if (await WaitForExitAsync(process, TimeSpan.FromSeconds(15)))
+        if (await WaitForExitAsync(process, ProcessStopGracePeriod))
         {
             return;
         }
@@ -693,10 +830,35 @@ public sealed class Recorder
         return completedAttempts < MaxRecordingAttempts;
     }
 
+    private static async Task<bool> WaitForProgressStallAsync(RecorderProgressTracker progressTracker, CancellationToken token)
+    {
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1), token);
+                if (progressTracker.IsStalled(DateTime.UtcNow, ProgressStartupTimeout, ProgressStallTimeout))
+                {
+                    return true;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        return false;
+    }
+
     internal static bool ShouldRetryRecording(int exitCode, bool hasStreamRefresh, bool? isLiveAfterRefresh, int offlineRefreshChecks)
     {
-        bool offlineConfirmed = isLiveAfterRefresh == false && offlineRefreshChecks >= 2;
+        bool offlineConfirmed = isLiveAfterRefresh == false && offlineRefreshChecks >= OfflineRefreshConfirmationCount;
         return !offlineConfirmed && (exitCode != 0 || hasStreamRefresh);
+    }
+
+    internal static bool ShouldConsumeReconnectAttempt(bool? isLiveAfterRefresh)
+    {
+        return isLiveAfterRefresh != true;
     }
 
     private static string FormatArgument(string argument)
@@ -733,6 +895,7 @@ public sealed class Recorder
 
     private async Task<bool?> TryRefreshInputAsync(RecorderStartInfo startInfo, CancellationToken token)
     {
+        lastStreamRefreshHadUrl = false;
         Func<CancellationToken, Task<RecorderStreamRefreshResult?>>? refreshStreamAsync = startInfo.RefreshStreamAsync;
         if (refreshStreamAsync == null)
         {
@@ -778,10 +941,27 @@ public sealed class Recorder
         string refreshedUrl = SelectInputUrl(refreshed.RecordUrl, refreshed.HlsUrl, refreshed.FlvUrl);
         if (string.IsNullOrWhiteSpace(refreshedUrl))
         {
+            if (refreshed.IsLiveStreaming == true)
+            {
+                DateTime now = DateTime.UtcNow;
+                if (now - lastLiveWithoutStreamLogAt >= TimeSpan.FromMinutes(1))
+                {
+                    lastLiveWithoutStreamLogAt = now;
+                    AppSessionLogger.Event("warn", "recorder", "record_stream_refresh_live_without_url", "Douyin still reports the room as live but no new stream URL is available", new
+                    {
+                        startInfo.RoomUrl,
+                        startInfo.NickName,
+                        startInfo.PlatformName,
+                        preservedInput = !string.IsNullOrWhiteSpace(Url),
+                    });
+                }
+                return true;
+            }
             return null;
         }
 
         bool urlChanged = !string.Equals(Url, refreshedUrl, StringComparison.Ordinal);
+        lastStreamRefreshHadUrl = true;
         startInfo.RecordUrl = refreshed.RecordUrl;
         startInfo.HlsUrl = refreshed.HlsUrl;
         startInfo.FlvUrl = refreshed.FlvUrl;
@@ -1082,6 +1262,56 @@ public enum RecordStatus
     Error,
 }
 
+internal sealed class RecorderProgressTracker(DateTime startedAt)
+{
+    private readonly object syncRoot = new();
+    private DateTime lastProgressAt = startedAt;
+    private string lastMediaTime = string.Empty;
+    private bool hasProgress;
+
+    public void Observe(string line, DateTime observedAt)
+    {
+        if (!line.StartsWith("out_time=", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        string mediaTime = line["out_time=".Length..].Trim();
+        if (string.IsNullOrWhiteSpace(mediaTime) || mediaTime.Equals("N/A", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        lock (syncRoot)
+        {
+            if (string.Equals(lastMediaTime, mediaTime, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            lastMediaTime = mediaTime;
+            lastProgressAt = observedAt;
+            hasProgress = true;
+        }
+    }
+
+    public bool IsStalled(DateTime now, TimeSpan startupTimeout, TimeSpan stallTimeout)
+    {
+        lock (syncRoot)
+        {
+            return now - lastProgressAt >= (hasProgress ? stallTimeout : startupTimeout);
+        }
+    }
+
+    public TimeSpan GetStalledDuration(DateTime now)
+    {
+        lock (syncRoot)
+        {
+            return now > lastProgressAt ? now - lastProgressAt : TimeSpan.Zero;
+        }
+    }
+}
+
 public record RecorderStartInfo
 {
     public string NickName { get; set; } = string.Empty;
@@ -1108,7 +1338,11 @@ public record RecorderStartInfo
 
     public RoomRecordingOptions Options { get; set; } = RoomRecordingSettings.GetGlobal();
 
+    internal Func<RoomRecordingOptions>? ResolveCurrentOptions { get; set; }
+
     internal Func<CancellationToken, Task<RecorderStreamRefreshResult?>>? RefreshStreamAsync { get; set; }
+
+    internal Action? OfflineConfirmed { get; set; }
 }
 
 internal sealed record RecorderStreamRefreshResult
@@ -1153,15 +1387,42 @@ public sealed class VideoRecordingMetadata
 
 file static class FileNameSanitizer
 {
+    private const int MaximumBaseFileNameLength = 120;
+
+    private static readonly HashSet<string> ReservedNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    };
+
     public static string SanitizeFileName(this string fileName)
     {
-        if (string.IsNullOrWhiteSpace(fileName))
+        char[] invalidChars = Path.GetInvalidFileNameChars();
+        string sanitized = string.Concat((fileName ?? string.Empty).Select(ch => invalidChars.Contains(ch) ? '_' : ch))
+            .Trim()
+            .TrimEnd('.');
+        if (string.IsNullOrWhiteSpace(sanitized))
         {
-            throw new ArgumentException("File name cannot be null or whitespace.", nameof(fileName));
+            sanitized = "recording";
         }
 
-        char[] invalidChars = Path.GetInvalidFileNameChars();
-        return string.Concat(fileName.Select(ch => invalidChars.Contains(ch) ? '_' : ch));
+        if (sanitized.Length > MaximumBaseFileNameLength)
+        {
+            int length = MaximumBaseFileNameLength;
+            if (char.IsHighSurrogate(sanitized[length - 1]) && char.IsLowSurrogate(sanitized[length]))
+            {
+                length--;
+            }
+            sanitized = sanitized[..length].TrimEnd(' ', '.');
+            if (sanitized.Length == 0)
+            {
+                sanitized = "recording";
+            }
+        }
+
+        string reservedCandidate = sanitized.Split('.', 2)[0];
+        return ReservedNames.Contains(reservedCandidate) ? $"_{sanitized}" : sanitized;
     }
 
     public static string ReplaceTrailingDotsWithUnderscores(this string input)

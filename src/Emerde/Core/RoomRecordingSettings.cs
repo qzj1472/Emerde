@@ -100,6 +100,14 @@ internal static class RoomRecordingSettings
         return room == null ? GetGlobal().PreferredStreamQuality : Get(room).PreferredStreamQuality;
     }
 
+    public static RoomRecordingOptions GetCurrent(string? roomUrl, RoomRecordingOptions fallback)
+    {
+        Room? room = Configurations.Rooms.Get().FirstOrDefault(item =>
+            !string.IsNullOrWhiteSpace(roomUrl)
+            && string.Equals(item.RoomUrl, roomUrl, StringComparison.OrdinalIgnoreCase));
+        return room == null ? fallback : Get(room);
+    }
+
     public static void Apply(Room room, RoomRecordingOptions settings)
     {
         room.PreferredStreamQuality = StreamQualityCatalog.NormalizePreference(settings.PreferredStreamQuality);

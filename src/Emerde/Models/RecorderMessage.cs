@@ -7,6 +7,10 @@ internal sealed class RecorderMessage
     public StandardData DataType { get; set; }
 }
 
+internal sealed record RoomRecordingStateChangedMessage(string RoomUrl);
+
+internal sealed record RuntimeConfigurationChangedMessage(bool RecheckRooms = false);
+
 public enum StandardData
 {
     None,
