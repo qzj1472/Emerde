@@ -68,15 +68,15 @@ public sealed class NetworkCapacityTests
     }
 
     [Fact]
-    public void AverageThroughput_AveragesValidMeasurements()
+    public void StableThroughput_UsesMedianForEvenMeasurements()
     {
-        Assert.Equal(60d, MainViewModel.CalculateAverageNetworkThroughput([56d, 64d]));
+        Assert.Equal(60d, MainViewModel.CalculateStableNetworkThroughput([56d, 64d]));
     }
 
     [Fact]
-    public void AverageThroughput_UsesAllThreeRounds()
+    public void StableThroughput_UsesMiddleOfThreeRounds()
     {
-        Assert.Equal(80.66666666666667d, MainViewModel.CalculateAverageNetworkThroughput([30d, 62d, 150d]));
+        Assert.Equal(62d, MainViewModel.CalculateStableNetworkThroughput([30d, 62d, 150d]));
     }
 
     [Theory]
@@ -90,20 +90,37 @@ public sealed class NetworkCapacityTests
     }
 
     [Fact]
-    public void AverageThroughput_StabilizesRepeatedMeasurements()
+    public void StableThroughput_RejectsRepeatedOutliers()
     {
         double[] measurements = [62d, 56d, 62d, 64d, 70d, 47d, 68d];
-        double? result = MainViewModel.CalculateAverageNetworkThroughput(measurements);
+        double? result = MainViewModel.CalculateStableNetworkThroughput(measurements);
 
         Assert.NotNull(result);
-        Assert.Equal(61.285714285714285d, result.Value, 6);
+        Assert.Equal(62d, result.Value, 6);
     }
 
     [Fact]
-    public void AverageThroughput_IgnoresInvalidMeasurements()
+    public void StableThroughput_IgnoresInvalidMeasurements()
     {
-        Assert.Equal(62d, MainViewModel.CalculateAverageNetworkThroughput([double.NaN, -1d, 62d, double.PositiveInfinity]));
-        Assert.Null(MainViewModel.CalculateAverageNetworkThroughput([double.NaN, 0d]));
+        Assert.Equal(62d, MainViewModel.CalculateStableNetworkThroughput([double.NaN, -1d, 62d, double.PositiveInfinity]));
+        Assert.Null(MainViewModel.CalculateStableNetworkThroughput([double.NaN, 0d]));
+    }
+
+    [Theory]
+    [InlineData(6, 6, 2, 2)]
+    [InlineData(3, 6, 1, 1)]
+    [InlineData(2, 6, 2, 0)]
+    [InlineData(0, 0, 0, 0)]
+    public void NetworkMeasurementConfidence_ReflectsSamplesAndEndpointDiversity(
+        int successfulSamples,
+        int attemptedSamples,
+        int successfulEndpoints,
+        int expected)
+    {
+        Assert.Equal(expected, (int)MainViewModel.GetNetworkMeasurementConfidence(
+            successfulSamples,
+            attemptedSamples,
+            successfulEndpoints));
     }
 
     private static string FindRepositoryFile(params string[] parts)
