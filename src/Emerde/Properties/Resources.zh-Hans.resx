@@ -184,6 +184,12 @@
   <data name="StreamStatusOfStreaming" xml:space="preserve">
     <value>直播中</value>
   </data>
+  <data name="StreamStatusOfCheckFailed" xml:space="preserve">
+    <value>检测失败</value>
+  </data>
+  <data name="WebView2RuntimeMissing" xml:space="preserve">
+    <value>未安装 Microsoft Edge WebView2 Runtime。抖音基础检测仍可使用，但安装运行时前无法使用浏览器兜底解析。</value>
+  </data>
   <data name="RecordStatusOfInitialized" xml:space="preserve">
     <value>初始化</value>
   </data>
@@ -410,7 +416,7 @@
     <value>为保证录制稳定源格式仅支持 TS/FLV 或稍后自动转格式</value>
   </data>
   <data name="RecordFormatAutoRemove" xml:space="preserve">
-    <value>是否转换格式后自动删除原 TS/FLV 文件</value>
+    <value>转码完成后自动删除原 TS/FLV 文件（实时生效）</value>
   </data>
   <data name="SaveFolderHint" xml:space="preserve">
     <value>指定录制视频的保存目录</value>
@@ -562,9 +568,6 @@
   <data name="Avatar" xml:space="preserve">
     <value>头像</value>
   </data>
-  <data name="SaveFolderDistinguishedByAuthors" xml:space="preserve">
-    <value>保存目录是否以作者区分</value>
-  </data>
   <data name="AddRoomForce" xml:space="preserve">
     <value>不进行网络有效性检测直接添加（仍会检查链接格式）</value>
   </data>
@@ -677,8 +680,13 @@
     <value>可录 {0} 路</value>
   </data>
   <data name="NetworkCapacityResultHint" xml:space="preserve">
-    <value>三轮平均实测 {0:0.##} Mbps（国内 {4:0.##} / 国外 {5:0.##}），单路估算 {1:0.##} Mbps，基于 {3} 个开播样本预计可同时录制 {2} 路</value>
+    <value>多节点三轮实测 {0:0.##} Mbps（国内 {4} / 国外 {5}），共 {6} 个有效测速样本，可信度{7}。单路估算 {1:0.##} Mbps，基于 {3} 个开播样本预计可同时录制 {2} 路</value>
   </data>
+  <data name="NetworkCapacityNotTested" xml:space="preserve"><value>未测试</value></data>
+  <data name="NetworkCapacityRegionMeasured" xml:space="preserve"><value>{0:0.##} Mbps（{1} 个样本）</value></data>
+  <data name="NetworkCapacityConfidenceLow" xml:space="preserve"><value>较低</value></data>
+  <data name="NetworkCapacityConfidenceMedium" xml:space="preserve"><value>中等</value></data>
+  <data name="NetworkCapacityConfidenceHigh" xml:space="preserve"><value>较高</value></data>
   <data name="NetworkCapacityFailed" xml:space="preserve">
     <value>测速失败</value>
   </data>

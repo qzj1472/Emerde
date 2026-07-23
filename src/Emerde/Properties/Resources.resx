@@ -184,6 +184,12 @@
   <data name="StreamStatusOfStreaming" xml:space="preserve">
     <value>Streaming</value>
   </data>
+  <data name="StreamStatusOfCheckFailed" xml:space="preserve">
+    <value>Check failed</value>
+  </data>
+  <data name="WebView2RuntimeMissing" xml:space="preserve">
+    <value>Microsoft Edge WebView2 Runtime is not installed. Basic Douyin checks remain available, but browser fallback is disabled until the runtime is installed.</value>
+  </data>
   <data name="RecordStatusOfInitialized" xml:space="preserve">
     <value>Initialized</value>
   </data>
@@ -410,7 +416,7 @@
     <value>To ensure stable recording, only supports TS/FLV or will be auto converted later</value>
   </data>
   <data name="RecordFormatAutoRemove" xml:space="preserve">
-    <value>Whether to auto delete the original TS/FLV file after converting the format</value>
+    <value>Delete source TS/FLV files after conversion (applies immediately)</value>
   </data>
   <data name="SaveFolderHint" xml:space="preserve">
     <value>Specify the saving directory of recorded videos</value>
@@ -562,9 +568,6 @@
   <data name="Avatar" xml:space="preserve">
     <value>Avatar</value>
   </data>
-  <data name="SaveFolderDistinguishedByAuthors" xml:space="preserve">
-    <value>Is the saving directory distinguished by authors</value>
-  </data>
   <data name="AddRoomForce" xml:space="preserve">
     <value>Add directly without network validity check (URL format is still checked)</value>
   </data>
@@ -677,8 +680,13 @@
     <value>{0} streams</value>
   </data>
   <data name="NetworkCapacityResultHint" xml:space="preserve">
-    <value>Three-round average {0:0.##} Mbps (domestic {4:0.##} / overseas {5:0.##}), estimated {1:0.##} Mbps per stream, can record about {2} streams at once from {3} live samples</value>
+    <value>Multi-node three-round result {0:0.##} Mbps (domestic {4} / overseas {5}), {6} valid speed samples with {7} confidence. Estimated {1:0.##} Mbps per stream, can record about {2} streams at once from {3} live samples</value>
   </data>
+  <data name="NetworkCapacityNotTested" xml:space="preserve"><value>not tested</value></data>
+  <data name="NetworkCapacityRegionMeasured" xml:space="preserve"><value>{0:0.##} Mbps ({1} samples)</value></data>
+  <data name="NetworkCapacityConfidenceLow" xml:space="preserve"><value>low</value></data>
+  <data name="NetworkCapacityConfidenceMedium" xml:space="preserve"><value>medium</value></data>
+  <data name="NetworkCapacityConfidenceHigh" xml:space="preserve"><value>high</value></data>
   <data name="NetworkCapacityFailed" xml:space="preserve">
     <value>Network test failed</value>
   </data>

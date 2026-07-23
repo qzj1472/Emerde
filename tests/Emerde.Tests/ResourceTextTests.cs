@@ -5,6 +5,22 @@ namespace Emerde.Tests;
 
 public sealed class ResourceTextTests
 {
+    [Fact]
+    public void Translation_FallsBackToEmbeddedResourceForNewKeys()
+    {
+        CultureInfo previousCulture = Locale.Culture;
+        try
+        {
+            Locale.Culture = CultureInfo.GetCultureInfo("zh-Hans");
+
+            Assert.Equal("检测失败", "StreamStatusOfCheckFailed".Tr());
+        }
+        finally
+        {
+            Locale.Culture = previousCulture;
+        }
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("zh-Hans")]

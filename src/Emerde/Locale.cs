@@ -35,7 +35,7 @@ internal static class Locale
             = CultureInfo.CurrentUICulture
             = culture;
 
-        CultureChanged?.Invoke(CultureChanged.Target, EventArgs.Empty);
+        CultureChanged?.Invoke(null, EventArgs.Empty);
     }
 }
 
@@ -45,13 +45,19 @@ internal static class LocaleExtension
     {
         try
         {
-            return I18NExtension.Translate(key) ?? string.Empty;
+            string? translated = I18NExtension.Translate(key);
+            if (!string.IsNullOrWhiteSpace(translated) && !string.Equals(translated, key, StringComparison.Ordinal))
+            {
+                return translated;
+            }
+
+            return Resources.ResourceManager.GetString(key, CultureInfo.CurrentUICulture) ?? translated ?? key;
         }
         catch (Exception e)
         {
-            _ = e;
+            System.Diagnostics.Debug.WriteLine(e);
+            return key;
         }
-        return null!;
     }
 
     public static string Tr(this string key, params object[] args)
@@ -73,35 +79,4 @@ internal static class CultureInfoExtension
         return culture.IsUseWordSpace() ? " " : string.Empty;
     }
 
-    public static bool IsUseFullWidth(this CultureInfo culture)
-    {
-        string language = culture.TwoLetterISOLanguageName;
-        return !Array.Exists(["zh", "ja", "ko"], lang => lang == language);
-    }
-
-    public static string SymbolWidth(this string input, CultureInfo culture)
-    {
-        bool isFullWidthCulture = culture.IsUseFullWidth();
-        char[] result = input.ToCharArray();
-
-        for (int i = 0; i < result.Length; i++)
-        {
-            if (isFullWidthCulture)
-            {
-                if (result[i] >= 0x21 && result[i] <= 0x7E)
-                {
-                    result[i] = (char)(result[i] + 0xFEE0);
-                }
-            }
-            else
-            {
-                if (result[i] >= 0xFF01 && result[i] <= 0xFF5E)
-                {
-                    result[i] = (char)(result[i] - 0xFEE0);
-                }
-            }
-        }
-
-        return new string(result);
-    }
 }

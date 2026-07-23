@@ -136,6 +136,12 @@
   <data name="StreamStatusOfStreaming" xml:space="preserve">
     <value>直播中</value>
   </data>
+  <data name="StreamStatusOfCheckFailed" xml:space="preserve">
+    <value>檢測失敗</value>
+  </data>
+  <data name="WebView2RuntimeMissing" xml:space="preserve">
+    <value>未安裝 Microsoft Edge WebView2 Runtime。抖音基礎檢測仍可使用，但安裝執行階段前無法使用瀏覽器備援解析。</value>
+  </data>
   <data name="RecordStatusOfInitialized" xml:space="preserve">
     <value>初始化</value>
   </data>
@@ -410,7 +416,7 @@
     <value>為保證錄製穩定源格式僅支持 TS/FLV 或稍後自動轉格式</value>
   </data>
   <data name="RecordFormatAutoRemove" xml:space="preserve">
-    <value>是否轉換格式後自動刪除原 TS/FLV 文件</value>
+    <value>轉碼完成後自動刪除原 TS/FLV 文件（即時生效）</value>
   </data>
   <data name="SaveFolderHint" xml:space="preserve">
     <value>指定錄製視頻的保存目錄</value>
@@ -562,9 +568,6 @@
   <data name="Avatar" xml:space="preserve">
     <value>頭像</value>
   </data>
-  <data name="SaveFolderDistinguishedByAuthors" xml:space="preserve">
-    <value>保存目錄是否以作者區分</value>
-  </data>
   <data name="AddRoomForce" xml:space="preserve">
     <value>不進行網路有效性檢測直接添加（仍會檢查連結格式）</value>
   </data>
@@ -677,8 +680,13 @@
     <value>可錄 {0} 路</value>
   </data>
   <data name="NetworkCapacityResultHint" xml:space="preserve">
-    <value>三輪平均實測 {0:0.##} Mbps（國內 {4:0.##} / 國外 {5:0.##}），單路估算 {1:0.##} Mbps，基於 {3} 個開播樣本預計可同時錄製 {2} 路</value>
+    <value>多節點三輪實測 {0:0.##} Mbps（國內 {4} / 國外 {5}），共 {6} 個有效測速樣本，可信度{7}。單路估算 {1:0.##} Mbps，基於 {3} 個開播樣本預計可同時錄製 {2} 路</value>
   </data>
+  <data name="NetworkCapacityNotTested" xml:space="preserve"><value>未測試</value></data>
+  <data name="NetworkCapacityRegionMeasured" xml:space="preserve"><value>{0:0.##} Mbps（{1} 個樣本）</value></data>
+  <data name="NetworkCapacityConfidenceLow" xml:space="preserve"><value>較低</value></data>
+  <data name="NetworkCapacityConfidenceMedium" xml:space="preserve"><value>中等</value></data>
+  <data name="NetworkCapacityConfidenceHigh" xml:space="preserve"><value>較高</value></data>
   <data name="NetworkCapacityFailed" xml:space="preserve">
     <value>測速失敗</value>
   </data>

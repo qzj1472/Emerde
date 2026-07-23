@@ -48,12 +48,13 @@ public class AboutContentDialogTests
         Assert.Contains("退出按钮、关闭窗口与恢复", text);
         Assert.Contains("侧边栏或托盘菜单中的“退出”", text);
         Assert.Contains("通常保持默认值即可", text);
-        Assert.Contains("随机安排 2 次抽样检查", timingText);
-        Assert.Contains("周期结束时再检查 1 次", timingText);
-        Assert.DoesNotContain("随机安排 2 次抽样检查", monitorText);
-        Assert.Contains("30 分钟内约每 20 秒检查一次", text);
-        Assert.Contains("录制文件末尾可能出现几秒黑屏", text);
-        Assert.Contains("降低平台风控风险", text);
+        Assert.Contains("固定每 10 秒检查一次", timingText);
+        Assert.DoesNotContain("固定每 10 秒检查一次", monitorText);
+        Assert.Contains("30 分钟内固定每 10 秒检查一次", text);
+        Assert.Contains("FFmpeg 录制进程结束后", text);
+        Assert.Contains("立即刷新对应卡片的录制状态", text);
+        Assert.Contains("直播状态由下一次固定 10 秒检测更新", text);
+        Assert.DoesNotContain("录制文件末尾可能出现几秒黑屏", text);
         Assert.DoesNotContain("每批检查 1-5 个直播间", text);
         Assert.DoesNotContain("穿插 2 次随机检测", text);
     }

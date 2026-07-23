@@ -187,6 +187,12 @@
   <data name="StreamStatusOfStreaming" xml:space="preserve">
     <value>ライブ中</value>
   </data>
+  <data name="StreamStatusOfCheckFailed" xml:space="preserve">
+    <value>検出に失敗</value>
+  </data>
+  <data name="WebView2RuntimeMissing" xml:space="preserve">
+    <value>Microsoft Edge WebView2 Runtime がインストールされていません。基本的なDouyin検出は使用できますが、ランタイムをインストールするまでブラウザーのフォールバック解析は使用できません。</value>
+  </data>
   <data name="RecordStatusOfInitialized" xml:space="preserve">
     <value>初期化</value>
   </data>
@@ -413,7 +419,7 @@
     <value>安定性を保証するため TS/FLV のみサポートし、後に他のフォーマットに変換可能</value>
   </data>
   <data name="RecordFormatAutoRemove" xml:space="preserve">
-    <value>フォーマット変換後に TS/FLV ファイルを削除</value>
+    <value>変換後に元の TS/FLV ファイルを削除（即時反映）</value>
   </data>
   <data name="SaveFolderHint" xml:space="preserve">
     <value>録画ファイルの保存フォルダ</value>
@@ -565,9 +571,6 @@
   <data name="Avatar" xml:space="preserve">
     <value>アバター</value>
   </data>
-  <data name="SaveFolderDistinguishedByAuthors" xml:space="preserve">
-    <value>保存フォルダは作者によって作られる</value>
-  </data>
   <data name="AddRoomForce" xml:space="preserve">
     <value>ネットワークで有効性を確認せずに追加する（URL 形式は確認します）</value>
   </data>
@@ -680,8 +683,13 @@
     <value>{0} 本録画可能</value>
   </data>
   <data name="NetworkCapacityResultHint" xml:space="preserve">
-    <value>3回の平均測定 {0:0.##} Mbps（国内 {4:0.##} / 海外 {5:0.##}）、1本あたり推定 {1:0.##} Mbps、{3} 件の配信サンプルから同時録画は約 {2} 本です</value>
+    <value>複数ノード3回測定 {0:0.##} Mbps（国内 {4} / 海外 {5}）、有効な速度サンプル {6} 件、信頼度 {7}。1本あたり推定 {1:0.##} Mbps、{3} 件の配信サンプルから同時録画は約 {2} 本です</value>
   </data>
+  <data name="NetworkCapacityNotTested" xml:space="preserve"><value>未測定</value></data>
+  <data name="NetworkCapacityRegionMeasured" xml:space="preserve"><value>{0:0.##} Mbps（{1} サンプル）</value></data>
+  <data name="NetworkCapacityConfidenceLow" xml:space="preserve"><value>低</value></data>
+  <data name="NetworkCapacityConfidenceMedium" xml:space="preserve"><value>中</value></data>
+  <data name="NetworkCapacityConfidenceHigh" xml:space="preserve"><value>高</value></data>
   <data name="NetworkCapacityFailed" xml:space="preserve">
     <value>速度テストに失敗しました</value>
   </data>

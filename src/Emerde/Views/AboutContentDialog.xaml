@@ -208,11 +208,11 @@
                                 <TextBlock Style="{StaticResource AboutBodyTextStyle}"
                                            Text="“检测间隔”决定未开播房间多久检查一次，默认 5 秒。间隔越短不代表越稳定，通常保持默认值即可。" />
                                 <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="直播中的房间以 1 分钟为一个检测周期：每个周期会随机安排 2 次抽样检查，并在周期结束时再检查 1 次，避免所有房间同时请求平台。" />
+                                           Text="直播中的房间固定每 10 秒检查一次，不再使用一分钟内的随机抽样。" />
                                 <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="直播结束后的 30 分钟内约每 20 秒检查一次，之后恢复设置中的检测间隔。" />
+                                           Text="直播结束后的 30 分钟内固定每 10 秒检查一次，之后恢复设置中的检测间隔。" />
                                 <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="状态确认并非实时轮询，直播状态和录制状态可能延迟几秒结束，录制文件末尾可能出现几秒黑屏；这是为了减少高频请求并降低平台风控风险。" />
+                                           Text="FFmpeg 录制进程结束后，软件会立即刷新对应卡片的录制状态；直播状态由下一次固定 10 秒检测更新。" />
                             </ui:StackPanel>
                         </Border>
 
