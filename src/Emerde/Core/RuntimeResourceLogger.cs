@@ -112,7 +112,14 @@ internal static class RuntimeResourceLogger
             while (!token.IsCancellationRequested)
             {
                 await Task.Delay(SampleInterval, token);
-                Sample();
+                try
+                {
+                    Sample();
+                }
+                catch (Exception e)
+                {
+                    AppSessionLogger.WriteException(e);
+                }
             }
         }
         catch (OperationCanceledException)
