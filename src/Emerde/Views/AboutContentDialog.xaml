@@ -55,7 +55,10 @@
     </UserControl.Resources>
 
     <Grid ClipToBounds="True">
-        <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+        <ScrollViewer BorderThickness="0"
+                      Focusable="False"
+                      FocusVisualStyle="{x:Null}"
+                      HorizontalScrollBarVisibility="Disabled"
                       VerticalScrollBarVisibility="Auto">
             <Border Padding="24,18,12,28">
                 <ui:StackPanel MaxWidth="1120"
