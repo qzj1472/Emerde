@@ -107,6 +107,47 @@ public sealed class RecordingCleanupServiceTests
     }
 
     [Fact]
+    public async Task RunAsync_WhenEnabled_DeletesExpiredMediaWithAttachedMetadata()
+    {
+        string oldSaveFolder = Configurations.SaveFolder.Get();
+        bool oldEnabled = Configurations.IsDataRetentionEnabled.Get();
+        int oldValue = Configurations.DataRetentionValue.Get();
+        int oldUnit = Configurations.DataRetentionUnit.Get();
+        string tempFolder = Path.Combine(Path.GetTempPath(), "emerde-cleanup-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempFolder);
+        string mediaPath = Path.Combine(tempFolder, "old.ts");
+        await File.WriteAllTextAsync(mediaPath, "media");
+        Assert.True(VideoRecordingMetadataStore.WriteCompletedMetadata(mediaPath, new VideoRecordingMetadata
+        {
+            FileName = "old.ts",
+            NickName = "Host",
+            RoomUrl = "https://example.test/room",
+            RecordedAt = DateTime.Now.AddDays(-10),
+        }));
+        File.SetLastWriteTime(mediaPath, DateTime.Now.AddDays(-10));
+
+        try
+        {
+            Configurations.SaveFolder.Set(tempFolder);
+            Configurations.IsDataRetentionEnabled.Set(true);
+            Configurations.DataRetentionValue.Set(1);
+            Configurations.DataRetentionUnit.Set(DataRetentionUnitHelper.Days);
+
+            await RecordingCleanupService.RunAsync();
+
+            Assert.False(File.Exists(mediaPath));
+        }
+        finally
+        {
+            Configurations.SaveFolder.Set(oldSaveFolder);
+            Configurations.IsDataRetentionEnabled.Set(oldEnabled);
+            Configurations.DataRetentionValue.Set(oldValue);
+            Configurations.DataRetentionUnit.Set(oldUnit);
+            Directory.Delete(tempFolder, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task RunAsync_WhenEnabled_PreservesProtectedExpiredMedia()
     {
         string oldSaveFolder = Configurations.SaveFolder.Get();
