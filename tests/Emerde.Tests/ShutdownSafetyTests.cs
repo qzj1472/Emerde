@@ -12,6 +12,23 @@ public sealed class ShutdownSafetyTests
         Assert.Equal(expected, TrayIconManager.HasShutdownSensitiveWork(hasActiveRecorders, hasActiveConversions));
     }
 
+    [Theory]
+    [InlineData(false, false, false, false)]
+    [InlineData(false, false, true, true)]
+    [InlineData(true, false, false, true)]
+    [InlineData(false, true, false, true)]
+    public void HasShutdownSensitiveWork_IncludesAllMediaOperations(
+        bool hasActiveRecorders,
+        bool hasActiveConversions,
+        bool hasActiveMediaOperations,
+        bool expected)
+    {
+        Assert.Equal(expected, TrayIconManager.HasShutdownSensitiveWork(
+            hasActiveRecorders,
+            hasActiveConversions,
+            hasActiveMediaOperations));
+    }
+
     [Fact]
     public void CompleteApplicationShutdown_AlwaysTerminatesAfterCleanup()
     {

@@ -27,6 +27,8 @@ internal sealed class TrayIconManager : IDisposable
 
     private bool isDisposed;
 
+    private int shutdownInProgress;
+
     public bool IsShutdownTriggered { get; private set; } = false;
 
     private TrayIconManager()
@@ -91,6 +93,11 @@ internal sealed class TrayIconManager : IDisposable
             return;
         }
 
+        if (Interlocked.CompareExchange(ref shutdownInProgress, 1, 0) != 0)
+        {
+            return;
+        }
+
         IsShutdownTriggered = true;
         Dispose();
         Application.Current.MainWindow?.Hide();
@@ -98,7 +105,10 @@ internal sealed class TrayIconManager : IDisposable
         {
             GlobalMonitor.Stop();
             GlobalMonitor.StopAllRecorders(deferPostProcessing: true);
-            await GlobalMonitor.WaitForRecordersAsync(TimeSpan.FromSeconds(5));
+            MediaOperationRegistry.CancelAll();
+            await Task.WhenAll(
+                GlobalMonitor.WaitForRecordersAsync(TimeSpan.FromSeconds(5)),
+                MediaOperationRegistry.WaitForCompletionAsync(TimeSpan.FromSeconds(5)));
         }
         finally
         {
@@ -125,23 +135,38 @@ internal sealed class TrayIconManager : IDisposable
             return;
         }
 
-        Application.Current.MainWindow?.Hide();
-        GlobalMonitor.Stop();
-        GlobalMonitor.StopAllRecorders(deferPostProcessing: true);
-        await GlobalMonitor.WaitForRecordersAsync(TimeSpan.FromSeconds(5));
+        if (Interlocked.CompareExchange(ref shutdownInProgress, 1, 0) != 0)
+        {
+            return;
+        }
 
-        bool restarted = RuntimeHelper.Restart(forced: true, beforeExit: () =>
+        try
         {
-            IsShutdownTriggered = true;
-            Dispose();
-            ConfigurationSaveScheduler.Flush();
-            ChildProcessTracerPeriodicTimer.Default.Stop(killChildren: true);
-            RuntimeResourceLogger.Stop();
-            AppSessionLogger.Stop();
-        });
-        if (!restarted)
+            Application.Current.MainWindow?.Hide();
+            GlobalMonitor.Stop();
+            GlobalMonitor.StopAllRecorders(deferPostProcessing: true);
+            MediaOperationRegistry.CancelAll();
+            await Task.WhenAll(
+                GlobalMonitor.WaitForRecordersAsync(TimeSpan.FromSeconds(5)),
+                MediaOperationRegistry.WaitForCompletionAsync(TimeSpan.FromSeconds(5)));
+
+            bool restarted = RuntimeHelper.Restart(forced: true, beforeExit: () =>
+            {
+                IsShutdownTriggered = true;
+                Dispose();
+                _ = ConfigurationSaveScheduler.TrySaveNow();
+                ChildProcessTracerPeriodicTimer.Default.Stop(killChildren: true);
+                RuntimeResourceLogger.Stop();
+                AppSessionLogger.Stop();
+            });
+            if (!restarted)
+            {
+                ActivateMainWindow();
+            }
+        }
+        finally
         {
-            ActivateMainWindow();
+            Interlocked.Exchange(ref shutdownInProgress, 0);
         }
     }
 
@@ -194,6 +219,28 @@ internal sealed class TrayIconManager : IDisposable
 
     private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
     {
+        System.Windows.Threading.Dispatcher? dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        if (!dispatcher.CheckAccess())
+        {
+            _ = dispatcher.BeginInvoke(ApplyUserPreferenceChange);
+            return;
+        }
+
+        ApplyUserPreferenceChange();
+    }
+
+    private void ApplyUserPreferenceChange()
+    {
+        if (isDisposed)
+        {
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(Configurations.Theme.Get()))
         {
             ThemeManager.Apply(ApplicationTheme.Unknown);
@@ -220,7 +267,7 @@ internal sealed class TrayIconManager : IDisposable
 
     private static bool ConfirmRecordingInterruption()
     {
-        if (!HasShutdownSensitiveWork(GlobalMonitor.HasActiveRecorders, Converter.HasActiveConversions))
+        if (!HasShutdownSensitiveWork(GlobalMonitor.HasActiveRecorders, Converter.HasActiveConversions, MediaOperationRegistry.HasActiveOperations))
         {
             return true;
         }
@@ -232,6 +279,11 @@ internal sealed class TrayIconManager : IDisposable
     internal static bool HasShutdownSensitiveWork(bool hasActiveRecorders, bool hasActiveConversions)
     {
         return hasActiveRecorders || hasActiveConversions;
+    }
+
+    internal static bool HasShutdownSensitiveWork(bool hasActiveRecorders, bool hasActiveConversions, bool hasActiveMediaOperations)
+    {
+        return hasActiveRecorders || hasActiveConversions || hasActiveMediaOperations;
     }
 
     private void ShowTrayMenu()
