@@ -3299,24 +3299,81 @@ public partial class ScreenRecordListViewModel : ObservableObject
         FileInfo source = new(item.FullPath);
         string directory = source.DirectoryName ?? Environment.CurrentDirectory;
         string outputBase = GetUniqueSegmentBase(directory, $"{Path.GetFileNameWithoutExtension(source.Name)}_part");
-        string outputPattern = Path.Combine(directory, $"{outputBase}_%03d{source.Extension}");
-        string[] arguments = ["-i", source.FullName, "-c", "copy", "-map", "0", "-f", "segment", "-segment_time", seconds.ToString(CultureInfo.InvariantCulture), "-reset_timestamps", "1", outputPattern];
-        (bool succeeded, _) = await ExecuteFfmpegAsync(arguments);
-        string[] outputs = Directory.EnumerateFiles(directory, $"{outputBase}_*{source.Extension}", System.IO.SearchOption.TopDirectoryOnly).ToArray();
-        if (!succeeded || outputs.Length == 0 || outputs.Any(path => new FileInfo(path).Length == 0))
+        string temporaryStem = $".emerde-split-{Guid.NewGuid():N}";
+        string temporaryPattern = Path.Combine(directory, $"{temporaryStem}_%03d{source.Extension}");
+        string finalPattern = Path.Combine(directory, $"{outputBase}_%03d{source.Extension}");
+        string[] arguments = ["-i", source.FullName, "-c", "copy", "-map", "0", "-f", "segment", "-segment_time", seconds.ToString(CultureInfo.InvariantCulture), "-reset_timestamps", "1", temporaryPattern];
+        using CancellationTokenSource operationCancellation = new(TimeSpan.FromHours(12));
+        using IDisposable operation = MediaOperationRegistry.Register(
+            MediaOperationKind.Split,
+            () => [source.FullName, temporaryPattern, finalPattern],
+            operationCancellation.Cancel);
+        (bool succeeded, _) = await ExecuteFfmpegAsync(arguments, operationCancellation.Token);
+        string[] temporaryOutputs = Directory
+            .EnumerateFiles(directory, $"{temporaryStem}_*{source.Extension}", System.IO.SearchOption.TopDirectoryOnly)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (!succeeded || temporaryOutputs.Length == 0 || temporaryOutputs.Any(path => new FileInfo(path).Length == 0))
         {
-            foreach (string output in outputs)
+            foreach (string output in temporaryOutputs)
             {
                 DeleteFileIfExists(output);
             }
             return false;
         }
 
-        foreach (string output in outputs)
+        VideoRecordingMetadata sourceMetadata = VideoRecordingMetadataStore.Load(source);
+        bool hasMetadata = VideoRecordingMetadataStore.HasAnyMetadata(sourceMetadata);
+        List<(string Temporary, string Final, StagedVideoMetadata? Metadata)> preparedOutputs = [];
+        List<string> finalOutputs = [];
+        try
         {
-            CopyAssociatedMetadata(source.FullName, output);
+            for (int index = 0; index < temporaryOutputs.Length; index++)
+            {
+                string finalOutput = Path.Combine(directory, $"{outputBase}_{index:000}{source.Extension}");
+                StagedVideoMetadata? stagedMetadata = hasMetadata
+                    ? VideoRecordingMetadataStore.StageSidecarForMedia(finalOutput, sourceMetadata, "split-metadata")
+                    : null;
+                if (hasMetadata && stagedMetadata == null)
+                {
+                    throw new IOException("Failed to stage split recording metadata.");
+                }
+                preparedOutputs.Add((temporaryOutputs[index], finalOutput, stagedMetadata));
+            }
+
+            foreach ((string temporary, string final, StagedVideoMetadata? metadata) in preparedOutputs)
+            {
+                metadata?.Commit();
+                try
+                {
+                    File.Move(temporary, final, overwrite: false);
+                }
+                catch
+                {
+                    metadata?.DeleteCommitted();
+                    throw;
+                }
+                finalOutputs.Add(final);
+            }
+            return true;
         }
-        return true;
+        catch (Exception e)
+        {
+            AppSessionLogger.WriteException(e);
+            foreach (string output in temporaryOutputs.Concat(finalOutputs))
+            {
+                DeleteFileIfExists(output);
+                VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(output);
+            }
+            return false;
+        }
+        finally
+        {
+            foreach (var prepared in preparedOutputs)
+            {
+                prepared.Metadata?.Dispose();
+            }
+        }
     }
 
     private static string GetUniqueSegmentBase(string directory, string stem)
@@ -3339,13 +3396,19 @@ public partial class ScreenRecordListViewModel : ObservableObject
         FileInfo first = new(ordered[0].FullPath);
         string baseStem = TryGetSegmentIdentity(first.FullName, out string segmentBaseStem, out _) ? segmentBaseStem : Path.GetFileNameWithoutExtension(first.Name);
         string target = GetUniquePath(Path.Combine(targetFolder, $"{baseStem}_merged{first.Extension}"));
+        string temporaryTarget = MediaFileCatalog.CreateTemporaryPath(target, "merge");
         string listPath = Path.Combine(Path.GetTempPath(), $"emerde_concat_{Guid.NewGuid():N}.txt");
+        using CancellationTokenSource operationCancellation = new(TimeSpan.FromHours(12));
+        using IDisposable operation = MediaOperationRegistry.Register(
+            MediaOperationKind.Merge,
+            () => [.. ordered.Select(item => item.FullPath), temporaryTarget, target],
+            operationCancellation.Cancel);
         try
         {
             await File.WriteAllLinesAsync(listPath, ordered.Select(item => $"file '{EscapeConcatPath(item.FullPath)}'"), new UTF8Encoding(false));
             double totalSeconds = await Task.Run(() => ordered.Sum(item => GetVideoDurationSeconds(item.FullPath)));
-            string[] arguments = ["-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", "-progress", "pipe:1", "-nostats", target];
-            (bool succeeded, _) = await ExecuteFfmpegAsync(arguments, line =>
+            string[] arguments = ["-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", "-progress", "pipe:1", "-nostats", temporaryTarget];
+            (bool succeeded, _) = await ExecuteFfmpegAsync(arguments, operationCancellation.Token, line =>
             {
                 if (totalSeconds > 0 && line.StartsWith("out_time_ms=", StringComparison.OrdinalIgnoreCase)
                     && double.TryParse(line["out_time_ms=".Length..], NumberStyles.Float, CultureInfo.InvariantCulture, out double microseconds))
@@ -3354,17 +3417,46 @@ public partial class ScreenRecordListViewModel : ObservableObject
                 }
                 return Task.CompletedTask;
             });
-            if (!succeeded || !File.Exists(target) || new FileInfo(target).Length == 0)
+            if (!succeeded || !File.Exists(temporaryTarget) || new FileInfo(temporaryTarget).Length == 0)
             {
-                DeleteFileIfExists(target);
+                DeleteFileIfExists(temporaryTarget);
                 return false;
             }
 
-            CopyAssociatedMetadata(first.FullName, target);
-            return true;
+            try
+            {
+                VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(first);
+                bool hasMetadata = VideoRecordingMetadataStore.HasAnyMetadata(metadata);
+                using StagedVideoMetadata? stagedMetadata = hasMetadata
+                    ? VideoRecordingMetadataStore.StageSidecarForMedia(target, metadata, "merge-metadata")
+                    : null;
+                if (hasMetadata && stagedMetadata == null)
+                {
+                    throw new IOException("Failed to stage merged recording metadata.");
+                }
+                stagedMetadata?.Commit();
+                try
+                {
+                    File.Move(temporaryTarget, target, overwrite: false);
+                }
+                catch
+                {
+                    stagedMetadata?.DeleteCommitted();
+                    throw;
+                }
+                return true;
+            }
+            catch (Exception e)
+            {
+                AppSessionLogger.WriteException(e);
+                DeleteFileIfExists(target);
+                VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(target);
+                return false;
+            }
         }
         finally
         {
+            DeleteFileIfExists(temporaryTarget);
             DeleteFileIfExists(listPath);
         }
     }
@@ -3424,6 +3516,11 @@ public partial class ScreenRecordListViewModel : ObservableObject
             catch (Exception e) when (e is InvalidOperationException or Win32Exception)
             {
             }
+            _ = completionTask.ContinueWith(
+                static task => _ = task.Exception,
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
             output = string.Empty;
             return false;
         }
@@ -3433,7 +3530,10 @@ public partial class ScreenRecordListViewModel : ObservableObject
         return true;
     }
 
-    private static async Task<(bool Succeeded, string Error)> ExecuteFfmpegAsync(IEnumerable<string> arguments, Func<string, Task>? outputLine = null)
+    private static async Task<(bool Succeeded, string Error)> ExecuteFfmpegAsync(
+        IEnumerable<string> arguments,
+        CancellationToken cancellationToken,
+        Func<string, Task>? outputLine = null)
     {
         string? ffmpegPath = SearchFileHelper.SearchExecutable("ffmpeg.exe");
         if (string.IsNullOrWhiteSpace(ffmpegPath))
@@ -3463,16 +3563,15 @@ public partial class ScreenRecordListViewModel : ObservableObject
             _ = ChildProcessTracerPeriodicTimer.Default.TryTraceProcess(process);
             Task outputTask = ReadFfmpegOutputAsync(process.StandardOutput, outputLine);
             Task<string> errorTask = process.StandardError.ReadToEndAsync();
-            using CancellationTokenSource timeout = new(TimeSpan.FromHours(12));
             try
             {
-                await process.WaitForExitAsync(timeout.Token);
+                await process.WaitForExitAsync(cancellationToken);
             }
             catch (OperationCanceledException)
             {
                 process.Kill(entireProcessTree: true);
                 await Task.WhenAll(outputTask, errorTask);
-                return (false, "ffmpeg operation timed out");
+                return (false, "ffmpeg operation was cancelled or timed out");
             }
             await outputTask;
             string error = await errorTask;
