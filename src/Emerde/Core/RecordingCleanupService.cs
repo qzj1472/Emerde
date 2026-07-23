@@ -109,9 +109,10 @@ internal static class RecordingCleanupService
             try
             {
                 FileInfo file = new(filePath);
-                if (file.Exists && file.LastWriteTime < cutoff)
+                if (file.Exists && file.LastWriteTime < cutoff && VideoRecordingMetadataStore.HasValidSidecar(file))
                 {
                     file.Delete();
+                    VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(filePath);
                     deletedCount++;
                 }
             }
