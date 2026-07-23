@@ -11,6 +11,10 @@ internal static class AppPaths
 
     public static string LogsDirectory => Path.Combine(ConfigDirectory, "logs");
 
+    public static string CacheDirectory => Path.Combine(ConfigDirectory, "cache");
+
+    public static string PendingRecordingsDirectory => Path.Combine(CacheDirectory, "pending_recordings");
+
     public static string[] GetConfigFiles()
     {
         if (!Directory.Exists(ConfigDirectory))
