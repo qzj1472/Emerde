@@ -7,12 +7,101 @@ namespace Emerde.Tests;
 
 public sealed class ScreenRecordListWindowTests
 {
+    [Theory]
+    [InlineData(System.Windows.Input.Key.Up, true)]
+    [InlineData(System.Windows.Input.Key.Down, true)]
+    [InlineData(System.Windows.Input.Key.Left, false)]
+    public void VideoListKeyboardNavigation_UsesVerticalArrowKeys(System.Windows.Input.Key key, bool expected)
+    {
+        Assert.Equal(expected, ScreenRecordListWindow.IsVideoListKeyboardNavigationKey(key));
+    }
+
+    [Fact]
+    public void AdjacentVisibleVideo_MovesWithinFilteredOrderAndStopsAtBounds()
+    {
+        ScreenRecordListViewModel viewModel = new();
+        ObservableCollection<RecordedVideoItem> videos = Assert.IsType<ObservableCollection<RecordedVideoItem>>(viewModel.Videos.SourceCollection);
+        RecordedVideoItem first = new() { FullPath = @"C:\videos\first.ts" };
+        RecordedVideoItem second = new() { FullPath = @"C:\videos\second.ts" };
+        videos.Add(first);
+        videos.Add(second);
+
+        Assert.Same(first, viewModel.GetAdjacentVisibleVideo(1));
+        Assert.Same(second, viewModel.GetAdjacentVisibleVideo(-1));
+
+        viewModel.SelectRegularItem(first);
+        Assert.Same(second, viewModel.GetAdjacentVisibleVideo(1));
+        Assert.Same(first, viewModel.GetAdjacentVisibleVideo(-1));
+
+        viewModel.SelectRegularItem(second);
+        Assert.Same(second, viewModel.GetAdjacentVisibleVideo(1));
+    }
+
+    [Fact]
+    public void ReuseExistingVideoItems_PreservesUnchangedObjectsAndAddsNewFiles()
+    {
+        DateTime lastWrite = new(2026, 7, 22, 12, 0, 0, DateTimeKind.Utc);
+        RecordedVideoItem existing = new() { FullPath = @"C:\videos\first.ts", IsEnriched = true, SourceLength = 100, SourceLastWriteTimeUtc = lastWrite };
+        RecordedVideoItem reloaded = new() { FullPath = @"C:\videos\first.ts", SourceLength = 100, SourceLastWriteTimeUtc = lastWrite };
+        RecordedVideoItem added = new() { FullPath = @"C:\videos\second.ts" };
+
+        RecordedVideoItem[] result = ScreenRecordListViewModel.ReuseExistingVideoItems([existing], [reloaded, added]);
+
+        Assert.Same(existing, result[0]);
+        Assert.Same(added, result[1]);
+        Assert.True(result[0].IsEnriched);
+    }
+
+    [Fact]
+    public void ReuseExistingVideoItems_ReplacesFilesWhoseVersionChanged()
+    {
+        RecordedVideoItem existing = new() { FullPath = @"C:\videos\first.ts", SourceLength = 100 };
+        RecordedVideoItem changed = new() { FullPath = @"C:\videos\first.ts", SourceLength = 200 };
+
+        RecordedVideoItem[] result = ScreenRecordListViewModel.ReuseExistingVideoItems([existing], [changed]);
+
+        Assert.Same(changed, result[0]);
+    }
+
     [Fact]
     public void VideoListXaml_DoesNotUseSpacingStackPanelInConstrainedLayout()
     {
         string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
 
         Assert.DoesNotContain("<ui:StackPanel", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VideoListXaml_HandlesMouseWheelScrolling()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+
+        Assert.Contains("PreviewMouseWheel=\"VideoListBoxPreviewMouseWheel\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VideoListXaml_DisablesHorizontalScrollingAndFocusOutline()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+
+        Assert.Contains("ScrollViewer.HorizontalScrollBarVisibility=\"Disabled\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("FocusVisualStyle=\"{x:Null}\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VideoListXaml_HidesMultiSelectEntryWhenNoVideosAreVisible()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+
+        Assert.Contains("Binding=\"{Binding HasVisibleVideos}\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GlobalResources_DoNotOverrideDefaultControlFocusOutlines()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Resources.xaml"));
+
+        Assert.DoesNotContain("x:Key=\"{x:Static SystemParameters.FocusVisualStyleKey}\"", xaml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -65,10 +154,41 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
+    public void EmptyVideoList_CannotEnterMultiSelect()
+    {
+        ScreenRecordListViewModel viewModel = new();
+
+        viewModel.BeginMultiSelectCommand.Execute(null);
+        viewModel.SelectAllCommand.Execute(null);
+
+        Assert.False(viewModel.HasVisibleVideos);
+        Assert.False(viewModel.IsMultiSelectMode);
+    }
+
+    [Fact]
+    public void EmptyFilteredVideoList_ExitsMultiSelectAndClearsSelection()
+    {
+        ScreenRecordListViewModel viewModel = new();
+        ObservableCollection<RecordedVideoItem> videos = Assert.IsType<ObservableCollection<RecordedVideoItem>>(viewModel.Videos.SourceCollection);
+        RecordedVideoItem item = new() { FullPath = @"C:\videos\first.ts", NickName = "Streamer" };
+        videos.Add(item);
+        viewModel.SelectAllCommand.Execute(null);
+
+        viewModel.SelectedStreamer = "Other";
+
+        Assert.False(viewModel.HasVisibleVideos);
+        Assert.False(viewModel.IsMultiSelectMode);
+        Assert.False(item.IsSelected);
+        Assert.Null(viewModel.RegularSelectedItem);
+    }
+
+    [Fact]
     public void BeginMultiSelect_EntersModeWithoutSelectingRegularItem()
     {
         ScreenRecordListViewModel viewModel = new();
+        ObservableCollection<RecordedVideoItem> videos = Assert.IsType<ObservableCollection<RecordedVideoItem>>(viewModel.Videos.SourceCollection);
         RecordedVideoItem item = new() { FullPath = @"C:\videos\first.ts" };
+        videos.Add(item);
         viewModel.SelectRegularItem(item);
 
         viewModel.BeginMultiSelectCommand.Execute(null);
@@ -76,6 +196,29 @@ public sealed class ScreenRecordListWindowTests
         Assert.True(viewModel.IsMultiSelectMode);
         Assert.Same(item, viewModel.RegularSelectedItem);
         Assert.False(item.IsSelected);
+    }
+
+    [Fact]
+    public void SelectAll_EntersMultiSelectAndCanBeUndoneInOneStep()
+    {
+        ScreenRecordListViewModel viewModel = new();
+        ObservableCollection<RecordedVideoItem> videos = Assert.IsType<ObservableCollection<RecordedVideoItem>>(viewModel.Videos.SourceCollection);
+        RecordedVideoItem first = new() { FullPath = @"C:\videos\first.ts" };
+        RecordedVideoItem second = new() { FullPath = @"C:\videos\second.ts" };
+        videos.Add(first);
+        videos.Add(second);
+
+        viewModel.SelectAllCommand.Execute(null);
+
+        Assert.True(viewModel.IsMultiSelectMode);
+        Assert.True(first.IsSelected);
+        Assert.True(second.IsSelected);
+
+        viewModel.UndoSelection();
+
+        Assert.False(viewModel.IsMultiSelectMode);
+        Assert.False(first.IsSelected);
+        Assert.False(second.IsSelected);
     }
 
     [Theory]
@@ -94,6 +237,13 @@ public sealed class ScreenRecordListWindowTests
         Assert.Equal(
             expected,
             ScreenRecordListWindow.ShouldOpenVideoFromClick(isMultiSelectMode, toggleSelection, selectRange, clickCount));
+    }
+
+    [Fact]
+    public void VideoMarquee_StartsOnlyFromEmptyListSpace()
+    {
+        Assert.True(ScreenRecordListWindow.CanStartVideoMarquee(null));
+        Assert.False(ScreenRecordListWindow.CanStartVideoMarquee(new RecordedVideoItem()));
     }
 
     [Fact]

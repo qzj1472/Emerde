@@ -108,10 +108,15 @@
                                 Content="{I18N MultiSelect}">
                             <Button.Style>
                                 <Style TargetType="{x:Type Button}" BasedOn="{StaticResource VideoListToolbarButtonStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsMultiSelectMode}" Value="True">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                        </DataTrigger>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding HasVisibleVideos}" Value="True" />
+                                                <Condition Binding="{Binding IsMultiSelectMode}" Value="False" />
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </MultiDataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </Button.Style>
@@ -207,13 +212,16 @@
                   PreviewMouseRightButtonDown="VideoSelectionHostPreviewMouseRightButtonDown"
                   LostMouseCapture="VideoSelectionHostLostMouseCapture">
                 <ListBox x:Name="VideoListBox"
-                         ItemsSource="{Binding Videos}"
-                         Background="Transparent"
-                         BorderThickness="0"
-                         SelectedItem="{Binding RegularSelectedItem, Mode=TwoWay}"
-                         SelectionMode="Single"
-                         ScrollViewer.CanContentScroll="True"
-                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                          ItemsSource="{Binding Videos}"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          FocusVisualStyle="{x:Null}"
+                          PreviewMouseWheel="VideoListBoxPreviewMouseWheel"
+                          SelectedItem="{Binding RegularSelectedItem, Mode=TwoWay}"
+                          SelectionMode="Single"
+                          ScrollViewer.CanContentScroll="True"
+                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto"
                          ScrollViewer.ScrollChanged="VideoListScrollChanged"
                          VirtualizingPanel.IsVirtualizing="True"
                          VirtualizingPanel.VirtualizationMode="Recycling">
