@@ -131,7 +131,14 @@ public partial class App : Application
 
         RuntimeHelper.WaitForRestartParent(e.Args);
         RuntimeHelper.CheckSingleInstance(AppConfig.PackName + (Debugger.IsAttached ? "_DEBUG" : string.Empty));
-        AppSessionLogger.Start();
+        try
+        {
+            AppSessionLogger.Start();
+        }
+        catch (Exception loggingException)
+        {
+            Debug.WriteLine(loggingException);
+        }
         try
         {
             SecretProtector.MigrateStoredSecrets();
@@ -150,6 +157,13 @@ public partial class App : Application
             AppSessionLogger.Event("warn", "configuration", "startup_recovered", "invalid startup configuration was preserved and defaults were loaded", new { recoveredConfigurationPath });
             _ = MessageBox.Warning("ConfigurationRecovered".Tr(recoveredConfigurationPath ?? string.Empty));
         }
+        if ((Configurations.Rooms.Get() ?? []).Any(room =>
+                room != null
+                && string.Equals(Spider.GetPlatformName(room.RoomUrl), "Douyin", StringComparison.OrdinalIgnoreCase))
+            && !DouyinWebViewResolver.IsRuntimeAvailable())
+        {
+            _ = MessageBox.Warning("WebView2RuntimeMissing".Tr());
+        }
         RuntimeResourceLogger.Start();
         TrayIconManager.Start();
     }
@@ -159,13 +173,17 @@ public partial class App : Application
     /// </summary>
     protected override void OnExit(ExitEventArgs e)
     {
-        ConfigurationSaveScheduler.Flush();
+        _ = ConfigurationSaveScheduler.TrySaveNow();
         TrayIconManager.Stop();
         GlobalMonitor.Stop();
         GlobalMonitor.StopAllRecorders(deferPostProcessing: true);
-        GlobalMonitor.WaitForRecordersAsync(TimeSpan.FromSeconds(1)).GetAwaiter().GetResult();
+        MediaOperationRegistry.CancelAll();
+        Task.WhenAll(
+            GlobalMonitor.WaitForRecordersAsync(TimeSpan.FromSeconds(1)),
+            MediaOperationRegistry.WaitForCompletionAsync(TimeSpan.FromSeconds(1))).GetAwaiter().GetResult();
         ChildProcessTracerPeriodicTimer.Default.Stop(killChildren: true);
         RuntimeResourceLogger.Stop();
+        DouyinWebViewResolver.Shutdown();
         AppSessionLogger.Stop();
         base.OnExit(e);
     }
