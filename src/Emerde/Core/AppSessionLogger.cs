@@ -182,17 +182,17 @@ internal static class AppSessionLogger
     {
         DateTime timestamp = DateTime.Now;
         JsonNode? dataNode = LogSanitizer.SanitizeData(data, JsonOptions);
-        dataNode = ContextCompactor.Compact(dataNode, level, timestamp.Date);
-        object payload = new
+        JsonObject payload = new()
         {
-            timestamp = timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff"),
-            level,
-            category,
-            action,
-            message = LogSanitizer.SanitizeText(message),
-            threadId = Environment.CurrentManagedThreadId,
-            data = dataNode,
+            ["timestamp"] = timestamp.ToString("yyyy-MM-dd HH:mm:ss.fff"),
+            ["level"] = level,
+            ["category"] = category,
+            ["action"] = action,
+            ["message"] = LogSanitizer.SanitizeText(message),
+            ["threadId"] = Environment.CurrentManagedThreadId,
+            ["data"] = dataNode,
         };
+        ContextCompactor.CompactPayload(payload, level, timestamp.Date);
 
         return new LogLine(timestamp, level, JsonSerializer.Serialize(payload, JsonOptions));
     }
@@ -504,6 +504,24 @@ internal sealed class LogContextCompactor
         }
     }
 
+    public void CompactPayload(JsonObject payload, string level, DateTime logDate)
+    {
+        lock (syncRoot)
+        {
+            if (currentDate != logDate.Date)
+            {
+                ResetCore(logDate.Date);
+            }
+
+            bool isErrorLevel = AppSessionLogger.ShouldWriteToErrorLog(level);
+            CompactRepeatedText(payload, "message", isErrorLevel);
+            if (payload["data"] is JsonNode data)
+            {
+                CompactNode(data, isErrorLevel);
+            }
+        }
+    }
+
     private void ResetCore(DateTime logDate)
     {
         currentDate = logDate;
@@ -535,6 +553,14 @@ internal sealed class LogContextCompactor
         CompactRoom(jsonObject, isErrorLevel);
         CompactRepeatedText(jsonObject, "errorOutput", isErrorLevel);
         CompactRepeatedText(jsonObject, "stackTrace", isErrorLevel);
+        CompactRepeatedText(jsonObject, "innerException", isErrorLevel);
+        CompactRepeatedText(jsonObject, "resolverError", isErrorLevel);
+        CompactRepeatedText(jsonObject, "FileName", isErrorLevel);
+        CompactRepeatedText(jsonObject, "sourceFileName", isErrorLevel);
+        CompactRepeatedText(jsonObject, "targetFileName", isErrorLevel);
+        CompactRepeatedText(jsonObject, "path", isErrorLevel);
+        CompactRepeatedText(jsonObject, "quarantinePath", isErrorLevel);
+        CompactRepeatedText(jsonObject, "configuredFolder", isErrorLevel);
 
         foreach (KeyValuePair<string, JsonNode?> property in jsonObject.ToArray())
         {

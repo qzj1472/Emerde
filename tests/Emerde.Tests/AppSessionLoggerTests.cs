@@ -108,12 +108,14 @@ public sealed class AppSessionLoggerTests
             RoomUrl = "https://live.douyin.com/72024000076",
             NickName = "(~3_3)~ 7hz",
             errorOutput = "Stream ends prematurely",
+            resolverError = "Douyin room data was empty or blocked.",
         })!;
         JsonNode second = JsonSerializer.SerializeToNode(new
         {
             RoomUrl = "https://live.douyin.com/72024000076",
             NickName = "(~3_3)~ 7hz",
             errorOutput = "Stream ends prematurely",
+            resolverError = "Douyin room data was empty or blocked.",
         })!;
 
         JsonObject firstResult = Assert.IsType<JsonObject>(compactor.Compact(first, "warn", date));
@@ -123,12 +125,43 @@ public sealed class AppSessionLoggerTests
         Assert.NotNull(firstResult["roomContext"]);
         Assert.Equal("e1", firstResult["errorOutputRef"]!.GetValue<string>());
         Assert.Equal("Stream ends prematurely", firstResult["errorOutput"]!.GetValue<string>());
+        Assert.Equal("e2", firstResult["resolverErrorRef"]!.GetValue<string>());
+        Assert.Equal("Douyin room data was empty or blocked.", firstResult["resolverError"]!.GetValue<string>());
         Assert.Equal("r1", secondResult["roomRef"]!.GetValue<string>());
         Assert.Null(secondResult["roomContext"]);
         Assert.Equal("e1", secondResult["errorOutputRef"]!.GetValue<string>());
+        Assert.Equal("e2", secondResult["resolverErrorRef"]!.GetValue<string>());
         Assert.Null(secondResult["errorOutput"]);
+        Assert.Null(secondResult["resolverError"]);
         Assert.Null(secondResult["RoomUrl"]);
         Assert.Null(secondResult["NickName"]);
+    }
+
+    [Fact]
+    public void LogContextCompactor_ReusesPayloadMessageReferences()
+    {
+        LogContextCompactor compactor = new();
+        DateTime date = new(2026, 7, 23);
+        JsonObject first = new()
+        {
+            ["message"] = "room check returned no result and the previous stream state was preserved",
+            ["data"] = JsonSerializer.SerializeToNode(new
+            {
+                resolverError = "Douyin room data was empty or blocked.",
+            }),
+        };
+        JsonObject second = first.DeepClone().AsObject();
+
+        compactor.CompactPayload(first, "warn", date);
+        compactor.CompactPayload(second, "warn", date);
+
+        Assert.Equal("e1", first["messageRef"]!.GetValue<string>());
+        Assert.Equal("room check returned no result and the previous stream state was preserved", first["message"]!.GetValue<string>());
+        Assert.Equal("e1", second["messageRef"]!.GetValue<string>());
+        Assert.Null(second["message"]);
+        JsonObject secondData = Assert.IsType<JsonObject>(second["data"]);
+        Assert.Equal("e2", secondData["resolverErrorRef"]!.GetValue<string>());
+        Assert.Null(secondData["resolverError"]);
     }
 
     [Fact]
