@@ -185,7 +185,7 @@ public sealed class BaiduSpider : ISpider
             }
         }
 
-        RestClient client = new(options);
+        using RestClient client = new(options);
         RestRequest request = new()
         {
             Method = Method.Get,
@@ -222,7 +222,7 @@ public sealed class BaiduSpider : ISpider
             },
         }.ToString(Newtonsoft.Json.Formatting.None);
 
-        string cookie = PlatformCookieStore.GetCookie("Baidu", Configurations.CookieChina.Get());
+        string cookie = PlatformCookieStore.GetCookie("Baidu", SecretProtector.GetChinaCookie());
 
         request.AddHeader("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");
         request.AddHeader("Connection", "keep-alive");

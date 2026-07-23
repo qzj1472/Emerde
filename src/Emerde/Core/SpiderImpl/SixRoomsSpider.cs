@@ -45,7 +45,7 @@ public sealed partial class SixRoomsSpider : ISpider
             return result;
         }
 
-        string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("6Rooms", Configurations.CookieChina.Get()));
+        string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("6Rooms", SecretProtector.GetChinaCookie()));
         string? roomId = ExtractRoomId(html);
         result.RoomId = roomId;
 
@@ -67,7 +67,7 @@ public sealed partial class SixRoomsSpider : ISpider
                 ["ruid"] = roomId,
             },
             Headers(),
-            PlatformCookieStore.GetCookie("6Rooms", Configurations.CookieChina.Get()));
+            PlatformCookieStore.GetCookie("6Rooms", SecretProtector.GetChinaCookie()));
         ExtractMobileRoom(json, result);
 
         return result;

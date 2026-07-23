@@ -50,13 +50,13 @@ public sealed class TwitchSpider : ISpider
             "https://gql.twitch.tv/gql",
             BuildAccessTokenBody(channel),
             Headers(),
-            PlatformCookieStore.GetCookie("Twitch", Configurations.CookieOversea.Get()));
+            PlatformCookieStore.GetCookie("Twitch", SecretProtector.GetOverseaCookie()));
         TwitchAccessToken? token = ExtractPlaybackAccessToken(tokenJson);
         string? roomJson = SpiderRequest.PostJson(
             "https://gql.twitch.tv/gql",
             BuildRoomInfoBody(channel),
             Headers(),
-            PlatformCookieStore.GetCookie("Twitch", Configurations.CookieOversea.Get()));
+            PlatformCookieStore.GetCookie("Twitch", SecretProtector.GetOverseaCookie()));
         ExtractRoomInfo(roomJson, result);
 
         if (result.IsLiveStreaming == true && token != null)

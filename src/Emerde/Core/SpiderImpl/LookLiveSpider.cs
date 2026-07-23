@@ -64,7 +64,7 @@ public sealed partial class LookLiveSpider : ISpider
                 ["encSecKey"] = requestData.EncSecKey,
             },
             Headers(),
-            PlatformCookieStore.GetCookie("Look", Configurations.CookieChina.Get()));
+            PlatformCookieStore.GetCookie("Look", SecretProtector.GetChinaCookie()));
         ExtractRoomInfo(json, result);
 
         return result;

@@ -47,7 +47,7 @@ public sealed class PicartoSpider : ISpider
         string channel = roomUrl.Split('/').Last();
         result.Channel = channel;
 
-        string? json = SpiderRequest.Get($"https://ptvintern.picarto.tv/api/channel/detail/{Uri.EscapeDataString(channel)}", Headers(), PlatformCookieStore.GetCookie("Picarto", Configurations.CookieOversea.Get()));
+        string? json = SpiderRequest.Get($"https://ptvintern.picarto.tv/api/channel/detail/{Uri.EscapeDataString(channel)}", Headers(), PlatformCookieStore.GetCookie("Picarto", SecretProtector.GetOverseaCookie()));
         ExtractChannelDetail(json, result);
 
         return result;

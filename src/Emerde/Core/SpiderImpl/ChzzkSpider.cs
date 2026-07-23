@@ -145,14 +145,14 @@ public sealed class ChzzkSpider : ISpider
             }
         }
 
-        RestClient client = new(options);
+        using RestClient client = new(options);
         RestRequest request = new()
         {
             Method = Method.Get,
             Timeout = TimeSpan.FromSeconds(5),
         };
 
-        string cookie = PlatformCookieStore.GetCookie("CHZZK", Configurations.CookieOversea.Get());
+        string cookie = PlatformCookieStore.GetCookie("CHZZK", SecretProtector.GetOverseaCookie());
 
         request.AddHeader("Accept", "application/json, text/plain, */*");
         request.AddHeader("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");

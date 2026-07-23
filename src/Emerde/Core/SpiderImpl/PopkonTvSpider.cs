@@ -57,7 +57,7 @@ public sealed partial class PopkonTvSpider : ISpider
             return result;
         }
 
-        string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("PopkonTV", Configurations.CookieOversea.Get()));
+        string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("PopkonTV", SecretProtector.GetOverseaCookie()));
         ExtractNextData(html, result);
 
         if (result.IsLiveStreaming == true &&
@@ -69,7 +69,7 @@ public sealed partial class PopkonTvSpider : ISpider
                 "https://www.popkontv.com/api/proxy/broadcast/v1/castwatchonoffguest",
                 BuildWatchBody(result, partnerCode, GetQueryValue(uri.Query, "pwd")),
                 Headers(),
-                PlatformCookieStore.GetCookie("PopkonTV", Configurations.CookieOversea.Get()));
+                PlatformCookieStore.GetCookie("PopkonTV", SecretProtector.GetOverseaCookie()));
             ExtractWatchInfo(watchJson, result);
         }
 

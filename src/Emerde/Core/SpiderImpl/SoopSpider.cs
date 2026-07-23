@@ -55,9 +55,9 @@ public sealed class SoopSpider : ISpider
 
         if (uri.Host.EndsWith("sooplive.com", StringComparison.OrdinalIgnoreCase))
         {
-            string? channelJson = SpiderRequest.Get($"https://api.sooplive.com/v2/channel/info/{Uri.EscapeDataString(bjId)}", GlobalHeaders(), PlatformCookieStore.GetCookie("SOOP", Configurations.CookieOversea.Get()));
+            string? channelJson = SpiderRequest.Get($"https://api.sooplive.com/v2/channel/info/{Uri.EscapeDataString(bjId)}", GlobalHeaders(), PlatformCookieStore.GetCookie("SOOP", SecretProtector.GetOverseaCookie()));
             ExtractGlobalChannelInfo(channelJson, result);
-            string? streamJson = SpiderRequest.Get($"https://api.sooplive.com/v2/stream/info/{Uri.EscapeDataString(bjId)}", GlobalHeaders(), PlatformCookieStore.GetCookie("SOOP", Configurations.CookieOversea.Get()));
+            string? streamJson = SpiderRequest.Get($"https://api.sooplive.com/v2/stream/info/{Uri.EscapeDataString(bjId)}", GlobalHeaders(), PlatformCookieStore.GetCookie("SOOP", SecretProtector.GetOverseaCookie()));
             ExtractGlobalStreamInfo(streamJson, bjId, result);
             return result;
         }
@@ -74,12 +74,12 @@ public sealed class SoopSpider : ISpider
                 ["mode"] = "live",
             },
             WatchHeaders(),
-            PlatformCookieStore.GetCookie("SOOP", Configurations.CookieOversea.Get()));
+            PlatformCookieStore.GetCookie("SOOP", SecretProtector.GetOverseaCookie()));
         ExtractWatchInfo(watchJson, result);
 
         if (result.IsLiveStreaming == true && !string.IsNullOrWhiteSpace(result.BroadNo) && !string.IsNullOrWhiteSpace(result.HlsAuthenticationKey))
         {
-            string? cdnJson = SpiderRequest.Get(BuildCdnUrl(result.BroadNo), WatchHeaders(), PlatformCookieStore.GetCookie("SOOP", Configurations.CookieOversea.Get()));
+            string? cdnJson = SpiderRequest.Get(BuildCdnUrl(result.BroadNo), WatchHeaders(), PlatformCookieStore.GetCookie("SOOP", SecretProtector.GetOverseaCookie()));
             ApplyCdnInfo(cdnJson, result);
         }
 

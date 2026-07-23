@@ -47,7 +47,7 @@ public sealed class LangLiveSpider : ISpider
         string roomId = roomUrl.Split('/').Last();
         result.RoomId = roomId;
 
-        string? json = SpiderRequest.Get($"https://api.lang.live/langweb/v1/room/liveinfo?room_id={Uri.EscapeDataString(roomId)}", Headers(), PlatformCookieStore.GetCookie("LangLive", Configurations.CookieOversea.Get()));
+        string? json = SpiderRequest.Get($"https://api.lang.live/langweb/v1/room/liveinfo?room_id={Uri.EscapeDataString(roomId)}", Headers(), PlatformCookieStore.GetCookie("LangLive", SecretProtector.GetOverseaCookie()));
         ExtractLiveInfo(json, result);
 
         return result;

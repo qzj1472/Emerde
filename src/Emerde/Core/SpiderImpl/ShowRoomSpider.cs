@@ -176,14 +176,14 @@ public sealed partial class ShowRoomSpider : ISpider
             }
         }
 
-        RestClient client = new(options);
+        using RestClient client = new(options);
         RestRequest request = new()
         {
             Method = Method.Get,
             Timeout = TimeSpan.FromSeconds(5),
         };
 
-        string cookie = PlatformCookieStore.GetCookie("ShowRoom", Configurations.CookieOversea.Get());
+        string cookie = PlatformCookieStore.GetCookie("ShowRoom", SecretProtector.GetOverseaCookie());
 
         request.AddHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0");
         request.AddHeader("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");

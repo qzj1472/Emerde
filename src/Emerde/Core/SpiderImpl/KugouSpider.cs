@@ -171,14 +171,14 @@ public sealed partial class KugouSpider : ISpider
             }
         }
 
-        RestClient client = new(options);
+        using RestClient client = new(options);
         RestRequest request = new()
         {
             Method = Method.Get,
             Timeout = TimeSpan.FromSeconds(5),
         };
 
-        string cookie = PlatformCookieStore.GetCookie("Kugou", Configurations.CookieChina.Get());
+        string cookie = PlatformCookieStore.GetCookie("Kugou", SecretProtector.GetChinaCookie());
 
         request.AddHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0");
         request.AddHeader("Accept", "application/json");

@@ -46,7 +46,7 @@ public sealed partial class BluedSpider : ISpider
             return result;
         }
 
-        string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("Blued", Configurations.CookieChina.Get()));
+        string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("Blued", SecretProtector.GetChinaCookie()));
         ExtractPageData(html, result);
 
         return result;

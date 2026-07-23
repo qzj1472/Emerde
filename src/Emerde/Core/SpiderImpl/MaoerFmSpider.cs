@@ -51,7 +51,7 @@ public sealed class MaoerFmSpider : ISpider
         string? json = SpiderRequest.Get(
             $"https://fm.missevan.com/api/v2/live/{Uri.EscapeDataString(roomId)}",
             Headers(roomUrl),
-            PlatformCookieStore.GetCookie("MaoerFM", Configurations.CookieChina.Get()));
+            PlatformCookieStore.GetCookie("MaoerFM", SecretProtector.GetChinaCookie()));
         ExtractRoomInfo(json, result);
 
         return result;

@@ -59,13 +59,13 @@ public sealed class ShopeeSpider : ISpider
 
         if (!string.IsNullOrWhiteSpace(uid))
         {
-            string? ongoingJson = SpiderRequest.Get($"{apiHost}/api/v1/shop_page/live/ongoing?uid={Uri.EscapeDataString(uid)}", Headers(), PlatformCookieStore.GetCookie("Shopee", Configurations.CookieOversea.Get()));
+            string? ongoingJson = SpiderRequest.Get($"{apiHost}/api/v1/shop_page/live/ongoing?uid={Uri.EscapeDataString(uid)}", Headers(), PlatformCookieStore.GetCookie("Shopee", SecretProtector.GetOverseaCookie()));
             sessionId = ExtractOngoingSessionId(ongoingJson);
             isLiving = !string.IsNullOrWhiteSpace(sessionId);
 
             if (!isLiving)
             {
-                string? replayJson = SpiderRequest.Get($"{apiHost}/api/v1/shop_page/live/replay_list?offset=0&limit=1&uid={Uri.EscapeDataString(uid)}", Headers(), PlatformCookieStore.GetCookie("Shopee", Configurations.CookieOversea.Get()));
+                string? replayJson = SpiderRequest.Get($"{apiHost}/api/v1/shop_page/live/replay_list?offset=0&limit=1&uid={Uri.EscapeDataString(uid)}", Headers(), PlatformCookieStore.GetCookie("Shopee", SecretProtector.GetOverseaCookie()));
                 ExtractReplayInfo(replayJson, result);
                 return result;
             }
@@ -76,7 +76,7 @@ public sealed class ShopeeSpider : ISpider
             return result;
         }
 
-        string? sessionJson = SpiderRequest.Get($"{apiHost}/api/v1/session/{Uri.EscapeDataString(sessionId)}", Headers(), PlatformCookieStore.GetCookie("Shopee", Configurations.CookieOversea.Get()));
+        string? sessionJson = SpiderRequest.Get($"{apiHost}/api/v1/session/{Uri.EscapeDataString(sessionId)}", Headers(), PlatformCookieStore.GetCookie("Shopee", SecretProtector.GetOverseaCookie()));
         ExtractSession(sessionJson, isLiving, result);
 
         return result;
@@ -168,7 +168,7 @@ public sealed class ShopeeSpider : ISpider
                 }
             }
 
-            RestClient client = new(options);
+        using RestClient client = new(options);
             RestRequest request = new()
             {
                 Method = Method.Get,

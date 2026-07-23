@@ -191,14 +191,14 @@ public sealed partial class KuaishouSpider : ISpider, IQualitySelectableSpider
             }
         }
 
-        RestClient client = new(options);
+        using RestClient client = new(options);
         RestRequest request = new()
         {
             Method = Method.Get,
             Timeout = TimeSpan.FromSeconds(5),
         };
 
-        string cookie = PlatformCookieStore.GetCookie("Kuaishou", Configurations.CookieChina.Get());
+        string cookie = PlatformCookieStore.GetCookie("Kuaishou", SecretProtector.GetChinaCookie());
 
         request.AddHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0");
         request.AddHeader("Accept-Language", "zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2");

@@ -59,7 +59,7 @@ public sealed partial class YouTubeSpider : ISpider
             return result;
         }
 
-        string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("YouTube", Configurations.CookieOversea.Get()));
+        string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("YouTube", SecretProtector.GetOverseaCookie()));
         ExtractInitialPlayerResponse(html, result);
 
         return result;

@@ -55,7 +55,7 @@ public sealed class CatShowSpider : ISpider
         }
 
         string body = JsonConvert.SerializeObject(new { inviteUuid = "", anchorUuid = anchorUid });
-        string? json = SpiderRequest.PostJson("https://api.catshow168.com/live/preview", body, Headers(), PlatformCookieStore.GetCookie("CatShow", Configurations.CookieChina.Get()));
+        string? json = SpiderRequest.PostJson("https://api.catshow168.com/live/preview", body, Headers(), PlatformCookieStore.GetCookie("CatShow", SecretProtector.GetChinaCookie()));
         ExtractPreview(json, result);
 
         return result;

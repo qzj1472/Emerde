@@ -63,7 +63,7 @@ public sealed class HuajiaoSpider : ISpider
             string? feedsJson = SpiderRequest.Get(
                 $"https://webh.huajiao.com/User/getUserFeeds?uid={Uri.EscapeDataString(segments[1])}&fmt=json&_={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
                 WebHeaders(),
-                PlatformCookieStore.GetCookie("Huajiao", Configurations.CookieChina.Get()));
+                PlatformCookieStore.GetCookie("Huajiao", SecretProtector.GetChinaCookie()));
             ExtractUserFeeds(feedsJson, segments[1], result);
         }
         else
@@ -71,7 +71,7 @@ public sealed class HuajiaoSpider : ISpider
             string? feedJson = SpiderRequest.Get(
                 $"https://live.huajiao.com/feed/getFeedInfo?relateid={Uri.EscapeDataString(segments[1])}",
                 AppHeaders(),
-                PlatformCookieStore.GetCookie("Huajiao", Configurations.CookieChina.Get()));
+                PlatformCookieStore.GetCookie("Huajiao", SecretProtector.GetChinaCookie()));
             ExtractFeedInfo(feedJson, result);
         }
 
@@ -84,7 +84,7 @@ public sealed class HuajiaoSpider : ISpider
                        + $"&liveid={Uri.EscapeDataString(result.LiveId)}"
                        + $"&uid={Uri.EscapeDataString(result.Uid)}"
                        + "&encode=h265";
-            string? substreamJson = SpiderRequest.Get(api, WebHeaders(), PlatformCookieStore.GetCookie("Huajiao", Configurations.CookieChina.Get()));
+            string? substreamJson = SpiderRequest.Get(api, WebHeaders(), PlatformCookieStore.GetCookie("Huajiao", SecretProtector.GetChinaCookie()));
             ExtractSubstream(substreamJson, result);
         }
 

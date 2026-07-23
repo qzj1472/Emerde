@@ -59,7 +59,7 @@ public sealed class WinkTvSpider : ISpider
                 ["info"] = "media",
             },
             Headers(),
-            PlatformCookieStore.GetCookie("WinkTV", Configurations.CookieOversea.Get()));
+            PlatformCookieStore.GetCookie("WinkTV", SecretProtector.GetOverseaCookie()));
         ExtractBjInfo(infoJson, result);
 
         if (result.IsLiveStreaming == true)
@@ -74,7 +74,7 @@ public sealed class WinkTvSpider : ISpider
                     ["shareLinkType"] = string.Empty,
                 },
                 Headers(),
-                PlatformCookieStore.GetCookie("WinkTV", Configurations.CookieOversea.Get()));
+                PlatformCookieStore.GetCookie("WinkTV", SecretProtector.GetOverseaCookie()));
             ExtractPlayInfo(playJson, result);
         }
 

@@ -224,14 +224,14 @@ public sealed partial class XiaohongshuSpider : ISpider
             }
         }
 
-        RestClient client = new(options);
+        using RestClient client = new(options);
         RestRequest request = new()
         {
             Method = Method.Get,
             Timeout = TimeSpan.FromSeconds(5),
         };
 
-        string cookie = PlatformCookieStore.GetCookie("Xiaohongshu", Configurations.CookieChina.Get());
+        string cookie = PlatformCookieStore.GetCookie("Xiaohongshu", SecretProtector.GetChinaCookie());
 
         request.AddHeader("User-Agent", "ios/7.830 (ios 17.0; ; iPhone 15 (A2846/A3089/A3090/A3092))");
         request.AddHeader("xy-common-params", "platform=iOS&sid=session.1722166379345546829388");

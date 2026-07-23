@@ -41,12 +41,12 @@ public sealed partial class FlexTvSpider : ISpider
         }
 
         string channelId = ChannelRegex.Match(new Uri(roomUrl).AbsolutePath).Groups[1].Value;
-        string? html = SpiderRequest.Get($"https://www.ttinglive.com/channels/{Uri.EscapeDataString(channelId)}/live", Headers(), PlatformCookieStore.GetCookie("FlexTV", Configurations.CookieOversea.Get()));
+        string? html = SpiderRequest.Get($"https://www.ttinglive.com/channels/{Uri.EscapeDataString(channelId)}/live", Headers(), PlatformCookieStore.GetCookie("FlexTV", SecretProtector.GetOverseaCookie()));
         ExtractNextData(html, result);
 
         if (result.IsLiveStreaming == true)
         {
-            string? streamJson = SpiderRequest.Get($"https://www.ttinglive.com/api/channels/{Uri.EscapeDataString(channelId)}/stream?option=all", Headers(), PlatformCookieStore.GetCookie("FlexTV", Configurations.CookieOversea.Get()));
+            string? streamJson = SpiderRequest.Get($"https://www.ttinglive.com/api/channels/{Uri.EscapeDataString(channelId)}/stream?option=all", Headers(), PlatformCookieStore.GetCookie("FlexTV", SecretProtector.GetOverseaCookie()));
             ExtractStreamInfo(streamJson, result);
         }
 

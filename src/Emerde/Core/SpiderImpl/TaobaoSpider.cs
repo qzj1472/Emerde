@@ -55,7 +55,7 @@ public sealed partial class TaobaoSpider : ISpider
 
         if (string.IsNullOrWhiteSpace(liveId))
         {
-            string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("Taobao", Configurations.CookieChina.Get()));
+            string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("Taobao", SecretProtector.GetChinaCookie()));
             liveId = ExtractRedirectLiveId(html);
         }
 
@@ -64,7 +64,7 @@ public sealed partial class TaobaoSpider : ISpider
             return result;
         }
 
-        string cookie = PlatformCookieStore.GetCookie("Taobao", Configurations.CookieChina.Get());
+        string cookie = PlatformCookieStore.GetCookie("Taobao", SecretProtector.GetChinaCookie());
         string? token = ExtractCookieValue(cookie, "_m_h5_tk")?.Split('_').FirstOrDefault();
 
         if (string.IsNullOrWhiteSpace(token))
@@ -183,7 +183,7 @@ public sealed partial class TaobaoSpider : ISpider
             }
         }
 
-        RestClient client = new(options);
+        using RestClient client = new(options);
         RestRequest request = new()
         {
             Method = Method.Get,

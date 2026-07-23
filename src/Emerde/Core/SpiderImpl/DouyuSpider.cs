@@ -70,7 +70,7 @@ public sealed partial class DouyuSpider : ISpider
 
         if (!roomId.All(char.IsDigit))
         {
-            string? html = SpiderRequest.Get($"https://m.douyu.com/{roomPath}", MobileHeaders(), PlatformCookieStore.GetCookie("Douyu", Configurations.CookieChina.Get()));
+            string? html = SpiderRequest.Get($"https://m.douyu.com/{roomPath}", MobileHeaders(), PlatformCookieStore.GetCookie("Douyu", SecretProtector.GetChinaCookie()));
             roomId = ExtractMobileRoomId(html);
         }
 
@@ -82,7 +82,7 @@ public sealed partial class DouyuSpider : ISpider
         result.RoomId = roomId;
         result.RoomUrl = $"https://www.douyu.com/{roomId}";
 
-        string cookie = PlatformCookieStore.GetCookie("Douyu", Configurations.CookieChina.Get());
+        string cookie = PlatformCookieStore.GetCookie("Douyu", SecretProtector.GetChinaCookie());
         string? roomInfoJson = SpiderRequest.Get($"https://www.douyu.com/betard/{roomId}", DesktopHeaders(), cookie);
         ExtractBetardRoomInfo(roomInfoJson, result);
 

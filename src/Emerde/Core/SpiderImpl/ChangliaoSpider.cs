@@ -49,12 +49,12 @@ public sealed partial class ChangliaoSpider : ISpider
         string currentUrl = $"https://wap.tlclw.com/{roomId}";
         string api = "https://wap.tlclw.com/api/ui/room/v1.0.0/live.ashx"
                    + $"?roomidx={Uri.EscapeDataString(roomId)}&currentUrl={Uri.EscapeDataString(currentUrl)}";
-        string? json = SpiderRequest.Get(api, Headers(), PlatformCookieStore.GetCookie("Changliao", Configurations.CookieChina.Get()));
+        string? json = SpiderRequest.Get(api, Headers(), PlatformCookieStore.GetCookie("Changliao", SecretProtector.GetChinaCookie()));
         ExtractRoomInfo(json, result);
 
         if (result.IsLiveStreaming == true && !string.IsNullOrWhiteSpace(result.LiveId))
         {
-            string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("Changliao", Configurations.CookieChina.Get()));
+            string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("Changliao", SecretProtector.GetChinaCookie()));
             (string? flvDomain, string? hlsDomain) = ExtractLiveDomain(html);
             ApplyLiveDomain(result, flvDomain, hlsDomain);
         }

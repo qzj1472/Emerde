@@ -18,7 +18,7 @@ internal static class SpiderRequest
     public static string? PostForm(string url, IReadOnlyDictionary<string, string> form, IReadOnlyDictionary<string, string>? headers = null, string? cookie = null)
     {
         RestClientOptions options = BuildOptions(url);
-        RestClient client = new(options);
+        using RestClient client = new(options);
         RestRequest request = BuildRequest(Method.Post, headers, cookie);
 
         foreach ((string key, string value) in form)
@@ -34,7 +34,7 @@ internal static class SpiderRequest
     private static string? Execute(string url, Method method, IReadOnlyDictionary<string, string>? headers, string? cookie, string? body, DataFormat? dataFormat)
     {
         RestClientOptions options = BuildOptions(url);
-        RestClient client = new(options);
+        using RestClient client = new(options);
         RestRequest request = BuildRequest(method, headers, cookie);
 
         if (!string.IsNullOrWhiteSpace(body) && dataFormat != null)

@@ -48,7 +48,7 @@ public sealed class LiuxingSpider : ISpider
         string currentUrl = $"https://www.7u66.com/{roomId}?promoters=0";
         string api = "https://wap.7u66.com/api/ui/room/v1.0.0/live.ashx"
                    + $"?promoters=0&roomidx={Uri.EscapeDataString(roomId)}&currentUrl={Uri.EscapeDataString(currentUrl)}";
-        string? json = SpiderRequest.Get(api, Headers(), PlatformCookieStore.GetCookie("Liuxing", Configurations.CookieChina.Get()));
+        string? json = SpiderRequest.Get(api, Headers(), PlatformCookieStore.GetCookie("Liuxing", SecretProtector.GetChinaCookie()));
         ExtractRoomInfo(json, result);
 
         return result;

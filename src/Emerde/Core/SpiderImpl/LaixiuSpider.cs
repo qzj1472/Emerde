@@ -59,7 +59,7 @@ public sealed class LaixiuSpider : ISpider
         string? json = SpiderRequest.Get(
             $"https://api.imkktv.com/liveroom/getShareLiveVideo?roomId={Uri.EscapeDataString(roomId)}",
             Headers(sign),
-            PlatformCookieStore.GetCookie("Laixiu", Configurations.CookieChina.Get()));
+            PlatformCookieStore.GetCookie("Laixiu", SecretProtector.GetChinaCookie()));
         ExtractShareLiveVideo(json, result);
 
         return result;

@@ -59,7 +59,7 @@ public sealed partial class ZhihuSpider : ISpider
             string? profileJson = SpiderRequest.Get(
                 $"https://api.zhihu.com/people/{Uri.EscapeDataString(segments[1])}/profile?profile_new_version=",
                 Headers(),
-                PlatformCookieStore.GetCookie("Zhihu", Configurations.CookieChina.Get()));
+                PlatformCookieStore.GetCookie("Zhihu", SecretProtector.GetChinaCookie()));
             livePageUrl = ExtractLivePageUrl(profileJson) ?? livePageUrl;
             result.RoomUrl = livePageUrl;
         }
@@ -76,7 +76,7 @@ public sealed partial class ZhihuSpider : ISpider
             return result;
         }
 
-        string? html = SpiderRequest.Get(livePageUrl, Headers(), PlatformCookieStore.GetCookie("Zhihu", Configurations.CookieChina.Get()));
+        string? html = SpiderRequest.Get(livePageUrl, Headers(), PlatformCookieStore.GetCookie("Zhihu", SecretProtector.GetChinaCookie()));
         ExtractInitialData(html, webId, result);
 
         return result;

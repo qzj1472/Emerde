@@ -133,14 +133,14 @@ public sealed partial class YingkeSpider : ISpider
             }
         }
 
-        RestClient client = new(options);
+        using RestClient client = new(options);
         RestRequest request = new()
         {
             Method = Method.Get,
             Timeout = TimeSpan.FromSeconds(5),
         };
 
-        string cookie = PlatformCookieStore.GetCookie("Yingke", Configurations.CookieChina.Get());
+        string cookie = PlatformCookieStore.GetCookie("Yingke", SecretProtector.GetChinaCookie());
 
         request.AddHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0");
         request.AddHeader("Referer", "https://www.inke.cn/");

@@ -64,7 +64,7 @@ public sealed partial class WeiboSpider : ISpider
                 string? timelineJson = SpiderRequest.Get(
                     $"https://weibo.com/ajax/statuses/mymblog?uid={Uri.EscapeDataString(userMatch.Groups[1].Value)}&page=1&feature=0",
                     Headers(),
-                    PlatformCookieStore.GetCookie("Weibo", Configurations.CookieChina.Get()));
+                    PlatformCookieStore.GetCookie("Weibo", SecretProtector.GetChinaCookie()));
                 roomId = ExtractLiveRoomId(timelineJson);
             }
         }
@@ -77,7 +77,7 @@ public sealed partial class WeiboSpider : ISpider
         string? liveJson = SpiderRequest.Get(
             $"https://weibo.com/l/pc/anchor/live?live_id={Uri.EscapeDataString(roomId)}",
             Headers(),
-            PlatformCookieStore.GetCookie("Weibo", Configurations.CookieChina.Get()));
+            PlatformCookieStore.GetCookie("Weibo", SecretProtector.GetChinaCookie()));
         ExtractLiveDetail(liveJson, result);
 
         return result;

@@ -59,7 +59,7 @@ public sealed class PandaLiveSpider : ISpider
                 ["info"] = "media fanGrade",
             },
             Headers(),
-            PlatformCookieStore.GetCookie("PandaTV", Configurations.CookieOversea.Get()));
+            PlatformCookieStore.GetCookie("PandaTV", SecretProtector.GetOverseaCookie()));
         ExtractBjInfo(infoJson, result);
 
         if (result.IsLiveStreaming == true)
@@ -74,7 +74,7 @@ public sealed class PandaLiveSpider : ISpider
                     ["shareLinkType"] = string.Empty,
                 },
                 Headers(),
-                PlatformCookieStore.GetCookie("PandaTV", Configurations.CookieOversea.Get()));
+                PlatformCookieStore.GetCookie("PandaTV", SecretProtector.GetOverseaCookie()));
             ExtractPlayInfo(playJson, result);
         }
 

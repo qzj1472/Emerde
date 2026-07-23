@@ -50,7 +50,7 @@ public sealed class LianjieSpider : ISpider
         string? json = SpiderRequest.Get(
             $"https://api.lailianjie.com/ApiServices/service/live/getRoomInfo?&_$t=&_sign=&roomNumber={Uri.EscapeDataString(roomNumber)}",
             Headers(),
-            PlatformCookieStore.GetCookie("Lianjie", Configurations.CookieChina.Get()));
+            PlatformCookieStore.GetCookie("Lianjie", SecretProtector.GetChinaCookie()));
         ExtractRoomInfo(json, result);
 
         return result;

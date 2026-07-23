@@ -178,14 +178,14 @@ public sealed class SeventeenLiveSpider : ISpider
             }
         }
 
-        RestClient client = new(options);
+        using RestClient client = new(options);
         RestRequest request = new()
         {
             Method = method,
             Timeout = TimeSpan.FromSeconds(5),
         };
 
-        string cookie = PlatformCookieStore.GetCookie("17Live", Configurations.CookieOversea.Get());
+        string cookie = PlatformCookieStore.GetCookie("17Live", SecretProtector.GetOverseaCookie());
 
         request.AddHeader("Origin", "https://17.live");
         request.AddHeader("Referer", "https://17.live/");

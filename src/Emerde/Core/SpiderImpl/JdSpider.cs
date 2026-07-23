@@ -67,7 +67,7 @@ public sealed partial class JdSpider : ISpider
                     ["body"] = "{\"authorId\":\"" + authorId + "\",\"monitorSource\":\"1\",\"userId\":\"\"}",
                 },
                 Headers(),
-                PlatformCookieStore.GetCookie("JD", Configurations.CookieChina.Get()));
+                PlatformCookieStore.GetCookie("JD", SecretProtector.GetChinaCookie()));
             liveId = ExtractTalentInfo(talentJson, result);
         }
 
@@ -76,7 +76,7 @@ public sealed partial class JdSpider : ISpider
             return result;
         }
 
-        string? playJson = SpiderRequest.Get(BuildPlayApiUrl(liveId), Headers(), PlatformCookieStore.GetCookie("JD", Configurations.CookieChina.Get()));
+        string? playJson = SpiderRequest.Get(BuildPlayApiUrl(liveId), Headers(), PlatformCookieStore.GetCookie("JD", SecretProtector.GetChinaCookie()));
         ExtractPlayInfo(playJson, result);
 
         return result;
@@ -167,7 +167,7 @@ public sealed partial class JdSpider : ISpider
                 }
             }
 
-            RestClient client = new(options);
+        using RestClient client = new(options);
             RestRequest request = new()
             {
                 Method = Method.Get,
@@ -179,7 +179,7 @@ public sealed partial class JdSpider : ISpider
                 request.AddHeader(key, value);
             }
 
-            string cookie = PlatformCookieStore.GetCookie("JD", Configurations.CookieChina.Get());
+            string cookie = PlatformCookieStore.GetCookie("JD", SecretProtector.GetChinaCookie());
 
             if (!string.IsNullOrWhiteSpace(cookie))
             {

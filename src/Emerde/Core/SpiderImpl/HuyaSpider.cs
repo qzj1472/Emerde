@@ -217,14 +217,14 @@ public sealed partial class HuyaSpider : ISpider
             }
         }
 
-        RestClient client = new(options);
+        using RestClient client = new(options);
         RestRequest request = new()
         {
             Method = method,
             Timeout = TimeSpan.FromSeconds(5),
         };
 
-        string cookie = PlatformCookieStore.GetCookie("Huya", Configurations.CookieChina.Get());
+        string cookie = PlatformCookieStore.GetCookie("Huya", SecretProtector.GetChinaCookie());
 
         request.AddHeader("User-Agent", "ios/7.830 (ios 17.0; ; iPhone 15 (A2846/A3089/A3090/A3092))");
         request.AddHeader("Accept-Language", "zh-CN,zh;q=0.9");

@@ -46,13 +46,13 @@ public sealed partial class TwitCastingSpider : ISpider
             return result;
         }
 
-        string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("TwitCasting", Configurations.CookieOversea.Get()));
+        string? html = SpiderRequest.Get(roomUrl, Headers(), PlatformCookieStore.GetCookie("TwitCasting", SecretProtector.GetOverseaCookie()));
         ExtractPageData(html, result);
 
         if (result.IsLiveStreaming == true && !string.IsNullOrWhiteSpace(result.AnchorId))
         {
             string api = $"https://twitcasting.tv/streamserver.php?target={Uri.EscapeDataString(result.AnchorId)}&mode=client&player=pc_web";
-            string? streamJson = SpiderRequest.Get(api, Headers(), PlatformCookieStore.GetCookie("TwitCasting", Configurations.CookieOversea.Get()));
+            string? streamJson = SpiderRequest.Get(api, Headers(), PlatformCookieStore.GetCookie("TwitCasting", SecretProtector.GetOverseaCookie()));
             ExtractStreamServer(streamJson, result);
         }
 

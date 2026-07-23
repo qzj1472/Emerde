@@ -57,7 +57,7 @@ public sealed partial class LiveMeSpider : ISpider
         string videoId = segments[^2];
         LiveMeSignData signData = CreateSignData(videoId);
         string api = "https://live.liveme.com/live/queryinfosimple?alias=liveme&tongdun_black_box=&os=web";
-        string? json = PostSignedForm(api, signData, PlatformCookieStore.GetCookie("LiveMe", Configurations.CookieOversea.Get()));
+        string? json = PostSignedForm(api, signData, PlatformCookieStore.GetCookie("LiveMe", SecretProtector.GetOverseaCookie()));
         ExtractVideoInfo(json, result);
 
         return result;
@@ -140,7 +140,7 @@ public sealed partial class LiveMeSpider : ISpider
             }
         }
 
-        RestClient client = new(options);
+        using RestClient client = new(options);
         RestRequest request = new()
         {
             Method = Method.Post,
