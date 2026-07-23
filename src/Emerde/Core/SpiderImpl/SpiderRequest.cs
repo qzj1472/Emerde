@@ -1,5 +1,5 @@
-using RestSharp;
-using System.Net;
+using System.Net.Http;
+using System.Text;
 
 namespace Emerde.Core;
 
@@ -7,87 +7,62 @@ internal static class SpiderRequest
 {
     public static string? Get(string url, IReadOnlyDictionary<string, string>? headers = null, string? cookie = null)
     {
-        return Execute(url, Method.Get, headers, cookie, null, null);
+        return Execute(url, HttpMethod.Get, headers, cookie, null);
     }
 
     public static string? PostJson(string url, string body, IReadOnlyDictionary<string, string>? headers = null, string? cookie = null)
     {
-        return Execute(url, Method.Post, headers, cookie, body, DataFormat.Json);
+        return Execute(url, HttpMethod.Post, headers, cookie, new StringContent(body, Encoding.UTF8, "application/json"));
     }
 
     public static string? PostForm(string url, IReadOnlyDictionary<string, string> form, IReadOnlyDictionary<string, string>? headers = null, string? cookie = null)
     {
-        RestClientOptions options = BuildOptions(url);
-        using RestClient client = new(options);
-        RestRequest request = BuildRequest(Method.Post, headers, cookie);
-
-        foreach ((string key, string value) in form)
-        {
-            request.AddParameter(key, value);
-        }
-
-        RestResponse response = client.Execute(request);
-
-        return response.IsSuccessful ? response.Content : null;
+        return Execute(url, HttpMethod.Post, headers, cookie, new FormUrlEncodedContent(form));
     }
 
-    private static string? Execute(string url, Method method, IReadOnlyDictionary<string, string>? headers, string? cookie, string? body, DataFormat? dataFormat)
+    private static string? Execute(string url, HttpMethod method, IReadOnlyDictionary<string, string>? headers, string? cookie, HttpContent? content)
     {
-        RestClientOptions options = BuildOptions(url);
-        using RestClient client = new(options);
-        RestRequest request = BuildRequest(method, headers, cookie);
-
-        if (!string.IsNullOrWhiteSpace(body) && dataFormat != null)
+        try
         {
-            request.AddStringBody(body, dataFormat.Value);
-        }
-
-        RestResponse response = client.Execute(request);
-
-        return response.IsSuccessful ? response.Content : null;
-    }
-
-    private static RestClientOptions BuildOptions(string url)
-    {
-        RestClientOptions options = new()
-        {
-            BaseUrl = new Uri(url),
-        };
-
-        if (Configurations.IsUseProxy.Get())
-        {
-            string proxyUrl = Configurations.ProxyUrl.Get();
-
-            if (!string.IsNullOrWhiteSpace(proxyUrl))
+            using HttpRequestMessage request = new(method, url)
             {
-                options.Proxy = ProxyAddress.Create(proxyUrl);
-            }
-        }
+                Content = content,
+            };
+            AddHeaders(request, headers, cookie);
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));
+            using HttpResponseMessage response = ProxyHttpClientPool.GetCurrent()
+                .Send(request, HttpCompletionOption.ResponseContentRead, timeout.Token);
 
-        return options;
+            return response.IsSuccessStatusCode
+                ? response.Content.ReadAsStringAsync(timeout.Token).GetAwaiter().GetResult()
+                : null;
+        }
+        catch (Exception e) when (e is HttpRequestException or OperationCanceledException)
+        {
+            return null;
+        }
+        finally
+        {
+            content?.Dispose();
+        }
     }
 
-    private static RestRequest BuildRequest(Method method, IReadOnlyDictionary<string, string>? headers, string? cookie)
+    private static void AddHeaders(HttpRequestMessage request, IReadOnlyDictionary<string, string>? headers, string? cookie)
     {
-        RestRequest request = new()
-        {
-            Method = method,
-            Timeout = TimeSpan.FromSeconds(5),
-        };
-
         if (headers != null)
         {
             foreach ((string key, string value) in headers)
             {
-                request.AddHeader(key, value);
+                if (!request.Headers.TryAddWithoutValidation(key, value) && request.Content != null)
+                {
+                    request.Content.Headers.TryAddWithoutValidation(key, value);
+                }
             }
         }
 
         if (!string.IsNullOrWhiteSpace(cookie))
         {
-            request.AddHeader("Cookie", cookie);
+            request.Headers.TryAddWithoutValidation("Cookie", cookie);
         }
-
-        return request;
     }
 }
