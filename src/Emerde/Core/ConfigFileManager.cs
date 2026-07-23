@@ -99,7 +99,7 @@ internal static class ConfigFileManager
             }
 
             if (ConfigurationValueTypes.TryGetValue(key.Value, out Type? valueType) &&
-                !IsValidValueNode(valueNode, valueType))
+                !IsValidConfigurationValueNode(key.Value, valueNode, valueType))
             {
                 throw new InvalidDataException($"配置项 {key.Value} 的数据类型无效。");
             }
@@ -180,6 +180,16 @@ internal static class ConfigFileManager
         return node is YamlMappingNode;
     }
 
+    private static bool IsValidConfigurationValueNode(string key, YamlNode node, Type declaredType)
+    {
+        if (string.Equals(key, nameof(Configurations.RoutineIntervalUnit), StringComparison.Ordinal))
+        {
+            return node is YamlScalarNode scalar && TryNormalizeRoutineIntervalUnit(scalar.Value, out _);
+        }
+
+        return IsValidValueNode(node, declaredType);
+    }
+
     internal static string ReplaceConfigurationFile(string sourcePath, string targetPath, Action<string> setup)
     {
         string directory = Path.GetDirectoryName(targetPath) ?? AppPaths.ConfigDirectory;
@@ -192,6 +202,7 @@ internal static class ConfigFileManager
         try
         {
             File.Copy(sourcePath, temporaryPath, overwrite: false);
+            NormalizeConfigurationFile(temporaryPath);
             Validate(temporaryPath, requireYamlExtension: false);
             if (targetExisted)
             {
@@ -258,6 +269,71 @@ internal static class ConfigFileManager
         {
             AppSessionLogger.WriteException(e);
         }
+    }
+
+    private static void NormalizeConfigurationFile(string path)
+    {
+        YamlStream yaml = new();
+        using (StreamReader reader = File.OpenText(path))
+        {
+            yaml.Load(reader);
+        }
+
+        if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode root)
+        {
+            return;
+        }
+
+        bool changed = false;
+        foreach ((YamlNode keyNode, YamlNode valueNode) in root.Children.ToArray())
+        {
+            if (keyNode is not YamlScalarNode key || valueNode is not YamlScalarNode value)
+            {
+                continue;
+            }
+
+            if (!string.Equals(key.Value, nameof(Configurations.RoutineIntervalUnit), StringComparison.Ordinal)
+                || !TryNormalizeRoutineIntervalUnit(value.Value, out int routineIntervalUnit))
+            {
+                continue;
+            }
+
+            string normalized = routineIntervalUnit.ToString(CultureInfo.InvariantCulture);
+            if (string.Equals(value.Value, normalized, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            value.Value = normalized;
+            changed = true;
+        }
+
+        if (!changed)
+        {
+            return;
+        }
+
+        using StreamWriter writer = File.CreateText(path);
+        yaml.Save(writer, assignAnchors: false);
+    }
+
+    private static bool TryNormalizeRoutineIntervalUnit(string? value, out int unit)
+    {
+        if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int numeric))
+        {
+            unit = Math.Clamp(numeric, 1, 3);
+            return true;
+        }
+
+        string normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
+        unit = normalized switch
+        {
+            "second" or "seconds" or "sec" or "s" or "秒" => 1,
+            "minute" or "minutes" or "min" or "m" or "分钟" or "分鐘" or "分" => 2,
+            "hour" or "hours" or "h" or "小时" or "小時" or "時間" => 3,
+            _ => 1,
+        };
+        return true;
     }
 
     private static bool TryGetNonEmptyScalar(YamlMappingNode mapping, string keyName, out string value)

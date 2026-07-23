@@ -82,4 +82,29 @@ public sealed class ConfigFileManagerTests
             Directory.Delete(directory, recursive: true);
         }
     }
+
+    [Theory]
+    [InlineData("Seconds", "RoutineIntervalUnit: 1")]
+    [InlineData("invalid", "RoutineIntervalUnit: 1")]
+    [InlineData("3", "RoutineIntervalUnit: 3")]
+    [InlineData("8", "RoutineIntervalUnit: 3")]
+    public void ReplaceConfigurationFile_NormalizesRoutineIntervalUnit(string unit, string expected)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-config-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string sourcePath = Path.Combine(directory, "import.yaml");
+        string targetPath = Path.Combine(directory, "config.yaml");
+        File.WriteAllText(sourcePath, $"RoutineIntervalUnit: {unit}\nRooms: []");
+
+        try
+        {
+            _ = ConfigFileManager.ReplaceConfigurationFile(sourcePath, targetPath, _ => { });
+
+            Assert.Contains(expected, File.ReadAllText(targetPath));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
 }
