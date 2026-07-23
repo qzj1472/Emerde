@@ -2,6 +2,7 @@ using Microsoft.Toolkit.Uwp.Notifications;
 using Fischless.Configuration;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -189,6 +190,7 @@ public partial class MainWindow : FluentWindow
     private const double RoomCardSmallGapScale = 2d / 3d;
     private const double RoomCardScrollContentPadding = 6d;
     private const double RoomCardScrollBarReservedWidth = 17d;
+    private const int WmGetMinMaxInfo = 0x0024;
     private const int WmNcCalcSize = 0x0083;
     private const int WmNcHitTest = 0x0084;
     private const int WmNcPaint = 0x0085;
@@ -317,6 +319,12 @@ public partial class MainWindow : FluentWindow
 
     private IntPtr MainWindowWindowProc(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (!isPreviewFullScreen && message == WmGetMinMaxInfo && TryApplyMaximizedWindowBounds(hwnd, lParam))
+        {
+            handled = true;
+            return IntPtr.Zero;
+        }
+
         if (IsPreviewFullScreenNonClientMessage(isPreviewFullScreen, message))
         {
             handled = true;
@@ -336,6 +344,34 @@ public partial class MainWindow : FluentWindow
         }
 
         return IntPtr.Zero;
+    }
+
+    private static bool TryApplyMaximizedWindowBounds(IntPtr hwnd, IntPtr lParam)
+    {
+        if (hwnd == IntPtr.Zero || lParam == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        System.Windows.Forms.Screen screen = System.Windows.Forms.Screen.FromHandle(hwnd);
+        MaximizedWindowBounds bounds = CalculateMaximizedWindowBounds(screen.Bounds, screen.WorkingArea);
+        NativeMinMaxInfo info = Marshal.PtrToStructure<NativeMinMaxInfo>(lParam);
+        info.MaxPosition = new NativePoint(bounds.X, bounds.Y);
+        info.MaxSize = new NativePoint(bounds.Width, bounds.Height);
+        info.MaxTrackSize = new NativePoint(bounds.MaxTrackWidth, bounds.MaxTrackHeight);
+        Marshal.StructureToPtr(info, lParam, false);
+        return true;
+    }
+
+    internal static MaximizedWindowBounds CalculateMaximizedWindowBounds(System.Drawing.Rectangle monitorBounds, System.Drawing.Rectangle workArea)
+    {
+        return new MaximizedWindowBounds(
+            workArea.Left - monitorBounds.Left,
+            workArea.Top - monitorBounds.Top,
+            workArea.Width,
+            workArea.Height,
+            workArea.Width,
+            workArea.Height);
     }
 
     internal static bool IsPreviewFullScreenNonClientMessage(bool isFullScreen, int message)
@@ -1935,3 +1971,34 @@ public partial class MainWindow : FluentWindow
         }
     }
 }
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct NativePoint
+{
+    public int X;
+    public int Y;
+
+    public NativePoint(int x, int y)
+    {
+        X = x;
+        Y = y;
+    }
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct NativeMinMaxInfo
+{
+    public NativePoint Reserved;
+    public NativePoint MaxSize;
+    public NativePoint MaxPosition;
+    public NativePoint MinTrackSize;
+    public NativePoint MaxTrackSize;
+}
+
+internal readonly record struct MaximizedWindowBounds(
+    int X,
+    int Y,
+    int Width,
+    int Height,
+    int MaxTrackWidth,
+    int MaxTrackHeight);
