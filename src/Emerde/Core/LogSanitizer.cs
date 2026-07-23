@@ -83,6 +83,23 @@ internal static partial class LogSanitizer
 
         string url = value[..suffixStart];
         string suffix = value[suffixStart..];
+        int schemeSeparator = url.IndexOf("://", StringComparison.Ordinal);
+        if (schemeSeparator >= 0)
+        {
+            int authorityStart = schemeSeparator + 3;
+            int authorityEnd = url.IndexOfAny(['/', '?', '#'], authorityStart);
+            if (authorityEnd < 0)
+            {
+                authorityEnd = url.Length;
+            }
+            string authority = url[authorityStart..authorityEnd];
+            int relativeUserInfoEnd = authority.LastIndexOf('@');
+            if (relativeUserInfoEnd >= 0)
+            {
+                int userInfoEnd = authorityStart + relativeUserInfoEnd;
+                url = url[..authorityStart] + "[redacted]@" + url[(userInfoEnd + 1)..];
+            }
+        }
         int queryIndex = url.IndexOf('?');
         int fragmentIndex = url.IndexOf('#');
         int secretIndex = queryIndex < 0
@@ -90,7 +107,7 @@ internal static partial class LogSanitizer
             : fragmentIndex < 0 ? queryIndex : Math.Min(queryIndex, fragmentIndex);
 
         return secretIndex < 0
-            ? value
+            ? url + suffix
             : $"{url[..(secretIndex + 1)]}[redacted]{suffix}";
     }
 

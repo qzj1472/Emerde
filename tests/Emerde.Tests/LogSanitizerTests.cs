@@ -70,4 +70,19 @@ public sealed class LogSanitizerTests
         Assert.Equal("https://media.example/live.m3u8?[redacted]", sanitized?["values"]?[0]?.GetValue<string>());
         Assert.Equal("plain", sanitized?["values"]?[1]?.GetValue<string>());
     }
+
+    [Theory]
+    [InlineData("https://user:password@example.com/live", "password")]
+    [InlineData("https://token@example.com/live?key=value", "token")]
+    [InlineData("https://", "")]
+    public void SanitizeText_RedactsUrlUserInfoWithoutFailingOnEmptyAuthority(string value, string secret)
+    {
+        string sanitized = LogSanitizer.SanitizeText(value);
+
+        if (!string.IsNullOrEmpty(secret))
+        {
+            Assert.DoesNotContain(secret, sanitized, StringComparison.Ordinal);
+            Assert.Contains("[redacted]@", sanitized, StringComparison.Ordinal);
+        }
+    }
 }

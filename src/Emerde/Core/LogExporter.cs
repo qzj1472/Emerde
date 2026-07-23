@@ -1,4 +1,5 @@
 using System.IO;
+using System.IO.Compression;
 
 namespace Emerde.Core;
 
@@ -12,7 +13,7 @@ internal static class LogExporter
             throw new FileNotFoundException("没有找到可导出的日志文件。");
         }
 
-        return CopyFiles(targetDirectory, $"Emerde_logs_latest_{DateTime.Now:yyyyMMdd_HHmmss}", files);
+        return CreateArchive(targetDirectory, $"Emerde_logs_latest_{DateTime.Now:yyyyMMdd_HHmmss}", files);
     }
 
     public static string ExportAll(string targetDirectory)
@@ -28,7 +29,7 @@ internal static class LogExporter
             throw new FileNotFoundException("没有找到可导出的日志文件。");
         }
 
-        return CopyFiles(targetDirectory, $"Emerde_logs_all_{DateTime.Now:yyyyMMdd_HHmmss}", files);
+        return CreateArchive(targetDirectory, $"Emerde_logs_all_{DateTime.Now:yyyyMMdd_HHmmss}", files);
     }
 
     private static string[] GetLatestSessionFiles()
@@ -55,36 +56,85 @@ internal static class LogExporter
         return File.Exists(errorLog) ? [latest, errorLog] : [latest];
     }
 
-    private static string CopyFiles(string targetDirectory, string folderName, IReadOnlyList<string> files)
+    internal static string CreateArchive(string targetDirectory, string archiveName, IReadOnlyList<string> files)
     {
         Directory.CreateDirectory(targetDirectory);
-        string exportDirectory = GetAvailableDirectory(Path.Combine(targetDirectory, folderName));
-        Directory.CreateDirectory(exportDirectory);
+        string archivePath = GetAvailableFilePath(Path.Combine(targetDirectory, archiveName + ".zip"));
+        string temporaryPath = archivePath + $".{Guid.NewGuid():N}.tmp";
+        int entryCount = 0;
 
-        foreach (string file in files.Where(File.Exists))
+        try
         {
-            File.Copy(file, Path.Combine(exportDirectory, Path.GetFileName(file)), overwrite: true);
-        }
+            using (FileStream archiveStream = new(temporaryPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None))
+            using (ZipArchive archive = new(archiveStream, ZipArchiveMode.Create))
+            {
+                HashSet<string> entryNames = new(StringComparer.OrdinalIgnoreCase);
+                foreach (string file in files.Where(File.Exists))
+                {
+                    string entryName = GetAvailableEntryName(Path.GetFileName(file), entryNames);
+                    ZipArchiveEntry entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
+                    using Stream destination = entry.Open();
+                    using FileStream source = new(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                    source.CopyTo(destination);
+                    entryCount++;
+                }
+            }
 
-        return exportDirectory;
+            if (entryCount == 0)
+            {
+                throw new FileNotFoundException("没有找到可导出的日志文件。");
+            }
+
+            File.Move(temporaryPath, archivePath);
+            return archivePath;
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
     }
 
-    private static string GetAvailableDirectory(string path)
+    private static string GetAvailableFilePath(string path)
     {
-        if (!Directory.Exists(path))
+        if (!File.Exists(path) && !Directory.Exists(path))
         {
             return path;
         }
 
+        string directory = Path.GetDirectoryName(path)!;
+        string fileName = Path.GetFileNameWithoutExtension(path);
+        string extension = Path.GetExtension(path);
         for (int index = 1; index < 1000; index++)
         {
-            string candidate = $"{path}_{index}";
-            if (!Directory.Exists(candidate))
+            string candidate = Path.Combine(directory, $"{fileName}_{index}{extension}");
+            if (!File.Exists(candidate) && !Directory.Exists(candidate))
             {
                 return candidate;
             }
         }
 
-        return $"{path}_{Guid.NewGuid():N}";
+        return Path.Combine(directory, $"{fileName}_{Guid.NewGuid():N}{extension}");
+    }
+
+    private static string GetAvailableEntryName(string requestedName, ISet<string> usedNames)
+    {
+        if (usedNames.Add(requestedName))
+        {
+            return requestedName;
+        }
+
+        string fileName = Path.GetFileNameWithoutExtension(requestedName);
+        string extension = Path.GetExtension(requestedName);
+        for (int index = 2; ; index++)
+        {
+            string candidate = $"{fileName}_{index}{extension}";
+            if (usedNames.Add(candidate))
+            {
+                return candidate;
+            }
+        }
     }
 }
