@@ -17,7 +17,7 @@ internal static class SegmentTimeUnitHelper
     public const int Gigabytes = 4;
     public const int Milliseconds = 5;
 
-    public static double ToDisplayValue(int rawValue, int unitIndex)
+    public static double ToDisplayValue(long rawValue, int unitIndex)
     {
         return unitIndex switch
         {
@@ -30,7 +30,7 @@ internal static class SegmentTimeUnitHelper
         };
     }
 
-    public static double ConvertDisplayValue(int rawValue, int sourceUnitIndex, int targetUnitIndex)
+    public static double ConvertDisplayValue(long rawValue, int sourceUnitIndex, int targetUnitIndex)
     {
         if (IsSizeUnit(sourceUnitIndex) && IsSizeUnit(targetUnitIndex))
         {
@@ -55,17 +55,17 @@ internal static class SegmentTimeUnitHelper
         };
     }
 
-    public static int ToConfigValue(double value, int unitIndex)
+    public static long ToConfigValue(double value, int unitIndex)
     {
         if (IsSizeUnit(unitIndex))
         {
             double sizeMultiplier = unitIndex == Gigabytes ? BytesPerGigabyte : BytesPerMegabyte;
-            return (int)Math.Clamp(Math.Round(value * sizeMultiplier, MidpointRounding.AwayFromZero), BytesPerMegabyte, int.MaxValue);
+            return (long)Math.Clamp(Math.Round(value * sizeMultiplier, MidpointRounding.AwayFromZero), BytesPerMegabyte, long.MaxValue);
         }
 
         if (unitIndex == Milliseconds)
         {
-            return (int)Math.Clamp(Math.Round(value, MidpointRounding.AwayFromZero), 1, int.MaxValue);
+            return (long)Math.Clamp(Math.Round(value, MidpointRounding.AwayFromZero), 1, long.MaxValue);
         }
 
         double milliseconds = unitIndex switch
@@ -75,10 +75,10 @@ internal static class SegmentTimeUnitHelper
             Seconds or _ => value * MillisecondsPerSecond,
         };
 
-        return (int)Math.Max(1, Math.Round(milliseconds / MillisecondsPerSecond, MidpointRounding.AwayFromZero));
+        return (long)Math.Max(1, Math.Round(milliseconds / MillisecondsPerSecond, MidpointRounding.AwayFromZero));
     }
 
-    public static string ToSegmentArgument(int rawValue, int unitIndex)
+    public static string ToSegmentArgument(long rawValue, int unitIndex)
     {
         if (unitIndex == Milliseconds)
         {
