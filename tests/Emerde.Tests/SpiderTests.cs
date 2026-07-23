@@ -4,6 +4,16 @@ namespace Emerde.Tests;
 
 public sealed class SpiderTests
 {
+    [Theory]
+    [InlineData("Twitch", "https://usher.ttvnw.net/channel/master.m3u8", true)]
+    [InlineData("twitch", "https://usher.ttvnw.net/channel/master.m3u8", true)]
+    [InlineData("Twitch", "", false)]
+    [InlineData("Douyin", "https://example.test/master.m3u8", false)]
+    public void LegacyHlsVariantResolution_TargetsTwitchMasterPlaylists(string platformName, string hlsUrl, bool expected)
+    {
+        Assert.Equal(expected, ExternalStreamResolver.ShouldResolveHlsVariant(platformName, hlsUrl));
+    }
+
     [Fact]
     public void ResolverError_CanBeClearedWhenRoomIsRemoved()
     {

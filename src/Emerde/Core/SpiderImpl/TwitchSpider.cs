@@ -5,6 +5,8 @@ namespace Emerde.Core;
 
 public sealed class TwitchSpider : ISpider
 {
+    internal const string WebUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0";
+
     public static Lazy<TwitchSpider> Instance { get; } = new(() => new TwitchSpider());
 
     public string PlatformName => "Twitch";
@@ -198,7 +200,7 @@ public sealed class TwitchSpider : ISpider
             ["Content-Type"] = "text/plain;charset=UTF-8",
             ["device-id"] = Guid.NewGuid().ToString("N")[..16],
             ["Referer"] = "https://www.twitch.tv/",
-            ["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0",
+            ["User-Agent"] = WebUserAgent,
         };
     }
 }

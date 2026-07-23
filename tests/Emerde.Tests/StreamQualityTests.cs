@@ -164,6 +164,57 @@ public sealed class StreamQualityTests
     }
 
     [Fact]
+    public void DouyinResolver_LinkMicUsesFirstPlayablePullDataWithoutPrimaryStream()
+    {
+        string linkMicStreamData = CreateDouyinStreamData(
+            "https://example.test/link-mic.flv?token=live",
+            "https://example.test/link-mic.m3u8?token=live",
+            "h264",
+            9000000,
+            "1920x1080");
+        string emptyStreamData = """
+            {"data":{"origin":{"main":{}}}}
+            """;
+        string json = $$"""
+            {
+              "data": {
+                "data": [{
+                  "status": 2,
+                  "title": "desktop link mic",
+                  "stream_url": {
+                    "live_core_sdk_data": {},
+                    "hls_pull_url_map": {},
+                    "flv_pull_url": {},
+                    "pull_datas": {
+                      "guest": {
+                        "stream_data": {{System.Text.Json.JsonSerializer.Serialize(emptyStreamData)}}
+                      },
+                      "anchor": {
+                        "pull_data": {
+                          "stream_data": {{System.Text.Json.JsonSerializer.Serialize(linkMicStreamData)}}
+                        }
+                      }
+                    }
+                  }
+                }]
+              }
+            }
+            """;
+
+        StreamResolverResult result = StreamResolver.ExtractDouyinWebEnterData(
+            "https://live.douyin.com/72024000076",
+            json,
+            StreamQualityCatalog.Original);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal("desktop link mic", result.Title);
+        Assert.Equal("https://example.test/link-mic.flv?token=live&codec=h264", result.RecordUrl);
+        Assert.Equal("https://example.test/link-mic.m3u8?token=live&codec=h264", result.HlsUrl);
+        Assert.Equal("1920x1080", result.Resolution);
+        Assert.Equal("9 Mbps", result.Bitrate);
+    }
+
+    [Fact]
     public void DouyinResolver_OriginalUsesPrimaryOriginAndFlvForH264()
     {
         string primaryStreamData = CreateDouyinStreamData(

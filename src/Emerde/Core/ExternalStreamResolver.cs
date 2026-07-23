@@ -97,6 +97,15 @@ internal static class ExternalStreamResolver
 
         ISpiderResult? legacyResult = Spider.GetLegacyResult(normalizedUrl, streamQuality);
         StreamResolverResult result = StreamResolver.MergeResults(normalizedUrl, resolverResult, legacyResult);
+        if (ShouldResolveHlsVariant(result.PlatformName, result.HlsUrl))
+        {
+            StreamResolver.EnrichHighestHlsVariant(
+                result,
+                StreamQualityCatalog.Original,
+                normalizedUrl,
+                PlatformCookieStore.GetCookie("Twitch", SecretProtector.GetOverseaCookie()),
+                TwitchSpider.WebUserAgent);
+        }
 
         if (!HasRoomData(result))
         {
@@ -116,6 +125,12 @@ internal static class ExternalStreamResolver
         }
 
         return result;
+    }
+
+    internal static bool ShouldResolveHlsVariant(string? platformName, string? hlsUrl)
+    {
+        return platformName?.Equals("Twitch", StringComparison.OrdinalIgnoreCase) == true
+            && !string.IsNullOrWhiteSpace(hlsUrl);
     }
 
     private static string? NormalizeKnownPlatformUrl(string value)

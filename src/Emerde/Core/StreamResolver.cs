@@ -603,6 +603,17 @@ internal static partial class StreamResolver
             DouyinWebViewSnapshot snapshot = DouyinWebViewResolver.Resolve(roomUrl, GetDouyinCookie(), tryAllRoutes);
             StreamResolverResult browserResult = ExtractDouyinWebViewSnapshot(roomUrl, snapshot, preferredQuality, session);
             result = MergeResults(roomUrl, result, browserResult);
+            if (!IsCompleteDouyinResult(result)
+                && session.TryGetIdentity(out string roomId, out string secUid))
+            {
+                StreamResolverResult? reflowResult = ResolveDouyinAppReflow(
+                    roomUrl,
+                    roomId,
+                    secUid,
+                    GetDouyinCookie(),
+                    preferredQuality);
+                result = MergeResults(roomUrl, result, reflowResult);
+            }
             if (IsCompleteDouyinResult(result))
             {
                 session.ResetFailures();
@@ -733,13 +744,15 @@ internal static partial class StreamResolver
         DouyinRoomSession session)
     {
         StreamResolverResult apiResult = ExtractDouyinWebEnterData(roomUrl, snapshot.WebEnterJson, preferredQuality);
+        StreamResolverResult reflowResult = ExtractDouyinReflowData(roomUrl, snapshot.ReflowJson, preferredQuality);
         StreamResolverResult pageResult = ExtractDouyinData(roomUrl, snapshot.Html, preferredQuality);
         if (TryExtractDouyinReflowIdentity(snapshot.WebEnterJson, out string roomId, out string secUid)
+            || TryExtractDouyinReflowIdentity(snapshot.ReflowJson, out roomId, out secUid)
             || TryExtractDouyinPageIdentity(snapshot.Html, out roomId, out secUid))
         {
             session.UpdateIdentity(roomId, secUid);
         }
-        return MergeResults(roomUrl, apiResult, pageResult);
+        return MergeResults(roomUrl, apiResult, reflowResult, pageResult);
     }
 
     private static bool IsCompleteDouyinResult(ISpiderResult? result)
@@ -1127,7 +1140,7 @@ internal static partial class StreamResolver
         };
     }
 
-    private static void EnrichHighestHlsVariant(StreamResolverResult result, string? preferredQuality, string referer, string? cookie, string userAgent)
+    internal static void EnrichHighestHlsVariant(StreamResolverResult result, string? preferredQuality, string referer, string? cookie, string userAgent)
     {
         if (StreamQualityCatalog.NormalizePreference(preferredQuality) != StreamQualityCatalog.Original
             || string.IsNullOrWhiteSpace(result.HlsUrl))
@@ -1747,29 +1760,34 @@ internal static partial class StreamResolver
         JToken? liveCoreSdkData = GetJsonProperty(streamUrlObject, "live_core_sdk_data", "liveCoreSdkData");
         JToken? primaryPullData = GetJsonProperty(liveCoreSdkData, "pull_data", "pullData");
         JObject? primaryStreamData = ParseJsonObject(GetJsonProperty(primaryPullData, "stream_data", "streamData"));
-        if (primaryStreamData == null)
-        {
-            return default;
-        }
-
-        JObject selectedStreamData = primaryStreamData;
+        List<JObject> streamDataCandidates = [];
         JToken? pullDatas = GetJsonProperty(streamUrlObject, "pull_datas", "pullDatas");
-        if (pullDatas is JObject pullDataMap
-            && pullDataMap.Properties().FirstOrDefault()?.Value is JObject firstPullData)
+        bool hasDeclaredPullData = false;
+        if (pullDatas is JObject pullDataMap)
         {
-            selectedStreamData = ParseJsonObject(GetJsonProperty(firstPullData, "stream_data", "streamData"))
-                ?? primaryStreamData;
+            hasDeclaredPullData = pullDataMap.Properties().Any();
+            streamDataCandidates.AddRange(pullDataMap.Properties()
+                .Select(property => ParseDouyinStreamData(property.Value))
+                .Where(candidate => candidate != null)
+                .Select(candidate => candidate!));
+        }
+        if (!hasDeclaredPullData && primaryStreamData != null)
+        {
+            streamDataCandidates.Add(primaryStreamData);
         }
 
-        if (selectedStreamData["data"]?["origin"]?["main"] is not JObject origin)
+        JObject? selectedStreamData = streamDataCandidates.FirstOrDefault(HasDouyinOriginStream);
+        if (selectedStreamData?["data"]?["origin"]?["main"] is not JObject origin)
         {
             return default;
         }
 
         JObject? primaryOrigin = primaryStreamData?["data"]?["origin"]?["main"] as JObject;
         JObject? primarySdkParams = ParseJsonObject(primaryOrigin?["sdk_params"] ?? primaryOrigin?["sdkParams"]);
-        string? codec = CleanOptionalText(primarySdkParams?["VCodec"]?.ToString());
         JObject? selectedSdkParams = ParseJsonObject(origin["sdk_params"] ?? origin["sdkParams"]);
+        string? codec = FirstNonEmpty(
+            CleanOptionalText(primarySdkParams?["VCodec"]?.ToString()),
+            CleanOptionalText(selectedSdkParams?["VCodec"]?.ToString()));
         string? resolution = CleanOptionalText(selectedSdkParams?["resolution"]?.ToString());
         double bitrate = ParsePositiveDouble(selectedSdkParams?["vbitrate"] ?? selectedSdkParams?["v_bit_rate"]);
         if (bitrate <= 0)
@@ -1785,6 +1803,34 @@ internal static partial class StreamResolver
         }
 
         return new DouyinOriginStream(flvUrl, hlsUrl, resolution, bitrate);
+    }
+
+    private static JObject? ParseDouyinStreamData(JToken? pullData)
+    {
+        JObject? direct = ParseJsonObject(GetJsonProperty(pullData, "stream_data", "streamData"));
+        if (direct != null)
+        {
+            return direct;
+        }
+
+        JToken? nestedPullData = GetJsonProperty(pullData, "pull_data", "pullData");
+        JObject? nested = ParseJsonObject(GetJsonProperty(nestedPullData, "stream_data", "streamData"));
+        if (nested != null)
+        {
+            return nested;
+        }
+
+        JToken? liveCoreSdkData = GetJsonProperty(pullData, "live_core_sdk_data", "liveCoreSdkData");
+        nestedPullData = GetJsonProperty(liveCoreSdkData, "pull_data", "pullData");
+        return ParseJsonObject(GetJsonProperty(nestedPullData, "stream_data", "streamData"))
+            ?? ParseJsonObject(pullData);
+    }
+
+    private static bool HasDouyinOriginStream(JObject streamData)
+    {
+        JToken? origin = streamData["data"]?["origin"]?["main"];
+        return !string.IsNullOrWhiteSpace(CleanOptionalUrl(origin?["flv"]?.ToString()))
+            || !string.IsNullOrWhiteSpace(CleanOptionalUrl(origin?["hls"]?.ToString()));
     }
 
     private static string? SelectDouyinRecordUrl(string? flvUrl, string? hlsUrl)

@@ -7,7 +7,7 @@ using Newtonsoft.Json;
 
 namespace Emerde.Core;
 
-internal readonly record struct DouyinWebViewSnapshot(string? WebEnterJson, string? Html);
+internal readonly record struct DouyinWebViewSnapshot(string? WebEnterJson, string? ReflowJson, string? Html);
 
 internal static class DouyinWebViewResolver
 {
@@ -151,7 +151,10 @@ internal static class DouyinWebViewResolver
         TimeSpan timeout)
     {
         TaskCompletionSource navigationCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        TaskCompletionSource<string?> webEnterReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource roomDataReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        List<string> webEnterResponses = [];
+        List<string> reflowResponses = [];
+        object responseSync = new();
 
         void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs args)
         {
@@ -160,7 +163,10 @@ internal static class DouyinWebViewResolver
 
         async void OnResponseReceived(object? sender, CoreWebView2WebResourceResponseReceivedEventArgs args)
         {
-            if (!args.Request.Uri.Contains("/webcast/room/web/enter/", StringComparison.OrdinalIgnoreCase))
+            bool isWebEnter = args.Request.Uri.Contains("/webcast/room/web/enter/", StringComparison.OrdinalIgnoreCase);
+            bool isReflow = args.Request.Uri.Contains("/webcast/room/reflow/info", StringComparison.OrdinalIgnoreCase)
+                || args.Request.Uri.Contains("/webcast/reflow/", StringComparison.OrdinalIgnoreCase);
+            if (!isWebEnter && !isReflow)
             {
                 return;
             }
@@ -168,11 +174,18 @@ internal static class DouyinWebViewResolver
             {
                 using Stream content = await args.Response.GetContentAsync();
                 using StreamReader reader = new(content);
-                webEnterReceived.TrySetResult(await reader.ReadToEndAsync());
+                string response = await reader.ReadToEndAsync();
+                if (!string.IsNullOrWhiteSpace(response))
+                {
+                    lock (responseSync)
+                    {
+                        (isWebEnter ? webEnterResponses : reflowResponses).Add(response);
+                    }
+                    roomDataReceived.TrySetResult();
+                }
             }
             catch
             {
-                webEnterReceived.TrySetResult(null);
             }
         }
 
@@ -183,12 +196,15 @@ internal static class DouyinWebViewResolver
             webView.CoreWebView2.Navigate(roomUrl);
             Task timeoutTask = Task.Delay(timeout);
             await Task.WhenAny(navigationCompleted.Task, timeoutTask);
-            await Task.WhenAny(webEnterReceived.Task, Task.Delay(TimeSpan.FromSeconds(3)));
+            await Task.WhenAny(roomDataReceived.Task, Task.Delay(TimeSpan.FromSeconds(3)));
+            await Task.Delay(300);
             string? html = await GetPageHtmlAsync(webView);
-            string? webEnterJson = webEnterReceived.Task.IsCompletedSuccessfully
-                ? webEnterReceived.Task.Result
-                : null;
-            return new DouyinWebViewSnapshot(webEnterJson, html);
+            lock (responseSync)
+            {
+                string? webEnterJson = webEnterResponses.OrderByDescending(response => response.Length).FirstOrDefault();
+                string? reflowJson = reflowResponses.OrderByDescending(response => response.Length).FirstOrDefault();
+                return new DouyinWebViewSnapshot(webEnterJson, reflowJson, html);
+            }
         }
         finally
         {
