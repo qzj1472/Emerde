@@ -165,6 +165,27 @@ public sealed class AppSessionLoggerTests
     }
 
     [Fact]
+    public void LogContextCompactor_ReusesExceptionMessageReferences()
+    {
+        LogContextCompactor compactor = new();
+        DateTime date = new(2026, 7, 24);
+        JsonNode first = JsonSerializer.SerializeToNode(new
+        {
+            Message = "Could not find file while refreshing videos.",
+            stackTrace = "shared stack trace",
+        })!;
+        JsonNode second = first.DeepClone();
+
+        JsonObject firstResult = Assert.IsType<JsonObject>(compactor.Compact(first, "error", date));
+        JsonObject secondResult = Assert.IsType<JsonObject>(compactor.Compact(second, "error", date));
+
+        Assert.Equal("e1", firstResult["MessageRef"]!.GetValue<string>());
+        Assert.Equal("Could not find file while refreshing videos.", firstResult["Message"]!.GetValue<string>());
+        Assert.Equal("e1", secondResult["MessageRef"]!.GetValue<string>());
+        Assert.Null(secondResult["Message"]);
+    }
+
+    [Fact]
     public void LogContextCompactor_DefinesReferencesAgainForErrorLog()
     {
         LogContextCompactor compactor = new();

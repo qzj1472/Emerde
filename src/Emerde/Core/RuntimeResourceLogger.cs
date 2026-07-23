@@ -7,6 +7,9 @@ namespace Emerde.Core;
 internal static class RuntimeResourceLogger
 {
     private static readonly TimeSpan SampleInterval = TimeSpan.FromSeconds(30);
+    internal static readonly TimeSpan SnapshotMinimumInterval = TimeSpan.FromMinutes(2);
+    internal static readonly TimeSpan SnapshotForceInterval = TimeSpan.FromMinutes(5);
+    internal const double SnapshotRamDeltaMb = 128d;
     private static readonly ConcurrentDictionary<int, RuntimeProcessContext> Processes = new();
     private static readonly object SyncRoot = new();
     private static CancellationTokenSource? tokenSource;
@@ -14,6 +17,9 @@ internal static class RuntimeResourceLogger
     private static DateTime lastNetworkSampleAt = DateTime.MinValue;
     private static long lastNetworkReceivedBytes;
     private static long lastNetworkSentBytes;
+    private static DateTime lastSnapshotAt = DateTime.MinValue;
+    private static string lastSnapshotProcessSignature = string.Empty;
+    private static double lastSnapshotRamMb;
 
     public static void Start()
     {
@@ -64,6 +70,9 @@ internal static class RuntimeResourceLogger
             lastNetworkSampleAt = DateTime.MinValue;
             lastNetworkReceivedBytes = 0;
             lastNetworkSentBytes = 0;
+            lastSnapshotAt = DateTime.MinValue;
+            lastSnapshotProcessSignature = string.Empty;
+            lastSnapshotRamMb = 0;
         }
 
         stoppingTokenSource?.Dispose();
@@ -136,7 +145,7 @@ internal static class RuntimeResourceLogger
         }
 
         NetworkSample network = GetNetworkSample();
-        List<object> samples = [];
+        List<RuntimeProcessSample> samples = [];
 
         foreach (RuntimeProcessContext context in contexts)
         {
@@ -160,8 +169,7 @@ internal static class RuntimeResourceLogger
                     LastSampleAt = now,
                 };
 
-                samples.Add(new
-                {
+                samples.Add(new RuntimeProcessSample(
                     context.RoomUrl,
                     context.NickName,
                     context.ProcessKind,
@@ -169,10 +177,9 @@ internal static class RuntimeResourceLogger
                     context.ProcessName,
                     context.ProcessId,
                     cpuPercent,
-                    ramMb = Math.Round(process.WorkingSet64 / 1024d / 1024d, 2),
-                    startedAt = context.StartedAt,
-                    runningSeconds = Math.Round((now - context.StartedAt).TotalSeconds, 1),
-                });
+                    Math.Round(process.WorkingSet64 / 1024d / 1024d, 2),
+                    context.StartedAt,
+                    Math.Round((now - context.StartedAt).TotalSeconds, 1)));
             }
             catch (Exception e) when (e is InvalidOperationException or ArgumentException)
             {
@@ -186,13 +193,24 @@ internal static class RuntimeResourceLogger
         }
 
         using Process current = Process.GetCurrentProcess();
+        double ramMb = Math.Round(current.WorkingSet64 / 1024d / 1024d, 2);
+        DateTime snapshotAt = DateTime.Now;
+        string processSignature = BuildProcessSignature(samples);
+        if (!ShouldWriteSnapshot(snapshotAt, processSignature, ramMb))
+        {
+            return;
+        }
+
+        lastSnapshotAt = snapshotAt;
+        lastSnapshotProcessSignature = processSignature;
+        lastSnapshotRamMb = ramMb;
         AppSessionLogger.Event("info", "runtime", "resource_snapshot", "runtime resource snapshot", new
         {
             application = new
             {
                 processId = Environment.ProcessId,
                 cpuTimeSeconds = Math.Round(current.TotalProcessorTime.TotalSeconds, 2),
-                ramMb = Math.Round(current.WorkingSet64 / 1024d / 1024d, 2),
+                ramMb,
                 threadCount = current.Threads.Count,
             },
             network = network.IsValid ? new
@@ -206,8 +224,56 @@ internal static class RuntimeResourceLogger
                 available = false,
                 reason = "gpu sampling is skipped to avoid extra runtime overhead and compatibility issues",
             },
-            processes = samples,
+            processes = samples.Select(sample => new
+            {
+                sample.RoomUrl,
+                sample.NickName,
+                sample.ProcessKind,
+                sample.Purpose,
+                sample.ProcessName,
+                sample.ProcessId,
+                cpuPercent = sample.CpuPercent,
+                ramMb = sample.RamMb,
+                startedAt = sample.StartedAt,
+                runningSeconds = sample.RunningSeconds,
+            }).ToArray(),
         });
+    }
+
+    internal static bool ShouldWriteSnapshot(DateTime now, string processSignature, double ramMb)
+    {
+        if (lastSnapshotAt == DateTime.MinValue)
+        {
+            return true;
+        }
+
+        if (!string.Equals(lastSnapshotProcessSignature, processSignature, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        TimeSpan elapsed = now - lastSnapshotAt;
+        if (elapsed >= SnapshotForceInterval)
+        {
+            return true;
+        }
+
+        return elapsed >= SnapshotMinimumInterval
+            && Math.Abs(ramMb - lastSnapshotRamMb) >= SnapshotRamDeltaMb;
+    }
+
+    internal static void SetSnapshotStateForTest(DateTime snapshotAt, string processSignature, double ramMb)
+    {
+        lastSnapshotAt = snapshotAt;
+        lastSnapshotProcessSignature = processSignature;
+        lastSnapshotRamMb = ramMb;
+    }
+
+    private static string BuildProcessSignature(IEnumerable<RuntimeProcessSample> samples)
+    {
+        return string.Join("|", samples
+            .Select(sample => $"{sample.ProcessKind}:{sample.Purpose}:{sample.ProcessId}")
+            .OrderBy(value => value, StringComparer.Ordinal));
     }
 
     private static NetworkSample GetNetworkSample()
@@ -267,6 +333,18 @@ internal static class RuntimeResourceLogger
         DateTime StartedAt,
         TimeSpan LastCpuTime,
         DateTime LastSampleAt);
+
+    private sealed record RuntimeProcessSample(
+        string RoomUrl,
+        string NickName,
+        string ProcessKind,
+        string Purpose,
+        string ProcessName,
+        int ProcessId,
+        double CpuPercent,
+        double RamMb,
+        DateTime StartedAt,
+        double RunningSeconds);
 
     private sealed record NetworkSample(bool IsValid, double ReceiveMbps, double SendMbps, double IntervalSeconds)
     {

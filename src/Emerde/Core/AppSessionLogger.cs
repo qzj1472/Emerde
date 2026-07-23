@@ -551,6 +551,7 @@ internal sealed class LogContextCompactor
         }
 
         CompactRoom(jsonObject, isErrorLevel);
+        CompactRepeatedText(jsonObject, "Message", isErrorLevel);
         CompactRepeatedText(jsonObject, "errorOutput", isErrorLevel);
         CompactRepeatedText(jsonObject, "stackTrace", isErrorLevel);
         CompactRepeatedText(jsonObject, "innerException", isErrorLevel);
