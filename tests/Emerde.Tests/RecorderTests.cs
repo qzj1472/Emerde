@@ -4,6 +4,24 @@ namespace Emerde.Tests;
 
 public sealed class RecorderTests
 {
+    [Fact]
+    public void GetAvailableTargetPath_PreservesExistingTarget()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-converter-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string requested = Path.Combine(directory, "video.mkv");
+        File.WriteAllBytes(requested, [1]);
+
+        try
+        {
+            Assert.Equal(Path.Combine(directory, "video_2.mkv"), Converter.GetAvailableTargetPath(requested));
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
     private static readonly DateTime Timestamp = new(2026, 7, 3, 12, 34, 56);
 
     [Theory]
@@ -26,6 +44,61 @@ public sealed class RecorderTests
     public void CanRetryRecording_StopsAfterFourAttempts(int completedAttempts, bool expected)
     {
         Assert.Equal(expected, Recorder.CanRetryRecording(completedAttempts));
+    }
+
+    [Fact]
+    public void ReserveOutput_AppendsSuffixForConcurrentRecording()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "EmerdeRecorderTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            using Recorder.OutputReservation first = Recorder.ReserveOutput(directory, "Host", false, false);
+            using Recorder.OutputReservation second = Recorder.ReserveOutput(directory, "Host", false, false);
+
+            Assert.Equal(Path.Combine(directory, "Host.flv"), first.OutputPattern);
+            Assert.Equal(Path.Combine(directory, "Host_2.flv"), second.OutputPattern);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void ReserveOutput_AppendsSuffixWhenFileAlreadyExists()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "EmerdeRecorderTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(Path.Combine(directory, "Host.flv"), "existing");
+        try
+        {
+            using Recorder.OutputReservation reservation = Recorder.ReserveOutput(directory, "Host", false, false);
+
+            Assert.Equal(Path.Combine(directory, "Host_2.flv"), reservation.OutputPattern);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Theory]
+    [InlineData(0, false, null, 0, false)]
+    [InlineData(0, true, null, 0, true)]
+    [InlineData(0, true, true, 0, true)]
+    [InlineData(0, true, false, 1, true)]
+    [InlineData(0, true, false, 2, false)]
+    [InlineData(1, false, null, 0, true)]
+    [InlineData(1, true, false, 2, false)]
+    public void ShouldRetryRecording_RefreshesNormalEofAndStopsOnConfirmedOffline(
+        int exitCode,
+        bool hasStreamRefresh,
+        bool? isLiveAfterRefresh,
+        int offlineRefreshChecks,
+        bool expected)
+    {
+        Assert.Equal(expected, Recorder.ShouldRetryRecording(exitCode, hasStreamRefresh, isLiveAfterRefresh, offlineRefreshChecks));
     }
 
     [Theory]
@@ -75,6 +148,8 @@ public sealed class RecorderTests
         Assert.DoesNotContain("-minrate", arguments);
         Assert.DoesNotContain("-maxrate", arguments);
         Assert.DoesNotContain("-bufsize", arguments);
+        Assert.Contains("-n", arguments);
+        Assert.DoesNotContain("-y", arguments);
     }
 
     [Theory]

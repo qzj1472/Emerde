@@ -10,7 +10,7 @@ public sealed record RoomRecordingOptions
 
     public bool IsToSegment { get; init; }
 
-    public int SegmentTime { get; init; } = 1800;
+    public long SegmentTime { get; init; } = 1800;
 
     public int SegmentTimeUnit { get; init; } = SegmentTimeUnitHelper.Seconds;
 

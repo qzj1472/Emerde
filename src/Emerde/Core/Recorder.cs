@@ -14,6 +14,10 @@ public sealed class Recorder
     private const int ProcessOutputTailLimit = 8192;
     private const string OptimizedAudioFilter = "[0:a:0]volume=30dB,acompressor=threshold=-10dB:ratio=3,alimiter=limit=0.316227766:level=false[aopt]";
 
+    private static readonly object OutputReservationLock = new();
+
+    private static readonly HashSet<string> ReservedOutputPatterns = new(StringComparer.OrdinalIgnoreCase);
+
     public RecordStatus RecordStatus { get; internal set; } = RecordStatus.Initialized;
 
     public CancellationTokenSource? TokenSource { get; private set; } = null;
@@ -26,11 +30,15 @@ public sealed class Recorder
 
     private Task? recordingTask;
 
-    private bool stopRequested;
+    private int stopRequested;
+
+    private int deferPostProcessing;
 
     private string lastProcessErrorOutput = string.Empty;
 
-    private readonly List<string> recordedFilePatterns = [];
+    private readonly List<string> pendingRecordingPaths = [];
+
+    private readonly List<string> unregisteredRecordingPatterns = [];
 
     public bool IsBusy => recordingTask is { IsCompleted: false };
 
@@ -57,7 +65,8 @@ public sealed class Recorder
                 return recordingTask ?? Task.CompletedTask;
             }
 
-            stopRequested = false;
+            Volatile.Write(ref stopRequested, 0);
+            Volatile.Write(ref deferPostProcessing, 0);
             RecordStatus = RecordStatus.Recording;
             TokenSource = tokenSource ?? new CancellationTokenSource();
             recordingTask = Task.Factory.StartNew(
@@ -95,7 +104,7 @@ public sealed class Recorder
             string userAgent = Configurations.UserAgent.Get();
             string httpProxy = ProxyAddress.Normalize(Configurations.ProxyUrl.Get());
             bool isUseProxy = Configurations.IsUseProxy.Get() && !string.IsNullOrWhiteSpace(httpProxy);
-            int segmentTime = Math.Max(1, recordingOptions.SegmentTime);
+            long segmentTime = Math.Max(1, recordingOptions.SegmentTime);
             int segmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(recordingOptions.SegmentTimeUnit);
             bool isToSegment = recordingOptions.IsToSegment && segmentTime > 0;
             bool isToSegmentBySize = isToSegment && SegmentTimeUnitHelper.IsSizeUnit(segmentTimeUnit);
@@ -132,17 +141,29 @@ public sealed class Recorder
 
             EndTime = DateTime.MinValue;
             StartTime = DateTime.Now;
-            recordedFilePatterns.Clear();
+            pendingRecordingPaths.Clear();
+            unregisteredRecordingPatterns.Clear();
 
             int attempt = 0;
-            while (!token.IsCancellationRequested && !stopRequested)
+            int offlineRefreshChecks = 0;
+            while (!token.IsCancellationRequested && Volatile.Read(ref stopRequested) == 0)
             {
                 DateTime now = DateTime.Now;
-                string baseFileName = BuildBaseFileName(startInfo, now).SanitizeFileName();
-                FileName = BuildOutputFileName(saveFolder, baseFileName, isToSegment, useTransportStream);
+                string requestedBaseFileName = BuildBaseFileName(startInfo, now).SanitizeFileName();
+                using OutputReservation outputReservation = ReserveOutput(saveFolder, requestedBaseFileName, isToSegment, useTransportStream);
+                string baseFileName = outputReservation.BaseFileName;
+                FileName = outputReservation.OutputPattern;
                 VideoRecordingMetadata metadata = BuildMetadata(baseFileName, useTransportStream ? "ts" : "flv", startInfo, now);
                 MetadataPath = VideoRecordingMetadataStore.WriteSidecar(saveFolder, baseFileName, metadata);
-                recordedFilePatterns.Add(FileName);
+                string? pendingRecordingPath = RecordingRecoveryService.Register(FileName, recordingOptions);
+                if (!string.IsNullOrWhiteSpace(pendingRecordingPath))
+                {
+                    pendingRecordingPaths.Add(pendingRecordingPath);
+                }
+                else if (GetTargetFormat(recordingOptions.RecordFormat) != null)
+                {
+                    unregisteredRecordingPatterns.Add(FileName);
+                }
                 bool useOptimizedAudio = useTransportStream && !disableOptimizedAudio;
 
                 List<string> arguments = BuildArguments(
@@ -175,7 +196,7 @@ public sealed class Recorder
 
                 int exitCode = await ExecuteRecorderAsync(recorderPath, arguments, isUseProxy, httpProxy, startInfo, token);
                 DeleteMetadataIfNoOutput(FileName, MetadataPath);
-                if (token.IsCancellationRequested || stopRequested || exitCode == 0)
+                if (token.IsCancellationRequested || Volatile.Read(ref stopRequested) != 0)
                 {
                     break;
                 }
@@ -191,6 +212,21 @@ public sealed class Recorder
                         FileName,
                     });
                     continue;
+                }
+
+                bool hasStreamRefresh = startInfo.RefreshStreamAsync != null;
+                bool? isLiveAfterRefresh = await TryRefreshInputAsync(startInfo, token);
+                offlineRefreshChecks = isLiveAfterRefresh == false ? offlineRefreshChecks + 1 : 0;
+                if (!ShouldRetryRecording(exitCode, hasStreamRefresh, isLiveAfterRefresh, offlineRefreshChecks))
+                {
+                    break;
+                }
+
+                if (isLiveAfterRefresh == true)
+                {
+                    headers = NormalizeHeaders(startInfo.Headers);
+                    isHls = IsHlsUrl(Url!, startInfo);
+                    useTransportStream = ShouldUseTransportStream(isHls, isToSegment, targetFormat);
                 }
 
                 attempt++;
@@ -246,19 +282,55 @@ public sealed class Recorder
                 startInfo.RoomUrl,
                 startInfo.NickName,
                 FileName,
-                stopRequested,
+                stopRequested = Volatile.Read(ref stopRequested) != 0,
                 startedAt = StartTime,
                 endedAt = EndTime,
                 durationSeconds = StartTime == DateTime.MinValue ? 0 : Math.Max(0, (EndTime - StartTime).TotalSeconds),
             });
-            await ConvertRecordedFilesAsync(recordingOptions);
+            if (Volatile.Read(ref deferPostProcessing) == 0)
+            {
+                foreach (string pendingRecordingPath in pendingRecordingPaths)
+                {
+                    await RecordingRecoveryService.ProcessAsync(pendingRecordingPath);
+                }
+
+                foreach (string sourcePattern in unregisteredRecordingPatterns)
+                {
+                    await RecordingRecoveryService.ProcessSourcePatternAsync(
+                        sourcePattern,
+                        GetTargetFormat(recordingOptions.RecordFormat)!,
+                        recordingOptions.IsRemoveTs);
+                }
+            }
+            else
+            {
+                foreach (string sourcePattern in unregisteredRecordingPatterns)
+                {
+                    string? pendingPath = RecordingRecoveryService.Register(sourcePattern, recordingOptions);
+                    if (!string.IsNullOrWhiteSpace(pendingPath))
+                    {
+                        pendingRecordingPaths.Add(pendingPath);
+                    }
+                }
+
+                AppSessionLogger.Event("info", "recorder", "post_processing_deferred", "recording post-processing was deferred until the next startup", new
+                {
+                    startInfo.RoomUrl,
+                    startInfo.NickName,
+                    pendingCount = pendingRecordingPaths.Count,
+                });
+            }
             RecordingCleanupService.QueueRun();
         }
     }
 
-    public void Stop()
+    public void Stop(bool deferPostProcessing = false)
     {
-        stopRequested = true;
+        if (deferPostProcessing)
+        {
+            Interlocked.Exchange(ref this.deferPostProcessing, 1);
+        }
+        Interlocked.Exchange(ref stopRequested, 1);
         RequestCurrentProcessExit();
         lock (stateLock)
         {
@@ -295,14 +367,14 @@ public sealed class Recorder
         string userAgent,
         bool isToSegment,
         bool isToSegmentBySize,
-        int segmentTime,
+        long segmentTime,
         int segmentTimeUnit,
         VideoRecordingMetadata metadata,
         bool useOptimizedAudio)
     {
         List<string> arguments =
         [
-            "-y",
+            "-n",
             "-v", "verbose",
             "-rw_timeout", "30000000",
             "-loglevel", "error",
@@ -491,62 +563,6 @@ public sealed class Recorder
         }
     }
 
-    private async Task ConvertRecordedFilesAsync(RoomRecordingOptions recordingOptions)
-    {
-        try
-        {
-            string formatArrow = recordingOptions.RecordFormat;
-
-            if (string.IsNullOrWhiteSpace(formatArrow) || !formatArrow.Contains("->", StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            string targetFormat = "." + formatArrow.Split('>')[1].Trim().ToLowerInvariant();
-            foreach (string fileName in GetRecordedSourceFiles())
-            {
-                if (await new Converter().ExecuteAsync(fileName, targetFormat) && recordingOptions.IsRemoveTs)
-                {
-                    File.Delete(fileName);
-                    VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(fileName);
-                    if (string.Equals(FileName, fileName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        FileName = Path.ChangeExtension(fileName, targetFormat);
-                    }
-                }
-            }
-        }
-        catch (Exception e)
-        {
-            Debug.WriteLine(e);
-            AppSessionLogger.WriteException(e);
-        }
-    }
-
-    private string[] GetRecordedSourceFiles()
-    {
-        string[] patterns = recordedFilePatterns.Count > 0
-            ? recordedFilePatterns.Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
-            : string.IsNullOrWhiteSpace(FileName) ? [] : [FileName];
-
-        return patterns.SelectMany(GetRecordedSourceFilesForPattern)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(file => file, StringComparer.OrdinalIgnoreCase)
-            .Where(file =>
-            {
-                try
-                {
-                    FileInfo info = new(file);
-                    return info.Exists && info.Length > 0;
-                }
-                catch
-                {
-                    return false;
-                }
-            })
-            .ToArray();
-    }
-
     private static string[] GetRecordedSourceFilesForPattern(string fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName))
@@ -677,6 +693,12 @@ public sealed class Recorder
         return completedAttempts < MaxRecordingAttempts;
     }
 
+    internal static bool ShouldRetryRecording(int exitCode, bool hasStreamRefresh, bool? isLiveAfterRefresh, int offlineRefreshChecks)
+    {
+        bool offlineConfirmed = isLiveAfterRefresh == false && offlineRefreshChecks >= 2;
+        return !offlineConfirmed && (exitCode != 0 || hasStreamRefresh);
+    }
+
     private static string FormatArgument(string argument)
     {
         if (argument.Length == 0)
@@ -691,17 +713,95 @@ public sealed class Recorder
 
     private static string SelectInputUrl(RecorderStartInfo startInfo)
     {
-        if (!string.IsNullOrWhiteSpace(startInfo.RecordUrl))
+        return SelectInputUrl(startInfo.RecordUrl, startInfo.HlsUrl, startInfo.FlvUrl);
+    }
+
+    private static string SelectInputUrl(string? recordUrl, string? hlsUrl, string? flvUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(recordUrl))
         {
-            return startInfo.RecordUrl;
+            return recordUrl;
         }
 
-        if (!string.IsNullOrWhiteSpace(startInfo.HlsUrl))
+        if (!string.IsNullOrWhiteSpace(hlsUrl))
         {
-            return startInfo.HlsUrl;
+            return hlsUrl;
         }
 
-        return startInfo.FlvUrl;
+        return flvUrl ?? string.Empty;
+    }
+
+    private async Task<bool?> TryRefreshInputAsync(RecorderStartInfo startInfo, CancellationToken token)
+    {
+        Func<CancellationToken, Task<RecorderStreamRefreshResult?>>? refreshStreamAsync = startInfo.RefreshStreamAsync;
+        if (refreshStreamAsync == null)
+        {
+            return null;
+        }
+
+        RecorderStreamRefreshResult? refreshed;
+        try
+        {
+            refreshed = await refreshStreamAsync(token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            AppSessionLogger.Event("warn", "recorder", "record_stream_refresh_failed", e.Message, new
+            {
+                startInfo.RoomUrl,
+                startInfo.NickName,
+                startInfo.PlatformName,
+            });
+            return null;
+        }
+
+        if (refreshed?.IsLiveStreaming == false)
+        {
+            AppSessionLogger.Event("info", "recorder", "record_stream_refresh_offline", "stream refresh returned an offline state", new
+            {
+                startInfo.RoomUrl,
+                startInfo.NickName,
+                startInfo.PlatformName,
+            });
+            return false;
+        }
+
+        if (refreshed == null)
+        {
+            return null;
+        }
+
+        string refreshedUrl = SelectInputUrl(refreshed.RecordUrl, refreshed.HlsUrl, refreshed.FlvUrl);
+        if (string.IsNullOrWhiteSpace(refreshedUrl))
+        {
+            return null;
+        }
+
+        bool urlChanged = !string.Equals(Url, refreshedUrl, StringComparison.Ordinal);
+        startInfo.RecordUrl = refreshed.RecordUrl;
+        startInfo.HlsUrl = refreshed.HlsUrl;
+        startInfo.FlvUrl = refreshed.FlvUrl;
+        startInfo.Headers = refreshed.Headers;
+        startInfo.Title = string.IsNullOrWhiteSpace(refreshed.Title) ? startInfo.Title : refreshed.Title;
+        startInfo.Resolution = string.IsNullOrWhiteSpace(refreshed.Resolution) ? startInfo.Resolution : refreshed.Resolution;
+        startInfo.Bitrate = string.IsNullOrWhiteSpace(refreshed.Bitrate) ? startInfo.Bitrate : refreshed.Bitrate;
+        Url = refreshedUrl;
+
+        AppSessionLogger.Event("info", "recorder", "record_stream_refreshed", "recording stream was refreshed after the media process exited", new
+        {
+            startInfo.RoomUrl,
+            startInfo.NickName,
+            startInfo.PlatformName,
+            urlChanged,
+            hasRecordUrl = !string.IsNullOrWhiteSpace(startInfo.RecordUrl),
+            hasFlvUrl = !string.IsNullOrWhiteSpace(startInfo.FlvUrl),
+            hasHlsUrl = !string.IsNullOrWhiteSpace(startInfo.HlsUrl),
+        });
+        return true;
     }
 
     private static string NormalizeHeaders(string? headers)
@@ -749,6 +849,14 @@ public sealed class Recorder
         }
     }
 
+    public Task WaitForCompletionAsync()
+    {
+        lock (stateLock)
+        {
+            return recordingTask ?? Task.CompletedTask;
+        }
+    }
+
     internal static IReadOnlyList<string> BuildAudioMappingArguments(bool useOptimizedAudio)
     {
         return useOptimizedAudio
@@ -787,7 +895,7 @@ public sealed class Recorder
                 || errorOutput.Contains("stream specifier ':a", StringComparison.OrdinalIgnoreCase));
     }
 
-    private static string? GetTargetFormat(string value)
+    internal static string? GetTargetFormat(string value)
     {
         if (string.IsNullOrWhiteSpace(value) || !value.Contains("->", StringComparison.Ordinal))
         {
@@ -857,6 +965,53 @@ public sealed class Recorder
     {
         string suffix = isToSegment ? "_%03d.ts" : isHls ? ".ts" : ".flv";
         return Path.Combine(saveFolder, $"{fileName}{suffix}");
+    }
+
+    internal static OutputReservation ReserveOutput(string saveFolder, string requestedBaseFileName, bool isToSegment, bool isHls)
+    {
+        lock (OutputReservationLock)
+        {
+            int suffix = 1;
+            while (true)
+            {
+                string baseFileName = suffix == 1 ? requestedBaseFileName : $"{requestedBaseFileName}_{suffix}";
+                string outputPattern = BuildOutputFileName(saveFolder, baseFileName, isToSegment, isHls);
+                if (!ReservedOutputPatterns.Contains(outputPattern) && !OutputExists(saveFolder, baseFileName, outputPattern, isToSegment))
+                {
+                    ReservedOutputPatterns.Add(outputPattern);
+                    return new OutputReservation(baseFileName, outputPattern);
+                }
+
+                suffix++;
+            }
+        }
+    }
+
+    private static bool OutputExists(string saveFolder, string baseFileName, string outputPattern, bool isToSegment)
+    {
+        if (File.Exists(Path.Combine(saveFolder, $"{baseFileName}.mplr.json")))
+        {
+            return true;
+        }
+
+        return isToSegment
+            ? Directory.EnumerateFiles(saveFolder, $"{baseFileName}_*.ts", SearchOption.TopDirectoryOnly).Any()
+            : File.Exists(outputPattern);
+    }
+
+    internal sealed class OutputReservation(string baseFileName, string outputPattern) : IDisposable
+    {
+        public string BaseFileName { get; } = baseFileName;
+
+        public string OutputPattern { get; } = outputPattern;
+
+        public void Dispose()
+        {
+            lock (OutputReservationLock)
+            {
+                ReservedOutputPatterns.Remove(OutputPattern);
+            }
+        }
     }
 
     internal static string BuildOutputFileName(string saveFolder, string nickName, DateTime timestamp, bool isToSegment, bool isHls)
@@ -952,6 +1107,27 @@ public record RecorderStartInfo
     public string CoverPath { get; set; } = string.Empty;
 
     public RoomRecordingOptions Options { get; set; } = RoomRecordingSettings.GetGlobal();
+
+    internal Func<CancellationToken, Task<RecorderStreamRefreshResult?>>? RefreshStreamAsync { get; set; }
+}
+
+internal sealed record RecorderStreamRefreshResult
+{
+    public bool? IsLiveStreaming { get; init; }
+
+    public string RecordUrl { get; init; } = string.Empty;
+
+    public string HlsUrl { get; init; } = string.Empty;
+
+    public string FlvUrl { get; init; } = string.Empty;
+
+    public string Headers { get; init; } = string.Empty;
+
+    public string Title { get; init; } = string.Empty;
+
+    public string Resolution { get; init; } = string.Empty;
+
+    public string Bitrate { get; init; } = string.Empty;
 }
 
 public sealed class VideoRecordingMetadata
