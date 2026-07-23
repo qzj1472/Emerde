@@ -382,7 +382,7 @@ internal static partial class StreamResolver
         StreamResolverResult? webEnterResult = ResolveDouyinWebEnter(roomUrl, preferredQuality);
         if (!NeedsSupplementalData(webEnterResult))
         {
-            EnrichHighestHlsVariant(webEnterResult!, preferredQuality, roomUrl, PlatformCookieStore.GetCookie("Douyin", Configurations.CookieChina.Get()), DouyinWebUserAgent);
+            EnrichHighestHlsVariant(webEnterResult!, preferredQuality, roomUrl, PlatformCookieStore.GetCookie("Douyin", SecretProtector.GetChinaCookie()), DouyinWebUserAgent);
             LastErrors.TryRemove(roomUrl, out _);
             return webEnterResult;
         }
@@ -390,7 +390,7 @@ internal static partial class StreamResolver
         string? html = RequestText(
             roomUrl,
             "https://live.douyin.com/",
-            PlatformCookieStore.GetCookie("Douyin", Configurations.CookieChina.Get()),
+            PlatformCookieStore.GetCookie("Douyin", SecretProtector.GetChinaCookie()),
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0");
 
         StreamResolverResult pageResult = ExtractDouyinData(roomUrl, html, preferredQuality);
@@ -398,7 +398,7 @@ internal static partial class StreamResolver
 
         if (!NeedsSupplementalData(result))
         {
-            EnrichHighestHlsVariant(result, preferredQuality, roomUrl, PlatformCookieStore.GetCookie("Douyin", Configurations.CookieChina.Get()), DouyinWebUserAgent);
+            EnrichHighestHlsVariant(result, preferredQuality, roomUrl, PlatformCookieStore.GetCookie("Douyin", SecretProtector.GetChinaCookie()), DouyinWebUserAgent);
             LastErrors.TryRemove(roomUrl, out _);
             return result;
         }
@@ -442,7 +442,7 @@ internal static partial class StreamResolver
         ]);
         string aBogus = DouyinWebSignature.CreateABogus(query, DouyinWebUserAgent);
         string api = $"https://live.douyin.com/webcast/room/web/enter/?{query}&a_bogus={Uri.EscapeDataString(aBogus)}";
-        string configuredCookie = PlatformCookieStore.GetCookie("Douyin", Configurations.CookieChina.Get());
+        string configuredCookie = PlatformCookieStore.GetCookie("Douyin", SecretProtector.GetChinaCookie());
         string cookie = string.IsNullOrWhiteSpace(configuredCookie) ? DouyinDefaultCookie : configuredCookie;
         string? json = RequestText(
             api,
@@ -460,14 +460,14 @@ internal static partial class StreamResolver
         string? html = RequestText(
             roomUrl,
             "https://www.tiktok.com/",
-            PlatformCookieStore.GetCookie("TikTok", Configurations.CookieOversea.Get()),
+            PlatformCookieStore.GetCookie("TikTok", SecretProtector.GetOverseaCookie()),
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0");
 
         StreamResolverResult result = ExtractTiktokData(roomUrl, html, preferredQuality);
 
         if (HasUsableData(result))
         {
-            EnrichHighestHlsVariant(result, preferredQuality, roomUrl, PlatformCookieStore.GetCookie("TikTok", Configurations.CookieOversea.Get()), "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0");
+            EnrichHighestHlsVariant(result, preferredQuality, roomUrl, PlatformCookieStore.GetCookie("TikTok", SecretProtector.GetOverseaCookie()), "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0");
             LastErrors.TryRemove(roomUrl, out _);
             return result;
         }
@@ -805,7 +805,7 @@ internal static partial class StreamResolver
             string? profileHtml = RequestText(
                 profileUrl,
                 "https://www.douyin.com/",
-                PlatformCookieStore.GetCookie("Douyin", Configurations.CookieChina.Get()),
+                PlatformCookieStore.GetCookie("Douyin", SecretProtector.GetChinaCookie()),
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0");
             string? avatar = ExtractFirstAvatar(NormalizeEscapedText(profileHtml ?? string.Empty));
             if (!string.IsNullOrWhiteSpace(avatar))

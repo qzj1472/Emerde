@@ -36,8 +36,8 @@ internal static class PlatformCookieStore
             cookies[platformName] = value;
         }
 
-        Configurations.PlatformCookies.Set(JsonConvert.SerializeObject(cookies));
-        ConfigurationManager.Save();
+        Configurations.PlatformCookies.Set(SecretProtector.Protect(JsonConvert.SerializeObject(cookies)));
+        ConfigurationSaveScheduler.Request();
     }
 
     public static IReadOnlyDictionary<string, string> GetAll()
@@ -47,7 +47,7 @@ internal static class PlatformCookieStore
 
     private static Dictionary<string, string> Load()
     {
-        string raw = Configurations.PlatformCookies.Get();
+        string raw = SecretProtector.Unprotect(Configurations.PlatformCookies.Get());
         if (string.IsNullOrWhiteSpace(raw))
         {
             return new(StringComparer.OrdinalIgnoreCase);
