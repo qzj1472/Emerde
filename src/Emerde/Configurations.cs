@@ -46,7 +46,6 @@ public static class Configurations
     public static ConfigurationDefinition<int> SegmentTimeUnit { get; } = new(nameof(SegmentTimeUnit), 1);
     public static ConfigurationDefinition<string> SaveFolder { get; } = new(nameof(SaveFolder), string.Empty);
     public static ConfigurationDefinition<int> SaveFolderPathLevel { get; } = new(nameof(SaveFolderPathLevel), 3);
-    public static ConfigurationDefinition<bool> SaveFolderDistinguishedByAuthors { get; } = new(nameof(SaveFolderDistinguishedByAuthors), true);
     public static ConfigurationDefinition<string> SaveFileNameCustomRule { get; } = new(nameof(SaveFileNameCustomRule), string.Empty);
     public static ConfigurationDefinition<bool> IsDataRetentionEnabled { get; } = new(nameof(IsDataRetentionEnabled), false);
     public static ConfigurationDefinition<int> DataRetentionValue { get; } = new(nameof(DataRetentionValue), 1);
