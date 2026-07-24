@@ -211,12 +211,59 @@ public sealed class GlobalMonitorTests
     }
 
     [Theory]
-    [InlineData(22, false, 22)]
+    [InlineData(1, true, 1)]
+    [InlineData(5, true, 1)]
+    [InlineData(5, false, 5)]
+    [InlineData(100, false, 5)]
+    public void GetMonitorConcurrency_SeparatesRecordingLane(int roomCount, bool recordingLane, int expected)
+    {
+        Assert.Equal(expected, GlobalMonitor.GetMonitorConcurrency(roomCount, recordingLane));
+    }
+
+    [Theory]
+    [InlineData(22, false, 5)]
     [InlineData(3, false, 3)]
     [InlineData(22, true, 22)]
-    public void GetRoutineBatchSize_QueuesEveryDueRoomAndLimitsOnlyExecutionConcurrency(int roomCount, bool force, int expected)
+    public void GetRoutineBatchSize_LimitsRoutineBatchesAndKeepsForceAll(int roomCount, bool force, int expected)
     {
         Assert.Equal(expected, GlobalMonitor.GetRoutineBatchSize(roomCount, force));
+    }
+
+    [Theory]
+    [InlineData(RecordStatus.Recording, true)]
+    [InlineData(RecordStatus.NotRecording, false)]
+    [InlineData(RecordStatus.Initialized, false)]
+    [InlineData(RecordStatus.Disabled, false)]
+    public void UsesRecordingCheckLane_OnlyRoutesActiveRecorders(RecordStatus recordStatus, bool expected)
+    {
+        Assert.Equal(expected, GlobalMonitor.UsesRecordingCheckLane(recordStatus));
+    }
+
+    [Theory]
+    [InlineData(false, 6)]
+    [InlineData(true, 10)]
+    public void GetRoomCheckTimeout_UsesShortRoutineAndBoundedForcedRefresh(bool force, int expectedSeconds)
+    {
+        Assert.Equal(TimeSpan.FromSeconds(expectedSeconds), GlobalMonitor.GetRoomCheckTimeout(force));
+    }
+
+    [Fact]
+    public void ShouldRunSelectedRoomCheck_DoesNotRunEarlyUnlessForced()
+    {
+        DateTime now = new(2026, 7, 24, 23, 40, 0);
+
+        Assert.True(GlobalMonitor.ShouldRunSelectedRoomCheck(now, false, now));
+        Assert.False(GlobalMonitor.ShouldRunSelectedRoomCheck(now.AddSeconds(30), false, now));
+        Assert.True(GlobalMonitor.ShouldRunSelectedRoomCheck(now.AddSeconds(30), true, now));
+    }
+
+    [Fact]
+    public void ShouldLogRoomCheckDispatchDelay_OnlyLogsMeaningfulDelays()
+    {
+        DateTime dueAt = new(2026, 7, 24, 23, 40, 0);
+
+        Assert.False(GlobalMonitor.ShouldLogRoomCheckDispatchDelay(dueAt, dueAt.AddSeconds(5)));
+        Assert.True(GlobalMonitor.ShouldLogRoomCheckDispatchDelay(dueAt, dueAt.AddSeconds(6)));
     }
 
     [Theory]
@@ -231,7 +278,7 @@ public sealed class GlobalMonitorTests
 
     [Theory]
     [InlineData(false, 10)]
-    [InlineData(true, 1)]
+    [InlineData(true, 10)]
     public void GetStreamingFollowUpInterval_AcceleratesOfflineConfirmation(bool offlineConfirmationPending, int expectedSeconds)
     {
         Assert.Equal(TimeSpan.FromSeconds(expectedSeconds), GlobalMonitor.GetStreamingFollowUpInterval(offlineConfirmationPending));
@@ -521,10 +568,20 @@ public sealed class GlobalMonitorTests
             now - GlobalMonitor.RecordingStartupOfflineGuardWindow,
             DateTime.MinValue,
             now));
-        Assert.False(GlobalMonitor.IsWithinRecordingStartupOfflineGuard(
+        Assert.True(GlobalMonitor.IsWithinRecordingStartupOfflineGuard(
             RecordStatus.Recording,
             now - TimeSpan.FromSeconds(30),
             now - TimeSpan.FromSeconds(20),
+            now));
+        Assert.True(GlobalMonitor.IsWithinRecordingStartupOfflineGuard(
+            RecordStatus.Recording,
+            now - GlobalMonitor.RecordingStartupOfflineGuardWindow,
+            now - TimeSpan.FromSeconds(20),
+            now));
+        Assert.False(GlobalMonitor.IsWithinRecordingStartupOfflineGuard(
+            RecordStatus.Recording,
+            now - GlobalMonitor.RecordingStartupOfflineGuardWindow,
+            now - GlobalMonitor.RecordingStartupOfflineGuardWindow,
             now));
         Assert.False(GlobalMonitor.IsWithinRecordingStartupOfflineGuard(
             RecordStatus.NotRecording,

@@ -26,6 +26,9 @@ internal static class GlobalMonitor
     private static readonly TimeSpan StreamingCycleInterval = TimeSpan.FromMilliseconds(MonitorTiming.LiveRoutineIntervalMilliseconds);
     private static readonly TimeSpan RecentlyClosedInterval = TimeSpan.FromMilliseconds(MonitorTiming.RecentlyClosedRoutineIntervalMilliseconds);
     private static readonly TimeSpan RecentlyClosedWindow = MonitorTiming.RecentlyClosedWindow;
+    internal static readonly TimeSpan RoutineRoomCheckTimeout = TimeSpan.FromSeconds(6);
+    internal static readonly TimeSpan ForcedRoomCheckTimeout = TimeSpan.FromSeconds(10);
+    internal static readonly TimeSpan RoomCheckDispatchDelayWarning = TimeSpan.FromSeconds(5);
     internal static readonly TimeSpan RecordingStartupOfflineGuardWindow = TimeSpan.FromSeconds(45);
     internal static readonly TimeSpan RoomRecordStartPause = TimeSpan.FromMinutes(2);
 
@@ -398,11 +401,11 @@ internal static class GlobalMonitor
     {
         PeriodicWait priorityPeriodicWait = new(GetRoutinePeriod(), TimeSpan.Zero);
         await Task.WhenAll(
-            StartScheduledChecksAsync(token, generation, periodicWait, priorityOnly: false),
-            StartScheduledChecksAsync(token, generation, priorityPeriodicWait, priorityOnly: true));
+            StartScheduledChecksAsync(token, generation, periodicWait, recordingLaneOnly: false),
+            StartScheduledChecksAsync(token, generation, priorityPeriodicWait, recordingLaneOnly: true));
     }
 
-    private static async Task StartScheduledChecksAsync(CancellationToken token, long generation, PeriodicWait periodicWait, bool priorityOnly)
+    private static async Task StartScheduledChecksAsync(CancellationToken token, long generation, PeriodicWait periodicWait, bool recordingLaneOnly)
     {
         while (!token.IsCancellationRequested && generation == Volatile.Read(ref monitorGeneration))
         {
@@ -414,11 +417,11 @@ internal static class GlobalMonitor
                 break;
             }
 
-            await RunRoomsAsync(Configurations.Rooms.Get() ?? [], token, priorityOnly: priorityOnly);
+            await RunRoomsAsync(Configurations.Rooms.Get() ?? [], token, recordingLaneOnly: recordingLaneOnly);
         }
     }
 
-    private static async Task RunRoomsAsync(IEnumerable<Room> rooms, CancellationToken token = default, bool force = false, bool? priorityOnly = null)
+    private static async Task RunRoomsAsync(IEnumerable<Room> rooms, CancellationToken token = default, bool force = false, bool? recordingLaneOnly = null)
     {
         try
         {
@@ -436,8 +439,8 @@ internal static class GlobalMonitor
                     continue;
                 }
 
-                bool isPriorityRoom = GetRoomCheckPriority(roomStatus.StreamStatus, roomStatus.RecordStatus) < 2;
-                if (priorityOnly.HasValue && priorityOnly.Value != isPriorityRoom)
+                bool isRecordingLaneRoom = UsesRecordingCheckLane(roomStatus.RecordStatus);
+                if (recordingLaneOnly.HasValue && recordingLaneOnly.Value != isRecordingLaneRoom)
                 {
                     continue;
                 }
@@ -478,12 +481,11 @@ internal static class GlobalMonitor
                 .ThenBy(item => item.DueAt)
                 .Take(GetRoutineBatchSize(dueRooms.Count, force))
                 .ToArray();
-            using SemaphoreSlim semaphore = new(GetMonitorConcurrency(selectedRooms.Length));
+            using SemaphoreSlim semaphore = new(GetMonitorConcurrency(selectedRooms.Length, recordingLaneOnly == true));
             List<Task> tasks = new(selectedRooms.Length);
             foreach ((Room room, RoomStatus roomStatus, bool shouldNotify, bool shouldRecord, RoomRecordingOptions settings, _) in selectedRooms)
             {
-                ReserveRoomCheck(room.RoomUrl, settings, roomStatus.StreamStatus, now);
-                tasks.Add(RunRoomCheckWithSemaphoreAsync(semaphore, room, roomStatus, shouldNotify, shouldRecord, settings, token));
+                tasks.Add(RunRoomCheckWithSemaphoreAsync(semaphore, room, roomStatus, shouldNotify, shouldRecord, settings, force, token));
             }
 
             await Task.WhenAll(tasks);
@@ -503,9 +505,39 @@ internal static class GlobalMonitor
         return Math.Clamp(roomCount, 1, MaximumBatchSize);
     }
 
+    internal static int GetMonitorConcurrency(int roomCount, bool recordingLane)
+    {
+        return recordingLane ? 1 : GetMonitorConcurrency(roomCount);
+    }
+
     internal static int GetRoutineBatchSize(int dueRoomCount, bool force)
     {
-        return Math.Max(0, dueRoomCount);
+        if (dueRoomCount <= 0)
+        {
+            return 0;
+        }
+
+        return force ? dueRoomCount : Math.Min(dueRoomCount, MaximumBatchSize);
+    }
+
+    internal static bool UsesRecordingCheckLane(RecordStatus recordStatus)
+    {
+        return recordStatus == RecordStatus.Recording;
+    }
+
+    internal static TimeSpan GetRoomCheckTimeout(bool force)
+    {
+        return force ? ForcedRoomCheckTimeout : RoutineRoomCheckTimeout;
+    }
+
+    internal static bool ShouldRunSelectedRoomCheck(DateTime dueAt, bool force, DateTime now)
+    {
+        return force || now >= dueAt;
+    }
+
+    internal static bool ShouldLogRoomCheckDispatchDelay(DateTime dueAt, DateTime startedAt)
+    {
+        return startedAt - dueAt > RoomCheckDispatchDelayWarning;
     }
 
     internal static int GetRoomCheckPriority(StreamStatus streamStatus, RecordStatus recordStatus)
@@ -570,21 +602,32 @@ internal static class GlobalMonitor
             && ReferenceEquals(current, roomStatus);
     }
 
-    private static async Task RunRoomCheckWithSemaphoreAsync(SemaphoreSlim semaphore, Room room, RoomStatus roomStatus, bool shouldNotify, bool shouldRecord, RoomRecordingOptions settings, CancellationToken token)
+    private static async Task RunRoomCheckWithSemaphoreAsync(SemaphoreSlim semaphore, Room room, RoomStatus roomStatus, bool shouldNotify, bool shouldRecord, RoomRecordingOptions settings, bool force, CancellationToken token)
     {
         await semaphore.WaitAsync(token);
         IDisposable? roomLock = null;
         StreamStatus previousStreamStatus = default;
         RecordStatus previousRecordStatus = default;
         bool previousStreamCheckFailed = false;
+        bool ranCheck = false;
 
         try
         {
             roomLock = await AcquireRoomCheckLockAsync(room.RoomUrl, token);
+            DateTime startedAt = DateTime.Now;
+            DateTime dueAt = GetRoomCheckDueAt(room.RoomUrl, startedAt);
+            if (!ShouldRunSelectedRoomCheck(dueAt, force, startedAt))
+            {
+                return;
+            }
+
+            LogRoomCheckDispatchDelay(room, dueAt, startedAt, force);
             previousStreamStatus = roomStatus.StreamStatus;
             previousRecordStatus = roomStatus.RecordStatus;
             previousStreamCheckFailed = roomStatus.IsStreamCheckFailed;
-            await RunRoomCheckAsync(room, roomStatus, shouldNotify, shouldRecord, settings, token);
+            ReserveRoomCheck(room.RoomUrl, settings, roomStatus.StreamStatus, startedAt);
+            ranCheck = true;
+            await RunRoomCheckAsync(room, roomStatus, shouldNotify, shouldRecord, settings, force, token);
         }
         catch (OperationCanceledException)
         {
@@ -603,7 +646,7 @@ internal static class GlobalMonitor
         {
             if (roomLock != null)
             {
-                if (GetEffectiveRoomMonitor(room) && IsCurrentRoomStatus(room.RoomUrl, roomStatus))
+                if (ranCheck && GetEffectiveRoomMonitor(room) && IsCurrentRoomStatus(room.RoomUrl, roomStatus))
                 {
                     UpdateRoomCheckSchedule(room.RoomUrl, previousStreamStatus, roomStatus.StreamStatus, settings, DateTime.Now);
                     if (previousStreamStatus != roomStatus.StreamStatus
@@ -619,14 +662,12 @@ internal static class GlobalMonitor
         }
     }
 
-    private static async Task RunRoomCheckAsync(Room room, RoomStatus roomStatus, bool shouldNotify, bool shouldRecord, RoomRecordingOptions settings, CancellationToken token)
+    private static async Task RunRoomCheckAsync(Room room, RoomStatus roomStatus, bool shouldNotify, bool shouldRecord, RoomRecordingOptions settings, bool force, CancellationToken token)
     {
         SyncRecordStatus(roomStatus);
         bool prioritizeDouyin = roomStatus.StreamStatus == StreamStatus.Streaming
             || roomStatus.RecordStatus == RecordStatus.Recording;
-        ISpiderResult? spiderResult = await Task.Run(
-            () => Spider.GetResult(room.RoomUrl, settings.PreferredStreamQuality, bypassDouyinThrottle: false, prioritizeDouyin),
-            token);
+        ISpiderResult? spiderResult = await GetSpiderResultAsync(room, settings, prioritizeDouyin, force, token);
         token.ThrowIfCancellationRequested();
         shouldRecord = GetEffectiveRoomRecord(room) && !IsRecordStartBlocked;
 
@@ -858,6 +899,53 @@ internal static class GlobalMonitor
         }
     }
 
+    private static async Task<ISpiderResult?> GetSpiderResultAsync(Room room, RoomRecordingOptions settings, bool prioritizeDouyin, bool force, CancellationToken token)
+    {
+        TimeSpan timeout = GetRoomCheckTimeout(force);
+        Task<ISpiderResult?> task = StartSpiderResultTask(room, settings, prioritizeDouyin, token);
+        try
+        {
+            return await task.WaitAsync(timeout, token);
+        }
+        catch (TimeoutException)
+        {
+            AppSessionLogger.Event("warn", "business", "room_check_timeout", "room check timed out and the room lock was released", new
+            {
+                room.RoomUrl,
+                room.NickName,
+                timeoutSeconds = timeout.TotalSeconds,
+                force,
+            });
+            return null;
+        }
+    }
+
+    private static Task<ISpiderResult?> StartSpiderResultTask(Room room, RoomRecordingOptions settings, bool prioritizeDouyin, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        return Task.Factory.StartNew(
+            () => Spider.GetResult(room.RoomUrl, settings.PreferredStreamQuality, bypassDouyinThrottle: false, prioritizeDouyin),
+            CancellationToken.None,
+            TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
+    }
+
+    private static void LogRoomCheckDispatchDelay(Room room, DateTime dueAt, DateTime startedAt, bool force)
+    {
+        if (!ShouldLogRoomCheckDispatchDelay(dueAt, startedAt))
+        {
+            return;
+        }
+
+        AppSessionLogger.Event("warn", "business", "room_check_dispatch_delayed", "room check started later than its due time", new
+        {
+            room.RoomUrl,
+            room.NickName,
+            delaySeconds = (startedAt - dueAt).TotalSeconds,
+            force,
+        });
+    }
+
     public static void RefreshRoutineInterval()
     {
         RoutinePeriodicWait.Period = GetRoutinePeriod();
@@ -992,7 +1080,7 @@ internal static class GlobalMonitor
 
     internal static TimeSpan GetStreamingFollowUpInterval(bool offlineConfirmationPending)
     {
-        return offlineConfirmationPending ? TimeSpan.FromSeconds(1) : StreamingCycleInterval;
+        return StreamingCycleInterval;
     }
 
     private static bool HasRecordableStream(RoomStatus roomStatus)
@@ -1275,11 +1363,19 @@ internal static class GlobalMonitor
 
     internal static bool IsWithinRecordingStartupOfflineGuard(RecordStatus recordStatus, DateTime requestedAt, DateTime startedAt, DateTime now)
     {
-        return recordStatus == RecordStatus.Recording
-            && requestedAt > DateTime.MinValue
-            && startedAt == DateTime.MinValue
-            && now >= requestedAt
-            && now - requestedAt < RecordingStartupOfflineGuardWindow;
+        if (recordStatus != RecordStatus.Recording || requestedAt <= DateTime.MinValue || now < requestedAt)
+        {
+            return false;
+        }
+
+        if (now - requestedAt < RecordingStartupOfflineGuardWindow)
+        {
+            return true;
+        }
+
+        return startedAt > DateTime.MinValue
+            && now >= startedAt
+            && now - startedAt < RecordingStartupOfflineGuardWindow;
     }
 
     private static bool IsWithinRecordingStartupOfflineGuard(RoomStatus roomStatus, DateTime now)
@@ -1313,32 +1409,37 @@ internal static class GlobalMonitor
         RoomRecordingOptions settings,
         CancellationToken token)
     {
-        return Task.Run(() =>
-        {
-            ISpiderResult? result = Spider.GetResult(
-                room.RoomUrl,
-                settings.PreferredStreamQuality,
-                bypassDouyinThrottle: false,
-                prioritizeDouyin: true);
-            if (result == null)
+        token.ThrowIfCancellationRequested();
+        return Task.Factory.StartNew(
+            () =>
             {
-                return null;
-            }
+                ISpiderResult? result = Spider.GetResult(
+                    room.RoomUrl,
+                    settings.PreferredStreamQuality,
+                    bypassDouyinThrottle: false,
+                    prioritizeDouyin: true);
+                if (result == null)
+                {
+                    return null;
+                }
 
-            RecorderStreamRefreshResult refreshResult = new()
-            {
-                IsLiveStreaming = result.IsLiveStreaming,
-                RecordUrl = result.RecordUrl ?? string.Empty,
-                HlsUrl = result.HlsUrl ?? string.Empty,
-                FlvUrl = result.FlvUrl ?? string.Empty,
-                Headers = SpiderResultMetadata.GetHeaders(result) ?? string.Empty,
-                Title = SpiderResultMetadata.GetTitle(result) ?? string.Empty,
-                Resolution = SpiderResultMetadata.GetResolution(result) ?? string.Empty,
-                Bitrate = SpiderResultMetadata.GetBitrate(result) ?? string.Empty,
-            };
-            ApplyRecorderStreamRefresh(room, roomStatus, refreshResult);
-            return refreshResult;
-        }, token);
+                RecorderStreamRefreshResult refreshResult = new()
+                {
+                    IsLiveStreaming = result.IsLiveStreaming,
+                    RecordUrl = result.RecordUrl ?? string.Empty,
+                    HlsUrl = result.HlsUrl ?? string.Empty,
+                    FlvUrl = result.FlvUrl ?? string.Empty,
+                    Headers = SpiderResultMetadata.GetHeaders(result) ?? string.Empty,
+                    Title = SpiderResultMetadata.GetTitle(result) ?? string.Empty,
+                    Resolution = SpiderResultMetadata.GetResolution(result) ?? string.Empty,
+                    Bitrate = SpiderResultMetadata.GetBitrate(result) ?? string.Empty,
+                };
+                ApplyRecorderStreamRefresh(room, roomStatus, refreshResult);
+                return refreshResult;
+            },
+            CancellationToken.None,
+            TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
     }
 
     private static void ApplyRecorderStreamRefresh(Room room, RoomStatus roomStatus, RecorderStreamRefreshResult result)
