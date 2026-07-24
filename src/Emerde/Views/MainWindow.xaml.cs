@@ -584,7 +584,8 @@ public partial class MainWindow : FluentWindow
     {
         bool isSuspended = ShouldSuspendPreviewPresentation(
             isPreviewPresentationSuspendedByOverlay,
-            ViewModel.IsPreviewing);
+            ViewModel.IsPreviewing,
+            ViewModel.IsHomePageSelected);
         HomePreviewPanel.SetVideoPresentationSuspended(isSuspended);
 
         if (!isSuspended && (isPreviewFullScreen || ViewModel.IsHomePageSelected))
@@ -593,9 +594,9 @@ public partial class MainWindow : FluentWindow
         }
     }
 
-    internal static bool ShouldSuspendPreviewPresentation(bool isSuspendedByOverlay, bool isPreviewing)
+    internal static bool ShouldSuspendPreviewPresentation(bool isSuspendedByOverlay, bool isPreviewing, bool isHomePageSelected)
     {
-        return isSuspendedByOverlay || !isPreviewing;
+        return isSuspendedByOverlay || !isPreviewing || !isHomePageSelected;
     }
 
     private void UpdateHomePreviewLayout()

@@ -99,6 +99,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private readonly AutoShutdownSchedule autoShutdownSchedule = new();
     private AutoShutdownContentDialog? autoShutdownDialog;
     private bool forceShutdownAfterTranscode;
+    private bool isPreviewPausedByPage;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsHomePageSelected))]
@@ -127,6 +128,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         {
             ReloadConfigurationStatus();
         }
+
+        UpdatePreviewPageVisibility();
     }
 
     [ObservableProperty]
@@ -945,6 +948,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         CancellationTokenSource cancellation = BeginPreviewTransition();
         ApplyPreviewRequestState(targetRoom);
         bool enteredGate = false;
+        bool completedCurrentTransition = false;
 
         try
         {
@@ -1020,9 +1024,14 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             if (IsCurrentPreviewTransition(cancellation))
             {
                 IsPreviewTransitioning = false;
+                completedCurrentTransition = true;
             }
 
             CompletePreviewTransition(cancellation);
+            if (completedCurrentTransition)
+            {
+                UpdatePreviewPageVisibility();
+            }
         }
     }
 
@@ -1064,6 +1073,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private void ApplyPreviewRequestState(RoomStatusReactive? targetRoom)
     {
         IsPreviewTransitioning = true;
+        isPreviewPausedByPage = false;
         if (targetRoom == null)
         {
             ApplyPreviewClosedState();
@@ -1078,11 +1088,80 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     private void ApplyPreviewClosedState()
     {
+        isPreviewPausedByPage = false;
         IsPreviewDetached = false;
         PreviewingRoom = null;
         IsPreviewing = false;
         IsPreviewPaused = false;
         LivePreviewStatus = CanPreviewSelectedRoom ? LivePreviewStatus.Ready : LivePreviewStatus.Idle;
+    }
+
+    private void UpdatePreviewPageVisibility()
+    {
+        if (ShouldPausePreviewForPage(IsHomePageSelected, IsPreviewing, IsPreviewTransitioning, IsPreviewPaused, isPreviewPausedByPage))
+        {
+            PausePreviewForHiddenPage();
+            return;
+        }
+
+        if (ShouldRefreshPreviewForHomePage(IsHomePageSelected, IsPreviewing, IsPreviewTransitioning, isPreviewPausedByPage))
+        {
+            _ = RefreshPreviewForVisibleHomePageAsync();
+        }
+    }
+
+    private void PausePreviewForHiddenPage()
+    {
+        isPreviewPausedByPage = true;
+        IsPreviewPaused = true;
+        livePreviewPlayer.SetPaused(true);
+        LivePreviewStatus = LivePreviewStatus.Ready;
+    }
+
+    private async Task RefreshPreviewForVisibleHomePageAsync()
+    {
+        RoomStatusReactive? targetRoom = PreviewingRoom;
+        if (targetRoom == null)
+        {
+            isPreviewPausedByPage = false;
+            ApplyPreviewClosedState();
+            return;
+        }
+
+        if (!targetRoom.CanPreview)
+        {
+            isPreviewPausedByPage = false;
+            ClosePreviewIfCurrentRoomUnavailable();
+            return;
+        }
+
+        await RequestPreviewTransitionAsync(targetRoom);
+    }
+
+    internal static bool ShouldPausePreviewForPage(
+        bool isHomePageSelected,
+        bool isPreviewing,
+        bool isPreviewTransitioning,
+        bool isPreviewPaused,
+        bool isPreviewPausedByPage)
+    {
+        return !isHomePageSelected
+            && isPreviewing
+            && !isPreviewTransitioning
+            && !isPreviewPaused
+            && !isPreviewPausedByPage;
+    }
+
+    internal static bool ShouldRefreshPreviewForHomePage(
+        bool isHomePageSelected,
+        bool isPreviewing,
+        bool isPreviewTransitioning,
+        bool isPreviewPausedByPage)
+    {
+        return isHomePageSelected
+            && isPreviewing
+            && !isPreviewTransitioning
+            && isPreviewPausedByPage;
     }
 
     private void ClosePreviewIfCurrentRoomUnavailable()

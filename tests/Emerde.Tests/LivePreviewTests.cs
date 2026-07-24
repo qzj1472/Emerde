@@ -418,12 +418,47 @@ public sealed class LivePreviewTests
     }
 
     [Theory]
-    [InlineData(false, true, false)]
-    [InlineData(true, true, true)]
-    [InlineData(false, false, true)]
-    public void ShouldSuspendPreviewPresentation_OnlySuspendsForOverlayOrStoppedPreview(bool overlay, bool previewing, bool expected)
+    [InlineData(false, true, true, false)]
+    [InlineData(true, true, true, true)]
+    [InlineData(false, false, true, true)]
+    [InlineData(false, true, false, true)]
+    public void ShouldSuspendPreviewPresentation_SuspendsWhenPreviewIsHidden(bool overlay, bool previewing, bool homePageSelected, bool expected)
     {
-        Assert.Equal(expected, MainWindow.ShouldSuspendPreviewPresentation(overlay, previewing));
+        Assert.Equal(expected, MainWindow.ShouldSuspendPreviewPresentation(overlay, previewing, homePageSelected));
+    }
+
+    [Theory]
+    [InlineData(false, true, false, false, false, true)]
+    [InlineData(false, true, true, false, false, false)]
+    [InlineData(false, true, false, true, false, false)]
+    [InlineData(false, true, false, false, true, false)]
+    [InlineData(true, true, false, false, false, false)]
+    [InlineData(false, false, false, false, false, false)]
+    public void ShouldPausePreviewForPage_OnlyPausesActivePlayingPreview(
+        bool homePageSelected,
+        bool previewing,
+        bool transitioning,
+        bool paused,
+        bool pausedByPage,
+        bool expected)
+    {
+        Assert.Equal(expected, MainViewModel.ShouldPausePreviewForPage(homePageSelected, previewing, transitioning, paused, pausedByPage));
+    }
+
+    [Theory]
+    [InlineData(true, true, false, true, true)]
+    [InlineData(true, true, true, true, false)]
+    [InlineData(true, false, false, true, false)]
+    [InlineData(false, true, false, true, false)]
+    [InlineData(true, true, false, false, false)]
+    public void ShouldRefreshPreviewForHomePage_OnlyRefreshesPagePausedPreview(
+        bool homePageSelected,
+        bool previewing,
+        bool transitioning,
+        bool pausedByPage,
+        bool expected)
+    {
+        Assert.Equal(expected, MainViewModel.ShouldRefreshPreviewForHomePage(homePageSelected, previewing, transitioning, pausedByPage));
     }
 
     [Fact]
