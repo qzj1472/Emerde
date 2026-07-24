@@ -31,7 +31,7 @@ public partial class App : Application
         _ = DpiAware.SetProcessDpiAwareness();
         ConfigurationManager.ConfigurationSerializer = new YamlConfigurationSerializer();
         ConfigurationMigrationHelper.MigrateLegacyConfiguration();
-        string configurationPath = ConfigurationSpecialPath.GetPath("config.yaml", AppConfig.PackName);
+        string configurationPath = AppPaths.ConfigFilePath;
         try
         {
             ConfigurationManager.Setup(configurationPath);
@@ -202,7 +202,7 @@ public partial class App : Application
             string directory = Path.GetDirectoryName(configurationPath) ?? AppContext.BaseDirectory;
             string fileName = Path.GetFileNameWithoutExtension(configurationPath);
             string extension = Path.GetExtension(configurationPath);
-            string timestamp = DateTime.Now.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+            string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
             string backupPath = Path.Combine(directory, $"{fileName}.invalid-{timestamp}{extension}");
             for (int index = 2; File.Exists(backupPath); index++)
             {

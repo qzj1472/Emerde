@@ -8,11 +8,20 @@ public sealed class AppPathsTests
     [InlineData("config.yaml", true)]
     [InlineData("config.dev.yaml", true)]
     [InlineData("config.bak-20260710120000.yaml", false)]
+    [InlineData("config.bak-20260710_120000.yaml", false)]
+    [InlineData("config.bak-reset-20260710_120000.yaml", false)]
     [InlineData("config.reset-bak-20260710120000.yaml", false)]
+    [InlineData("config.reset-bak-20260710_120000.yaml", false)]
     [InlineData("config.bak-20260710120000-2.yml", false)]
+    [InlineData("config.bak-20260710_120000-2.yml", false)]
     [InlineData("config.reset-bak-20260710120000-2.yml", false)]
+    [InlineData("config.reset-bak-20260710_120000-2.yml", false)]
+    [InlineData("config.import-20260710_120000.yaml", false)]
+    [InlineData("config.import-20260710_120000-2.yml", false)]
     [InlineData("config.invalid-20260710120000.yaml", false)]
+    [InlineData("config.invalid-20260710_120000.yaml", false)]
     [InlineData("config.invalid-20260710120000-2.yml", false)]
+    [InlineData("config.invalid-20260710_120000-2.yml", false)]
     public void IsConfigFile_ExcludesBackupFiles(string fileName, bool expected)
     {
         string path = Path.Combine("C:\\config", fileName);

@@ -5,9 +5,19 @@ namespace Emerde.Core;
 
 internal static class AppPaths
 {
-    public static string ConfigFilePath => ConfigurationSpecialPath.GetPath("config.yaml", AppConfig.PackName);
+    public static string DataDirectory => Path.GetDirectoryName(ConfigurationSpecialPath.GetPath("config.yaml", AppConfig.PackName)) ?? AppContext.BaseDirectory;
 
-    public static string ConfigDirectory => Path.GetDirectoryName(ConfigFilePath) ?? AppContext.BaseDirectory;
+    public static string ConfigDirectory => DataDirectory;
+
+    public static string ConfigFilesDirectory => Path.Combine(ConfigDirectory, "config");
+
+    public static string ConfigFilePath => Path.Combine(ConfigFilesDirectory, "config.yaml");
+
+    public static string ActiveConfigFilePath => string.IsNullOrWhiteSpace(ConfigurationManager.FilePath)
+        ? ConfigFilePath
+        : ConfigurationManager.FilePath;
+
+    public static string ActiveConfigDirectory => Path.GetDirectoryName(ActiveConfigFilePath) ?? ConfigDirectory;
 
     public static string LogsDirectory => Path.Combine(ConfigDirectory, "logs");
 
@@ -19,13 +29,14 @@ internal static class AppPaths
 
     public static string[] GetConfigFiles()
     {
-        if (!Directory.Exists(ConfigDirectory))
+        string directory = ActiveConfigDirectory;
+        if (!Directory.Exists(directory))
         {
             return [];
         }
 
-        return Directory.EnumerateFiles(ConfigDirectory, "config*.yaml", SearchOption.TopDirectoryOnly)
-            .Concat(Directory.EnumerateFiles(ConfigDirectory, "config*.yml", SearchOption.TopDirectoryOnly))
+        return Directory.EnumerateFiles(directory, "config*.yaml", SearchOption.TopDirectoryOnly)
+            .Concat(Directory.EnumerateFiles(directory, "config*.yml", SearchOption.TopDirectoryOnly))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Where(IsConfigFile)
             .OrderBy(static file => file, StringComparer.OrdinalIgnoreCase)
@@ -37,6 +48,7 @@ internal static class AppPaths
         string fileName = Path.GetFileName(filePath);
         return !fileName.Contains(".bak-", StringComparison.OrdinalIgnoreCase)
             && !fileName.Contains(".reset-bak-", StringComparison.OrdinalIgnoreCase)
+            && !fileName.Contains(".import-", StringComparison.OrdinalIgnoreCase)
             && !fileName.Contains(".invalid-", StringComparison.OrdinalIgnoreCase);
     }
 }

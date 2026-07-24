@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.RegularExpressions;
 using Emerde.Core;
 
 namespace Emerde.Tests;
@@ -105,6 +106,166 @@ public sealed class ConfigFileManagerTests
         finally
         {
             Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ReplaceConfigurationFile_UsesUnifiedBackupTimestamp()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-config-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string sourcePath = Path.Combine(directory, "import.yaml");
+        string targetPath = Path.Combine(directory, "config.yaml");
+        File.WriteAllText(sourcePath, "Theme: Dark\nRooms: []");
+        File.WriteAllText(targetPath, "Theme: Light\nRooms: []");
+
+        try
+        {
+            string backupPath = ConfigFileManager.ReplaceConfigurationFile(sourcePath, targetPath, _ => { });
+
+            Assert.Matches(new Regex(@"config\.bak-\d{8}_\d{6}\.yaml$", RegexOptions.CultureInvariant), Path.GetFileName(backupPath));
+            Assert.True(ConfigFileManager.IsBackupFile(backupPath));
+            Assert.True(File.Exists(backupPath));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ReplaceConfigurationFile_ReusesEquivalentBackup()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-config-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string sourcePath = Path.Combine(directory, "import.yaml");
+        string targetPath = Path.Combine(directory, "config.yaml");
+        string existingBackupPath = Path.Combine(directory, "config.bak-20260725_010000.yaml");
+        const string importedConfiguration = "Theme: Dark\nRooms: []";
+        const string previousConfiguration = "Theme: Light\nRooms: []";
+        File.WriteAllText(sourcePath, importedConfiguration);
+        File.WriteAllText(targetPath, previousConfiguration);
+        File.WriteAllText(existingBackupPath, previousConfiguration);
+
+        try
+        {
+            string backupPath = ConfigFileManager.ReplaceConfigurationFile(sourcePath, targetPath, _ => { });
+
+            Assert.Equal(existingBackupPath, backupPath);
+            Assert.Single(Directory.EnumerateFiles(directory, "config.bak-*.yaml"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData("config.bak-20260710_120000.yaml", true)]
+    [InlineData("config.bak-reset-20260710_120000.yaml", true)]
+    [InlineData("config.reset-bak-20260710120000.yaml", true)]
+    [InlineData("config.import-20260710_120000.yaml", true)]
+    [InlineData("config.invalid-20260710_120000.yaml", false)]
+    [InlineData("config.yaml", false)]
+    public void IsBackupFile_AcceptsCurrentAndLegacyBackupNames(string fileName, bool expected)
+    {
+        string path = Path.Combine("C:\\config", fileName);
+
+        Assert.Equal(expected, ConfigFileManager.IsBackupFile(path));
+    }
+
+    [Theory]
+    [InlineData("IsStartupAboutNoticeShown: true", false)]
+    [InlineData("IsStartupAboutNoticeShown: true\nRooms: []", false)]
+    [InlineData("Rooms: []", false)]
+    [InlineData("Theme: ''\nRooms: []", false)]
+    [InlineData("RoutineIntervalUnit: Seconds\nRooms: []", false)]
+    [InlineData("Theme: Dark\nRooms: []", true)]
+    [InlineData("RoutineInterval: 8000\nRooms: []", true)]
+    [InlineData("Rooms:\n  - RoomUrl: https://live.douyin.com/123456", true)]
+    public void IsMeaningfulConfigurationFile_IgnoresStartupNoticeOnlyFiles(string yaml, bool expected)
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"emerde-config-{Guid.NewGuid():N}.yaml");
+        try
+        {
+            File.WriteAllText(path, yaml);
+
+            Assert.Equal(expected, ConfigFileManager.IsMeaningfulConfigurationFile(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void IsMeaningfulConfigurationFile_IgnoresPersistedDefaultConfiguration()
+    {
+        const string yaml = """
+PreferredStreamQuality: Original
+SaveFolder: ''
+SegmentTime: 1800
+RoutineScheduleStartMinute: 0
+IsMonitorRunning: true
+Theme: ''
+IsDataRetentionEnabled: false
+SessionLogRetentionDays: 30
+IsUseStatusTray: true
+IsAutoShutdownComputer: false
+RoutineIntervalUnit: 1
+ToNotifyWithEmailSmtp:
+Rooms: []
+ToNotifyWithEmailPort: 25
+ToNotifyWithEmailUserName:
+IsStartupAboutNoticeShown: true
+IsToNotifyGotoRoomUrl: false
+IsToNotify: true
+IsToSegment: false
+SaveFolderPathLevel: 3
+RoutineScheduleEndHour: 23
+CookieOversea: ''
+ToNotifyWithMusicPath:
+AutoShutdownTime: 00:00
+IsRemoveTs: false
+SegmentTimeUnit: 1
+DataRetentionValue: 1
+RoutineScheduleMode: 0
+DisplayScale: 100
+IsAutoShutdownAfterTranscode: false
+RoutineScheduleStartHour: 0
+RecordFormat: TS/FLV
+Language: ''
+ToNotifyWithEmailPassword: ''
+SaveFileNameCustomRule: ''
+IsUseAutoShutdown: false
+IsToNotifyWithEmail: false
+IsSessionLogEnabled: true
+RoutineScheduleDays: Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday
+IsToRecord: true
+IsUseProxy: false
+IsUseKeepAwake: false
+IsToNotifyGotoRoomUrlAndMute: false
+CookieChina: ''
+RoutineScheduleEndMinute: 59
+PlatformCookies: ''
+IsToMonitor: true
+UserAgent: ''
+ProxyUrl: ''
+IsToNotifyWithSystem: true
+IsToNotifyWithMusic: true
+RoutineInterval: 5000
+DataRetentionUnit: 1
+""";
+        string path = Path.Combine(Path.GetTempPath(), $"emerde-config-{Guid.NewGuid():N}.yaml");
+        try
+        {
+            File.WriteAllText(path, yaml);
+
+            Assert.False(ConfigFileManager.IsMeaningfulConfigurationFile(path));
+        }
+        finally
+        {
+            File.Delete(path);
         }
     }
 }
