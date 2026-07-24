@@ -558,7 +558,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             });
         });
 
-        ChildProcessTracerPeriodicTimer.Default.WhiteList = ["ffmpeg", "ffprobe"];
+        ChildProcessTracerPeriodicTimer.Default.WhiteList = [];
         ChildProcessTracerPeriodicTimer.Default.Start();
         RecordingRecoveryService.QueueRun();
         if (ShouldRunMonitorLoop())
@@ -596,7 +596,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             OnPropertyChanged(nameof(PlatformSummaryText));
         }
 
-        IsRecording = RoomStatuses.Any(roomStatusReactive => roomStatusReactive.RecordStatus == RecordStatus.Recording);
+        IsRecording = RoomStatuses.Any(roomStatusReactive => roomStatusReactive.IsRecording);
 
         if (refreshSelectedPreview)
         {
@@ -629,7 +629,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             OnPropertyChanged(nameof(PlatformSummaryText));
         }
 
-        IsRecording = RoomStatuses.Any(room => room.RecordStatus == RecordStatus.Recording);
+        IsRecording = RoomStatuses.Any(room => room.IsRecording);
         if (ReferenceEquals(roomStatusReactive, SelectedItem) && previousCanPreview != roomStatusReactive.CanPreview)
         {
             OnPropertyChanged(nameof(CanPreviewSelectedRoom));
@@ -659,6 +659,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         target.StartTime = source.Recorder.StartTime;
         target.EndTime = source.Recorder.EndTime;
         target.IsRecordingConfirmed = source.Recorder.HasMediaProgress;
+        target.MediaWorkerProcessId = source.Recorder.MediaWorkerProcessId;
+        target.MediaWorkerProcessName = source.Recorder.MediaWorkerProcessName;
+        target.MediaWorkerWriteBytesPerSecond = source.Recorder.MediaWorkerWriteBytesPerSecond;
+        target.MediaWorkerReadBytesPerSecond = source.Recorder.MediaWorkerReadBytesPerSecond;
     }
 
     private void ReloadConfigurationStatus()

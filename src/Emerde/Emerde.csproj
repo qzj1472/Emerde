@@ -17,6 +17,8 @@
         <DebugType>portable</DebugType>
         <AssemblyName>Emerde</AssemblyName>
         <RootNamespace>Emerde</RootNamespace>
+        <StartupObject>Emerde.Program</StartupObject>
+        <FFmpegRuntimeNativePath>$(MSBuildThisFileDirectory)..\..\tools\ffmpeg-minimal\win-x64</FFmpegRuntimeNativePath>
     </PropertyGroup>
 
     <ItemGroup>
@@ -48,11 +50,7 @@
 
     <ItemGroup>
         <Resource Include="Assets\*" />
-        <Content Include="..\..\tools\ffmpeg\win-x64\ffmpeg.exe" Link="ffmpeg.exe">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-        </Content>
-        <Content Include="..\..\tools\ffmpeg\win-x64\ffprobe.exe" Link="ffprobe.exe">
+        <Content Include="$(FFmpegRuntimeNativePath)\*.dll" Link="ffmpeg\%(Filename)%(Extension)">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
         </Content>
@@ -61,6 +59,7 @@
 
     <ItemGroup>
         <PackageReference Include="Antelcat.I18N.WPF" Version="1.1.0" />
+        <PackageReference Include="FFmpeg.AutoGen" Version="7.1.1" />
         <PackageReference Include="Flucli" Version="0.3.2" />
         <PackageReference Include="LibVLCSharp.WPF" Version="3.10.0" />
         <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.23.1" />
@@ -92,5 +91,92 @@
         <PackageReference Include="NAudio.Core" Version="2.2.1" />
         <PackageReference Include="LottieSharp" Version="2.4.3" />
     </ItemGroup>
+
+    <Target Name="PruneUnusedLibVlcRuntimeFiles" AfterTargets="Build;Publish">
+        <ItemGroup>
+            <LibVlcPackageRoot Include="$(TargetDir)libvlc" Condition="Exists('$(TargetDir)libvlc')" />
+            <LibVlcPackageRoot Include="$(PublishDir)libvlc" Condition="'$(PublishDir)' != '' and Exists('$(PublishDir)libvlc')" />
+            <LibVlcRuntimeRoot Include="$(TargetDir)libvlc\win-x64" Condition="Exists('$(TargetDir)libvlc\win-x64')" />
+            <LibVlcRuntimeRoot Include="$(PublishDir)libvlc\win-x64" Condition="'$(PublishDir)' != '' and Exists('$(PublishDir)libvlc\win-x64')" />
+            <UnusedLibVlcRuntimeDirectory Include="@(LibVlcPackageRoot->'%(Identity)\win-x86')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeDirectory Include="@(LibVlcPackageRoot->'%(Identity)\win-arm64')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeDirectory Include="@(LibVlcRuntimeRoot->'%(Identity)\lua')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeDirectory Include="@(LibVlcRuntimeRoot->'%(Identity)\hrtfs')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeDirectory Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\access_output')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeDirectory Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\gui')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeDirectory Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\lua')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeDirectory Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\meta_engine')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeDirectory Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\mux')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeDirectory Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\notify')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeDirectory Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\services_discovery')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeDirectory Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\skins2')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeDirectory Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\spu')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeDirectory Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\stream_out')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeDirectory Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\text_renderer')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeDirectory Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\video_filter')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeDirectory Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\video_splitter')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeDirectory Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\visualization')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\access\libaccess_srt_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\access\libaccess_wasapi_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\access\libbluray-awt-j2se-1.4.0.jar')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\access\libbluray-j2se-1.4.0.jar')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\access\libcdda_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\access\libdcp_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\access\libdtv_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\access\libftp_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\access\liblibbluray_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\access\liblive555_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\access\libnfs_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\access\libsatip_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\access\libscreen_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\access\libsftp_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\access\libshm_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\access\libsmb_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\access\libvcd_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\access\libvdr_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\libcc_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\libcdg_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\libcvdsub_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\libdvbsub_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\libkate_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\liblibass_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\libschroedinger_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\libscte18_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\libscte27_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\libsdl_image_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\libspudec_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\libstl_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\libsubsdec_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\libsubstx3g_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\libsubsusf_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\libsvcdsub_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\libtextst_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\libttml_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\libx26410b_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\codec\libzvbi_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\audio_filter\libspatialaudio_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\demux\libdemux_cdg_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\demux\libdemux_chromecast_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\demux\libdemux_stl_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\demux\libgme_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\demux\libmod_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\demux\libnsc_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\demux\libnsv_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\demux\libnuv_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\demux\libsubtitle_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\demux\libvobsub_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\keystore\libfile_keystore_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\keystore\libmemory_keystore_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\logger\libconsole_logger_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\misc\libaddonsfsstorage_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\misc\libaddonsvorepository_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\misc\libfingerprinter_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\stream_extractor\libarchive_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\video_output\libcaca_plugin.dll')" Condition="Exists('%(Identity)')" />
+            <UnusedLibVlcRuntimeFile Include="@(LibVlcRuntimeRoot->'%(Identity)\plugins\video_output\libflaschen_plugin.dll')" Condition="Exists('%(Identity)')" />
+        </ItemGroup>
+        <RemoveDir Directories="@(UnusedLibVlcRuntimeDirectory)" />
+        <Delete Files="@(UnusedLibVlcRuntimeFile)" />
+    </Target>
 
 </Project>

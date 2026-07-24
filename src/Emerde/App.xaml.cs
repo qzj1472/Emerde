@@ -140,6 +140,7 @@ public partial class App : Application
         {
             Debug.WriteLine(loggingException);
         }
+        MediaWorker.CleanupLegacyExecutables();
         try
         {
             SecretProtector.MigrateStoredSecrets();

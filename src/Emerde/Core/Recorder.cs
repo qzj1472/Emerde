@@ -14,7 +14,7 @@ public sealed class Recorder
     private const int MaxRecordingAttempts = 4;
     internal const int OfflineRefreshConfirmationCount = 1;
     private const int ProcessOutputTailLimit = 8192;
-    private static readonly TimeSpan ProgressStartupTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan ProgressStartupTimeout = TimeSpan.FromSeconds(15);
     internal static readonly TimeSpan ProgressStallTimeout = TimeSpan.FromSeconds(90);
     private const string OptimizedAudioFilter = "[0:a:0]volume=30dB,acompressor=threshold=-10dB:ratio=3,alimiter=limit=0.316227766:level=false[aopt]";
 
@@ -29,10 +29,6 @@ public sealed class Recorder
     public CancellationTokenSource? TokenSource { get; private set; } = null;
 
     private readonly object stateLock = new();
-
-    private readonly object processLock = new();
-
-    private Process? currentProcess;
 
     private Task? recordingTask;
 
@@ -84,6 +80,20 @@ public sealed class Recorder
 
     public bool IsToSegment { get; set; } = false;
 
+    public int MediaWorkerProcessId { get; private set; }
+
+    public string MediaWorkerProcessName { get; private set; } = string.Empty;
+
+    public double MediaWorkerWriteBytesPerSecond { get; private set; }
+
+    public double MediaWorkerReadBytesPerSecond { get; private set; }
+
+    private long lastMediaProgressBytes;
+
+    private long lastMediaInputBytes;
+
+    private DateTime lastMediaProgressAt = DateTime.MinValue;
+
     public Task Start(RecorderStartInfo startInfo, CancellationTokenSource? tokenSource = null)
     {
         lock (stateLock)
@@ -101,6 +111,13 @@ public sealed class Recorder
             unregisteredSessionRecordings.Clear();
             FileName = null;
             MetadataPath = null;
+            MediaWorkerProcessId = 0;
+            MediaWorkerProcessName = string.Empty;
+            MediaWorkerWriteBytesPerSecond = 0;
+            MediaWorkerReadBytesPerSecond = 0;
+            lastMediaProgressBytes = 0;
+            lastMediaInputBytes = 0;
+            lastMediaProgressAt = DateTime.MinValue;
             RequestedAt = DateTime.Now;
             StartTime = DateTime.MinValue;
             EndTime = DateTime.MinValue;
@@ -135,12 +152,10 @@ public sealed class Recorder
         OutputReservation? sessionOutputReservation = null;
         try
         {
-            string? recorderPath = SearchFileHelper.SearchExecutable("ffmpeg.exe");
-
-            if (recorderPath == null)
+            if (!FfmpegMediaEngine.IsAvailable)
             {
                 RecordStatus = RecordStatus.NotRecording;
-                AppSessionLogger.Event("error", "recorder", "recorder_missing", "ffmpeg executable was not found", new
+                AppSessionLogger.Event("error", "recorder", "recorder_missing", "ffmpeg native libraries were not found", new
                 {
                     startInfo.RoomUrl,
                     startInfo.NickName,
@@ -178,6 +193,7 @@ public sealed class Recorder
             bool isToSegment = recordingOptions.IsToSegment && segmentTime > 0;
             bool isToSegmentBySize = isToSegment && SegmentTimeUnitHelper.IsSizeUnit(segmentTimeUnit);
             string headers = NormalizeHeaders(startInfo.Headers);
+            string? targetFormat = GetTargetFormat(recordingOptions.RecordFormat);
 
             IsToSegment = isToSegment;
             Url = SelectInputUrl(startInfo);
@@ -197,12 +213,10 @@ public sealed class Recorder
             }
 
             bool isHls = IsHlsUrl(Url, startInfo);
-            string? targetFormat = GetTargetFormat(recordingOptions.RecordFormat);
             bool useTransportStream = ShouldUseTransportStream(isHls, isToSegment, targetFormat);
             bool useSessionPartFiles = !isToSegment;
             string sessionSourceExtension = useTransportStream ? "ts" : "flv";
             string sessionTargetFormat = targetFormat ?? "." + sessionSourceExtension;
-            bool disableOptimizedAudio = false;
 
             if (string.IsNullOrWhiteSpace(userAgent))
             {
@@ -228,7 +242,7 @@ public sealed class Recorder
                 sessionOutputPattern = sessionOutputReservation.OutputPattern;
                 sessionMetadata = BuildMetadata(sessionBaseFileName, sessionSourceExtension, startInfo, sessionTimestamp);
                 sessionMetadataPath = VideoRecordingMetadataStore.WriteSidecar(saveFolder, sessionBaseFileName, sessionMetadata);
-                string? pendingRecordingPath = RecordingRecoveryService.RegisterSessionParts(sessionOutputPattern, sessionTargetFormat);
+                string? pendingRecordingPath = RecordingRecoveryService.RegisterSessionParts(sessionOutputPattern, sessionTargetFormat, recordingOptions.IsRemoveTs);
                 if (!string.IsNullOrWhiteSpace(pendingRecordingPath))
                 {
                     pendingRecordingPaths.Add(pendingRecordingPath);
@@ -270,7 +284,7 @@ public sealed class Recorder
                     }
                     outputFileName = FileName;
                 }
-                bool useOptimizedAudio = useTransportStream && !disableOptimizedAudio;
+                bool useOptimizedAudio = false;
 
                 List<string> arguments = BuildArguments(
                     outputFileName,
@@ -302,7 +316,7 @@ public sealed class Recorder
                     attempt,
                 });
 
-                int exitCode = await ExecuteRecorderAsync(recorderPath, arguments, isUseProxy, httpProxy, startInfo, token);
+                int exitCode = await ExecuteRecorderAsync(outputFileName, isUseProxy, httpProxy, headers, userAgent, metadata, startInfo, token);
                 bool hasSessionOutput = useSessionPartFiles && GetRecordedSourceFilesForPattern(outputFileName).Length > 0;
                 if (!useSessionPartFiles)
                 {
@@ -315,20 +329,6 @@ public sealed class Recorder
                         FinalizeMetadataForOutput(FileName, MetadataPath);
                     }
                     break;
-                }
-
-                if (useOptimizedAudio && IsMissingAudioError(lastProcessErrorOutput))
-                {
-                    disableOptimizedAudio = true;
-                    DeleteFailedOutputFiles(useSessionPartFiles ? outputFileName : FileName, useSessionPartFiles ? null : MetadataPath);
-                    AppSessionLogger.Event("warn", "recorder", "optimized_audio_unavailable", "recording source has no audio stream and will retry without audio processing", new
-                    {
-                        startInfo.RoomUrl,
-                        startInfo.NickName,
-                        FileName,
-                        outputFileName,
-                    });
-                    continue;
                 }
 
                 if (hasSessionOutput)
@@ -485,7 +485,7 @@ public sealed class Recorder
 
                 foreach ((string sourcePattern, string format) in unregisteredSessionRecordings)
                 {
-                    string? pendingPath = RecordingRecoveryService.RegisterSessionParts(sourcePattern, format);
+                    string? pendingPath = RecordingRecoveryService.RegisterSessionParts(sourcePattern, format, postProcessingOptions.IsRemoveTs);
                     if (!string.IsNullOrWhiteSpace(pendingPath))
                     {
                         pendingRecordingPaths.Add(pendingPath);
@@ -527,7 +527,6 @@ public sealed class Recorder
             Interlocked.Exchange(ref this.deferPostProcessing, 1);
         }
         Interlocked.Exchange(ref stopRequested, 1);
-        RequestCurrentProcessExit();
         lock (stateLock)
         {
             TokenSource?.Cancel();
@@ -572,7 +571,7 @@ public sealed class Recorder
         [
             "-n",
             "-v", "verbose",
-            "-rw_timeout", "45000000",
+            "-rw_timeout", "15000000",
             "-loglevel", "error",
             "-hide_banner",
             "-progress", "pipe:1",
@@ -633,134 +632,119 @@ public sealed class Recorder
         return arguments;
     }
 
-    private async Task<int> ExecuteRecorderAsync(string recorderPath, List<string> arguments, bool isUseProxy, string httpProxy, RecorderStartInfo startInfo, CancellationToken token)
+    private async Task<int> ExecuteRecorderAsync(
+        string outputFileName,
+        bool isUseProxy,
+        string httpProxy,
+        string headers,
+        string userAgent,
+        VideoRecordingMetadata metadata,
+        RecorderStartInfo startInfo,
+        CancellationToken token)
     {
         lastAttemptHadMediaProgress = false;
         lastAttemptWasCanceled = false;
         lastAttemptWasStalled = false;
         lastAttemptDurationSeconds = 0;
-        ProcessStartInfo processStartInfo = new()
-        {
-            FileName = recorderPath,
-            UseShellExecute = false,
-            RedirectStandardError = true,
-            RedirectStandardOutput = true,
-            RedirectStandardInput = true,
-            CreateNoWindow = true,
-            StandardErrorEncoding = Encoding.UTF8,
-            StandardOutputEncoding = Encoding.UTF8,
-        };
-
-        foreach (string argument in arguments)
-        {
-            processStartInfo.ArgumentList.Add(argument);
-        }
-
-        if (isUseProxy)
-        {
-            processStartInfo.Environment["http_proxy"] = httpProxy;
-            processStartInfo.Environment["https_proxy"] = httpProxy;
-        }
-
-        using Process process = new() { StartInfo = processStartInfo };
         Stopwatch processLifetime = Stopwatch.StartNew();
-        process.Start();
-        TryTraceProcess(process);
-        RuntimeResourceLogger.Register(process, "ffmpeg", "record", startInfo.RoomUrl, startInfo.NickName, new
+        FfmpegInputOptions inputOptions = new(userAgent, headers, isUseProxy, httpProxy, true);
+        AppSessionLogger.Event("info", "recorder", "record_native_starting", "ffmpeg native recording is starting", new
         {
             startInfo.PlatformName,
             FileName,
+            outputFileName,
         });
-
-        lock (processLock)
-        {
-            currentProcess = process;
-        }
-
-        StringBuilder errorTail = new();
-        Task errorTask = ReadPipeAsync(process.StandardError, async (data, readToken) =>
-        {
-            AppendOutputTail(errorTail, data);
-            await OnStandardErrorReceived(data, readToken);
-        }, CancellationToken.None);
-        RecorderProgressTracker progressTracker = new(DateTime.UtcNow);
-        Task outputTask = ReadPipeAsync(process.StandardOutput, (data, _) =>
-        {
-            if (progressTracker.Observe(data, DateTime.UtcNow))
-            {
-                ConfirmMediaProgress(startInfo);
-            }
-            return Task.CompletedTask;
-        }, CancellationToken.None);
         bool wasCanceled = false;
         bool wasStalled = false;
+        int exitCode = 1;
+        string commandPath = string.Empty;
+        StringBuilder errorOutput = new();
 
         try
         {
-            Task exitTask = process.WaitForExitAsync(CancellationToken.None);
-            using CancellationTokenSource cancellationWaitSource = CancellationTokenSource.CreateLinkedTokenSource(token);
-            using CancellationTokenSource progressWaitSource = new();
-            Task cancellationTask = WaitForCancellationAsync(cancellationWaitSource.Token);
-            Task<bool> progressStallTask = WaitForProgressStallAsync(progressTracker, progressWaitSource.Token);
-            Task completedTask = await Task.WhenAny(exitTask, cancellationTask, progressStallTask);
-
-            if (token.IsCancellationRequested)
+            commandPath = MediaWorker.WriteCommand(Url ?? string.Empty, outputFileName, metadata, inputOptions);
+            using Process process = StartMediaWorkerProcess(commandPath);
+            MediaWorkerProcessId = process.Id;
+            MediaWorkerProcessName = process.ProcessName;
+            AppSessionLogger.Event("info", "recorder", "record_media_worker_started", "media worker process started", new
             {
-                wasCanceled = true;
-                await StopProcessGracefullyAsync(process);
-            }
-            else if (completedTask == progressStallTask && await progressStallTask)
+                startInfo.RoomUrl,
+                startInfo.NickName,
+                startInfo.PlatformName,
+                workerProcessId = process.Id,
+                workerProcessName = process.ProcessName,
+                FileName,
+                outputFileName,
+            });
+            _ = WeakReferenceMessenger.Default.Send(new RoomRecordingStateChangedMessage(startInfo.RoomUrl));
+            TryTraceProcess(process);
+            RecorderProgressTracker progressTracker = new(DateTime.UtcNow);
+            using CancellationTokenSource processCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
+            using CancellationTokenRegistration cancellationRegistration = token.Register(() => KillProcessTree(process));
+            Task outputTask = ReadMediaWorkerOutputAsync(process.StandardOutput, progressTracker, startInfo, processCancellation.Token);
+            Task errorTask = ReadMediaWorkerErrorAsync(process.StandardError, errorOutput, processCancellation.Token);
+            Task exitTask = process.WaitForExitAsync(CancellationToken.None);
+            Task<bool> stallTask = WaitForProgressStallAsync(progressTracker, processCancellation.Token);
+            Task completedTask = await Task.WhenAny(exitTask, stallTask);
+            if (completedTask == stallTask && await stallTask)
             {
                 wasStalled = true;
-                AppSessionLogger.Event("warn", "recorder", "record_progress_stalled", "ffmpeg media progress stopped and the stream will be refreshed", new
+                AppSessionLogger.Event("warn", "recorder", "record_progress_stalled", "recording media progress stalled and worker will be restarted", new
                 {
                     startInfo.RoomUrl,
                     startInfo.NickName,
-                    process.Id,
+                    workerProcessId = process.Id,
                     FileName,
+                    outputFileName,
                     stalledSeconds = progressTracker.GetStalledDuration(DateTime.UtcNow).TotalSeconds,
                 });
-                await StopProcessGracefullyAsync(process);
+                _ = WeakReferenceMessenger.Default.Send(new RoomRecordingStateChangedMessage(startInfo.RoomUrl));
+                KillProcessTree(process);
             }
-            else
-            {
-                await exitTask;
-            }
-            cancellationWaitSource.Cancel();
-            progressWaitSource.Cancel();
-            await cancellationTask;
-            await progressStallTask;
+
+            await exitTask;
+            processCancellation.Cancel();
+            await Task.WhenAll(outputTask, errorTask);
+            exitCode = wasStalled ? 1 : process.ExitCode;
+        }
+        catch (OperationCanceledException)
+        {
+            wasCanceled = true;
+            exitCode = 255;
         }
         finally
         {
-            lock (processLock)
+            if (!string.IsNullOrWhiteSpace(commandPath))
             {
-                if (ReferenceEquals(currentProcess, process))
-                {
-                    currentProcess = null;
-                }
+                DeleteFileIfExists(commandPath);
             }
+            MediaWorkerProcessId = 0;
+            MediaWorkerProcessName = string.Empty;
+            MediaWorkerWriteBytesPerSecond = 0;
+            MediaWorkerReadBytesPerSecond = 0;
+            lastMediaProgressBytes = 0;
+            lastMediaInputBytes = 0;
+            lastMediaProgressAt = DateTime.MinValue;
         }
 
-        await Task.WhenAll(errorTask, outputTask);
-        lastAttemptHadMediaProgress = progressTracker.HasProgress;
+        wasCanceled = wasCanceled || token.IsCancellationRequested;
+        lastAttemptHadMediaProgress = HasMediaProgress;
         lastAttemptWasCanceled = wasCanceled;
         lastAttemptWasStalled = wasStalled;
         processLifetime.Stop();
-        lastProcessErrorOutput = errorTail.ToString();
+        lastProcessErrorOutput = errorOutput.ToString();
         double durationSeconds = processLifetime.Elapsed.TotalSeconds;
         lastAttemptDurationSeconds = durationSeconds;
-        AppSessionLogger.Event(GetProcessExitLogLevel(process.ExitCode, wasCanceled, wasStalled), "recorder", "record_process_exited", "ffmpeg recording process exited", new
+        AppSessionLogger.Event(GetProcessExitLogLevel(exitCode, wasCanceled, wasStalled), "recorder", "record_process_exited", "ffmpeg native recording exited", new
         {
             startInfo.RoomUrl,
             startInfo.NickName,
-            process.Id,
-            process.ExitCode,
+            ExitCode = exitCode,
             wasCanceled,
             wasStalled,
             FileName,
             durationSeconds,
-            errorOutput = process.ExitCode == 0 ? string.Empty : lastProcessErrorOutput,
+            errorOutput = exitCode == 0 ? string.Empty : lastProcessErrorOutput,
         });
         if (ShouldLogRapidExit(wasCanceled, wasStalled, durationSeconds))
         {
@@ -768,8 +752,7 @@ public sealed class Recorder
             {
                 startInfo.RoomUrl,
                 startInfo.NickName,
-                process.Id,
-                process.ExitCode,
+                ExitCode = exitCode,
                 FileName,
                 durationSeconds,
                 hasErrorOutput = !string.IsNullOrWhiteSpace(lastProcessErrorOutput),
@@ -781,7 +764,115 @@ public sealed class Recorder
             throw new OperationCanceledException(token);
         }
 
-        return process.ExitCode;
+        return exitCode;
+    }
+
+    private static Process StartMediaWorkerProcess(string commandPath)
+    {
+        ProcessStartInfo processStartInfo = new()
+        {
+            FileName = GetApplicationExecutablePath(),
+            WorkingDirectory = AppContext.BaseDirectory,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+        };
+        processStartInfo.ArgumentList.Add(MediaWorker.ModeArgument);
+        processStartInfo.ArgumentList.Add(commandPath);
+        Process process = new() { StartInfo = processStartInfo };
+        process.Start();
+        return process;
+    }
+
+    private static string GetApplicationExecutablePath()
+    {
+        return Environment.ProcessPath
+            ?? Process.GetCurrentProcess().MainModule?.FileName
+            ?? throw new InvalidOperationException("application executable path is unavailable");
+    }
+
+    private async Task ReadMediaWorkerOutputAsync(
+        StreamReader reader,
+        RecorderProgressTracker progressTracker,
+        RecorderStartInfo startInfo,
+        CancellationToken token)
+    {
+        try
+        {
+            while (!token.IsCancellationRequested && await reader.ReadLineAsync(token) is { } line)
+            {
+                if (line.StartsWith("progress", StringComparison.Ordinal))
+                {
+                    DateTime now = DateTime.UtcNow;
+                    UpdateMediaWorkerWriteSpeed(line, now);
+                    if (progressTracker.Observe($"out_time={now.Ticks}", now))
+                    {
+                        ConfirmMediaProgress(startInfo);
+                    }
+                    _ = WeakReferenceMessenger.Default.Send(new RoomRecordingStateChangedMessage(startInfo.RoomUrl));
+                    continue;
+                }
+
+                await OnStandardOutputReceived(line, token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void UpdateMediaWorkerWriteSpeed(string line, DateTime now)
+    {
+        string[] parts = line.Split('|');
+        if (parts.Length < 2
+            || !long.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out long outputBytes)
+            || outputBytes < 0)
+        {
+            return;
+        }
+
+        long inputBytes = lastMediaInputBytes;
+        if (parts.Length >= 3
+            && long.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out long parsedInputBytes)
+            && parsedInputBytes >= 0)
+        {
+            inputBytes = parsedInputBytes;
+        }
+
+        if (lastMediaProgressAt > DateTime.MinValue && now > lastMediaProgressAt && outputBytes >= lastMediaProgressBytes)
+        {
+            double seconds = (now - lastMediaProgressAt).TotalSeconds;
+            if (seconds > 0)
+            {
+                MediaWorkerWriteBytesPerSecond = (outputBytes - lastMediaProgressBytes) / seconds;
+                if (inputBytes >= lastMediaInputBytes)
+                {
+                    MediaWorkerReadBytesPerSecond = (inputBytes - lastMediaInputBytes) / seconds;
+                }
+            }
+        }
+
+        lastMediaProgressBytes = outputBytes;
+        lastMediaInputBytes = inputBytes;
+        lastMediaProgressAt = now;
+    }
+
+    private async Task ReadMediaWorkerErrorAsync(StreamReader reader, StringBuilder errorOutput, CancellationToken token)
+    {
+        try
+        {
+            while (!token.IsCancellationRequested && await reader.ReadLineAsync(token) is { } line)
+            {
+                AppendOutputTail(errorOutput, line);
+                await OnStandardErrorReceived(line, token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     private void ConfirmMediaProgress(RecorderStartInfo startInfo)
@@ -902,33 +993,6 @@ public sealed class Recorder
         _ = VideoRecordingMetadataStore.FinalizeSidecarForMedia(GetRecordedSourceFilesForPattern(fileName), metadataPath);
     }
 
-    private void RequestCurrentProcessExit()
-    {
-        Process? process;
-        lock (processLock)
-        {
-            process = currentProcess;
-        }
-
-        if (process != null)
-        {
-            RequestProcessExit(process);
-        }
-    }
-
-    private static async Task StopProcessGracefullyAsync(Process process)
-    {
-        RequestProcessExit(process);
-
-        if (await WaitForExitAsync(process, ProcessStopGracePeriod))
-        {
-            return;
-        }
-
-        KillProcessTree(process);
-        await process.WaitForExitAsync(CancellationToken.None);
-    }
-
     private static void RequestProcessExit(Process process)
     {
         try
@@ -968,6 +1032,20 @@ public sealed class Recorder
             }
         }
         catch (Exception e) when (e is InvalidOperationException or ArgumentException)
+        {
+        }
+    }
+
+    private static void DeleteFileIfExists(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
         }
     }

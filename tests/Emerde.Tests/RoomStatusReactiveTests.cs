@@ -56,4 +56,31 @@ public sealed class RoomStatusReactiveTests
 
         Assert.Empty(changedProperties);
     }
+
+    [Fact]
+    public void RecordingEngineText_ShowsNativeWorkerProcessWhileRecording()
+    {
+        RoomStatusReactive room = new()
+        {
+            RecordStatus = RecordStatus.Recording,
+            MediaWorkerProcessId = 1234,
+            MediaWorkerProcessName = "Emerde",
+            MediaWorkerWriteBytesPerSecond = 1.3 * 1024 * 1024,
+            MediaWorkerReadBytesPerSecond = 2.5 * 1024 * 1024,
+        };
+
+        Assert.Equal("内置 FFmpeg DLL · Emerde · PID 1234 · 下载 2.5 MB/s · 写入 1.3 MB/s", room.RecordingEngineText);
+    }
+
+    [Fact]
+    public void RecordingEngineText_HidesWorkerProcessWhenNotRecording()
+    {
+        RoomStatusReactive room = new()
+        {
+            RecordStatus = RecordStatus.NotRecording,
+            MediaWorkerProcessId = 1234,
+        };
+
+        Assert.Equal("-", room.RecordingEngineText);
+    }
 }

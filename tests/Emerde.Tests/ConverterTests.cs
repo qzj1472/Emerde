@@ -1,8 +1,8 @@
 using Emerde.Core;
-using System.Diagnostics;
 
 namespace Emerde.Tests;
 
+[Collection("MediaOperationRegistry")]
 public sealed class ConverterTests
 {
     [Theory]
@@ -116,75 +116,32 @@ public sealed class ConverterTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_ConvertsRealVideoWithoutAudio()
+    public void FfmpegRuntime_IsFolderBasedAndCommandLineToolsAreNotRequired()
     {
-        string ffmpegPath = Path.Combine(AppContext.BaseDirectory, "ffmpeg.exe");
-        Assert.True(File.Exists(ffmpegPath));
+        string baseDirectory = AppContext.BaseDirectory;
+        string ffmpegDirectory = Path.Combine(baseDirectory, "ffmpeg");
 
-        string directory = Path.Combine(Path.GetTempPath(), $"emerde-converter-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(directory);
-        string sourceFile = Path.Combine(directory, "no-audio.ts");
-
-        try
-        {
-            using Process process = new()
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = ffmpegPath,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardError = true,
-                    RedirectStandardOutput = true,
-                },
-            };
-            process.StartInfo.ArgumentList.Add("-y");
-            process.StartInfo.ArgumentList.Add("-f");
-            process.StartInfo.ArgumentList.Add("lavfi");
-            process.StartInfo.ArgumentList.Add("-i");
-            process.StartInfo.ArgumentList.Add("color=c=black:s=320x180:d=0.2");
-            process.StartInfo.ArgumentList.Add("-c:v");
-            process.StartInfo.ArgumentList.Add("libx264");
-            process.StartInfo.ArgumentList.Add("-an");
-            process.StartInfo.ArgumentList.Add("-f");
-            process.StartInfo.ArgumentList.Add("mpegts");
-            process.StartInfo.ArgumentList.Add(sourceFile);
-
-            process.Start();
-            Task errorTask = process.StandardError.ReadToEndAsync();
-            Task outputTask = process.StandardOutput.ReadToEndAsync();
-            await process.WaitForExitAsync();
-            await Task.WhenAll(errorTask, outputTask);
-
-            Assert.Equal(0, process.ExitCode);
-            Assert.Equal(AudioStreamPresence.Absent, Converter.ProbeAudioStream(sourceFile));
-            Assert.True(await new Converter().ExecuteAsync(sourceFile, ".mp4"));
-            Assert.True(File.Exists(Path.ChangeExtension(sourceFile, ".mp4")));
-        }
-        finally
-        {
-            Directory.Delete(directory, recursive: true);
-        }
+        Assert.True(FfmpegMediaEngine.IsAvailable);
+        Assert.True(Directory.Exists(ffmpegDirectory));
+        Assert.True(File.Exists(Path.Combine(ffmpegDirectory, "avformat-61.dll")));
+        Assert.True(File.Exists(Path.Combine(ffmpegDirectory, "avcodec-61.dll")));
+        Assert.True(File.Exists(Path.Combine(ffmpegDirectory, "avutil-59.dll")));
+        Assert.False(File.Exists(Path.Combine(baseDirectory, "ffmpeg.exe")));
+        Assert.False(File.Exists(Path.Combine(baseDirectory, "ffprobe.exe")));
     }
 
     [Fact]
-    public async Task ExecuteAsync_MergesSessionPartsIntoOneTarget()
+    public async Task ExecuteAsync_ReturnsFalseWhenSourceCannotBeProbed()
     {
-        string ffmpegPath = Path.Combine(AppContext.BaseDirectory, "ffmpeg.exe");
-        Assert.True(File.Exists(ffmpegPath));
-
         string directory = Path.Combine(Path.GetTempPath(), $"emerde-converter-merge-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
-        string firstSource = Path.Combine(directory, "session_000.ts");
-        string secondSource = Path.Combine(directory, "session_001.ts");
+        string source = Path.Combine(directory, "session_000.ts");
 
         try
         {
-            await CreateTestTransportStreamAsync(ffmpegPath, firstSource, "black");
-            await CreateTestTransportStreamAsync(ffmpegPath, secondSource, "blue");
+            await File.WriteAllBytesAsync(source, [1, 2, 3, 4]);
 
-            Assert.True(await new Converter().ExecuteAsync([firstSource, secondSource], ".mkv"));
-            Assert.True(File.Exists(Path.Combine(directory, "session.mkv")));
+            Assert.False(await new Converter().ExecuteAsync(source, ".mkv"));
             Assert.False(File.Exists(Path.Combine(directory, "session_000.mkv")));
         }
         finally
@@ -194,11 +151,8 @@ public sealed class ConverterTests
     }
 
     [Fact]
-    public async Task ExecuteSessionPartsAsync_MergesRawTransportStreamIntoOneSourceFormatTarget()
+    public async Task ExecuteSessionPartsAsync_ReturnsFalseWhenTransportStreamPartsCannotBeProbed()
     {
-        string ffmpegPath = Path.Combine(AppContext.BaseDirectory, "ffmpeg.exe");
-        Assert.True(File.Exists(ffmpegPath));
-
         string directory = Path.Combine(Path.GetTempPath(), $"emerde-converter-raw-merge-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         string sourcePattern = Path.Combine(directory, "session_%03d.ts");
@@ -207,12 +161,11 @@ public sealed class ConverterTests
 
         try
         {
-            await CreateTestTransportStreamAsync(ffmpegPath, firstSource, "black");
-            await CreateTestTransportStreamAsync(ffmpegPath, secondSource, "blue");
+            await File.WriteAllBytesAsync(firstSource, [1, 2, 3, 4]);
+            await File.WriteAllBytesAsync(secondSource, [5, 6, 7, 8]);
 
-            Assert.True(await new Converter().ExecuteSessionPartsAsync(sourcePattern, [firstSource, secondSource], ".ts"));
-            Assert.True(File.Exists(Path.Combine(directory, "session.ts")));
-            Assert.False(File.Exists(Path.Combine(directory, "session_000_2.ts")));
+            Assert.False(await new Converter().ExecuteSessionPartsAsync(sourcePattern, [firstSource, secondSource], ".ts"));
+            Assert.False(File.Exists(Path.Combine(directory, "session.ts")));
         }
         finally
         {
@@ -221,11 +174,8 @@ public sealed class ConverterTests
     }
 
     [Fact]
-    public async Task ExecuteSessionPartsAsync_MergesRawFlvIntoOneSourceFormatTarget()
+    public async Task ExecuteSessionPartsAsync_ReturnsFalseWhenFlvPartsCannotBeProbed()
     {
-        string ffmpegPath = Path.Combine(AppContext.BaseDirectory, "ffmpeg.exe");
-        Assert.True(File.Exists(ffmpegPath));
-
         string directory = Path.Combine(Path.GetTempPath(), $"emerde-converter-flv-merge-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         string sourcePattern = Path.Combine(directory, "session_%03d.flv");
@@ -234,60 +184,15 @@ public sealed class ConverterTests
 
         try
         {
-            await CreateTestFlvAsync(ffmpegPath, firstSource, "black");
-            await CreateTestFlvAsync(ffmpegPath, secondSource, "blue");
+            await File.WriteAllBytesAsync(firstSource, [1, 2, 3, 4]);
+            await File.WriteAllBytesAsync(secondSource, [5, 6, 7, 8]);
 
-            Assert.True(await new Converter().ExecuteSessionPartsAsync(sourcePattern, [firstSource, secondSource], ".flv"));
-            Assert.True(File.Exists(Path.Combine(directory, "session.flv")));
-            Assert.False(File.Exists(Path.Combine(directory, "session_000_2.flv")));
+            Assert.False(await new Converter().ExecuteSessionPartsAsync(sourcePattern, [firstSource, secondSource], ".flv"));
+            Assert.False(File.Exists(Path.Combine(directory, "session.flv")));
         }
         finally
         {
             Directory.Delete(directory, recursive: true);
         }
-    }
-
-    private static async Task CreateTestTransportStreamAsync(string ffmpegPath, string targetPath, string color)
-    {
-        await CreateTestVideoAsync(ffmpegPath, targetPath, color, "mpegts");
-    }
-
-    private static async Task CreateTestFlvAsync(string ffmpegPath, string targetPath, string color)
-    {
-        await CreateTestVideoAsync(ffmpegPath, targetPath, color, "flv");
-    }
-
-    private static async Task CreateTestVideoAsync(string ffmpegPath, string targetPath, string color, string muxer)
-    {
-        using Process process = new()
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = ffmpegPath,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-            },
-        };
-        process.StartInfo.ArgumentList.Add("-y");
-        process.StartInfo.ArgumentList.Add("-f");
-        process.StartInfo.ArgumentList.Add("lavfi");
-        process.StartInfo.ArgumentList.Add("-i");
-        process.StartInfo.ArgumentList.Add($"color=c={color}:s=320x180:d=0.2");
-        process.StartInfo.ArgumentList.Add("-c:v");
-        process.StartInfo.ArgumentList.Add("libx264");
-        process.StartInfo.ArgumentList.Add("-an");
-        process.StartInfo.ArgumentList.Add("-f");
-        process.StartInfo.ArgumentList.Add(muxer);
-        process.StartInfo.ArgumentList.Add(targetPath);
-
-        process.Start();
-        Task errorTask = process.StandardError.ReadToEndAsync();
-        Task outputTask = process.StandardOutput.ReadToEndAsync();
-        await process.WaitForExitAsync();
-        await Task.WhenAll(errorTask, outputTask);
-
-        Assert.Equal(0, process.ExitCode);
     }
 }

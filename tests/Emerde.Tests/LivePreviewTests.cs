@@ -177,7 +177,7 @@ public sealed class LivePreviewTests
     }
 
     [Theory]
-    [InlineData(RecordStatus.Recording, true)]
+    [InlineData(RecordStatus.Recording, false)]
     [InlineData(RecordStatus.NotRecording, false)]
     [InlineData(RecordStatus.Disabled, false)]
     public void IsRecording_OnlyReflectsActiveRecordState(RecordStatus recordStatus, bool expected)
@@ -185,6 +185,18 @@ public sealed class LivePreviewTests
         RoomStatusReactive room = new() { RecordStatus = recordStatus };
 
         Assert.Equal(expected, room.IsRecording);
+    }
+
+    [Fact]
+    public void IsRecording_RequiresConfirmedMediaProgress()
+    {
+        RoomStatusReactive room = new()
+        {
+            RecordStatus = RecordStatus.Recording,
+            IsRecordingConfirmed = true,
+        };
+
+        Assert.True(room.IsRecording);
     }
 
     [Fact]

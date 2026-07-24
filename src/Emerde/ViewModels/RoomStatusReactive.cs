@@ -153,6 +153,7 @@ public partial class RoomStatusReactive : ReactiveObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RecordStatusText))]
     [NotifyPropertyChangedFor(nameof(IsRecording))]
+    [NotifyPropertyChangedFor(nameof(RecordingEngineText))]
     private RecordStatus recordStatus = default;
 
     public string RecordStatusText => RecordStatus switch
@@ -168,11 +169,64 @@ public partial class RoomStatusReactive : ReactiveObject
         _ => "RecordStatusOfUnknown".Tr(),
     };
 
-    public bool IsRecording => RecordStatus == RecordStatus.Recording;
+    public bool IsRecording => RecordStatus == RecordStatus.Recording && IsRecordingConfirmed;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RecordStatusText))]
+    [NotifyPropertyChangedFor(nameof(IsRecording))]
     private bool isRecordingConfirmed;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RecordingEngineText))]
+    private int mediaWorkerProcessId;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RecordingEngineText))]
+    private string mediaWorkerProcessName = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RecordingEngineText))]
+    private double mediaWorkerWriteBytesPerSecond;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RecordingEngineText))]
+    private double mediaWorkerReadBytesPerSecond;
+
+    public string RecordingEngineText
+    {
+        get
+        {
+            if (RecordStatus != RecordStatus.Recording)
+            {
+                return "-";
+            }
+
+            string workerName = string.IsNullOrWhiteSpace(MediaWorkerProcessName)
+                ? "Worker"
+                : MediaWorkerProcessName;
+            string readSpeedText = FormatMediaWorkerSpeed(MediaWorkerReadBytesPerSecond);
+            string writeSpeedText = FormatMediaWorkerSpeed(MediaWorkerWriteBytesPerSecond);
+            return MediaWorkerProcessId > 0
+                ? $"内置 FFmpeg DLL · {workerName} · PID {MediaWorkerProcessId} · 下载 {readSpeedText} · 写入 {writeSpeedText}"
+                : "内置 FFmpeg DLL · Worker 启动中";
+        }
+    }
+
+    private static string FormatMediaWorkerSpeed(double bytesPerSecond)
+    {
+        if (bytesPerSecond <= 0 || double.IsNaN(bytesPerSecond) || double.IsInfinity(bytesPerSecond))
+        {
+            return "等待数据";
+        }
+
+        double megabytesPerSecond = bytesPerSecond / 1024d / 1024d;
+        if (megabytesPerSecond >= 1)
+        {
+            return $"{megabytesPerSecond:F1} MB/s";
+        }
+
+        return $"{bytesPerSecond / 1024d:F0} KB/s";
+    }
 
     public string PreviewUrl => !string.IsNullOrWhiteSpace(RecordUrl)
         ? RecordUrl

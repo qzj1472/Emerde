@@ -1,5 +1,4 @@
 using CommunityToolkit.Mvvm.Messaging;
-using MediaInfoLib;
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -45,10 +44,9 @@ public sealed class Converter
         ArgumentNullException.ThrowIfNull(sourceFileNames);
         ArgumentNullException.ThrowIfNull(targetFormat);
 
-        string? recorderPath = SearchFileHelper.SearchExecutable("ffmpeg.exe");
-        if (string.IsNullOrWhiteSpace(recorderPath))
+        if (!FfmpegMediaEngine.IsAvailable)
         {
-            AppSessionLogger.Event("error", "converter", "converter_missing", "ffmpeg executable was not found", new { sourceFileNames, targetFormat });
+            AppSessionLogger.Event("error", "converter", "converter_missing", "ffmpeg native libraries were not found", new { sourceFileNames, targetFormat });
             return false;
         }
 
@@ -75,44 +73,16 @@ public sealed class Converter
         VideoRecordingMetadata metadata = VideoRecordingMetadataStore.WithFileName(
             VideoRecordingMetadataStore.Load(sourceFileInfos[0]),
             Path.GetFileName(targetFileName));
-        string? concatListPath = null;
-        IReadOnlyList<string> arguments;
         AudioStreamPresence audioPresence = allowSameFormat
             && sourceFileInfos.All(file => file.Extension.Equals(targetFormat, StringComparison.OrdinalIgnoreCase))
                 ? AudioStreamPresence.Unknown
                 : ProbeAudioStream(sourceFileInfos[0].FullName);
-        if (sourceFileInfos.Length == 1)
-        {
-            arguments = BuildArguments(sourceFileInfos[0].FullName, temporaryTargetFileName, metadata, audioPresence);
-        }
-        else
-        {
-            concatListPath = CreateConcatList(sourceFileInfos);
-            arguments = BuildConcatArguments(concatListPath, temporaryTargetFileName, metadata, audioPresence);
-        }
+        IReadOnlyList<string> arguments = sourceFileInfos.Length == 1
+            ? BuildArguments(sourceFileInfos[0].FullName, temporaryTargetFileName, metadata, audioPresence)
+            : BuildConcatArguments(string.Join("|", sourceFileInfos.Select(file => file.FullName)), temporaryTargetFileName, metadata, audioPresence);
         if (arguments.Count == 0)
         {
-            DeleteTemporaryOutput(concatListPath);
             return false;
-        }
-
-        using Process process = new()
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = recorderPath,
-                UseShellExecute = false,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true,
-                StandardErrorEncoding = Encoding.UTF8,
-                StandardOutputEncoding = Encoding.UTF8,
-            },
-        };
-
-        foreach (string argument in arguments)
-        {
-            process.StartInfo.ArgumentList.Add(argument);
         }
 
         using CancellationTokenSource operationCancellation = tokenSource == null
@@ -132,20 +102,15 @@ public sealed class Converter
 
         try
         {
-            process.Start();
-            RuntimeResourceLogger.Register(process, "ffmpeg", "convert", extra: new { sourceFileNames = sourceFileInfos.Select(file => file.FullName).ToArray(), targetFileName });
-            StringBuilder errorTail = new();
-            Task errorTask = ReadPipeAsync(process.StandardError, async (data, readToken) =>
+            FfmpegMediaRunResult result = await Task.Run(
+                () => FfmpegMediaEngine.RemuxFiles(sourceFileInfos.Select(file => file.FullName).ToArray(), temporaryTargetFileName, metadata, token),
+                token);
+            if (result.WasCanceled)
             {
-                AppendOutputTail(errorTail, data);
-                await OnStandardErrorReceived(data, readToken);
-            }, token);
-            Task outputTask = ReadPipeAsync(process.StandardOutput, OnStandardOutputReceived, token);
+                throw new OperationCanceledException(token);
+            }
 
-            await process.WaitForExitAsync(token);
-            await Task.WhenAll(errorTask, outputTask);
-
-            bool succeeded = process.ExitCode == 0 && IsUsableOutput(temporaryTargetFileName);
+            bool succeeded = result.ExitCode == 0 && IsUsableOutput(temporaryTargetFileName);
             if (succeeded)
             {
                 File.Move(temporaryTargetFileName, targetFileName, false);
@@ -158,21 +123,19 @@ public sealed class Converter
             {
                 sourceFileNames = sourceFileInfos.Select(file => file.FullName).ToArray(),
                 targetFileName,
-                process.ExitCode,
+                result.ExitCode,
                 succeeded,
-                errorOutput = succeeded ? string.Empty : errorTail.ToString(),
+                errorOutput = succeeded ? string.Empty : result.ErrorOutput,
             });
             return succeeded;
         }
         catch (OperationCanceledException)
         {
-            KillProcessTree(process);
             AppSessionLogger.Event("warn", "converter", "conversion_cancelled", "recording conversion was cancelled", new { sourceFileNames, targetFileName });
             throw;
         }
         catch (Exception e)
         {
-            KillProcessTree(process);
             AppSessionLogger.WriteException(e);
             AppSessionLogger.Event("error", "converter", "conversion_failed", e.Message, new { sourceFileNames, targetFileName });
             return false;
@@ -180,7 +143,6 @@ public sealed class Converter
         finally
         {
             DeleteTemporaryOutput(temporaryTargetFileName);
-            DeleteTemporaryOutput(concatListPath);
         }
     }
 
@@ -423,22 +385,12 @@ public sealed class Converter
 
     internal static AudioStreamPresence ProbeAudioStream(string sourceFileName)
     {
-        try
+        if (FfmpegMediaEngine.TryProbe(sourceFileName, out FfmpegMediaProbeResult result, out _))
         {
-            using MediaInfo mediaInfo = new();
-            nint openResult = mediaInfo.Open(sourceFileName);
-            if (openResult == nint.Zero)
-            {
-                return AudioStreamPresence.Unknown;
-            }
-            return mediaInfo.Count_Get(StreamKind.Audio) > 0
-                ? AudioStreamPresence.Present
-                : AudioStreamPresence.Absent;
+            return result.HasAudio ? AudioStreamPresence.Present : AudioStreamPresence.Absent;
         }
-        catch
-        {
-            return AudioStreamPresence.Unknown;
-        }
+
+        return AudioStreamPresence.Unknown;
     }
 
     private static void AppendOutputTail(StringBuilder output, string data)
