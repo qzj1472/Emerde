@@ -38,6 +38,23 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
+    public void AdjacentVisibleVideo_SkipsRecordingFiles()
+    {
+        ScreenRecordListViewModel viewModel = new();
+        ObservableCollection<RecordedVideoItem> videos = Assert.IsType<ObservableCollection<RecordedVideoItem>>(viewModel.Videos.SourceCollection);
+        RecordedVideoItem recording = new() { FullPath = @"C:\videos\recording.ts", IsRecordingFile = true };
+        RecordedVideoItem completed = new() { FullPath = @"C:\videos\completed.ts" };
+        videos.Add(recording);
+        videos.Add(completed);
+
+        Assert.Same(completed, viewModel.GetAdjacentVisibleVideo(1));
+
+        viewModel.SelectRegularItem(recording);
+
+        Assert.Null(viewModel.RegularSelectedItem);
+    }
+
+    [Fact]
     public void ReuseExistingVideoItems_PreservesUnchangedObjectsAndAddsNewFiles()
     {
         DateTime lastWrite = new(2026, 7, 22, 12, 0, 0, DateTimeKind.Utc);
@@ -94,6 +111,18 @@ public sealed class ScreenRecordListWindowTests
         string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
 
         Assert.Contains("Binding=\"{Binding HasVisibleVideos}\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VideoListXaml_ShowsLocalizedRecordingChipForRecordingFiles()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+
+        Assert.Contains("Binding=\"{Binding IsRecordingFile}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Background=\"#24D13438\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("BorderBrush=\"#80D13438\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("CornerRadius=\"{StaticResource Win11ControlCornerRadius}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{I18N RecordStatusOfRecording}\"", xaml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -219,6 +248,36 @@ public sealed class ScreenRecordListWindowTests
         Assert.False(viewModel.IsMultiSelectMode);
         Assert.False(first.IsSelected);
         Assert.False(second.IsSelected);
+    }
+
+    [Fact]
+    public void SelectAll_SkipsRecordingFiles()
+    {
+        ScreenRecordListViewModel viewModel = new();
+        ObservableCollection<RecordedVideoItem> videos = Assert.IsType<ObservableCollection<RecordedVideoItem>>(viewModel.Videos.SourceCollection);
+        RecordedVideoItem recording = new() { FullPath = @"C:\videos\recording.ts", IsRecordingFile = true };
+        RecordedVideoItem completed = new() { FullPath = @"C:\videos\completed.ts" };
+        videos.Add(recording);
+        videos.Add(completed);
+
+        viewModel.SelectAllCommand.Execute(null);
+
+        Assert.True(viewModel.IsMultiSelectMode);
+        Assert.False(recording.IsSelected);
+        Assert.True(completed.IsSelected);
+    }
+
+    [Fact]
+    public void RecordingVideoItem_CannotBeSelectedOrModified()
+    {
+        RecordedVideoItem item = new() { SupportsTranscode = true, IsSelected = true };
+
+        item.IsRecordingFile = true;
+
+        Assert.False(item.IsSelected);
+        Assert.False(item.CanSelect);
+        Assert.False(item.CanModify);
+        Assert.False(item.CanTranscode);
     }
 
     [Theory]

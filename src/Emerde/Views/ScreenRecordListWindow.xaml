@@ -266,7 +266,8 @@
                                               IsEnabled="{Binding DataContext.CanModify}" />
                                     <MenuItem Header="打开目录"
                                               Command="{Binding Tag.OpenDirectoryCommand}"
-                                              CommandParameter="{Binding DataContext}" />
+                                              CommandParameter="{Binding DataContext}"
+                                              IsEnabled="{Binding DataContext.CanModify}" />
                                     <MenuItem Header="重命名"
                                               Command="{Binding Tag.RenameVideoCommand}"
                                               CommandParameter="{Binding DataContext}"
@@ -354,7 +355,7 @@
                                                 Background="#18F59E0B"
                                                 BorderBrush="#45F59E0B"
                                                 BorderThickness="1"
-                                                CornerRadius="4"
+                                                CornerRadius="{StaticResource Win11ControlCornerRadius}"
                                                 Margin="0,0,8,0"
                                                 MinHeight="24"
                                                 Padding="10,3">
@@ -371,6 +372,28 @@
                                             <TextBlock FontSize="12"
                                                        Foreground="#C46A00"
                                                        Text="{I18N TranscodingChip}" />
+                                        </Border>
+                                        <Border MaxWidth="110"
+                                                Background="#24D13438"
+                                                BorderBrush="#80D13438"
+                                                BorderThickness="1"
+                                                CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                                Margin="0,0,8,0"
+                                                MinHeight="24"
+                                                Padding="10,3">
+                                            <Border.Style>
+                                                <Style TargetType="{x:Type Border}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsRecordingFile}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <TextBlock FontSize="12"
+                                                       Foreground="#C50F1F"
+                                                       Text="{I18N RecordStatusOfRecording}" />
                                         </Border>
                                         <Border MaxWidth="220" Style="{StaticResource VideoMetaChipStyle}">
                                             <TextBlock Style="{StaticResource VideoMetaChipTextStyle}"
@@ -445,6 +468,7 @@
                                           VerticalAlignment="Center"
                                           VerticalContentAlignment="Center"
                                           PreviewMouseLeftButtonDown="SelectionCheckBoxPreviewMouseLeftButtonDown"
+                                          IsEnabled="{Binding CanSelect}"
                                           IsChecked="{Binding IsSelected, Mode=TwoWay}">
                                     <CheckBox.Style>
                                         <Style TargetType="{x:Type CheckBox}" BasedOn="{StaticResource {x:Type CheckBox}}">

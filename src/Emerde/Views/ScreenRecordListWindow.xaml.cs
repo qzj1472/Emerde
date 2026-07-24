@@ -349,6 +349,12 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
             return;
         }
 
+        if (!video.CanSelect)
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (ViewModel.IsMultiSelectMode)
         {
             if (!video.IsSelected)
@@ -393,7 +399,7 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
 
     private void SelectionCheckBoxPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is not System.Windows.Controls.CheckBox { DataContext: RecordedVideoItem item })
+        if (sender is not System.Windows.Controls.CheckBox { DataContext: RecordedVideoItem item } || !item.CanSelect)
         {
             return;
         }
@@ -647,8 +653,8 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     private readonly ObservableCollection<RecordedVideoItem> videos = [];
     internal const int SelectionHistoryLimit = 200;
-    private readonly SemaphoreSlim videoEnrichmentSemaphore = new(Math.Clamp(Environment.ProcessorCount, 2, 4));
     private readonly ConcurrentDictionary<string, Lazy<Task<string>>> thumbnailExtractionTasks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentQueue<RecordedVideoItem> videoEnrichmentQueue = new();
     private readonly object videoEnrichmentLock = new();
     private readonly HashSet<string> queuedVideoEnrichmentPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly Stack<SelectionSnapshot> selectionUndoStack = [];
@@ -657,6 +663,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
     private CancellationTokenSource? videoEnrichmentCancellationTokenSource;
     private RecordedVideoItem? lastSelectedItem;
     private bool isRestoringSelection;
+    private int videoEnrichmentWorkerRunning;
     private readonly Dictionary<string, FileSystemWatcher> directoryWatchers = new(StringComparer.OrdinalIgnoreCase);
     private string[] watchedRoots = [];
     private int directorySnapshotDirty = 1;
@@ -741,6 +748,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
                 FileSystemWatcher watcher = new(root)
                 {
                     IncludeSubdirectories = true,
+                    InternalBufferSize = 64 * 1024,
                     NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.Size | NotifyFilters.LastWrite,
                 };
                 watcher.Changed += DirectoryWatcherChanged;
@@ -772,6 +780,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
     private void DirectoryWatcherError(object sender, ErrorEventArgs e)
     {
         Interlocked.Exchange(ref directorySnapshotDirty, 1);
+        QueueDirectoryRefresh();
         if (e.GetException() is Exception error)
         {
             AppSessionLogger.WriteException(error);
@@ -791,8 +800,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         {
             foreach (RecordedVideoItem item in videos)
             {
-                item.IsInProgress = MediaOperationRegistry.IsPathProtected(item.FullPath);
-                item.IsConverting = MediaOperationRegistry.IsPathProtectedBy(MediaOperationKind.Conversion, item.FullPath);
+                UpdateOperationState(item);
             }
             VisibleItemsChanged?.Invoke(this, EventArgs.Empty);
             if (!e.IsActive)
@@ -904,7 +912,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     private void OnCultureChanged(object? sender, EventArgs e)
     {
-        Application.Current.Dispatcher.Invoke(() =>
+        Action reload = () =>
         {
             bool selectedAll = string.IsNullOrWhiteSpace(SelectedStreamer)
                 || string.Equals(SelectedStreamer, allStreamerOption, StringComparison.Ordinal);
@@ -921,7 +929,16 @@ public partial class ScreenRecordListViewModel : ObservableObject
             OnPropertyChanged(nameof(SortDirectionToolTip));
             RefreshSelectionSummary();
             ApplyFilters();
-        });
+        };
+
+        Dispatcher? dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.CheckAccess())
+        {
+            reload();
+            return;
+        }
+
+        dispatcher.Invoke(reload);
     }
 
     private void ReloadLocalizedOptions()
@@ -1130,6 +1147,11 @@ public partial class ScreenRecordListViewModel : ObservableObject
     [RelayCommand]
     private void BeginMultiSelect()
     {
+        if (!GetVisibleVideos().Any(item => item.CanSelect))
+        {
+            return;
+        }
+
         ApplySelectionChange(() => IsMultiSelectMode = true);
     }
 
@@ -1152,11 +1174,29 @@ public partial class ScreenRecordListViewModel : ObservableObject
     {
         ApplySelectionChange(() =>
         {
+            RecordedVideoItem[] visible = GetVisibleVideos();
+            RecordedVideoItem[] selectable = visible.Where(item => item.CanSelect).ToArray();
+            if (selectable.Length == 0)
+            {
+                foreach (RecordedVideoItem item in visible)
+                {
+                    item.IsSelected = false;
+                }
+                IsMultiSelectMode = false;
+                lastSelectedItem = null;
+                return;
+            }
+
             IsMultiSelectMode = true;
-            foreach (RecordedVideoItem item in GetVisibleVideos())
+            foreach (RecordedVideoItem item in visible)
+            {
+                item.IsSelected = false;
+            }
+            foreach (RecordedVideoItem item in selectable)
             {
                 item.IsSelected = true;
             }
+            lastSelectedItem = selectable[^1];
         });
     }
 
@@ -1165,21 +1205,37 @@ public partial class ScreenRecordListViewModel : ObservableObject
     {
         ApplySelectionChange(() =>
         {
-            foreach (RecordedVideoItem item in GetVisibleVideos())
+            RecordedVideoItem[] visible = GetVisibleVideos();
+            RecordedVideoItem[] selectable = visible.Where(item => item.CanSelect).ToArray();
+            if (selectable.Length == 0)
             {
-                item.IsSelected = !item.IsSelected;
+                foreach (RecordedVideoItem item in visible)
+                {
+                    item.IsSelected = false;
+                }
+                IsMultiSelectMode = false;
+                lastSelectedItem = null;
+                return;
             }
+
+            foreach (RecordedVideoItem item in visible)
+            {
+                item.IsSelected = item.CanSelect && !item.IsSelected;
+            }
+            lastSelectedItem = visible.LastOrDefault(item => item.IsSelected);
         });
     }
 
     internal void SelectRegularItem(RecordedVideoItem item)
     {
-        RegularSelectedItem = item;
+        RegularSelectedItem = item.CanSelect ? item : null;
     }
 
     internal RecordedVideoItem? GetAdjacentVisibleVideo(int offset)
     {
-        RecordedVideoItem[] visible = GetVisibleVideos();
+        RecordedVideoItem[] visible = GetVisibleVideos()
+            .Where(item => item.CanSelect)
+            .ToArray();
         if (visible.Length == 0)
         {
             return null;
@@ -1202,14 +1258,19 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     internal void SelectMultipleItem(RecordedVideoItem item, bool toggleSelection, bool selectRange)
     {
+        if (!item.CanSelect)
+        {
+            return;
+        }
+
         bool wasMultiSelectMode = IsMultiSelectMode;
         ApplySelectionChange(() =>
         {
             IsMultiSelectMode = true;
             if (!wasMultiSelectMode && RegularSelectedItem != null)
             {
-                RegularSelectedItem.IsSelected = true;
-                lastSelectedItem = RegularSelectedItem;
+                RegularSelectedItem.IsSelected = RegularSelectedItem.CanSelect;
+                lastSelectedItem = RegularSelectedItem.IsSelected ? RegularSelectedItem : null;
             }
 
             if (selectRange && lastSelectedItem != null)
@@ -1226,7 +1287,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
                     for (int index = start; index <= end; index++)
                     {
-                        visible[index].IsSelected = true;
+                        visible[index].IsSelected = visible[index].CanSelect;
                     }
                     lastSelectedItem = item;
                     return;
@@ -1247,7 +1308,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     internal void SelectItems(IEnumerable<RecordedVideoItem> items)
     {
-        RecordedVideoItem[] targets = items.Distinct().ToArray();
+        RecordedVideoItem[] targets = items.Where(item => item.CanSelect).Distinct().ToArray();
         if (targets.Length == 0)
         {
             return;
@@ -1360,7 +1421,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
     [RelayCommand]
     private async Task OpenDirectoryAsync(RecordedVideoItem? item)
     {
-        if (item == null || string.IsNullOrWhiteSpace(item.DirectoryPath) || !Directory.Exists(item.DirectoryPath))
+        if (item == null || !item.CanSelect || string.IsNullOrWhiteSpace(item.DirectoryPath) || !Directory.Exists(item.DirectoryPath))
         {
             Toast.Warning(GetResourceText("OpenFolderFailed", "Folder does not exist"));
             return;
@@ -1468,7 +1529,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
     [RelayCommand]
     private void SplitVideo(RecordedVideoItem? item)
     {
-        if (item == null || !CanModifyVideo(item) || !File.Exists(item.FullPath))
+        if (item == null || !CanModifyVideoForUserOperation(item) || !File.Exists(item.FullPath))
         {
             Toast.Warning("视频文件不存在");
             return;
@@ -1484,7 +1545,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
     private void SplitSelected()
     {
         RecordedVideoItem[] selected = GetSelectedVideos();
-        if (selected.Length == 0 || selected.Any(item => !CanModifyVideo(item)))
+        if (selected.Length == 0 || selected.Any(item => !CanModifyVideoForUserOperation(item)))
         {
             Toast.Warning("请先选择要分割的视频");
             return;
@@ -1534,7 +1595,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
 
         RecordedVideoItem[] targets = splitTargetItem != null ? [splitTargetItem] : GetSelectedVideos();
-        if (targets.Length == 0 || targets.Any(item => !CanModifyVideo(item)))
+        if (targets.Length == 0 || targets.Any(item => !CanModifyVideoForUserOperation(item)))
         {
             Toast.Warning("请先选择要分割的视频");
             return;
@@ -1552,6 +1613,11 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
         try
         {
+            if (!await CancelConversionsForUserOperationAsync(targets))
+            {
+                return;
+            }
+
             int completed = 0;
             foreach (RecordedVideoItem target in targets)
             {
@@ -1576,6 +1642,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         finally
         {
             IsOperating = false;
+            OperationProgressText = string.Empty;
             OnPropertyChanged(nameof(IsIdle));
         }
     }
@@ -1584,7 +1651,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
     private void OpenMergeSelected()
     {
         RecordedVideoItem[] selected = GetSelectedVideos();
-        if (selected.Length < 2 || selected.Any(item => !CanModifyVideo(item)))
+        if (selected.Length < 2 || selected.Any(item => !CanModifyVideoForUserOperation(item)))
         {
             Toast.Warning(GetResourceText("SelectAtLeastTwoVideos", "Select at least two videos"));
             return;
@@ -1606,7 +1673,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
         RecordedVideoItem[] selected = OrderVideosForMerge(GetSelectedVideos()).ToArray();
 
-        if (selected.Length < 2 || selected.Any(item => !CanModifyVideo(item)))
+        if (selected.Length < 2 || selected.Any(item => !CanModifyVideoForUserOperation(item)))
         {
             Toast.Warning(GetResourceText("SelectAtLeastTwoVideos", "Select at least two videos"));
             return;
@@ -1618,31 +1685,37 @@ public partial class ScreenRecordListViewModel : ObservableObject
             return;
         }
 
-        bool streamsCompatible = await Task.Run(() => HaveCompatibleMergeStreams(selected));
-        if (!streamsCompatible)
-        {
-            Toast.Warning("所选视频的编码、分辨率或音轨参数不一致  无法无损合并");
-            return;
-        }
-
-        using CommonOpenFileDialog dialog = new()
-        {
-            IsFolderPicker = true,
-        };
-
-        if (dialog.ShowDialog() != CommonFileDialogResult.Ok)
-        {
-            return;
-        }
-
         IsOperating = true;
-        OperationProgressText = GetResourceText("MergingVideos", "Merging...");
-        IsMergeProgressIndeterminate = true;
-        MergeProgressValue = 0;
+        OperationProgressText = "正在准备合并...";
         OnPropertyChanged(nameof(IsIdle));
 
         try
         {
+            if (!await CancelConversionsForUserOperationAsync(selected))
+            {
+                return;
+            }
+
+            bool streamsCompatible = await Task.Run(() => HaveCompatibleMergeStreams(selected));
+            if (!streamsCompatible)
+            {
+                Toast.Warning("所选视频的编码、分辨率或音轨参数不一致  无法无损合并");
+                return;
+            }
+
+            using CommonOpenFileDialog dialog = new()
+            {
+                IsFolderPicker = true,
+            };
+
+            if (dialog.ShowDialog() != CommonFileDialogResult.Ok)
+            {
+                return;
+            }
+
+            OperationProgressText = GetResourceText("MergingVideos", "Merging...");
+            IsMergeProgressIndeterminate = true;
+            MergeProgressValue = 0;
             bool result = await MergeVideosAsync(selected, dialog.FileName, progress =>
             {
                 Application.Current.Dispatcher.Invoke(() =>
@@ -1695,7 +1768,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     private async Task DeleteVideosAsync(IReadOnlyCollection<RecordedVideoItem> items)
     {
-        if (IsOperating || items.Count == 0 || items.Any(item => !CanModifyVideo(item)))
+        if (IsOperating || items.Count == 0 || items.Any(item => !CanModifyVideoForUserOperation(item)))
         {
             return;
         }
@@ -1710,36 +1783,54 @@ public partial class ScreenRecordListViewModel : ObservableObject
             return;
         }
 
+        IsOperating = true;
+        OperationProgressText = "正在准备删除...";
+        OnPropertyChanged(nameof(IsIdle));
+
         int deleted = 0;
         int failed = 0;
-        foreach (RecordedVideoItem item in items)
+        try
         {
-            try
+            if (!await CancelConversionsForUserOperationAsync(items))
             {
-                if (File.Exists(item.FullPath))
+                return;
+            }
+
+            foreach (RecordedVideoItem item in items)
+            {
+                try
                 {
-                    FileSystem.DeleteFile(item.FullPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
-                    VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(item.FullPath, sendToRecycleBin: true);
-                    DeleteThumbnailCacheIfUnused(item.FullPath);
-                    deleted++;
+                    if (File.Exists(item.FullPath))
+                    {
+                        FileSystem.DeleteFile(item.FullPath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
+                        VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(item.FullPath, sendToRecycleBin: true);
+                        DeleteThumbnailCacheIfUnused(item.FullPath);
+                        deleted++;
+                    }
+                }
+                catch (Exception e)
+                {
+                    Debug.WriteLine(e);
+                    failed++;
                 }
             }
-            catch (Exception e)
-            {
-                Debug.WriteLine(e);
-                failed++;
-            }
-        }
 
-        if (deleted > 0)
-        {
-            Toast.Success($"已删除 {deleted} 个视频");
+            if (deleted > 0)
+            {
+                Toast.Success($"已删除 {deleted} 个视频");
+            }
+            if (failed > 0)
+            {
+                Toast.Warning($"有 {failed} 个视频删除失败");
+            }
+            await RefreshAsync();
         }
-        if (failed > 0)
+        finally
         {
-            Toast.Warning($"有 {failed} 个视频删除失败");
+            IsOperating = false;
+            OperationProgressText = string.Empty;
+            OnPropertyChanged(nameof(IsIdle));
         }
-        await RefreshAsync();
     }
 
     [RelayCommand]
@@ -1862,6 +1953,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         {
             queuedVideoEnrichmentPaths.Clear();
         }
+        videoEnrichmentQueue.Clear();
 
         string[] roots = folders
             .Where(folder => !string.IsNullOrWhiteSpace(folder))
@@ -1875,8 +1967,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         {
             foreach (RecordedVideoItem item in videos)
             {
-                item.IsInProgress = MediaOperationRegistry.IsPathProtected(item.FullPath);
-                item.IsConverting = MediaOperationRegistry.IsPathProtectedBy(MediaOperationKind.Conversion, item.FullPath);
+                UpdateOperationState(item);
             }
             VisibleItemsChanged?.Invoke(this, EventArgs.Empty);
             return;
@@ -1884,15 +1975,15 @@ public partial class ScreenRecordListViewModel : ObservableObject
         Interlocked.Exchange(ref directorySnapshotDirty, 0);
 
         RecordedVideoItem[] items;
+        Dictionary<string, RecordedVideoItem> existingByPath = reuseExistingItems
+            ? videos.Where(item => !string.IsNullOrWhiteSpace(item.FullPath))
+                .GroupBy(item => item.FullPath, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, RecordedVideoItem>(StringComparer.OrdinalIgnoreCase);
         try
         {
             items = await Task.Run(() =>
             {
-                Dictionary<string, RecordedVideoItem> existingByPath = reuseExistingItems
-                    ? videos.Where(item => !string.IsNullOrWhiteSpace(item.FullPath))
-                        .GroupBy(item => item.FullPath, StringComparer.OrdinalIgnoreCase)
-                        .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase)
-                    : new Dictionary<string, RecordedVideoItem>(StringComparer.OrdinalIgnoreCase);
                 VideoFileSnapshot[] snapshots = roots
                     .Where(Directory.Exists)
                     .SelectMany(root => EnumerateVideoFiles(root).Select(path => (Path: path, Root: root)))
@@ -1910,6 +2001,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
                         loadToken.ThrowIfCancellationRequested();
                         bool isInProgress = MediaOperationRegistry.IsPathProtected(snapshot.Path);
                         bool isConverting = MediaOperationRegistry.IsPathProtectedBy(MediaOperationKind.Conversion, snapshot.Path);
+                        bool isRecordingFile = MediaOperationRegistry.IsPathProtectedBy(MediaOperationKind.Recording, snapshot.Path);
                         if (existingByPath.TryGetValue(snapshot.Path, out RecordedVideoItem? existing)
                             && existing.SourceLength == snapshot.Length
                             && existing.SourceLastWriteTimeUtc == snapshot.LastWriteTimeUtc
@@ -1918,7 +2010,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
                             return existing;
                         }
 
-                        return TryCreateRecordedVideoItem(snapshot, isInProgress, isConverting);
+                        return TryCreateRecordedVideoItem(snapshot, isInProgress, isConverting, isRecordingFile);
                     })
                     .Where(item => item != null)
                     .Select(item => item!)
@@ -1942,12 +2034,11 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
         foreach (RecordedVideoItem item in items)
         {
-            item.IsInProgress = MediaOperationRegistry.IsPathProtected(item.FullPath);
-            item.IsConverting = MediaOperationRegistry.IsPathProtectedBy(MediaOperationKind.Conversion, item.FullPath);
+            UpdateOperationState(item);
         }
 
         HashSet<string> selectedPaths = videos
-            .Where(video => video.IsSelected)
+            .Where(video => video.CanSelect && video.IsSelected)
             .Select(video => video.FullPath)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         string regularSelectedPath = RegularSelectedItem?.FullPath ?? string.Empty;
@@ -1957,7 +2048,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
             if (videos.SequenceEqual(items))
             {
                 lastSelectedItem = GetVisibleVideos().LastOrDefault(item => item.IsSelected);
-                RegularSelectedItem = videos.FirstOrDefault(item => string.Equals(item.FullPath, regularSelectedPath, StringComparison.OrdinalIgnoreCase));
+                RegularSelectedItem = videos.FirstOrDefault(item => item.CanSelect && string.Equals(item.FullPath, regularSelectedPath, StringComparison.OrdinalIgnoreCase));
                 VisibleItemsChanged?.Invoke(this, EventArgs.Empty);
                 return;
             }
@@ -1969,11 +2060,17 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
 
         videos.Clear();
+        int addedCount = 0;
         foreach (RecordedVideoItem item in items)
         {
-            item.IsSelected = selectedPaths.Contains(item.FullPath);
+            item.IsSelected = item.CanSelect && selectedPaths.Contains(item.FullPath);
             item.PropertyChanged += VideoItemPropertyChanged;
             videos.Add(item);
+            addedCount++;
+            if (addedCount % 40 == 0)
+            {
+                await Task.Yield();
+            }
         }
 
         UpdateStreamerOptions();
@@ -1981,7 +2078,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         ApplyFilters();
         RefreshSelectionSummary();
         lastSelectedItem = GetVisibleVideos().LastOrDefault(item => item.IsSelected);
-        RegularSelectedItem = videos.FirstOrDefault(item => string.Equals(item.FullPath, regularSelectedPath, StringComparison.OrdinalIgnoreCase));
+        RegularSelectedItem = videos.FirstOrDefault(item => item.CanSelect && string.Equals(item.FullPath, regularSelectedPath, StringComparison.OrdinalIgnoreCase));
         VisibleItemsChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -2026,11 +2123,11 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
     }
 
-    private static RecordedVideoItem? TryCreateRecordedVideoItem(VideoFileSnapshot snapshot, bool isInProgress, bool isConverting)
+    private static RecordedVideoItem? TryCreateRecordedVideoItem(VideoFileSnapshot snapshot, bool isInProgress, bool isConverting, bool isRecordingFile)
     {
         try
         {
-            return CreateRecordedVideoItem(snapshot, isInProgress, isConverting);
+            return CreateRecordedVideoItem(snapshot, isInProgress, isConverting, isRecordingFile);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -2038,7 +2135,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
     }
 
-    private static RecordedVideoItem CreateRecordedVideoItem(VideoFileSnapshot snapshot, bool isInProgress, bool isConverting)
+    private static RecordedVideoItem CreateRecordedVideoItem(VideoFileSnapshot snapshot, bool isInProgress, bool isConverting, bool isRecordingFile)
     {
         FileInfo fileInfo = new(snapshot.Path);
         VideoRecordingMetadata metadata = LoadMetadata(fileInfo);
@@ -2064,6 +2161,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
                 || fileInfo.Extension.Equals(".flv", StringComparison.OrdinalIgnoreCase),
             IsInProgress = isInProgress,
             IsConverting = isConverting,
+            IsRecordingFile = isRecordingFile,
             SourceLength = snapshot.Length,
             SourceLastWriteTimeUtc = snapshot.LastWriteTimeUtc,
             MetadataLastWriteTimeUtc = snapshot.MetadataLastWriteTimeUtc,
@@ -2146,55 +2244,17 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     private static VideoProbeInfo ProbeVideoFileInfo(string filePath, long fileSize)
     {
-        string? ffprobePath = SearchFileHelper.SearchExecutable("ffprobe.exe");
-        if (string.IsNullOrWhiteSpace(ffprobePath) || !File.Exists(filePath))
+        if (!File.Exists(filePath)
+            || !FfmpegMediaEngine.TryProbe(filePath, out FfmpegMediaProbeResult result, out _))
         {
             return VideoProbeInfo.Empty;
         }
 
-        try
-        {
-            ProcessStartInfo startInfo = new()
-            {
-                FileName = ffprobePath,
-                UseShellExecute = false,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true,
-                StandardErrorEncoding = Encoding.UTF8,
-                StandardOutputEncoding = Encoding.UTF8,
-            };
-
-            foreach (string argument in new[] { "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,bit_rate:format=bit_rate,duration:format_tags", "-of", "json", filePath })
-            {
-                startInfo.ArgumentList.Add(argument);
-            }
-
-            using Process process = new() { StartInfo = startInfo };
-            process.Start();
-            _ = ChildProcessTracerPeriodicTimer.Default.TryTraceProcess(process);
-
-            Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
-            Task<string> errorTask = process.StandardError.ReadToEndAsync();
-            if (!process.WaitForExit(5000))
-            {
-                if (!process.HasExited)
-                {
-                    process.Kill(entireProcessTree: true);
-                }
-
-                process.WaitForExit();
-                Task.WaitAll([outputTask, errorTask]);
-                return VideoProbeInfo.Empty;
-            }
-
-            _ = errorTask.GetAwaiter().GetResult();
-            return ParseVideoProbeJson(outputTask.GetAwaiter().GetResult(), fileSize);
-        }
-        catch (Exception e) when (e is InvalidOperationException or IOException or Win32Exception or JsonException)
-        {
-            return VideoProbeInfo.Empty;
-        }
+        string resolution = result.Width > 0 && result.Height > 0 ? $"{result.Width}x{result.Height}" : string.Empty;
+        double bitrate = result.Bitrate > 0
+            ? result.Bitrate
+            : result.DurationSeconds > 0 && fileSize > 0 ? fileSize * 8d / result.DurationSeconds : 0;
+        return new VideoProbeInfo(resolution, bitrate > 0 ? FormatBitrate(bitrate) : string.Empty, null);
     }
 
     internal static VideoProbeInfo ParseVideoProbeJson(string json, long fileSize = 0)
@@ -2314,6 +2374,11 @@ public partial class ScreenRecordListViewModel : ObservableObject
     {
         videoLoadCancellationTokenSource?.Cancel();
         videoEnrichmentCancellationTokenSource?.Cancel();
+        videoEnrichmentQueue.Clear();
+        lock (videoEnrichmentLock)
+        {
+            queuedVideoEnrichmentPaths.Clear();
+        }
     }
 
     private void QueueVideoEnrichment(RecordedVideoItem item, CancellationToken token)
@@ -2331,32 +2396,53 @@ public partial class ScreenRecordListViewModel : ObservableObject
             }
         }
 
+        videoEnrichmentQueue.Enqueue(item);
+        StartVideoEnrichmentWorker(token);
+    }
+
+    private void StartVideoEnrichmentWorker(CancellationToken token)
+    {
+        if (Interlocked.Exchange(ref videoEnrichmentWorkerRunning, 1) == 1)
+        {
+            return;
+        }
+
         _ = Task.Run(async () =>
         {
             try
             {
-                await videoEnrichmentSemaphore.WaitAsync(token);
-                try
+                while (!token.IsCancellationRequested && videoEnrichmentQueue.TryDequeue(out RecordedVideoItem? item))
                 {
-                    await EnrichVideoAsync(item, token);
+                    try
+                    {
+                        await EnrichVideoAsync(item, token);
+                    }
+                    catch (OperationCanceledException) when (token.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (Exception e)
+                    {
+                        AppSessionLogger.WriteException(e);
+                    }
+                    finally
+                    {
+                        lock (videoEnrichmentLock)
+                        {
+                            queuedVideoEnrichmentPaths.Remove(item.FullPath);
+                        }
+                    }
+
+                    await Task.Yield();
                 }
-                finally
-                {
-                    videoEnrichmentSemaphore.Release();
-                }
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception e)
-            {
-                AppSessionLogger.WriteException(e);
             }
             finally
             {
-                lock (videoEnrichmentLock)
+                Interlocked.Exchange(ref videoEnrichmentWorkerRunning, 0);
+                CancellationTokenSource? source = videoEnrichmentCancellationTokenSource;
+                if (source != null && !source.IsCancellationRequested && !videoEnrichmentQueue.IsEmpty)
                 {
-                    queuedVideoEnrichmentPaths.Remove(item.FullPath);
+                    StartVideoEnrichmentWorker(source.Token);
                 }
             }
         }, CancellationToken.None);
@@ -2413,8 +2499,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     private async Task<string> ExtractThumbnailAsync(string filePath, CancellationToken token)
     {
-        string? ffmpegPath = SearchFileHelper.SearchExecutable("ffmpeg.exe");
-        if (string.IsNullOrWhiteSpace(ffmpegPath) || !File.Exists(filePath) || MediaOperationRegistry.IsPathProtected(filePath))
+        if (!File.Exists(filePath) || MediaOperationRegistry.IsPathProtected(filePath))
         {
             return string.Empty;
         }
@@ -2428,18 +2513,8 @@ public partial class ScreenRecordListViewModel : ObservableObject
             return imagePath;
         }
 
-        Lazy<Task<string>> extraction = thumbnailExtractionTasks.GetOrAdd(
-            imagePath,
-            _ => new Lazy<Task<string>>(
-                () => ExtractThumbnailSharedAsync(ffmpegPath, filePath, imagePath),
-                LazyThreadSafetyMode.ExecutionAndPublication));
-        Task<string> extractionTask = extraction.Value;
-        _ = extractionTask.ContinueWith(
-            _ => thumbnailExtractionTasks.TryRemove(new KeyValuePair<string, Lazy<Task<string>>>(imagePath, extraction)),
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
-        return await extractionTask.WaitAsync(token);
+        await Task.CompletedTask;
+        return string.Empty;
     }
 
     private static async Task<string> ExtractThumbnailSharedAsync(string ffmpegPath, string filePath, string imagePath)
@@ -2772,6 +2847,64 @@ public partial class ScreenRecordListViewModel : ObservableObject
         return item.CanModify && !MediaOperationRegistry.IsPathProtected(item.FullPath);
     }
 
+    private static void UpdateOperationState(RecordedVideoItem item)
+    {
+        item.IsInProgress = MediaOperationRegistry.IsPathProtected(item.FullPath);
+        item.IsConverting = MediaOperationRegistry.IsPathProtectedBy(MediaOperationKind.Conversion, item.FullPath);
+        item.IsRecordingFile = MediaOperationRegistry.IsPathProtectedBy(MediaOperationKind.Recording, item.FullPath);
+        if (item.IsRecordingFile)
+        {
+            item.IsSelected = false;
+        }
+    }
+
+    private static bool CanModifyVideoForUserOperation(RecordedVideoItem item)
+    {
+        bool isConverting = item.IsConverting || MediaOperationRegistry.IsPathProtectedBy(MediaOperationKind.Conversion, item.FullPath);
+        if (!item.CanModify && !isConverting)
+        {
+            return false;
+        }
+
+        return !MediaOperationRegistry.IsPathProtectedBy(MediaOperationKind.Recording, item.FullPath)
+            && !MediaOperationRegistry.IsPathProtectedBy(MediaOperationKind.Split, item.FullPath)
+            && !MediaOperationRegistry.IsPathProtectedBy(MediaOperationKind.Merge, item.FullPath);
+    }
+
+    private async Task<bool> CancelConversionsForUserOperationAsync(IReadOnlyCollection<RecordedVideoItem> items)
+    {
+        string[] paths = items
+            .Select(item => item.FullPath)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (paths.Length == 0)
+        {
+            return true;
+        }
+
+        int cancelled = paths.Sum(path => MediaOperationRegistry.Cancel(MediaOperationKind.Conversion, path));
+        if (cancelled <= 0)
+        {
+            return true;
+        }
+
+        OperationProgressText = "正在取消转码...";
+        bool released = await MediaOperationRegistry.WaitForPathReleaseAsync(MediaOperationKind.Conversion, paths, TimeSpan.FromSeconds(8));
+        foreach (RecordedVideoItem item in items)
+        {
+            UpdateOperationState(item);
+        }
+
+        if (!released)
+        {
+            Toast.Warning("转码正在停止，请稍后再试");
+            return false;
+        }
+
+        return true;
+    }
+
     internal static string InferNickName(string filePath, string rootFolder)
     {
         FileInfo fileInfo = new(filePath);
@@ -3056,7 +3189,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     private RecordedVideoItem[] GetSelectedVideos()
     {
-        return GetVisibleVideos().Where(video => video.IsSelected && File.Exists(video.FullPath)).ToArray();
+        return GetVisibleVideos().Where(video => video.CanSelect && video.IsSelected && File.Exists(video.FullPath)).ToArray();
     }
 
     private RecordedVideoItem[] GetContextVideos(RecordedVideoItem? item)
@@ -3067,7 +3200,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
             return selected;
         }
 
-        return item != null && File.Exists(item.FullPath) ? [item] : [];
+        return item != null && item.CanSelect && File.Exists(item.FullPath) ? [item] : [];
     }
 
     private RecordedVideoItem[] GetVisibleVideos()
@@ -3106,7 +3239,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     private HashSet<string> CaptureSelectedPaths()
     {
-        return videos.Where(video => video.IsSelected)
+        return videos.Where(video => video.CanSelect && video.IsSelected)
             .Select(video => video.FullPath)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
@@ -3119,7 +3252,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         {
             foreach (RecordedVideoItem item in videos)
             {
-                item.IsSelected = canRestoreMultiSelect && selectedPaths.Contains(item.FullPath);
+                item.IsSelected = canRestoreMultiSelect && item.CanSelect && selectedPaths.Contains(item.FullPath);
             }
         }
         finally
@@ -3225,41 +3358,13 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     private static string ProbeMergeStreamSignature(string filePath)
     {
-        string? ffprobePath = SearchFileHelper.SearchExecutable("ffprobe.exe");
-        if (string.IsNullOrWhiteSpace(ffprobePath) || !File.Exists(filePath))
+        if (!File.Exists(filePath)
+            || !FfmpegMediaEngine.TryProbe(filePath, out FfmpegMediaProbeResult result, out _))
         {
             return string.Empty;
         }
 
-        try
-        {
-            ProcessStartInfo startInfo = new()
-            {
-                FileName = ffprobePath,
-                UseShellExecute = false,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true,
-                StandardErrorEncoding = Encoding.UTF8,
-                StandardOutputEncoding = Encoding.UTF8,
-            };
-
-            foreach (string argument in new[] { "-v", "error", "-show_entries", "stream=codec_type,codec_name,profile,width,height,pix_fmt,time_base,sample_rate,channels,channel_layout", "-of", "json", filePath })
-            {
-                startInfo.ArgumentList.Add(argument);
-            }
-
-            using Process process = new() { StartInfo = startInfo };
-            process.Start();
-            _ = ChildProcessTracerPeriodicTimer.Default.TryTraceProcess(process);
-            return TryReadProcessOutput(process, 15000, out string output) && process.ExitCode == 0
-                ? ParseMergeStreamSignature(output)
-                : string.Empty;
-        }
-        catch (Exception e) when (e is InvalidOperationException or IOException or Win32Exception or JsonException)
-        {
-            return string.Empty;
-        }
+        return $"{result.Width}x{result.Height}|audio={result.HasAudio}";
     }
 
     internal static string ParseMergeStreamSignature(string json)
@@ -3337,13 +3442,23 @@ public partial class ScreenRecordListViewModel : ObservableObject
         string temporaryStem = $".emerde-split-{Guid.NewGuid():N}";
         string temporaryPattern = Path.Combine(directory, $"{temporaryStem}_%03d{source.Extension}");
         string finalPattern = Path.Combine(directory, $"{outputBase}_%03d{source.Extension}");
-        string[] arguments = ["-i", source.FullName, "-c", "copy", "-map", "0", "-f", "segment", "-segment_time", seconds.ToString(CultureInfo.InvariantCulture), "-reset_timestamps", "1", temporaryPattern];
         using CancellationTokenSource operationCancellation = new(TimeSpan.FromHours(12));
         using IDisposable operation = MediaOperationRegistry.Register(
             MediaOperationKind.Split,
             () => [source.FullName, temporaryPattern, finalPattern],
             operationCancellation.Cancel);
-        (bool succeeded, _) = await ExecuteFfmpegAsync(arguments, operationCancellation.Token);
+        VideoRecordingMetadata sourceMetadata = VideoRecordingMetadataStore.Load(source);
+        FfmpegMediaRunResult result = await Task.Run(() => FfmpegMediaEngine.SplitFile(
+            source.FullName,
+            temporaryPattern,
+            seconds,
+            sourceMetadata,
+            operationCancellation.Token));
+        bool succeeded = result.ExitCode == 0;
+        if (!succeeded && !string.IsNullOrWhiteSpace(result.ErrorOutput))
+        {
+            AppSessionLogger.Event("error", "video_list", "ffmpeg_operation_failed", result.ErrorOutput, new { result.ExitCode });
+        }
         string[] temporaryOutputs = Directory
             .EnumerateFiles(directory, $"{temporaryStem}_*{source.Extension}", System.IO.SearchOption.TopDirectoryOnly)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
@@ -3357,7 +3472,6 @@ public partial class ScreenRecordListViewModel : ObservableObject
             return false;
         }
 
-        VideoRecordingMetadata sourceMetadata = VideoRecordingMetadataStore.Load(source);
         bool hasMetadata = VideoRecordingMetadataStore.HasAnyMetadata(sourceMetadata);
         List<(string Temporary, string Final)> preparedOutputs = [];
         List<string> finalOutputs = [];
@@ -3421,18 +3535,24 @@ public partial class ScreenRecordListViewModel : ObservableObject
             operationCancellation.Cancel);
         try
         {
-            await File.WriteAllLinesAsync(listPath, ordered.Select(item => $"file '{EscapeConcatPath(item.FullPath)}'"), new UTF8Encoding(false));
             double totalSeconds = await Task.Run(() => ordered.Sum(item => GetVideoDurationSeconds(item.FullPath)));
-            string[] arguments = ["-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", "-progress", "pipe:1", "-nostats", temporaryTarget];
-            (bool succeeded, _) = await ExecuteFfmpegAsync(arguments, operationCancellation.Token, line =>
-            {
-                if (totalSeconds > 0 && line.StartsWith("out_time_ms=", StringComparison.OrdinalIgnoreCase)
-                    && double.TryParse(line["out_time_ms=".Length..], NumberStyles.Float, CultureInfo.InvariantCulture, out double microseconds))
+            FfmpegMediaRunResult result = await Task.Run(() => FfmpegMediaEngine.RemuxFiles(
+                ordered.Select(item => item.FullPath).ToArray(),
+                temporaryTarget,
+                VideoRecordingMetadataStore.Load(first),
+                operationCancellation.Token,
+                _ =>
                 {
-                    progress(Math.Min(99, microseconds / 1_000_000d / totalSeconds * 100d));
-                }
-                return Task.CompletedTask;
-            });
+                    if (totalSeconds > 0)
+                    {
+                        progress(50);
+                    }
+                }));
+            bool succeeded = result.ExitCode == 0;
+            if (!succeeded && !string.IsNullOrWhiteSpace(result.ErrorOutput))
+            {
+                AppSessionLogger.Event("error", "video_list", "ffmpeg_operation_failed", result.ErrorOutput, new { result.ExitCode });
+            }
             if (!succeeded || !File.Exists(temporaryTarget) || new FileInfo(temporaryTarget).Length == 0)
             {
                 DeleteFileIfExists(temporaryTarget);
@@ -3467,41 +3587,12 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     private static double GetVideoDurationSeconds(string filePath)
     {
-        string? ffprobePath = SearchFileHelper.SearchExecutable("ffprobe.exe");
-        if (string.IsNullOrWhiteSpace(ffprobePath))
+        if (!FfmpegMediaEngine.TryProbe(filePath, out FfmpegMediaProbeResult result, out _))
         {
             return 0;
         }
 
-        try
-        {
-            ProcessStartInfo startInfo = new()
-            {
-                FileName = ffprobePath,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-            };
-            foreach (string argument in new[] { "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", filePath })
-            {
-                startInfo.ArgumentList.Add(argument);
-            }
-
-            using Process process = new() { StartInfo = startInfo };
-            process.Start();
-            _ = ChildProcessTracerPeriodicTimer.Default.TryTraceProcess(process);
-            return TryReadProcessOutput(process, 15000, out string output)
-                && process.ExitCode == 0
-                && double.TryParse(output.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double duration)
-                    ? duration
-                    : 0;
-        }
-        catch (Exception e)
-        {
-            AppSessionLogger.WriteException(e);
-            return 0;
-        }
+        return result.DurationSeconds;
     }
 
     private static bool TryReadProcessOutput(Process process, int timeoutMilliseconds, out string output)
@@ -3539,58 +3630,8 @@ public partial class ScreenRecordListViewModel : ObservableObject
         CancellationToken cancellationToken,
         Func<string, Task>? outputLine = null)
     {
-        string? ffmpegPath = SearchFileHelper.SearchExecutable("ffmpeg.exe");
-        if (string.IsNullOrWhiteSpace(ffmpegPath))
-        {
-            return (false, "ffmpeg executable was not found");
-        }
-
-        try
-        {
-            ProcessStartInfo startInfo = new()
-            {
-                FileName = ffmpegPath,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8,
-                StandardErrorEncoding = Encoding.UTF8,
-            };
-            foreach (string argument in arguments)
-            {
-                startInfo.ArgumentList.Add(argument);
-            }
-
-            using Process process = new() { StartInfo = startInfo };
-            process.Start();
-            _ = ChildProcessTracerPeriodicTimer.Default.TryTraceProcess(process);
-            Task outputTask = ReadFfmpegOutputAsync(process.StandardOutput, outputLine);
-            Task<string> errorTask = process.StandardError.ReadToEndAsync();
-            try
-            {
-                await process.WaitForExitAsync(cancellationToken);
-            }
-            catch (OperationCanceledException)
-            {
-                process.Kill(entireProcessTree: true);
-                await Task.WhenAll(outputTask, errorTask);
-                return (false, "ffmpeg operation was cancelled or timed out");
-            }
-            await outputTask;
-            string error = await errorTask;
-            if (process.ExitCode != 0)
-            {
-                AppSessionLogger.Event("error", "video_list", "ffmpeg_operation_failed", error, new { process.ExitCode });
-            }
-            return (process.ExitCode == 0, error);
-        }
-        catch (Exception e)
-        {
-            AppSessionLogger.WriteException(e);
-            AppSessionLogger.Event("error", "video_list", "ffmpeg_operation_exception", e.Message);
-            return (false, e.Message);
-        }
+        await Task.CompletedTask;
+        return (false, "ffmpeg command-line backend is not available");
     }
 
     private static async Task ReadFfmpegOutputAsync(StreamReader reader, Func<string, Task>? outputLine)
@@ -3711,6 +3752,12 @@ public partial class RecordedVideoItem : ObservableObject
     private bool isConverting;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSelect))]
+    [NotifyPropertyChangedFor(nameof(CanModify))]
+    [NotifyPropertyChangedFor(nameof(CanTranscode))]
+    private bool isRecordingFile;
+
+    [ObservableProperty]
     private bool isSelected;
 
     [ObservableProperty]
@@ -3718,9 +3765,19 @@ public partial class RecordedVideoItem : ObservableObject
 
     public bool HasThumbnail => !string.IsNullOrWhiteSpace(ThumbnailPath) && File.Exists(ThumbnailPath);
 
-    public bool CanModify => !IsInProgress;
+    public bool CanModify => !IsInProgress && !IsRecordingFile;
 
-    public bool CanTranscode => SupportsTranscode && !IsInProgress;
+    public bool CanTranscode => SupportsTranscode && !IsInProgress && !IsRecordingFile;
+
+    public bool CanSelect => !IsRecordingFile;
+
+    partial void OnIsRecordingFileChanged(bool value)
+    {
+        if (value)
+        {
+            IsSelected = false;
+        }
+    }
 
     internal void RefreshLocalizedText()
     {
