@@ -485,7 +485,7 @@
                                            Foreground="#D83B01"
                                            Text="重要注意事项" />
                                 <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="不要在录制文件仍在写入时强制结束进程、断电或直接删除软件目录；不要删除或单独移动 ffmpeg.exe、ffprobe.exe 及程序依赖文件。平台接口发生变化时请先保留日志，系统关机功能启用前请保存其他应用中的工作。" />
+                                           Text="不要在录制文件仍在写入时强制结束进程、断电或直接删除软件目录；不要删除或单独移动 ffmpeg、libvlc 等程序依赖文件夹。平台接口发生变化时请先保留日志，系统关机功能启用前请保存其他应用中的工作。" />
                             </ui:StackPanel>
                         </Grid>
                     </Border>

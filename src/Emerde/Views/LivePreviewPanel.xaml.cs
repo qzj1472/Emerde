@@ -151,9 +151,18 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(ViewModels.MainViewModel.IsPreviewing))
+        if (e.PropertyName == nameof(ViewModels.MainViewModel.IsPreviewing)
+            || e.PropertyName == nameof(ViewModels.MainViewModel.IsPreviewTransitioning)
+            || e.PropertyName == nameof(ViewModels.MainViewModel.LivePreviewStatus))
         {
             _ = Dispatcher.BeginInvoke(UpdateVideoPresentationState);
+            _ = Dispatcher.BeginInvoke(() =>
+            {
+                if (CanUsePreviewControls())
+                {
+                    ShowPreviewControls();
+                }
+            }, System.Windows.Threading.DispatcherPriority.Render);
         }
     }
 
