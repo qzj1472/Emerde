@@ -1,0 +1,133 @@
+<Window x:Class="Emerde.Views.ConfigRestoreWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:Emerde.Views"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Focusable="False"
+        FocusVisualStyle="{x:Null}"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        SizeToContent="Manual"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None">
+    <Window.Resources>
+        <SolidColorBrush x:Key="ConfigRestoreFooterPrimaryFillBrush" Color="#F3F3F3" />
+        <SolidColorBrush x:Key="ConfigRestoreFooterPrimaryHoverBrush" Color="#EAEAEA" />
+        <SolidColorBrush x:Key="ConfigRestoreFooterPrimaryPressedBrush" Color="#E1E1E1" />
+        <SolidColorBrush x:Key="ConfigRestoreFooterSecondaryFillBrush" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="ConfigRestoreFooterSecondaryHoverBrush" Color="#F8F8F8" />
+        <SolidColorBrush x:Key="ConfigRestoreFooterBorderBrush" Color="#24000000" />
+
+        <Style x:Key="ConfigRestoreFooterButtonStyle" TargetType="{x:Type Button}">
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="Background" Value="{StaticResource ConfigRestoreFooterSecondaryFillBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ConfigRestoreFooterBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="ButtonChrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{StaticResource ButtonCornerRadius}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource ConfigRestoreFooterSecondaryHoverBrush}" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{StaticResource ConfigRestoreFooterPrimaryPressedBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ConfigRestoreFooterPrimaryButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource ConfigRestoreFooterButtonStyle}">
+            <Setter Property="Background" Value="{StaticResource ConfigRestoreFooterPrimaryFillBrush}" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource ConfigRestoreFooterPrimaryHoverBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Border Background="{DynamicResource EmerdeSurfaceBrush}"
+            BorderBrush="{DynamicResource ControlElevationBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource ContentDialogCornerRadius}">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="24"
+                              Direction="270"
+                              Opacity="0.18"
+                              ShadowDepth="4"
+                              Color="#000000" />
+        </Border.Effect>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0"
+                       Margin="24,22,24,14"
+                       FontSize="20"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                       Text="恢复配置" />
+
+            <ContentControl x:Name="RestoreContentHost"
+                            Grid.Row="1"
+                            Margin="24,0,24,12" />
+
+            <Border Grid.Row="2"
+                    Background="{DynamicResource EmerdeSurfaceBrush}"
+                    BorderBrush="{DynamicResource ControlElevationBorderBrush}"
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,8,8">
+                <Grid Margin="24,16,24,18">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="PrimaryButton"
+                            Grid.Column="0"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            MinHeight="34"
+                            Style="{StaticResource ConfigRestoreFooterPrimaryButtonStyle}"
+                            Click="PrimaryButtonClick"
+                            Content="{Binding PrimaryButtonText, RelativeSource={RelativeSource AncestorType={x:Type views:ConfigRestoreWindow}}}" />
+                    <Button Grid.Column="2"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center"
+                            MinHeight="34"
+                            Style="{StaticResource ConfigRestoreFooterButtonStyle}"
+                            Click="CancelButtonClick"
+                            Content="取消" />
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

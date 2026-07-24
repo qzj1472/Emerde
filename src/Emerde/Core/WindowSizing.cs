@@ -14,6 +14,9 @@ internal static class WindowSizing
     private const double MainBaseWidth = 1440d;
     private const double MainBaseHeight = 926d;
     private const double DialogMarginShortSideRatio = 0.10d;
+    private static int openContentDialogCount;
+
+    public static bool HasOpenContentDialog => openContentDialogCount > 0;
 
     public static void UseRelativeScreenSize(Window window, double baseWidth, double baseHeight)
     {
@@ -36,6 +39,12 @@ internal static class WindowSizing
 
     public static async Task<ContentDialogResult> ShowContentDialogAsync(ContentDialog dialog, Window? owner = null)
     {
+        if (HasOpenContentDialog)
+        {
+            return default;
+        }
+
+        openContentDialogCount++;
         ApplyContentDialogSizeLimit(dialog, owner);
         RoutedEventHandler? loadedHandler = null;
         loadedHandler = (_, _) =>
@@ -54,12 +63,13 @@ internal static class WindowSizing
         finally
         {
             dialog.Loaded -= loadedHandler;
+            openContentDialogCount = Math.Max(0, openContentDialogCount - 1);
         }
     }
 
     public static void ApplyContentDialogSizeLimit(ContentDialog dialog, Window? owner = null)
     {
-        if (dialog.Content is Views.LocalSettingsContentDialog)
+        if (dialog.Content is Views.LocalSettingsContentDialog or Views.ConfigRestoreContentDialog)
         {
             return;
         }

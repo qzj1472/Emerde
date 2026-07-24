@@ -16,6 +16,9 @@
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica"
                  WindowStartupLocation="Manual"
+                 AllowDrop="True"
+                 PreviewDragOver="MainWindowPreviewDragOver"
+                 PreviewDrop="MainWindowPreviewDrop"
                  mc:Ignorable="d">
     <Grid Background="{DynamicResource EmerdeShellBackgroundBrush}">
         <Grid.Resources>

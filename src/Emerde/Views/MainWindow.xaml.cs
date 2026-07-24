@@ -317,6 +317,39 @@ public partial class MainWindow : FluentWindow
         base.OnClosed(e);
     }
 
+    private void MainWindowPreviewDragOver(object sender, System.Windows.DragEventArgs e)
+    {
+        if (WindowSizing.HasOpenContentDialog)
+        {
+            return;
+        }
+
+        if (ConfigRestoreContentDialog.TryGetDraggedConfigFile(e.Data, out _))
+        {
+            e.Effects = System.Windows.DragDropEffects.Copy;
+            e.Handled = true;
+            return;
+        }
+
+        e.Effects = System.Windows.DragDropEffects.None;
+    }
+
+    private async void MainWindowPreviewDrop(object sender, System.Windows.DragEventArgs e)
+    {
+        if (WindowSizing.HasOpenContentDialog)
+        {
+            return;
+        }
+
+        if (!ConfigRestoreContentDialog.TryGetDraggedConfigFile(e.Data, out string? filePath) || string.IsNullOrWhiteSpace(filePath))
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await SettingsViewModel.RestoreConfigFromDroppedFileAsync(this, filePath);
+    }
+
     private IntPtr MainWindowWindowProc(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         if (!isPreviewFullScreen && message == WmGetMinMaxInfo && TryApplyMaximizedWindowBounds(hwnd, lParam))

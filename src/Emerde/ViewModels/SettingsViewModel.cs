@@ -1203,8 +1203,6 @@ public partial class SettingsViewModel : ReactiveObject
             CloseButtonText = "取消",
             SecondaryButtonText = "导出最近",
             PrimaryButtonText = "导出全部",
-            DefaultButton = ContentDialogButton.Primary,
-            Style = System.Windows.Application.Current.TryFindResource("DefaultVioletaContentDialogStyle") as System.Windows.Style,
         };
 
         using DialogBlurScope blurScope = DialogBlurScope.ForDialog(OwnerWindow, dialog);
@@ -1251,10 +1249,10 @@ public partial class SettingsViewModel : ReactiveObject
     [RelayCommand]
     private void OpenConfigFolder()
     {
-        Directory.CreateDirectory(AppPaths.ConfigDirectory);
+        Directory.CreateDirectory(AppPaths.ActiveConfigDirectory);
         Process.Start(new ProcessStartInfo()
         {
-            FileName = AppPaths.ConfigDirectory,
+            FileName = AppPaths.ActiveConfigDirectory,
             UseShellExecute = true,
         });
     }
@@ -1262,40 +1260,7 @@ public partial class SettingsViewModel : ReactiveObject
     [RelayCommand]
     private async Task ImportConfigAsync()
     {
-        using CommonOpenFileDialog dialog = new()
-        {
-            EnsureFileExists = true,
-            IsFolderPicker = false,
-            Title = "导入配置",
-        };
-
-        dialog.Filters.Add(new CommonFileDialogFilter("YAML", "*.yaml;*.yml"));
-
-        if (dialog.ShowDialog() != CommonFileDialogResult.Ok)
-        {
-            return;
-        }
-
-        try
-        {
-            string backupPath = ConfigFileManager.Import(dialog.FileName);
-            string[] unavailableSecrets = SecretProtector.GetUnavailableStoredSecretNames();
-            AppSessionLogger.Write($"config imported from {dialog.FileName}; backup={backupPath}");
-            if (unavailableSecrets.Length == 0)
-            {
-                Toast.Success("配置已导入");
-            }
-            else
-            {
-                Toast.Warning($"配置已导入，但以下凭据属于其他 Windows 账户，需要重新填写：{string.Join("、", unavailableSecrets)}");
-            }
-            await RestartIfConfirmedAsync($"配置已导入，重启后生效。当前配置备份：{Environment.NewLine}{backupPath}{Environment.NewLine}{Environment.NewLine}是否立即重启软件？");
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
-        {
-            AppSessionLogger.WriteException(e);
-            Toast.Error($"配置导入失败：{e.Message}");
-        }
+        await RestoreConfigAsync();
     }
 
     [RelayCommand]
@@ -1304,7 +1269,8 @@ public partial class SettingsViewModel : ReactiveObject
         using CommonSaveFileDialog dialog = new()
         {
             DefaultExtension = "yaml",
-            DefaultFileName = $"config-{DateTime.Now:yyyyMMddHHmmss}.yaml",
+            DefaultFileName = $"config-{DateTime.Now:yyyyMMdd_HHmmss}.yaml",
+            InitialDirectory = AppPaths.ActiveConfigDirectory,
             Title = "导出配置",
         };
 
@@ -1329,11 +1295,168 @@ public partial class SettingsViewModel : ReactiveObject
     }
 
     [RelayCommand]
+    private async Task RestoreConfigAsync()
+    {
+        await RestoreConfigCoreAsync(null);
+    }
+
+    internal static Task RestoreConfigFromDroppedFileAsync(System.Windows.Window? owner, string filePath)
+    {
+        SettingsViewModel viewModel = new()
+        {
+            OwnerWindow = owner,
+        };
+        return viewModel.RestoreConfigCoreAsync(filePath);
+    }
+
+    private async Task RestoreConfigCoreAsync(string? initialImportPath)
+    {
+        ConfigRestoreContentDialog content = new(BuildConfigRestoreOptions());
+
+        ConfigRestoreWindow dialog = new(content, OwnerWindow)
+        {
+            Title = "恢复配置",
+            PrimaryButtonText = GetConfigRestorePrimaryButtonText(content.SelectedOption),
+        };
+
+        content.SelectionChanged += (_, _) =>
+        {
+            dialog.PrimaryButtonText = GetConfigRestorePrimaryButtonText(content.SelectedOption);
+        };
+        content.ImportButtonClicked += (_, _) => AddImportedConfigToRestoreDialog(content);
+        content.ConfigFileDropped += (_, e) => AddImportedConfigToRestoreDialog(content, e.FilePath);
+        if (!string.IsNullOrWhiteSpace(initialImportPath))
+        {
+            if (!AddImportedConfigToRestoreDialog(content, initialImportPath))
+            {
+                return;
+            }
+        }
+        using DialogBlurScope blurScope = DialogBlurScope.ForOwnedWindow(OwnerWindow, dialog);
+        bool? result = dialog.ShowDialog();
+        if (result != true || content.SelectedOption is not ConfigRestoreOption selected)
+        {
+            return;
+        }
+
+        if (selected.Action == ConfigRestoreOptionAction.Reset)
+        {
+            await ResetConfigCoreAsync(confirmBeforeReset: false);
+            return;
+        }
+
+        if (selected.Action == ConfigRestoreOptionAction.Import)
+        {
+            await ImportSelectedConfigAsync(selected);
+            return;
+        }
+
+        try
+        {
+            string backupPath = ConfigFileManager.RestoreBackup(selected.FilePath);
+            AppSessionLogger.Write($"config restored from {selected.FilePath}; backup={backupPath}");
+            Toast.Success("配置已恢复");
+            await RestartIfConfirmedAsync(BuildConfigChangedRestartMessage("配置已恢复", backupPath));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            AppSessionLogger.WriteException(e);
+            Toast.Error($"配置恢复失败：{e.Message}");
+        }
+    }
+
+    private static string GetConfigRestorePrimaryButtonText(ConfigRestoreOption? option)
+    {
+        return option?.Action switch
+        {
+            ConfigRestoreOptionAction.Reset => "重置",
+            ConfigRestoreOptionAction.Import => "导入",
+            _ => "恢复",
+        };
+    }
+
+    private bool AddImportedConfigToRestoreDialog(ConfigRestoreContentDialog content, string? sourcePath = null)
+    {
+        string? importPath = sourcePath ?? SelectConfigurationFileForImport();
+        if (string.IsNullOrWhiteSpace(importPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            ConfigurationBackupPoint point = ConfigFileManager.StoreImportedConfiguration(importPath);
+            if (content.SelectOptionByFilePath(point.FilePath))
+            {
+                AppSessionLogger.Write($"config import reused existing restore point from {importPath}; stored={point.FilePath}");
+                Toast.Information("相同配置已存在，已选中已有备份点");
+                return true;
+            }
+
+            ConfigRestoreOption option = BuildConfigRestoreOption(point);
+            content.AddOptionAndSelect(option);
+            AppSessionLogger.Write($"config staged for restore import from {importPath}; stored={point.FilePath}");
+            Toast.Success("配置已加入恢复列表，点击“导入”后生效");
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            AppSessionLogger.WriteException(e);
+            Toast.Error($"配置导入失败：{e.Message}");
+            return false;
+        }
+    }
+
+    private static string? SelectConfigurationFileForImport()
+    {
+        using CommonOpenFileDialog dialog = new()
+        {
+            EnsureFileExists = true,
+            IsFolderPicker = false,
+            Title = "导入配置",
+        };
+
+        dialog.Filters.Add(new CommonFileDialogFilter("YAML", "*.yaml;*.yml"));
+
+        return dialog.ShowDialog() == CommonFileDialogResult.Ok ? dialog.FileName : null;
+    }
+
+    private async Task ImportSelectedConfigAsync(ConfigRestoreOption selected)
+    {
+        try
+        {
+            string backupPath = ConfigFileManager.Import(selected.FilePath);
+            string[] unavailableSecrets = SecretProtector.GetUnavailableStoredSecretNames();
+            AppSessionLogger.Write($"config imported from {selected.FilePath}; backup={backupPath}");
+            if (unavailableSecrets.Length == 0)
+            {
+                Toast.Success("配置已导入");
+            }
+            else
+            {
+                Toast.Warning($"配置已导入，但以下凭据属于其他 Windows 账户，需要重新填写：{string.Join("、", unavailableSecrets)}");
+            }
+            await RestartIfConfirmedAsync(BuildConfigChangedRestartMessage("配置已导入", backupPath));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            AppSessionLogger.WriteException(e);
+            Toast.Error($"配置导入失败：{e.Message}");
+        }
+    }
+
+    [RelayCommand]
     private async Task ResetConfigAsync()
+    {
+        await ResetConfigCoreAsync(confirmBeforeReset: true);
+    }
+
+    private async Task ResetConfigCoreAsync(bool confirmBeforeReset)
     {
         using (DialogBlurScope blurScope = new(OwnerWindow))
         {
-            if (MessageBox.Question("确定要重置配置文件吗？当前配置会先备份，重启后生效。") != System.Windows.MessageBoxResult.Yes)
+            if (confirmBeforeReset &&
+                MessageBox.Question("确定要重置配置文件吗？当前配置会先备份，重启后生效。") != System.Windows.MessageBoxResult.Yes)
             {
                 return;
             }
@@ -1352,6 +1475,43 @@ public partial class SettingsViewModel : ReactiveObject
             AppSessionLogger.WriteException(e);
             Toast.Error($"配置重置失败：{e.Message}");
         }
+    }
+
+    private static IReadOnlyList<ConfigRestoreOption> BuildConfigRestoreOptions()
+    {
+        List<ConfigRestoreOption> options = ConfigFileManager.GetBackupPoints()
+            .Select(BuildConfigRestoreOption)
+            .ToList();
+
+        options.Add(new ConfigRestoreOption(
+            "默认配置（软件无配置）",
+            "删除当前配置，重启后由软件重新生成默认配置",
+            AppPaths.ActiveConfigDirectory,
+            string.Empty,
+            "重置",
+            ConfigRestoreOptionAction.Reset));
+
+        return options;
+    }
+
+    private static ConfigRestoreOption BuildConfigRestoreOption(ConfigurationBackupPoint point)
+    {
+        bool imported = point.FileName.Contains(".import-", StringComparison.OrdinalIgnoreCase);
+        return new ConfigRestoreOption(
+            point.FileName,
+            point.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+            point.FilePath,
+            point.FilePath,
+            imported ? "用户导入" : "配置备份",
+            imported ? ConfigRestoreOptionAction.Import : ConfigRestoreOptionAction.Restore);
+    }
+
+    private static string BuildConfigChangedRestartMessage(string actionText, string backupPath)
+    {
+        string backupText = string.IsNullOrWhiteSpace(backupPath)
+            ? "当前配置只有首次启动确认等无意义内容，本次没有生成备份。"
+            : $"当前配置备份：{Environment.NewLine}{backupPath}";
+        return $"{actionText}，重启后生效。{backupText}{Environment.NewLine}{Environment.NewLine}是否立即重启软件？";
     }
 
     private static bool IsRoutineScheduleDayEnabled(DayOfWeek day)

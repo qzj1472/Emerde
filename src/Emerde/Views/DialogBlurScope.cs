@@ -45,7 +45,7 @@ internal sealed class DialogBlurScope : IDisposable
     private readonly DispatcherTimer? ownerEnableTimer;
     private readonly DispatcherTimer? dialogMaskClearTimer;
 
-    public DialogBlurScope(Window? owner = null, double radius = 8d, object? dialog = null, bool isLightDismissEnabled = false)
+    public DialogBlurScope(Window? owner = null, double radius = 8d, object? dialog = null, bool isLightDismissEnabled = false, bool keepOwnerEnabled = true)
     {
         WpfBrush backdropBrush = CreateBackdropBrush();
         ApplyBuiltInSmoke(dialog, backdropBrush);
@@ -57,7 +57,7 @@ internal sealed class DialogBlurScope : IDisposable
         Window? window = owner ?? Application.Current?.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive);
         ownerWindow = window;
         previousOwnerIsEnabled = window?.IsEnabled ?? true;
-        ownerEnableTimer = StartOwnerEnablePump(window);
+        ownerEnableTimer = keepOwnerEnabled ? StartOwnerEnablePump(window) : null;
 
         blurTarget = FindBlurTarget(window);
         if (blurTarget != null && radius > 0d)
@@ -103,6 +103,11 @@ internal sealed class DialogBlurScope : IDisposable
     public static DialogBlurScope ForDialog(Window? owner, object dialog, double radius = 8d)
     {
         return new DialogBlurScope(owner, radius, dialog);
+    }
+
+    public static DialogBlurScope ForOwnedWindow(Window? owner, Window dialog, double radius = 8d)
+    {
+        return new DialogBlurScope(owner, radius, null, false, false);
     }
 
     public void Dispose()
@@ -281,7 +286,8 @@ internal sealed class DialogBlurScope : IDisposable
 
         foreach (DependencyObject node in EnumerateVisuals(dialogElement))
         {
-            if (IsDialogMaskElement(node, transparentBrush))
+            if (IsDialogMaskElement(node, transparentBrush) ||
+                IsLargeDialogMaskElement(node, dialogElement))
             {
                 SetBackground(node, transparentBrush);
                 if (node is FrameworkElement element &&
@@ -477,6 +483,27 @@ internal sealed class DialogBlurScope : IDisposable
 
         return backdropBrush is SolidColorBrush { Color.A: > 0 } &&
                IsSameBrush(GetBackground(node), backdropBrush);
+    }
+
+    private static bool IsLargeDialogMaskElement(DependencyObject node, FrameworkElement dialogElement)
+    {
+        if (node is not FrameworkElement element)
+        {
+            return false;
+        }
+
+        double dialogWidth = GetElementSize(dialogElement.ActualWidth, dialogElement.RenderSize.Width, dialogElement.Width);
+        double dialogHeight = GetElementSize(dialogElement.ActualHeight, dialogElement.RenderSize.Height, dialogElement.Height);
+        double elementWidth = GetElementSize(element.ActualWidth, element.RenderSize.Width, element.Width);
+        double elementHeight = GetElementSize(element.ActualHeight, element.RenderSize.Height, element.Height);
+
+        if (dialogWidth <= 1d || dialogHeight <= 1d || elementWidth < dialogWidth * 0.9d || elementHeight < dialogHeight * 0.9d)
+        {
+            return false;
+        }
+
+        return GetBackground(element) is SolidColorBrush brush &&
+               IsSemiTransparentNeutralMask(brush, element.Opacity);
     }
 
     private static WpfBrush? GetBackground(DependencyObject node)

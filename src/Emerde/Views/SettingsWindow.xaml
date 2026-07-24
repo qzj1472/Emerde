@@ -393,10 +393,8 @@
                                            Margin="0,0,28,0"
                                            Orientation="Horizontal"
                                            Spacing="8">
-                                <Button Command="{Binding OpenConfigFolderCommand}" Content="打开位置" />
-                                <Button Command="{Binding ImportConfigCommand}" Content="导入" />
+                                <Button Command="{Binding RestoreConfigCommand}" Content="恢复" />
                                 <Button Command="{Binding ExportConfigCommand}" Content="导出" />
-                                <Button Command="{Binding ResetConfigCommand}" Content="重置" />
                             </ui:StackPanel>
                         </ui:Grid>
                     </ui:Card>

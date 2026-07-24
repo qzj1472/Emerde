@@ -364,6 +364,12 @@
                                 <TextBlock Style="{StaticResource AboutBodyTextStyle}"
                                            Text="导入配置前会自动检查文件；无效配置不会覆盖当前设置。" />
                                 <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="配置文件统一保存在文档目录的 Emerde\config 文件夹内，当前配置和备份点都在同一处管理。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="导入、恢复或重置配置前都会先备份当前配置；确认并重启前，不会替换正在使用的设置。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="恢复配置窗口支持点击“导入配置”，也可以直接拖入 .yaml 或 .yml 配置文件后再确认生效。" />
+                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
                                            Text="反馈问题时请提供日志、直播间链接、发生时间、操作步骤和截图。" />
                             </ui:StackPanel>
                         </Border>
