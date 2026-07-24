@@ -113,6 +113,16 @@ internal static class MediaOperationRegistry
         CancelWhere(operation => operation.Kind == kind);
     }
 
+    public static int Cancel(MediaOperationKind kind, string path)
+    {
+        if (!TryNormalizePath(path, out string normalizedPath))
+        {
+            return 0;
+        }
+
+        return CancelWhere(operation => operation.Kind == kind && OperationProtectsPath(operation, normalizedPath));
+    }
+
     public static async Task WaitForCompletionAsync(TimeSpan timeout)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
@@ -141,6 +151,37 @@ internal static class MediaOperationRegistry
         }
     }
 
+    public static async Task<bool> WaitForPathReleaseAsync(MediaOperationKind kind, IEnumerable<string> paths, TimeSpan timeout)
+    {
+        string[] normalizedPaths = paths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => TryNormalizePath(path, out string normalizedPath) ? normalizedPath : string.Empty)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (normalizedPaths.Length == 0)
+        {
+            return true;
+        }
+
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        while (IsAnyPathProtectedBy(kind, normalizedPaths))
+        {
+            TimeSpan remaining = timeout - stopwatch.Elapsed;
+            if (remaining <= TimeSpan.Zero)
+            {
+                return false;
+            }
+
+            TimeSpan delay = remaining < TimeSpan.FromMilliseconds(100)
+                ? remaining
+                : TimeSpan.FromMilliseconds(100);
+            await Task.Delay(delay);
+        }
+
+        return true;
+    }
+
     internal static bool PathMatches(string path, string? pattern)
     {
         if (string.IsNullOrWhiteSpace(pattern) || !TryNormalizePath(pattern, out string normalizedPattern))
@@ -160,19 +201,54 @@ internal static class MediaOperationRegistry
         return Regex.IsMatch(path, "^" + regexPattern + "$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
 
-    private static void CancelWhere(Func<OperationState, bool> predicate)
+    private static int CancelWhere(Func<OperationState, bool> predicate)
     {
+        int cancelled = 0;
         foreach (OperationState operation in Operations.Values.Where(predicate))
         {
             try
             {
                 operation.Cancel?.Invoke();
+                cancelled++;
             }
             catch (Exception e)
             {
                 AppSessionLogger.WriteException(e);
             }
         }
+
+        return cancelled;
+    }
+
+    private static bool IsAnyPathProtectedBy(MediaOperationKind kind, IReadOnlyList<string> normalizedPaths)
+    {
+        foreach (OperationState operation in Operations.Values.Where(operation => operation.Kind == kind))
+        {
+            foreach (string path in normalizedPaths)
+            {
+                if (OperationProtectsPath(operation, path))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool OperationProtectsPath(OperationState operation, string normalizedPath)
+    {
+        IEnumerable<string?> patterns;
+        try
+        {
+            patterns = operation.ProtectedPaths() ?? [];
+        }
+        catch
+        {
+            return false;
+        }
+
+        return patterns.Any(pattern => PathMatches(normalizedPath, pattern));
     }
 
     private static bool TryNormalizePath(string path, out string normalizedPath)

@@ -330,7 +330,7 @@ internal sealed class TrayIconManager : IDisposable
         return new TrayMenuState(
             $"v{Assembly.GetExecutingAssembly().GetName().Version!.ToString(3)}",
             rooms.Count(room => room.StreamStatus == StreamStatus.Streaming),
-            rooms.Count(room => room.RecordStatus == RecordStatus.Recording),
+            rooms.Count(room => room.RecordStatus == RecordStatus.Recording && room.Recorder.HasMediaProgress),
             Configurations.IsMonitorRunning.Get(),
             Configurations.IsToRecord.Get(),
             AutoStartupHelper.IsAutorun());

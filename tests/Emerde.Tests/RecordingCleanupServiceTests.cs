@@ -2,6 +2,7 @@ using Emerde.Core;
 
 namespace Emerde.Tests;
 
+[Collection("MediaOperationRegistry")]
 public sealed class RecordingCleanupServiceTests
 {
     [Fact]

@@ -27,14 +27,14 @@ internal static class RecordingRecoveryService
         return Register(sourcePattern, targetFormat, options.IsRemoveTs, mergeSessionParts: false);
     }
 
-    internal static string? RegisterSessionParts(string sourcePattern, string targetFormat)
+    internal static string? RegisterSessionParts(string sourcePattern, string targetFormat, bool removeSource)
     {
         if (string.IsNullOrWhiteSpace(sourcePattern) || string.IsNullOrWhiteSpace(targetFormat))
         {
             return null;
         }
 
-        return Register(sourcePattern, targetFormat, removeSource: true, mergeSessionParts: true);
+        return Register(sourcePattern, targetFormat, removeSource, mergeSessionParts: true);
     }
 
     private static string? Register(string sourcePattern, string targetFormat, bool removeSource, bool mergeSessionParts)
@@ -100,7 +100,7 @@ internal static class RecordingRecoveryService
         try
         {
             item.TargetFormat = targetFormat;
-            item.RemoveSource = item.MergeSessionParts || options.IsRemoveTs;
+            item.RemoveSource = options.IsRemoveTs;
             using (FileStream stream = new(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None))
             using (StreamWriter writer = new(stream, new System.Text.UTF8Encoding(false)))
             {
@@ -247,12 +247,33 @@ internal static class RecordingRecoveryService
 
         if (mergeSessionParts)
         {
-            if (!await new Converter().ExecuteSessionPartsAsync(sourcePattern, sources, targetFormat))
+            string sourceFormat = Path.GetExtension(sourcePattern);
+            bool targetIsSourceFormat = sourceFormat.Equals(targetFormat, StringComparison.OrdinalIgnoreCase);
+            if (targetIsSourceFormat || removeSource)
+            {
+                if (!await new Converter().ExecuteSessionPartsAsync(sourcePattern, sources, targetFormat))
+                {
+                    return false;
+                }
+
+                foreach (string source in sources)
+                {
+                    File.Delete(source);
+                    VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(source);
+                }
+
+                return true;
+            }
+
+            string mergedSource = Converter.BuildSessionTargetPath(sourcePattern, sourceFormat);
+            if (!IsUsableSource(mergedSource)
+                && !await new Converter().ExecuteSessionPartsAsync(sourcePattern, sources, sourceFormat))
             {
                 return false;
             }
 
-            if (removeSource)
+            bool completed = await new Converter().ExecuteAsync(mergedSource, targetFormat);
+            if (completed)
             {
                 foreach (string source in sources)
                 {
@@ -261,7 +282,7 @@ internal static class RecordingRecoveryService
                 }
             }
 
-            return true;
+            return completed;
         }
 
         foreach (string source in sources)

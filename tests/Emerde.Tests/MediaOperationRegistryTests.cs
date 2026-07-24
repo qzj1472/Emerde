@@ -2,6 +2,7 @@ using Emerde.Core;
 
 namespace Emerde.Tests;
 
+[Collection("MediaOperationRegistry")]
 public sealed class MediaOperationRegistryTests
 {
     [Fact]
@@ -43,6 +44,48 @@ public sealed class MediaOperationRegistryTests
 
         Assert.Equal(0, recordingsCancelled);
         Assert.Equal(1, conversionsCancelled);
+    }
+
+    [Fact]
+    public void Cancel_ByPathInvokesOnlyMatchingOperation()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-operation-{Guid.NewGuid():N}");
+        string first = Path.Combine(directory, "first.ts");
+        string second = Path.Combine(directory, "second.ts");
+        int firstCancelled = 0;
+        int secondCancelled = 0;
+        using IDisposable firstConversion = MediaOperationRegistry.Register(
+            MediaOperationKind.Conversion,
+            () => [first],
+            () => firstCancelled++);
+        using IDisposable secondConversion = MediaOperationRegistry.Register(
+            MediaOperationKind.Conversion,
+            () => [second],
+            () => secondCancelled++);
+
+        int cancelled = MediaOperationRegistry.Cancel(MediaOperationKind.Conversion, first);
+
+        Assert.Equal(1, cancelled);
+        Assert.Equal(1, firstCancelled);
+        Assert.Equal(0, secondCancelled);
+    }
+
+    [Fact]
+    public async Task WaitForPathReleaseAsync_WaitsForMatchingPathOnly()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-operation-{Guid.NewGuid():N}");
+        string first = Path.Combine(directory, "first.ts");
+        string second = Path.Combine(directory, "second.ts");
+        using IDisposable firstConversion = MediaOperationRegistry.Register(MediaOperationKind.Conversion, () => [first]);
+        using IDisposable secondConversion = MediaOperationRegistry.Register(MediaOperationKind.Conversion, () => [second]);
+
+        Task<bool> waitTask = MediaOperationRegistry.WaitForPathReleaseAsync(MediaOperationKind.Conversion, [first], TimeSpan.FromSeconds(2));
+
+        Assert.False(waitTask.IsCompleted);
+        firstConversion.Dispose();
+
+        Assert.True(await waitTask);
+        Assert.True(MediaOperationRegistry.IsPathProtected(second));
     }
 
     [Fact]

@@ -1,5 +1,4 @@
 using Emerde.Core;
-using System.Diagnostics;
 
 namespace Emerde.Tests;
 
@@ -45,7 +44,7 @@ public sealed class RecordingRecoveryServiceTests
     public void UpdateOptions_KeepsSessionMarkerWhenLatestFormatIsRaw()
     {
         string sourcePattern = Path.Combine(Path.GetTempPath(), $"emerde-recording-{Guid.NewGuid():N}_%03d.ts");
-        string? markerPath = RecordingRecoveryService.RegisterSessionParts(sourcePattern, ".ts");
+        string? markerPath = RecordingRecoveryService.RegisterSessionParts(sourcePattern, ".ts", removeSource: false);
 
         Assert.NotNull(markerPath);
         try
@@ -58,7 +57,34 @@ public sealed class RecordingRecoveryServiceTests
 
             string marker = File.ReadAllText(markerPath!);
             Assert.Contains("\"TargetFormat\": \".ts\"", marker);
-            Assert.Contains("\"RemoveSource\": true", marker);
+            Assert.Contains("\"RemoveSource\": false", marker);
+            Assert.Contains("\"MergeSessionParts\": true", marker);
+        }
+        finally
+        {
+            File.Delete(markerPath);
+            File.Delete(markerPath + ".tmp");
+        }
+    }
+
+    [Fact]
+    public void UpdateOptions_AppliesLatestRemoveSourceToSessionMarker()
+    {
+        string sourcePattern = Path.Combine(Path.GetTempPath(), $"emerde-recording-{Guid.NewGuid():N}_%03d.ts");
+        string? markerPath = RecordingRecoveryService.RegisterSessionParts(sourcePattern, ".mkv", removeSource: true);
+
+        Assert.NotNull(markerPath);
+        try
+        {
+            Assert.True(RecordingRecoveryService.UpdateOptions(markerPath!, new RoomRecordingOptions
+            {
+                RecordFormat = "TS/FLV -> MKV",
+                IsRemoveTs = false,
+            }));
+
+            string marker = File.ReadAllText(markerPath!);
+            Assert.Contains("\"TargetFormat\": \".mkv\"", marker);
+            Assert.Contains("\"RemoveSource\": false", marker);
             Assert.Contains("\"MergeSessionParts\": true", marker);
         }
         finally
@@ -184,11 +210,8 @@ public sealed class RecordingRecoveryServiceTests
     }
 
     [Fact]
-    public async Task ProcessSourcePatternAsync_MergesOnlyInternalSessionParts()
+    public async Task ProcessSourcePatternAsync_DoesNotCreateTargetsForInvalidSessionParts()
     {
-        string ffmpegPath = Path.Combine(AppContext.BaseDirectory, "ffmpeg.exe");
-        Assert.True(File.Exists(ffmpegPath));
-
         string directory = Path.Combine(Path.GetTempPath(), $"emerde-recovery-merge-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         string sourcePattern = Path.Combine(directory, "session_%03d.ts");
@@ -197,16 +220,16 @@ public sealed class RecordingRecoveryServiceTests
 
         try
         {
-            await CreateTestTransportStreamAsync(ffmpegPath, firstSource, "black");
-            await CreateTestTransportStreamAsync(ffmpegPath, secondSource, "blue");
+            await File.WriteAllBytesAsync(firstSource, [1, 2, 3, 4]);
+            await File.WriteAllBytesAsync(secondSource, [5, 6, 7, 8]);
 
-            Assert.True(await RecordingRecoveryService.ProcessSourcePatternAsync(sourcePattern, ".mkv", removeSource: false));
+            Assert.False(await RecordingRecoveryService.ProcessSourcePatternAsync(sourcePattern, ".mkv", removeSource: false));
             Assert.False(File.Exists(Path.Combine(directory, "session.mkv")));
-            Assert.True(File.Exists(Path.Combine(directory, "session_000.mkv")));
-            Assert.True(File.Exists(Path.Combine(directory, "session_001.mkv")));
+            Assert.False(File.Exists(Path.Combine(directory, "session_000.mkv")));
+            Assert.False(File.Exists(Path.Combine(directory, "session_001.mkv")));
 
-            Assert.True(await RecordingRecoveryService.ProcessSourcePatternAsync(sourcePattern, ".mp4", removeSource: false, mergeSessionParts: true));
-            Assert.True(File.Exists(Path.Combine(directory, "session.mp4")));
+            Assert.False(await RecordingRecoveryService.ProcessSourcePatternAsync(sourcePattern, ".mp4", removeSource: false, mergeSessionParts: true));
+            Assert.False(File.Exists(Path.Combine(directory, "session.mp4")));
             Assert.False(File.Exists(Path.Combine(directory, "session_000.mp4")));
         }
         finally
@@ -224,39 +247,5 @@ public sealed class RecordingRecoveryServiceTests
 
         Assert.True(RecordingRecoveryService.IsPathWithinRoot(inside, root));
         Assert.False(RecordingRecoveryService.IsPathWithinRoot(sibling, root));
-    }
-
-    private static async Task CreateTestTransportStreamAsync(string ffmpegPath, string targetPath, string color)
-    {
-        using Process process = new()
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = ffmpegPath,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-            },
-        };
-        process.StartInfo.ArgumentList.Add("-y");
-        process.StartInfo.ArgumentList.Add("-f");
-        process.StartInfo.ArgumentList.Add("lavfi");
-        process.StartInfo.ArgumentList.Add("-i");
-        process.StartInfo.ArgumentList.Add($"color=c={color}:s=320x180:d=0.2");
-        process.StartInfo.ArgumentList.Add("-c:v");
-        process.StartInfo.ArgumentList.Add("libx264");
-        process.StartInfo.ArgumentList.Add("-an");
-        process.StartInfo.ArgumentList.Add("-f");
-        process.StartInfo.ArgumentList.Add("mpegts");
-        process.StartInfo.ArgumentList.Add(targetPath);
-
-        process.Start();
-        Task errorTask = process.StandardError.ReadToEndAsync();
-        Task outputTask = process.StandardOutput.ReadToEndAsync();
-        await process.WaitForExitAsync();
-        await Task.WhenAll(errorTask, outputTask);
-
-        Assert.Equal(0, process.ExitCode);
     }
 }
