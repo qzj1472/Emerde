@@ -10,6 +10,8 @@ public static class Configurations
     public static ConfigurationDefinition<string> Language { get; } = new(nameof(Language), string.Empty);
     public static ConfigurationDefinition<string> Theme { get; } = new(nameof(Theme), string.Empty);
     public static ConfigurationDefinition<int> DisplayScale { get; } = new(nameof(DisplayScale), 100);
+    public static ConfigurationDefinition<int> PreviewVolume { get; } = new(nameof(PreviewVolume), 10);
+    public static ConfigurationDefinition<bool> IsPreviewMuted { get; } = new(nameof(IsPreviewMuted), true);
     public static ConfigurationDefinition<bool> IsStartupAboutNoticeShown { get; } = new(nameof(IsStartupAboutNoticeShown), false);
     public static ConfigurationDefinition<bool> IsSessionLogEnabled { get; } = new(nameof(IsSessionLogEnabled), true);
     public static ConfigurationDefinition<int> SessionLogRetentionDays { get; } = new(nameof(SessionLogRetentionDays), 30);

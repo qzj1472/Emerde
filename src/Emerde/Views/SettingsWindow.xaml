@@ -358,13 +358,14 @@
                                            Orientation="Horizontal"
                                            Spacing="8">
                                 <TextBlock VerticalAlignment="Center" Text="保留" />
-                                <controls:CompactNumberBox Width="70"
+                                <controls:CompactNumberBox Width="112"
                                                            Maximum="3650"
                                                            Minimum="1"
                                                            Value="{Binding SessionLogRetentionDays, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 <TextBlock VerticalAlignment="Center" Text="天" />
-                                <Button Command="{Binding OpenLogFolderCommand}" Content="打开目录" />
-                                <Button Command="{Binding ExportLogsCommand}" Content="导出" />
+                                <Button Margin="18,0,0,0"
+                                        Command="{Binding ExportLogsCommand}"
+                                        Content="导出" />
                                 <ui:ToggleSwitch IsChecked="{Binding IsSessionLogEnabled, Mode=TwoWay}" />
                             </ui:StackPanel>
                         </ui:Grid>
@@ -815,7 +816,7 @@
                                         Command="{Binding OpenSaveFolderCommand}"
                                         Content="{I18N OpenFolder}" />
                             </ui:Grid>
-                            <ui:Grid Margin="42,0,28,0" ColumnDefinitions="*,12,*">
+                            <ui:Grid Margin="42,0,28,0" ColumnDefinitions="*,28,*">
                                 <ui:Grid Grid.Column="0" ColumnDefinitions="Auto,*">
                                     <TextBlock Grid.Column="0"
                                                VerticalAlignment="Center"
@@ -832,7 +833,7 @@
                                     </ComboBox>
                                 </ui:Grid>
                                 <ui:Grid Grid.Column="2"
-                                         ColumnDefinitions="Auto,Auto,*,Auto"
+                                         ColumnDefinitions="Auto,Auto,Auto,Auto"
                                          ToolTip="{I18N DataRetentionHint}">
                                     <TextBlock Grid.Column="0"
                                                VerticalAlignment="Center"
@@ -841,7 +842,7 @@
                                                      Margin="10,0,0,0"
                                                      IsChecked="{Binding IsDataRetentionEnabled, Mode=TwoWay}" />
                                     <controls:CompactNumberBox Grid.Column="2"
-                                                                MinWidth="76"
+                                                                Width="72"
                                                                 Margin="10,0,0,0"
                                                                 Maximum="9999"
                                                                 Minimum="1"

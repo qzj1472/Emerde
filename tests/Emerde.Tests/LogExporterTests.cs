@@ -57,6 +57,34 @@ public sealed class LogExporterTests
         }
     }
 
+    [Fact]
+    public void GetLogFilesForDate_SelectsOnlyRequestedDay()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "EmerdeLogExporterTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        string currentLog = Path.Combine(root, "20260725_201514_1234.log");
+        string currentErrorLog = Path.Combine(root, "20260725_201514_1234.error.log");
+        string legacyLog = Path.Combine(root, "2026-07-25.log");
+        string previousLog = Path.Combine(root, "20260724_201514_1234.log");
+
+        try
+        {
+            File.WriteAllText(currentLog, "current");
+            File.WriteAllText(currentErrorLog, "error");
+            File.WriteAllText(legacyLog, "legacy");
+            File.WriteAllText(previousLog, "previous");
+
+            string[] files = LogExporter.GetLogFilesForDate(root, new DateTime(2026, 7, 25));
+
+            Assert.Empty(new[] { currentErrorLog, currentLog, legacyLog }.Except(files, StringComparer.OrdinalIgnoreCase));
+            Assert.Empty(files.Except([currentErrorLog, currentLog, legacyLog], StringComparer.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     private static string ReadEntry(ZipArchiveEntry entry)
     {
         using StreamReader reader = new(entry.Open());

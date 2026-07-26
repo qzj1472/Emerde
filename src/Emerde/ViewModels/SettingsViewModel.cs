@@ -689,14 +689,65 @@ public partial class SettingsViewModel : ReactiveObject
 
     partial void OnRecordFormatIndexChanged(int value)
     {
-        Configurations.RecordFormat.Set(value switch
+        string previousRecordFormat = Configurations.RecordFormat.Get();
+        string nextRecordFormat = GetRecordFormatByIndex(value);
+        bool cancelConversions = ShouldCancelConversionsOnRecordFormatChange(previousRecordFormat, value);
+        Configurations.RecordFormat.Set(nextRecordFormat);
+        if (cancelConversions)
+        {
+            _ = ApplyRawRecordingFormatAsync(previousRecordFormat, nextRecordFormat, IsRemoveTs);
+        }
+        ConfigurationSaveScheduler.Request();
+        NotifyRuntimeConfigurationChanged();
+    }
+
+    private static async Task ApplyRawRecordingFormatAsync(string previousRecordFormat, string nextRecordFormat, bool isRemoveTs)
+    {
+        try
+        {
+            PendingOptionsUpdateResult result = await RecordingRecoveryService.UpdatePendingOptionsForGlobalChangeAsync(new RoomRecordingOptions
+            {
+                RecordFormat = nextRecordFormat,
+                IsRemoveTs = isRemoveTs,
+            });
+            AppSessionLogger.Event("info", "settings", "conversion_cancelled_by_raw_format", "active conversion was cancelled because recording format changed to raw", new
+            {
+                previousRecordFormat,
+                nextRecordFormat,
+                cancelled = result.Cancelled,
+                updated = result.Updated,
+                deferred = result.Deferred,
+            });
+            if (result.Deferred > 0)
+            {
+                Toast.Warning("部分转码任务尚未停止，将保留恢复记录并稍后重试");
+            }
+            else if (result.Cancelled > 0)
+            {
+                Toast.Information("已停止未完成的转码任务，已完成的视频不会删除");
+            }
+        }
+        catch (Exception e)
+        {
+            AppSessionLogger.WriteException(e);
+            Toast.Warning("停止转码任务时发生错误，恢复记录已保留");
+        }
+    }
+
+    internal static bool ShouldCancelConversionsOnRecordFormatChange(string? previousRecordFormat, int nextRecordFormatIndex)
+    {
+        return !string.IsNullOrWhiteSpace(Recorder.GetTargetFormat(previousRecordFormat ?? string.Empty))
+            && string.IsNullOrWhiteSpace(Recorder.GetTargetFormat(GetRecordFormatByIndex(nextRecordFormatIndex)));
+    }
+
+    private static string GetRecordFormatByIndex(int value)
+    {
+        return value switch
         {
             1 => "TS/FLV -> MP4",
             2 => "TS/FLV -> MKV",
             0 or _ => "TS/FLV",
-        });
-        ConfigurationSaveScheduler.Request();
-        NotifyRuntimeConfigurationChanged();
+        };
     }
 
     [ObservableProperty]
@@ -1201,7 +1252,7 @@ public partial class SettingsViewModel : ReactiveObject
             Title = "导出运行日志",
             Content = "选择要导出的运行日志范围。",
             CloseButtonText = "取消",
-            SecondaryButtonText = "导出最近",
+            SecondaryButtonText = "导出当天",
             PrimaryButtonText = "导出全部",
         };
 
@@ -1209,15 +1260,15 @@ public partial class SettingsViewModel : ReactiveObject
         ContentDialogResult result = await WindowSizing.ShowContentDialogAsync(dialog, OwnerWindow);
         if (result == ContentDialogResult.Primary)
         {
-            ExportLogsToArchive(latest: false);
+            ExportLogsToArchive(todayOnly: false);
         }
         else if (result == ContentDialogResult.Secondary)
         {
-            ExportLogsToArchive(latest: true);
+            ExportLogsToArchive(todayOnly: true);
         }
     }
 
-    private static void ExportLogsToArchive(bool latest)
+    private static void ExportLogsToArchive(bool todayOnly)
     {
         using CommonOpenFileDialog dialog = new()
         {
@@ -1233,8 +1284,8 @@ public partial class SettingsViewModel : ReactiveObject
 
         try
         {
-            string exportPath = latest
-                ? LogExporter.ExportLatest(dialog.FileName)
+            string exportPath = todayOnly
+                ? LogExporter.ExportToday(dialog.FileName)
                 : LogExporter.ExportAll(dialog.FileName);
             AppSessionLogger.Write($"logs exported to {exportPath}");
             Toast.Success($"日志已导出：{exportPath}");
@@ -1453,7 +1504,7 @@ public partial class SettingsViewModel : ReactiveObject
 
     private async Task ResetConfigCoreAsync(bool confirmBeforeReset)
     {
-        using (DialogBlurScope blurScope = new(OwnerWindow))
+        using (DialogBlurScope blurScope = DialogBlurScope.ForMessageBox(OwnerWindow))
         {
             if (confirmBeforeReset &&
                 MessageBox.Question("确定要重置配置文件吗？当前配置会先备份，重启后生效。") != System.Windows.MessageBoxResult.Yes)
@@ -1523,7 +1574,7 @@ public partial class SettingsViewModel : ReactiveObject
 
     private async Task RestartIfConfirmedAsync(string message)
     {
-        using DialogBlurScope blurScope = new(OwnerWindow);
+        using DialogBlurScope blurScope = DialogBlurScope.ForMessageBox(OwnerWindow);
         System.Windows.MessageBoxResult result = await MessageBox.QuestionAsync(message);
         if (result == System.Windows.MessageBoxResult.Yes)
         {

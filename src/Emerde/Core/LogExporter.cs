@@ -1,19 +1,20 @@
 using System.IO;
 using System.IO.Compression;
+using System.Globalization;
 
 namespace Emerde.Core;
 
 internal static class LogExporter
 {
-    public static string ExportLatest(string targetDirectory)
+    public static string ExportToday(string targetDirectory)
     {
-        string[] files = GetLatestSessionFiles();
+        string[] files = GetLogFilesForDate(AppPaths.LogsDirectory, DateTime.Now);
         if (files.Length == 0)
         {
             throw new FileNotFoundException("没有找到可导出的日志文件。");
         }
 
-        return CreateArchive(targetDirectory, $"Emerde_logs_latest_{DateTime.Now:yyyyMMdd_HHmmss}", files);
+        return CreateArchive(targetDirectory, $"Emerde_logs_today_{DateTime.Now:yyyyMMdd_HHmmss}", files);
     }
 
     public static string ExportAll(string targetDirectory)
@@ -32,28 +33,28 @@ internal static class LogExporter
         return CreateArchive(targetDirectory, $"Emerde_logs_all_{DateTime.Now:yyyyMMdd_HHmmss}", files);
     }
 
-    private static string[] GetLatestSessionFiles()
+    internal static string[] GetLogFilesForDate(string logDirectory, DateTime date)
     {
-        if (!Directory.Exists(AppPaths.LogsDirectory))
+        if (!Directory.Exists(logDirectory))
         {
             return [];
         }
 
-        string? latest = Directory.GetFiles(AppPaths.LogsDirectory, "*.log", SearchOption.TopDirectoryOnly)
-            .Where(static file => !file.EndsWith(".error.log", StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(File.GetLastWriteTime)
-            .FirstOrDefault();
+        DateTime targetDate = date.Date;
+        string compactPrefix = targetDate.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+        string dashedPrefix = targetDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
-        if (string.IsNullOrWhiteSpace(latest))
-        {
-            return [];
-        }
+        return Directory.GetFiles(logDirectory, "*.log", SearchOption.TopDirectoryOnly)
+            .Where(file => IsLogFileForDate(file, compactPrefix, dashedPrefix))
+            .OrderBy(static file => file, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
 
-        string errorLog = Path.Combine(
-            Path.GetDirectoryName(latest)!,
-            Path.GetFileNameWithoutExtension(latest) + ".error.log");
-
-        return File.Exists(errorLog) ? [latest, errorLog] : [latest];
+    private static bool IsLogFileForDate(string file, string compactPrefix, string dashedPrefix)
+    {
+        string fileName = Path.GetFileName(file);
+        return fileName.StartsWith(compactPrefix, StringComparison.OrdinalIgnoreCase) ||
+               fileName.StartsWith(dashedPrefix, StringComparison.OrdinalIgnoreCase);
     }
 
     internal static string CreateArchive(string targetDirectory, string archiveName, IReadOnlyList<string> files)

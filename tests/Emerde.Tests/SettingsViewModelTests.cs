@@ -1,9 +1,21 @@
 using Emerde.ViewModels;
+using System.Xml.Linq;
 
 namespace Emerde.Tests;
 
 public sealed class SettingsViewModelTests
 {
+    [Fact]
+    public void SessionLogRetentionInput_UsesStandardSettingsWidth()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml"));
+        XElement input = document.Descendants()
+            .Single(element => element.Name.LocalName == "CompactNumberBox"
+                && ((string?)element.Attribute("Value"))?.Contains("SessionLogRetentionDays", StringComparison.Ordinal) == true);
+
+        Assert.Equal("112", (string?)input.Attribute("Width"));
+    }
+
     [Theory]
     [InlineData("127.0.0.1:7890", "http://127.0.0.1:7890/")]
     [InlineData("localhost:8080", "http://localhost:8080/")]
@@ -32,5 +44,36 @@ public sealed class SettingsViewModelTests
         Assert.False(result);
         Assert.Null(proxyUri);
         Assert.False(string.IsNullOrWhiteSpace(errorKey));
+    }
+
+    [Theory]
+    [InlineData("TS/FLV -> MP4", 0, true)]
+    [InlineData("TS/FLV -> MKV", 0, true)]
+    [InlineData("TS/FLV", 0, false)]
+    [InlineData("TS/FLV -> MP4", 2, false)]
+    [InlineData("TS/FLV", 1, false)]
+    public void ShouldCancelConversionsOnRecordFormatChange_OnlyCancelsWhenSwitchingToRaw(
+        string previousRecordFormat,
+        int nextRecordFormatIndex,
+        bool expected)
+    {
+        Assert.Equal(expected, SettingsViewModel.ShouldCancelConversionsOnRecordFormatChange(previousRecordFormat, nextRecordFormatIndex));
+    }
+
+    private static string FindRepositoryFile(params string[] parts)
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory != null)
+        {
+            string candidate = Path.Combine([directory.FullName, .. parts]);
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException(string.Join(Path.DirectorySeparatorChar, parts));
     }
 }
