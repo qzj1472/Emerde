@@ -7,13 +7,52 @@ namespace Emerde.Tests;
 
 public sealed class ScreenRecordListWindowTests
 {
+    [Fact]
+    public void EnumerateVideoFiles_StopsWhenCancellationIsRequested()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-video-enumeration-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        File.WriteAllBytes(Path.Combine(directory, "video.ts"), [1]);
+        using CancellationTokenSource cancellation = new();
+        cancellation.Cancel();
+
+        try
+        {
+            Assert.Throws<OperationCanceledException>(() => ScreenRecordListViewModel.EnumerateVideoFiles(directory, cancellation.Token).ToArray());
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData(System.Windows.Input.Key.Up, true)]
     [InlineData(System.Windows.Input.Key.Down, true)]
-    [InlineData(System.Windows.Input.Key.Left, false)]
-    public void VideoListKeyboardNavigation_UsesVerticalArrowKeys(System.Windows.Input.Key key, bool expected)
+    [InlineData(System.Windows.Input.Key.Left, true)]
+    [InlineData(System.Windows.Input.Key.Right, true)]
+    [InlineData(System.Windows.Input.Key.W, true)]
+    [InlineData(System.Windows.Input.Key.A, true)]
+    [InlineData(System.Windows.Input.Key.S, true)]
+    [InlineData(System.Windows.Input.Key.D, true)]
+    [InlineData(System.Windows.Input.Key.Home, false)]
+    public void VideoListKeyboardNavigation_UsesArrowAndWasdKeys(System.Windows.Input.Key key, bool expected)
     {
         Assert.Equal(expected, ScreenRecordListWindow.IsVideoListKeyboardNavigationKey(key));
+    }
+
+    [Theory]
+    [InlineData(System.Windows.Input.Key.Up, -1)]
+    [InlineData(System.Windows.Input.Key.Left, -1)]
+    [InlineData(System.Windows.Input.Key.W, -1)]
+    [InlineData(System.Windows.Input.Key.A, -1)]
+    [InlineData(System.Windows.Input.Key.Down, 1)]
+    [InlineData(System.Windows.Input.Key.Right, 1)]
+    [InlineData(System.Windows.Input.Key.S, 1)]
+    [InlineData(System.Windows.Input.Key.D, 1)]
+    public void VideoListKeyboardNavigationOffset_MapsDirections(System.Windows.Input.Key key, int expected)
+    {
+        Assert.Equal(expected, ScreenRecordListWindow.GetVideoListKeyboardNavigationOffset(key));
     }
 
     [Fact]

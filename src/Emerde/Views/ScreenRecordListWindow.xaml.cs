@@ -424,14 +424,29 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         }
 
         ModifierKeys modifiers = Keyboard.Modifiers;
-        if (IsVideoListKeyboardNavigationKey(e.Key) && modifiers == ModifierKeys.None && VideoListBox.IsKeyboardFocusWithin)
+        if (IsVideoListKeyboardNavigationKey(e.Key) && modifiers == ModifierKeys.None)
         {
-            RecordedVideoItem? item = ViewModel.GetAdjacentVisibleVideo(e.Key == Key.Down ? 1 : -1);
+            RecordedVideoItem? item = ViewModel.GetAdjacentVisibleVideo(GetVideoListKeyboardNavigationOffset(e.Key));
             if (item != null)
             {
                 ViewModel.SelectRegularItem(item);
                 BringVideoListItemIntoView(item);
+                FocusVideoList();
             }
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Enter)
+        {
+            ViewModel.OpenVideoCommand.Execute(ViewModel.RegularSelectedItem);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.F5)
+        {
+            ViewModel.RefreshCommand.Execute(null);
             e.Handled = true;
             return;
         }
@@ -481,7 +496,12 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
 
     internal static bool IsVideoListKeyboardNavigationKey(Key key)
     {
-        return key is Key.Up or Key.Down;
+        return key is Key.Up or Key.Down or Key.Left or Key.Right or Key.W or Key.A or Key.S or Key.D;
+    }
+
+    internal static int GetVideoListKeyboardNavigationOffset(Key key)
+    {
+        return key is Key.Down or Key.Right or Key.S or Key.D ? 1 : -1;
     }
 
     private void BringVideoListItemIntoView(RecordedVideoItem item)
@@ -661,6 +681,10 @@ public partial class ScreenRecordListViewModel : ObservableObject
     private readonly Stack<SelectionSnapshot> selectionRedoStack = [];
     private CancellationTokenSource? videoLoadCancellationTokenSource;
     private CancellationTokenSource? videoEnrichmentCancellationTokenSource;
+    private readonly object refreshTaskSync = new();
+    private Task? refreshTask;
+    private bool refreshAgainRequested;
+    private bool forceRefreshRequested;
     private RecordedVideoItem? lastSelectedItem;
     private bool isRestoringSelection;
     private int videoEnrichmentWorkerRunning;
@@ -1021,12 +1045,69 @@ public partial class ScreenRecordListViewModel : ObservableObject
     [RelayCommand]
     public async Task RefreshAsync()
     {
-        await LoadVideosFromFoldersAsync(MediaFileCatalog.GetConfiguredSaveFolders(createDirectories: true), false);
+        await RequestVideoRefreshAsync(forceRefresh: true);
     }
 
     internal async Task RefreshForDisplayAsync()
     {
-        await LoadVideosFromFoldersAsync(MediaFileCatalog.GetConfiguredSaveFolders(createDirectories: true), true);
+        await RequestVideoRefreshAsync(forceRefresh: false);
+    }
+
+    private Task RequestVideoRefreshAsync(bool forceRefresh)
+    {
+        lock (refreshTaskSync)
+        {
+            if (refreshTask != null)
+            {
+                refreshAgainRequested = true;
+                forceRefreshRequested |= forceRefresh;
+                return refreshTask;
+            }
+
+            forceRefreshRequested = forceRefresh;
+            refreshAgainRequested = false;
+            refreshTask = RunVideoRefreshLoopAsync();
+            return refreshTask;
+        }
+    }
+
+    private async Task RunVideoRefreshLoopAsync()
+    {
+        await Task.Yield();
+        try
+        {
+            while (true)
+            {
+                bool forceRefresh;
+                lock (refreshTaskSync)
+                {
+                    forceRefresh = forceRefreshRequested;
+                    forceRefreshRequested = false;
+                    refreshAgainRequested = false;
+                }
+
+                await LoadVideosFromFoldersAsync(
+                    MediaFileCatalog.GetConfiguredSaveFolders(createDirectories: true),
+                    reuseExistingItems: !forceRefresh);
+
+                lock (refreshTaskSync)
+                {
+                    if (!refreshAgainRequested)
+                    {
+                        refreshTask = null;
+                        return;
+                    }
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            lock (refreshTaskSync)
+            {
+                refreshTask = null;
+            }
+            AppSessionLogger.WriteException(e);
+        }
     }
 
     [RelayCommand]
@@ -1774,7 +1855,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
 
         System.Windows.MessageBoxResult result;
-        using (DialogBlurScope blurScope = new())
+        using (DialogBlurScope blurScope = DialogBlurScope.ForMessageBox(Application.Current.MainWindow))
         {
             result = await MessageBox.QuestionAsync(FormatResourceText("ConfirmDeleteVideos", "Delete {0} video files?", items.Count));
         }
@@ -1941,9 +2022,11 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
     private async Task LoadVideosFromFoldersAsync(IEnumerable<string> folders, bool reuseExistingItems)
     {
-        videoLoadCancellationTokenSource?.Cancel();
-        videoLoadCancellationTokenSource?.Dispose();
-        videoLoadCancellationTokenSource = new CancellationTokenSource();
+        if (videoLoadCancellationTokenSource == null || videoLoadCancellationTokenSource.IsCancellationRequested)
+        {
+            videoLoadCancellationTokenSource?.Dispose();
+            videoLoadCancellationTokenSource = new CancellationTokenSource();
+        }
         CancellationToken loadToken = videoLoadCancellationTokenSource.Token;
 
         videoEnrichmentCancellationTokenSource?.Cancel();
@@ -1986,7 +2069,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
             {
                 VideoFileSnapshot[] snapshots = roots
                     .Where(Directory.Exists)
-                    .SelectMany(root => EnumerateVideoFiles(root).Select(path => (Path: path, Root: root)))
+                    .SelectMany(root => EnumerateVideoFiles(root, loadToken).Select(path => (Path: path, Root: root)))
                     .Where(item => MediaFileCatalog.IsMediaPath(item.Path) && !MediaFileCatalog.IsApplicationTemporaryPath(item.Path))
                     .GroupBy(item => item.Path, StringComparer.OrdinalIgnoreCase)
                     .Select(group => CreateVideoFileSnapshot(group.First().Path, group.First().Root))
@@ -2019,6 +2102,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         }
         catch (OperationCanceledException) when (loadToken.IsCancellationRequested)
         {
+            Interlocked.Exchange(ref directorySnapshotDirty, 1);
             return;
         }
         catch (Exception e)
@@ -2974,11 +3058,17 @@ public partial class ScreenRecordListViewModel : ObservableObject
         return (succeeded, failed);
     }
 
-    internal static IEnumerable<string> EnumerateVideoFiles(string folder)
+    internal static IEnumerable<string> EnumerateVideoFiles(string folder, CancellationToken cancellationToken = default)
     {
         try
         {
-            return Directory.EnumerateFiles(folder, "*.*", RecursiveEnumerationOptions).ToArray();
+            List<string> files = [];
+            foreach (string path in Directory.EnumerateFiles(folder, "*.*", RecursiveEnumerationOptions))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                files.Add(path);
+            }
+            return files;
         }
         catch (DirectoryNotFoundException)
         {

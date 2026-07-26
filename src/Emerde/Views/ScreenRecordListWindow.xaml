@@ -70,7 +70,8 @@
                         <Button Command="{Binding RefreshCommand}"
                                 Margin="0,0,8,0"
                                 IsEnabled="{Binding IsIdle}"
-                                Style="{StaticResource VideoListToolbarButtonStyle}">
+                                Style="{StaticResource VideoListToolbarButtonStyle}"
+                                ToolTip="刷新视频列表（F5）">
                             <StackPanel Orientation="Horizontal">
                                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                              Margin="0,0,7,0"
@@ -105,7 +106,8 @@
                                 VerticalAlignment="Center"
                                 Orientation="Horizontal">
                         <Button Command="{Binding BeginMultiSelectCommand}"
-                                Content="{I18N MultiSelect}">
+                                Content="{I18N MultiSelect}"
+                                ToolTip="进入多选模式（Ctrl+A 可全选）">
                             <Button.Style>
                                 <Style TargetType="{x:Type Button}" BasedOn="{StaticResource VideoListToolbarButtonStyle}">
                                     <Setter Property="Visibility" Value="Collapsed" />
@@ -139,7 +141,7 @@
                             <Button Margin="0,0,8,0"
                                     Command="{Binding SelectAllCommand}"
                                     Style="{StaticResource VideoListIconButtonStyle}"
-                                    ToolTip="全选">
+                                    ToolTip="全选视频（Ctrl+A）">
                                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                              Glyph="{x:Static ui:FontSymbols.Accept}" />
                             </Button>
@@ -152,7 +154,7 @@
                             </Button>
                             <Button Command="{Binding CancelMultiSelectCommand}"
                                     Style="{StaticResource VideoListIconButtonStyle}"
-                                    ToolTip="取消选择（Esc）">
+                                    ToolTip="退出多选（Esc）">
                                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                              Glyph="{x:Static ui:FontSymbols.CalculatorMultiply}" />
                             </Button>
@@ -432,7 +434,8 @@
                                     <Button Margin="0,0,8,0"
                                             Command="{Binding DataContext.OpenVideoCommand, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
                                             CommandParameter="{Binding}"
-                                            Content="{I18N OpenVideo}" />
+                                            Content="{I18N OpenVideo}"
+                                            ToolTip="打开视频（Enter）" />
                                     <Button Margin="0,0,8,0"
                                             Command="{Binding DataContext.TranscodeVideoCommand, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
                                             CommandParameter="{Binding}"
