@@ -41,9 +41,20 @@ public sealed class NetworkCapacityTests
     {
         string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "ViewModels", "MainViewModel.cs"));
 
-        Assert.Contains("domesticTask = MeasureNetworkRegionThroughputMbpsAsync(NetworkThroughputRegion.Domestic)", source);
-        Assert.Contains("overseasTask = MeasureNetworkRegionThroughputMbpsAsync(NetworkThroughputRegion.Overseas)", source);
+        Assert.Contains("domesticTask = MeasureNetworkRegionThroughputMbpsAsync(NetworkThroughputRegion.Domestic, cancellationToken)", source);
+        Assert.Contains("overseasTask = MeasureNetworkRegionThroughputMbpsAsync(NetworkThroughputRegion.Overseas, cancellationToken)", source);
         Assert.Contains("Task.WhenAll(domesticTask, overseasTask)", source);
+    }
+
+    [Fact]
+    public void Preview_CancelsActiveCapacityTestAndPropagatesCancellationToConnections()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "ViewModels", "MainViewModel.cs"));
+
+        Assert.Contains("if (targetRoom != null)\n        {\n            CancelNetworkCapacityTest();", source.Replace("\r\n", "\n"));
+        Assert.Contains("MeasureBestNetworkThroughputMbpsAsync(testCancellation.Token)", source);
+        Assert.Contains("CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)", source);
+        Assert.Contains("catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)", source);
     }
 
     [Fact]
@@ -53,6 +64,7 @@ public sealed class NetworkCapacityTests
 
         Assert.Contains("NetworkThroughputMeasuredEndpointCount = 2", source);
         Assert.Contains("NetworkThroughputSingleOverseasProbeMbps = 20d", source);
+        Assert.Contains("NetworkCapacitySafetyRatio = 0.85d", source);
         Assert.Contains("NetworkThroughputWarmupBytesPerConnection = 256L * 1024L", source);
         Assert.Contains("bestProbeMbps < NetworkThroughputSingleOverseasProbeMbps", source);
         Assert.Contains(".Take(measuredEndpointCount)", source);
@@ -63,7 +75,7 @@ public sealed class NetworkCapacityTests
     [InlineData(100d, 0d, null)]
     [InlineData(double.NaN, 5d, null)]
     [InlineData(double.PositiveInfinity, 5d, null)]
-    [InlineData(100d, 5d, 14)]
+    [InlineData(100d, 5d, 17)]
     [InlineData(1d, 10d, 1)]
     public void CalculateNetworkCapacity_OnlyReturnsValidMeasuredResults(double measuredMbps, double perRoomMbps, int? expected)
     {
@@ -74,6 +86,53 @@ public sealed class NetworkCapacityTests
     public void CalculateNetworkCapacity_DoesNotEstimateMissingMeasurement()
     {
         Assert.Null(MainViewModel.CalculateNetworkCapacity(null, 5d));
+    }
+
+    [Fact]
+    public void CreateNetworkCapacityPresentation_UsesDefaultEstimateWithoutLiveRooms()
+    {
+        NetworkCapacityMeasurement measurement = new(
+            new NetworkRegionMeasurement(100d, 3, 3, 1, 1),
+            new NetworkRegionMeasurement(50d, 3, 3, 1, 1),
+            6,
+            6,
+            NetworkMeasurementConfidence.High);
+
+        NetworkCapacityPresentation presentation = MainViewModel.CreateNetworkCapacityPresentation(
+            measurement,
+            Array.Empty<RoomStatusReactive>());
+
+        Assert.Equal(6.345d, presentation.DomesticPerRoomMbps);
+        Assert.Equal(6.345d, presentation.OverseasPerRoomMbps);
+        Assert.Equal(13, presentation.DomesticCapacity);
+        Assert.Equal(6, presentation.OverseasCapacity);
+        Assert.Equal(0, presentation.RoomCount);
+    }
+
+    [Fact]
+    public void CreateNetworkCapacityPresentation_UsesDefaultEstimateWithLiveRooms()
+    {
+        NetworkCapacityMeasurement measurement = new(
+            new NetworkRegionMeasurement(100d, 3, 3, 1, 1),
+            new NetworkRegionMeasurement(50d, 3, 3, 1, 1),
+            6,
+            6,
+            NetworkMeasurementConfidence.High);
+        RoomStatusReactive room = new()
+        {
+            PlatformName = "Douyin",
+            Bitrate = "50 Mbps",
+        };
+
+        NetworkCapacityPresentation presentation = MainViewModel.CreateNetworkCapacityPresentation(
+            measurement,
+            [room]);
+
+        Assert.Equal(6.345d, presentation.DomesticPerRoomMbps);
+        Assert.Equal(6.345d, presentation.OverseasPerRoomMbps);
+        Assert.Equal(13, presentation.DomesticCapacity);
+        Assert.Equal(6, presentation.OverseasCapacity);
+        Assert.Equal(1, presentation.RoomCount);
     }
 
     [Fact]

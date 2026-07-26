@@ -18,6 +18,21 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         Interval = TimeSpan.FromSeconds(2),
     };
 
+    private readonly System.Windows.Threading.DispatcherTimer topFeedbackTimer = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(1400),
+    };
+
+    private readonly System.Windows.Threading.DispatcherTimer bottomFeedbackTimer = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(1200),
+    };
+
+    private readonly System.Windows.Threading.DispatcherTimer previewClickTimer = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(Vanara.PInvoke.User32.GetDoubleClickTime()),
+    };
+
     private int pendingVideoLayoutRefreshes;
     private bool isVideoLayoutRefreshRunning;
     private System.Windows.Point? lastTrackedPointerPosition;
@@ -25,10 +40,11 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     private ViewModels.MainViewModel? attachedViewModel;
     private bool isVideoPresentationSuspended;
     private bool isFullScreen;
+    private bool suppressNextPreviewPointerUp;
     private System.Windows.Thickness normalPanelPadding;
     private System.Windows.Thickness normalPanelBorderThickness;
     private System.Windows.CornerRadius normalPanelCornerRadius;
-    private LibVLCSharp.WPF.VideoView? previewVideoView;
+    private Core.LivePreviewFrameSource? attachedFrameSource;
 
     public bool IsEmbeddedMode
     {
@@ -48,6 +64,10 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
 
             isFullScreen = value;
             ApplyFullScreenState();
+            if (value && IsLoaded && attachedViewModel is { IsPreviewing: true })
+            {
+                ShowTopFeedback("按 V 或 Esc 退出全屏");
+            }
         }
     }
 
@@ -85,10 +105,21 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             TrackPreviewPointer();
         };
         controlsIdleTimer.Tick += (_, _) => HidePreviewControls();
+        topFeedbackTimer.Tick += (_, _) => HideFeedback(TopFeedback, topFeedbackTimer);
+        bottomFeedbackTimer.Tick += (_, _) => HideFeedback(BottomFeedback, bottomFeedbackTimer);
+        previewClickTimer.Tick += (_, _) =>
+        {
+            previewClickTimer.Stop();
+            TogglePreviewPlayback();
+        };
         Unloaded += (_, _) =>
         {
             pointerTrackingTimer.Stop();
             controlsIdleTimer.Stop();
+            topFeedbackTimer.Stop();
+            bottomFeedbackTimer.Stop();
+            previewClickTimer.Stop();
+            suppressNextPreviewPointerUp = false;
             pendingVideoLayoutRefreshes = 0;
             lastTrackedPointerPosition = null;
             HidePreviewControlsImmediately();
@@ -112,17 +143,25 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         DetachMediaPlayerEvents();
         attachedViewModel = viewModel;
         attachedMediaPlayer = mediaPlayer;
+        attachedFrameSource = viewModel?.LivePreviewFrameSource;
         PreviewOverlayRoot.DataContext = attachedViewModel;
 
         if (attachedViewModel != null)
         {
             attachedViewModel.PropertyChanged += OnViewModelPropertyChanged;
+            attachedViewModel.PreviewControlFeedbackRequested += OnPreviewControlFeedbackRequested;
         }
 
         if (attachedMediaPlayer != null)
         {
             attachedMediaPlayer.Vout += OnMediaPlayerVout;
             attachedMediaPlayer.Playing += OnMediaPlayerPlaying;
+        }
+
+        if (attachedFrameSource != null)
+        {
+            attachedFrameSource.SourceChanged += OnFrameSourceChanged;
+            PreviewVideoFrame.Source = attachedFrameSource.Source;
         }
 
         UpdateVideoPresentationState();
@@ -133,9 +172,16 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         ClearVideoPresentation();
         PreviewOverlayRoot.DataContext = null;
 
+        if (attachedFrameSource != null)
+        {
+            attachedFrameSource.SourceChanged -= OnFrameSourceChanged;
+            attachedFrameSource = null;
+        }
+
         if (attachedViewModel != null)
         {
             attachedViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            attachedViewModel.PreviewControlFeedbackRequested -= OnPreviewControlFeedbackRequested;
             attachedViewModel = null;
         }
 
@@ -147,6 +193,15 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         attachedMediaPlayer.Vout -= OnMediaPlayerVout;
         attachedMediaPlayer.Playing -= OnMediaPlayerPlaying;
         attachedMediaPlayer = null;
+    }
+
+    private void OnFrameSourceChanged(object? sender, EventArgs e)
+    {
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            PreviewVideoFrame.Source = attachedFrameSource?.Source;
+            ScheduleVideoLayoutRefresh();
+        }, System.Windows.Threading.DispatcherPriority.Render);
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -164,6 +219,139 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
                 }
             }, System.Windows.Threading.DispatcherPriority.Render);
         }
+
+        if (e.PropertyName == nameof(ViewModels.MainViewModel.IsPreviewPaused))
+        {
+            _ = Dispatcher.BeginInvoke(UpdatePausedIndicator);
+        }
+    }
+
+    private void OnPreviewControlFeedbackRequested(object? sender, ViewModels.PreviewControlFeedbackEventArgs e)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(() => OnPreviewControlFeedbackRequested(sender, e));
+            return;
+        }
+
+        switch (e.Kind)
+        {
+            case ViewModels.PreviewControlFeedbackKind.Volume:
+                ShowVolumeFeedback(e.Volume);
+                break;
+        }
+    }
+
+    private void ShowTopFeedback(string text)
+    {
+        TopFeedbackText.Text = text;
+        ShowFeedback(TopFeedback, topFeedbackTimer);
+    }
+
+    private void ShowVolumeFeedback(int volume)
+    {
+        int normalizedVolume = Emerde.Core.LivePreviewPlayer.NormalizeVolume(volume);
+        bool muted = normalizedVolume == 0;
+        BottomVolumeFeedbackIcon.Visibility = muted ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
+        BottomMutedFeedbackIcon.Visibility = muted ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+        BottomFeedbackText.Text = $"音量 {normalizedVolume}%";
+        ShowFeedback(BottomFeedback, bottomFeedbackTimer);
+    }
+
+    private static void ShowFeedback(System.Windows.Controls.Border feedback, System.Windows.Threading.DispatcherTimer timer)
+    {
+        timer.Stop();
+        feedback.Opacity = 1d;
+        feedback.Visibility = System.Windows.Visibility.Visible;
+        timer.Start();
+    }
+
+    private static void HideFeedback(System.Windows.Controls.Border feedback, System.Windows.Threading.DispatcherTimer timer)
+    {
+        timer.Stop();
+        feedback.Visibility = System.Windows.Visibility.Collapsed;
+    }
+
+    private void UpdatePausedIndicator()
+    {
+        bool isVisible = attachedViewModel is { IsPreviewing: true, IsPreviewPaused: true };
+        PausedIndicator.Visibility = System.Windows.Visibility.Collapsed;
+        if (!isVisible || attachedViewModel is not { IsHomePageSelected: true } || !IsVisible)
+        {
+            return;
+        }
+
+        _ = Dispatcher.BeginInvoke(ShowPausedIndicator, System.Windows.Threading.DispatcherPriority.Render);
+    }
+
+    private void ShowPausedIndicator()
+    {
+        if (attachedViewModel is not { IsHomePageSelected: true, IsPreviewing: true, IsPreviewPaused: true }
+            || !IsVisible)
+        {
+            return;
+        }
+
+        if (TryResolvePausedIndicatorBackground(out bool isLight))
+        {
+            PausedIndicatorIcon.Fill = isLight
+                ? System.Windows.Media.Brushes.Black
+                : System.Windows.Media.Brushes.White;
+        }
+
+        PausedIndicator.Visibility = System.Windows.Visibility.Visible;
+    }
+
+    private bool TryResolvePausedIndicatorBackground(out bool isLight)
+    {
+        isLight = false;
+        if (VideoSurface.ActualWidth <= 0d || VideoSurface.ActualHeight <= 0d)
+        {
+            return false;
+        }
+
+        try
+        {
+            System.Windows.Point center = VideoSurface.PointToScreen(
+                new System.Windows.Point(VideoSurface.ActualWidth / 2d, VideoSurface.ActualHeight / 2d));
+            System.Windows.DpiScale dpi = System.Windows.Media.VisualTreeHelper.GetDpi(VideoSurface);
+            int sampleWidth = Math.Max(24, (int)Math.Ceiling(48d * dpi.DpiScaleX));
+            int sampleHeight = Math.Max(24, (int)Math.Ceiling(48d * dpi.DpiScaleY));
+            int sampleX = (int)Math.Round(center.X - sampleWidth / 2d);
+            int sampleY = (int)Math.Round(center.Y - sampleHeight / 2d);
+            using System.Drawing.Bitmap sample = new(sampleWidth, sampleHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            using System.Drawing.Graphics graphics = System.Drawing.Graphics.FromImage(sample);
+            graphics.CopyFromScreen(
+                sampleX,
+                sampleY,
+                0,
+                0,
+                new System.Drawing.Size(sampleWidth, sampleHeight),
+                System.Drawing.CopyPixelOperation.SourceCopy);
+            isLight = IsLightPreviewSample(sample);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    internal static bool IsLightPreviewSample(System.Drawing.Bitmap sample)
+    {
+        double totalLuminance = 0d;
+        int pixelCount = 0;
+        for (int y = 0; y < sample.Height; y += 2)
+        {
+            for (int x = 0; x < sample.Width; x += 2)
+            {
+                System.Drawing.Color color = sample.GetPixel(x, y);
+                totalLuminance += color.B * 0.0722d + color.G * 0.7152d + color.R * 0.2126d;
+                pixelCount++;
+            }
+        }
+
+        return pixelCount > 0 && totalLuminance / pixelCount >= 145d;
     }
 
     public void SetVideoPresentationSuspended(bool isSuspended)
@@ -185,59 +373,22 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             return;
         }
 
-        EnsurePreviewVideoView();
-        if (previewVideoView != null)
-        {
-            previewVideoView.MediaPlayer = attachedMediaPlayer;
-        }
-
-        ScheduleVideoLayoutRefresh();
-    }
-
-    private void EnsurePreviewVideoView()
-    {
-        if (previewVideoView != null)
-        {
-            return;
-        }
-
-        if (PreviewOverlayRoot.Parent is System.Windows.Controls.Panel overlayOwner)
-        {
-            overlayOwner.Children.Remove(PreviewOverlayRoot);
-        }
-
-        previewVideoView = new LibVLCSharp.WPF.VideoView
-        {
-            HorizontalContentAlignment = System.Windows.HorizontalAlignment.Stretch,
-            VerticalContentAlignment = System.Windows.VerticalAlignment.Stretch,
-            Content = PreviewOverlayRoot,
-            Visibility = System.Windows.Visibility.Visible,
-        };
-
+        PreviewVideoFrame.Source = attachedFrameSource?.Source;
+        PreviewVideoFrame.Visibility = System.Windows.Visibility.Visible;
         PreviewOverlayRoot.Visibility = System.Windows.Visibility.Visible;
-        VideoSurface.Children.Insert(0, previewVideoView);
+        ScheduleVideoLayoutRefresh();
     }
 
     private void ClearVideoPresentation()
     {
         pendingVideoLayoutRefreshes = 0;
         HidePreviewControlsImmediately();
+        HideFeedback(TopFeedback, topFeedbackTimer);
+        HideFeedback(BottomFeedback, bottomFeedbackTimer);
+        PausedIndicator.Visibility = System.Windows.Visibility.Collapsed;
 
-        if (previewVideoView != null)
-        {
-            previewVideoView.MediaPlayer = null;
-            previewVideoView.Content = null;
-            VideoSurface.Children.Remove(previewVideoView);
-            previewVideoView.Dispose();
-            previewVideoView = null;
-        }
-
+        PreviewVideoFrame.Visibility = System.Windows.Visibility.Collapsed;
         PreviewOverlayRoot.Visibility = System.Windows.Visibility.Collapsed;
-        if (PreviewOverlayRoot.Parent == null)
-        {
-            VideoSurface.Children.Add(PreviewOverlayRoot);
-        }
-
         VideoSurface.UpdateLayout();
         PreviewViewport.InvalidateVisual();
     }
@@ -315,31 +466,71 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             return;
         }
 
-        double aspectRatio = TryGetVideoAspectRatio(out double videoAspectRatio) ? videoAspectRatio : 16d / 9d;
-        double viewportRatio = viewportWidth / viewportHeight;
-
-        if (viewportRatio > aspectRatio)
+        if (!TryGetVideoDimensions(out uint videoWidth, out uint videoHeight))
         {
-            VideoSurface.Height = viewportHeight;
-            VideoSurface.Width = viewportHeight * aspectRatio;
+            videoWidth = 16;
+            videoHeight = 9;
+        }
+        System.Windows.DpiScale dpi = System.Windows.Media.VisualTreeHelper.GetDpi(PreviewViewport);
+        System.Windows.Size surfaceSize = CalculateVideoSurfaceSize(
+            viewportWidth,
+            viewportHeight,
+            videoWidth,
+            videoHeight,
+            dpi.DpiScaleX,
+            dpi.DpiScaleY);
+        VideoSurface.Width = surfaceSize.Width;
+        VideoSurface.Height = surfaceSize.Height;
+        VideoSurface.UpdateLayout();
+        VideoSurface.Clip = new System.Windows.Media.RectangleGeometry(
+            new System.Windows.Rect(0d, 0d, surfaceSize.Width, surfaceSize.Height));
+    }
+
+    internal static System.Windows.Size CalculateVideoSurfaceSize(
+        double viewportWidth,
+        double viewportHeight,
+        uint videoWidth,
+        uint videoHeight,
+        double dpiScaleX,
+        double dpiScaleY)
+    {
+        if (viewportWidth <= 0d
+            || viewportHeight <= 0d
+            || videoWidth == 0
+            || videoHeight == 0
+            || dpiScaleX <= 0d
+            || dpiScaleY <= 0d)
+        {
+            return new System.Windows.Size(0d, 0d);
+        }
+
+        double viewportPixelWidth = Math.Max(1d, Math.Round(viewportWidth * dpiScaleX, MidpointRounding.AwayFromZero));
+        double viewportPixelHeight = Math.Max(1d, Math.Round(viewportHeight * dpiScaleY, MidpointRounding.AwayFromZero));
+        double surfacePixelWidth;
+        double surfacePixelHeight;
+
+        if (viewportPixelWidth / viewportPixelHeight > (double)videoWidth / videoHeight)
+        {
+            surfacePixelHeight = viewportPixelHeight;
+            surfacePixelWidth = Math.Min(
+                viewportPixelWidth,
+                Math.Max(1d, Math.Round(surfacePixelHeight * videoWidth / videoHeight, MidpointRounding.AwayFromZero)));
         }
         else
         {
-            VideoSurface.Width = viewportWidth;
-            VideoSurface.Height = viewportWidth / aspectRatio;
+            surfacePixelWidth = viewportPixelWidth;
+            surfacePixelHeight = Math.Min(
+                viewportPixelHeight,
+                Math.Max(1d, Math.Round(surfacePixelWidth * videoHeight / videoWidth, MidpointRounding.AwayFromZero)));
         }
 
-        PreviewOverlayRoot.Width = VideoSurface.Width;
-        PreviewOverlayRoot.Height = VideoSurface.Height;
-        VideoSurface.UpdateLayout();
-        previewVideoView?.UpdateLayout();
+        return new System.Windows.Size(surfacePixelWidth / dpiScaleX, surfacePixelHeight / dpiScaleY);
     }
 
-    private bool TryGetVideoAspectRatio(out double aspectRatio)
+    private bool TryGetVideoDimensions(out uint width, out uint height)
     {
-        aspectRatio = 0;
-        uint width = 0;
-        uint height = 0;
+        width = 0;
+        height = 0;
 
         if (attachedMediaPlayer != null
          && attachedMediaPlayer.VoutCount > 0
@@ -347,7 +538,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
          && width > 0
          && height > 0)
         {
-            aspectRatio = (double)width / height;
             return true;
         }
 
@@ -360,6 +550,48 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         ShowPreviewControls();
     }
 
+    private void PreviewTouchLayer_OnMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != System.Windows.Input.MouseButton.Left || e.ClickCount < 2)
+        {
+            return;
+        }
+
+        previewClickTimer.Stop();
+        suppressNextPreviewPointerUp = true;
+        TogglePreviewFullScreen();
+        e.Handled = true;
+    }
+
+    private void PreviewTouchLayer_OnMouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != System.Windows.Input.MouseButton.Left)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (suppressNextPreviewPointerUp)
+        {
+            suppressNextPreviewPointerUp = false;
+            return;
+        }
+
+        previewClickTimer.Stop();
+        previewClickTimer.Start();
+    }
+
+    private void TogglePreviewPlayback()
+    {
+        if (attachedViewModel is not { IsPreviewing: true, IsPreviewTransitioning: false } viewModel
+            || !viewModel.TogglePreviewPauseCommand.CanExecute(null))
+        {
+            return;
+        }
+
+        viewModel.TogglePreviewPauseCommand.Execute(null);
+    }
+
     private void PreviewControls_OnMouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
     {
         controlsIdleTimer.Stop();
@@ -369,6 +601,58 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     private void PreviewControls_OnMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
     {
         RestartControlsIdleTimer();
+    }
+
+    private void PreviewVolumeSlider_OnPreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Slider slider || IsThumbSource(e.OriginalSource as System.Windows.DependencyObject))
+        {
+            return;
+        }
+
+        double width = slider.ActualWidth;
+        if (width <= 0d)
+        {
+            return;
+        }
+
+        double ratio = Math.Clamp(e.GetPosition(slider).X / width, 0d, 1d);
+        slider.Value = slider.Minimum + (slider.Maximum - slider.Minimum) * ratio;
+        e.Handled = true;
+        ShowPreviewControls();
+    }
+
+    private void PreviewVolume_OnPreviewMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+    {
+        int step = GetPreviewVolumeWheelStep(e.Delta);
+        if (step == 0 || attachedViewModel is not { IsPreviewing: true } viewModel)
+        {
+            return;
+        }
+
+        viewModel.AdjustPreviewVolume(step);
+        e.Handled = true;
+        ShowPreviewControls();
+    }
+
+    internal static int GetPreviewVolumeWheelStep(int wheelDelta)
+    {
+        return Math.Sign(wheelDelta) * 5;
+    }
+
+    private static bool IsThumbSource(System.Windows.DependencyObject? source)
+    {
+        while (source != null)
+        {
+            if (source is System.Windows.Controls.Primitives.Thumb)
+            {
+                return true;
+            }
+
+            source = System.Windows.Media.VisualTreeHelper.GetParent(source);
+        }
+
+        return false;
     }
 
     private void ShowPreviewControls()
@@ -434,17 +718,19 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
 
     private void ToggleWindowSize_OnClick(object sender, System.Windows.RoutedEventArgs e)
     {
+        TogglePreviewFullScreen();
+    }
+
+    private void TogglePreviewFullScreen()
+    {
         System.Windows.Window? window = System.Windows.Window.GetWindow(this);
 
-        if (window == null)
+        if (window is not MainWindow mainWindow || !IsEmbeddedMode)
         {
             return;
         }
 
-        if (window is MainWindow mainWindow && IsEmbeddedMode)
-        {
-            mainWindow.TogglePreviewFullScreen();
-        }
+        mainWindow.TogglePreviewFullScreen();
 
         ShowPreviewControls();
         UpdateVideoSurfaceSize();
@@ -508,7 +794,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         bool isMaximized = IsFullScreen || window is MainWindow { IsPreviewFullScreenActive: true };
 
         WindowSizeButton.Visibility = canResizePreviewWindow ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
-        WindowSizeButton.ToolTip = isMaximized ? "PreviewRestore".Tr() : "PreviewFullScreen".Tr();
+        WindowSizeButton.ToolTip = $"{(isMaximized ? "PreviewRestore".Tr() : "PreviewFullScreen".Tr())} (V)";
         MaximizeIcon.Visibility = isMaximized ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
         RestoreIcon.Visibility = isMaximized ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
     }
@@ -578,8 +864,8 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         {
             PanelChrome.Padding = normalPanelPadding;
             PanelChrome.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "EmerdePanelBrush");
-            PreviewViewport.Background = System.Windows.Media.Brushes.Transparent;
-            VideoSurface.Background = System.Windows.Media.Brushes.Transparent;
+            PreviewViewport.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(5, 5, 5));
+            VideoSurface.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(5, 5, 5));
             PanelChrome.BorderThickness = normalPanelBorderThickness;
             PanelChrome.CornerRadius = normalPanelCornerRadius;
         }
@@ -604,8 +890,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             && IsVisible
             && !isVideoPresentationSuspended
             && PreviewViewport.IsVisible
-            && previewVideoView != null
-            && previewVideoView.Visibility == System.Windows.Visibility.Visible
+            && PreviewVideoFrame.Visibility == System.Windows.Visibility.Visible
             && PreviewViewport.ActualWidth > 0
             && PreviewViewport.ActualHeight > 0
             && DataContext is ViewModels.MainViewModel { IsPreviewing: true, IsPreviewTransitioning: false };

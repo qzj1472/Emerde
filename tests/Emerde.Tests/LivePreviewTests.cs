@@ -36,6 +36,57 @@ public sealed class LivePreviewTests
         Assert.Equal(300, LivePreviewPlayer.CacheMilliseconds);
     }
 
+    [Theory]
+    [InlineData(-1, 0)]
+    [InlineData(0, 0)]
+    [InlineData(80, 80)]
+    [InlineData(101, 100)]
+    public void NormalizeVolume_ClampsToLibVlcRange(int value, int expected)
+    {
+        Assert.Equal(expected, LivePreviewPlayer.NormalizeVolume(value));
+    }
+
+    [Theory]
+    [InlineData(System.Windows.Input.Key.Space)]
+    [InlineData(System.Windows.Input.Key.M)]
+    [InlineData(System.Windows.Input.Key.OemMinus)]
+    [InlineData(System.Windows.Input.Key.OemPlus)]
+    [InlineData(System.Windows.Input.Key.G)]
+    [InlineData(System.Windows.Input.Key.Escape)]
+    public void IsPreviewControlShortcut_AcceptsPreviewPlaybackKeys(System.Windows.Input.Key key)
+    {
+        Assert.True(MainWindow.IsPreviewControlShortcut(true, key, System.Windows.Input.ModifierKeys.None));
+        Assert.False(MainWindow.IsPreviewControlShortcut(false, key, System.Windows.Input.ModifierKeys.None));
+        Assert.False(MainWindow.IsPreviewControlShortcut(true, key, System.Windows.Input.ModifierKeys.Control));
+    }
+
+    [Fact]
+    public void IsPreviewControlShortcut_UsesVForFullScreen()
+    {
+        Assert.True(MainWindow.IsPreviewControlShortcut(true, System.Windows.Input.Key.V, System.Windows.Input.ModifierKeys.None));
+        Assert.False(MainWindow.IsPreviewControlShortcut(true, System.Windows.Input.Key.V, System.Windows.Input.ModifierKeys.Control));
+        Assert.False(MainWindow.IsPreviewControlShortcut(true, System.Windows.Input.Key.Enter, System.Windows.Input.ModifierKeys.Alt));
+        Assert.False(MainWindow.IsPreviewControlShortcut(true, System.Windows.Input.Key.F, System.Windows.Input.ModifierKeys.None));
+    }
+
+    [Theory]
+    [InlineData(System.Windows.Input.Key.Left)]
+    [InlineData(System.Windows.Input.Key.Right)]
+    [InlineData(System.Windows.Input.Key.Up)]
+    [InlineData(System.Windows.Input.Key.Down)]
+    [InlineData(System.Windows.Input.Key.Q)]
+    public void IsPreviewControlShortcut_LeavesUnrelatedKeysAvailable(System.Windows.Input.Key key)
+    {
+        Assert.False(MainWindow.IsPreviewControlShortcut(true, key, System.Windows.Input.ModifierKeys.None));
+    }
+
+    [Fact]
+    public void ShouldBypassAppShortcutsForDialog_DisablesAppShortcutDispatchOnlyWhileDialogIsOpen()
+    {
+        Assert.True(MainWindow.ShouldBypassAppShortcutsForDialog(true));
+        Assert.False(MainWindow.ShouldBypassAppShortcutsForDialog(false));
+    }
+
     [Fact]
     public void TryReadSnapshotDimensions_ReadsCompletedPng()
     {
@@ -80,6 +131,80 @@ public sealed class LivePreviewTests
         Assert.False(LivePreviewPanel.HasPointerMoved(position, position));
         Assert.False(LivePreviewPanel.HasPointerMoved(position, new System.Windows.Point(120.5, 80.5)));
         Assert.True(LivePreviewPanel.HasPointerMoved(position, new System.Windows.Point(121, 80)));
+    }
+
+    [Theory]
+    [InlineData(120, 5)]
+    [InlineData(1, 5)]
+    [InlineData(0, 0)]
+    [InlineData(-1, -5)]
+    [InlineData(-120, -5)]
+    public void GetPreviewVolumeWheelStep_AdjustsFivePercentPerWheelEvent(int wheelDelta, int expected)
+    {
+        Assert.Equal(expected, LivePreviewPanel.GetPreviewVolumeWheelStep(wheelDelta));
+    }
+
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(120, false)]
+    [InlineData(160, true)]
+    [InlineData(255, true)]
+    public void IsLightPreviewSample_ChoosesPureContrastColor(int channelValue, bool expected)
+    {
+        using System.Drawing.Bitmap sample = new(8, 8);
+        using System.Drawing.Graphics graphics = System.Drawing.Graphics.FromImage(sample);
+        graphics.Clear(System.Drawing.Color.FromArgb(channelValue, channelValue, channelValue));
+
+        Assert.Equal(expected, LivePreviewPanel.IsLightPreviewSample(sample));
+    }
+
+    [Theory]
+    [InlineData(472, 480, 1.5, 708, 398)]
+    [InlineData(480, 270, 1.5, 720, 405)]
+    [InlineData(360, 640, 1.25, 450, 253)]
+    public void CalculateVideoSurfaceSize_FillsAvailablePhysicalPixels(
+        double viewportWidth,
+        double viewportHeight,
+        double dpiScale,
+        double expectedPixelWidth,
+        double expectedPixelHeight)
+    {
+        System.Windows.Size size = LivePreviewPanel.CalculateVideoSurfaceSize(
+            viewportWidth,
+            viewportHeight,
+            1920,
+            1080,
+            dpiScale,
+            dpiScale);
+
+        Assert.Equal(expectedPixelWidth, size.Width * dpiScale, 6);
+        Assert.Equal(expectedPixelHeight, size.Height * dpiScale, 6);
+        Assert.True(size.Width <= viewportWidth);
+        Assert.True(size.Height <= viewportHeight);
+    }
+
+    [Fact]
+    public void CalculateVideoSurfaceSize_RejectsInvalidGeometry()
+    {
+        Assert.Equal(
+            new System.Windows.Size(0d, 0d),
+            LivePreviewPanel.CalculateVideoSurfaceSize(0d, 480d, 1920, 1080, 1.5d, 1.5d));
+    }
+
+    [Theory]
+    [InlineData(1920, 1080, 7680, 8294400)]
+    [InlineData(1919, 1080, 7680, 8294400)]
+    [InlineData(0, 1080, 0, 0)]
+    public void CalculateBufferLayout_AlignsFramesForLibVlc(
+        uint width,
+        uint height,
+        int expectedPitch,
+        int expectedBufferLength)
+    {
+        (int pitch, int bufferLength) = LivePreviewFrameSource.CalculateBufferLayout(width, height);
+
+        Assert.Equal(expectedPitch, pitch);
+        Assert.Equal(expectedBufferLength, bufferLength);
     }
 
     [Fact]
@@ -418,13 +543,11 @@ public sealed class LivePreviewTests
     }
 
     [Theory]
-    [InlineData(false, true, true, false)]
-    [InlineData(true, true, true, true)]
-    [InlineData(false, false, true, true)]
-    [InlineData(false, true, false, true)]
-    public void ShouldSuspendPreviewPresentation_SuspendsWhenPreviewIsHidden(bool overlay, bool previewing, bool homePageSelected, bool expected)
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void ShouldSuspendPreviewPresentation_SuspendsOnlyWhenPreviewIsClosed(bool previewing, bool expected)
     {
-        Assert.Equal(expected, MainWindow.ShouldSuspendPreviewPresentation(overlay, previewing, homePageSelected));
+        Assert.Equal(expected, MainWindow.ShouldSuspendPreviewPresentation(previewing));
     }
 
     [Theory]

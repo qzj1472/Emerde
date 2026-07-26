@@ -11,9 +11,11 @@ public sealed class LivePreviewPlayer : IDisposable
     private EventHandler<EventArgs>? currentPlayingHandler;
     private EventHandler<EventArgs>? currentErrorHandler;
     private EventHandler<EventArgs>? currentEndReachedHandler;
-    private bool playbackStarted;
+    private long playbackSession;
 
     public MediaPlayer MediaPlayer { get; }
+
+    public LivePreviewFrameSource FrameSource { get; }
 
     public event EventHandler? PlaybackFailed;
 
@@ -26,53 +28,89 @@ public sealed class LivePreviewPlayer : IDisposable
         MediaPlayer = new MediaPlayer(libVlc)
         {
             Mute = true,
-            Volume = 80,
+            Volume = 0,
         };
+        FrameSource = new LivePreviewFrameSource(MediaPlayer);
     }
 
-    public async Task PlayAsync(string url, string userAgent, string proxyUrl, string headers = "", CancellationToken cancellationToken = default)
+    public async Task PlayAsync(
+        string url,
+        string userAgent,
+        string proxyUrl,
+        string headers = "",
+        CancellationToken cancellationToken = default,
+        bool replaceCurrentPlayback = false)
     {
-        await StopAsync();
-        cancellationToken.ThrowIfCancellationRequested();
-
-        Media media = CreateMedia(url, userAgent, proxyUrl, headers);
-        currentMedia = media;
-
-        MediaPlayer.AspectRatio = null;
-        MediaPlayer.Scale = 0;
-        TaskCompletionSource playbackStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        this.playbackStarted = false;
-        currentPlayingHandler = (_, _) =>
-        {
-            this.playbackStarted = true;
-            playbackStarted.TrySetResult();
-        };
-        currentErrorHandler = (_, _) =>
-        {
-            if (!this.playbackStarted)
-            {
-                playbackStarted.TrySetException(new InvalidOperationException("Live preview playback failed."));
-                return;
-            }
-
-            PlaybackFailed?.Invoke(this, EventArgs.Empty);
-        };
-        currentEndReachedHandler = (_, _) =>
-        {
-            if (!this.playbackStarted)
-            {
-                playbackStarted.TrySetException(new InvalidOperationException("Live preview playback ended before it started."));
-                return;
-            }
-
-            PlaybackEnded?.Invoke(this, EventArgs.Empty);
-        };
-        MediaPlayer.Playing += currentPlayingHandler;
-        MediaPlayer.EncounteredError += currentErrorHandler;
-        MediaPlayer.EndReached += currentEndReachedHandler;
-
+        Media? previousMedia = null;
         try
         {
+            if (replaceCurrentPlayback
+                && currentMedia != null
+                && MediaPlayer.State is not VLCState.Stopped and not VLCState.NothingSpecial)
+            {
+                DetachPlaybackEvents();
+                previousMedia = currentMedia;
+                currentMedia = null;
+            }
+            else
+            {
+                await StopAsync();
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            Media media = CreateMedia(url, userAgent, proxyUrl, headers);
+            currentMedia = media;
+
+            MediaPlayer.AspectRatio = null;
+            MediaPlayer.Scale = 0;
+            TaskCompletionSource playbackStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            long session = Interlocked.Increment(ref playbackSession);
+            int sessionStarted = 0;
+            currentPlayingHandler = (_, _) =>
+            {
+                if (Volatile.Read(ref playbackSession) != session)
+                {
+                    return;
+                }
+
+                Interlocked.Exchange(ref sessionStarted, 1);
+                playbackStarted.TrySetResult();
+            };
+            currentErrorHandler = (_, _) =>
+            {
+                if (Volatile.Read(ref playbackSession) != session)
+                {
+                    return;
+                }
+
+                if (Volatile.Read(ref sessionStarted) == 0)
+                {
+                    playbackStarted.TrySetException(new InvalidOperationException("Live preview playback failed."));
+                    return;
+                }
+
+                PlaybackFailed?.Invoke(this, EventArgs.Empty);
+            };
+            currentEndReachedHandler = (_, _) =>
+            {
+                if (Volatile.Read(ref playbackSession) != session)
+                {
+                    return;
+                }
+
+                if (Volatile.Read(ref sessionStarted) == 0)
+                {
+                    playbackStarted.TrySetException(new InvalidOperationException("Live preview playback ended before it started."));
+                    return;
+                }
+
+                PlaybackEnded?.Invoke(this, EventArgs.Empty);
+            };
+            MediaPlayer.Playing += currentPlayingHandler;
+            MediaPlayer.EncounteredError += currentErrorHandler;
+            MediaPlayer.EndReached += currentEndReachedHandler;
+
             bool playAccepted = await Task.Run(() => MediaPlayer.Play(media));
             if (!playAccepted)
             {
@@ -87,11 +125,16 @@ public sealed class LivePreviewPlayer : IDisposable
             }
 
             await playbackStarted.Task;
+            cancellationToken.ThrowIfCancellationRequested();
         }
         catch
         {
             await StopAsync();
             throw;
+        }
+        finally
+        {
+            previousMedia?.Dispose();
         }
     }
 
@@ -138,6 +181,16 @@ public sealed class LivePreviewPlayer : IDisposable
     public void SetMuted(bool isMuted)
     {
         MediaPlayer.Mute = isMuted;
+    }
+
+    public void SetVolume(int volume)
+    {
+        MediaPlayer.Volume = NormalizeVolume(volume);
+    }
+
+    internal static int NormalizeVolume(int volume)
+    {
+        return Math.Clamp(volume, 0, 100);
     }
 
     public async Task<(uint Width, uint Height)?> ResolveVideoDimensionsAsync(CancellationToken cancellationToken = default)
@@ -200,11 +253,13 @@ public sealed class LivePreviewPlayer : IDisposable
     {
         Stop();
         MediaPlayer.Dispose();
+        FrameSource.Dispose();
         libVlc.Dispose();
     }
 
     private void DetachPlaybackEvents()
     {
+        Interlocked.Increment(ref playbackSession);
         if (currentPlayingHandler != null)
         {
             MediaPlayer.Playing -= currentPlayingHandler;
@@ -220,8 +275,6 @@ public sealed class LivePreviewPlayer : IDisposable
             MediaPlayer.EndReached -= currentEndReachedHandler;
             currentEndReachedHandler = null;
         }
-
-        playbackStarted = false;
     }
 
     private void DisposeCurrentMedia()

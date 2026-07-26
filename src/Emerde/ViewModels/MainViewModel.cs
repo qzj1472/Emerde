@@ -47,6 +47,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private const int NetworkThroughputConnectionsPerEndpoint = 2;
     private const int NetworkThroughputMeasuredEndpointCount = 2;
     private const double NetworkThroughputSingleOverseasProbeMbps = 20d;
+    private const double DefaultNetworkCapacityPerRoomMbps = 6.345d;
+    private const double NetworkCapacitySafetyRatio = 0.85d;
     private const long NetworkThroughputWarmupBytesPerConnection = 256L * 1024L;
     private const long NetworkThroughputBytesPerConnectionRound = 16L * 1024L * 1024L;
     private const long NetworkThroughputProbeBytes = 8L * 1024L * 1024L;
@@ -94,6 +96,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private readonly Stack<RoomHistoryEntry> roomHistoryUndoStack = [];
     private readonly Stack<RoomHistoryEntry> roomHistoryRedoStack = [];
     private CancellationTokenSource? previewTransitionCancellation;
+    private CancellationTokenSource? networkCapacityTestCancellation;
     private long lastManualRefreshTimestamp;
     private RoomStatusReactive? lastSelectedRoom;
     private readonly AutoShutdownSchedule autoShutdownSchedule = new();
@@ -250,6 +253,14 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private bool isPreviewMuted = true;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PreviewVolumeToolTip))]
+    private int previewVolume;
+
+    private int previewVolumeBeforeMute = 10;
+
+    private bool isSynchronizingPreviewVolume;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPreviewPlaying))]
     [NotifyPropertyChangedFor(nameof(PreviewPlaybackToolTip))]
     private bool isPreviewPaused = false;
@@ -263,15 +274,21 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     public MediaPlayer LivePreviewMediaPlayer => livePreviewPlayer.MediaPlayer;
 
+    public LivePreviewFrameSource LivePreviewFrameSource => livePreviewPlayer.FrameSource;
+
+    internal event EventHandler<PreviewControlFeedbackEventArgs>? PreviewControlFeedbackRequested;
+
     public bool IsPreviewIdle => !IsPreviewing;
 
     public bool IsPreviewPlaying => IsPreviewing && !IsPreviewPaused;
 
     public bool CanPreviewSelectedRoom => SelectedItem?.CanPreview ?? false;
 
-    public string PreviewPlaybackToolTip => IsPreviewPlaying ? "PreviewPause".Tr() : "ButtonOfPlay".Tr();
+    public string PreviewPlaybackToolTip => $"{(IsPreviewPlaying ? "PreviewPause".Tr() : "ButtonOfPlay".Tr())} (Space)";
 
-    public string PreviewMuteToolTip => IsPreviewMuted ? "PreviewUnmute".Tr() : "PreviewMute".Tr();
+    public string PreviewMuteToolTip => $"{(IsPreviewMuted ? "PreviewUnmute".Tr() : "PreviewMute".Tr())} (M)";
+
+    public string PreviewVolumeToolTip => $"音量 {PreviewVolume}% (-/=)";
 
     public string LivePreviewStatusText => LivePreviewStatus switch
     {
@@ -516,6 +533,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     public MainViewModel()
     {
+        previewVolumeBeforeMute = Math.Clamp(Configurations.PreviewVolume.Get(), 1, 100);
+        isPreviewMuted = Configurations.IsPreviewMuted.Get();
+        previewVolume = isPreviewMuted ? 0 : previewVolumeBeforeMute;
+        livePreviewPlayer.SetVolume(previewVolume);
+        livePreviewPlayer.SetMuted(isPreviewMuted);
         livePreviewPlayer.PlaybackFailed += OnLivePreviewPlaybackFailed;
         livePreviewPlayer.PlaybackEnded += OnLivePreviewPlaybackEnded;
         DispatcherTimer = new(TimeSpan.FromSeconds(3), ReloadRoomStatus);
@@ -945,6 +967,12 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     private async Task RequestPreviewTransitionAsync(RoomStatusReactive? targetRoom)
     {
+        if (targetRoom != null)
+        {
+            CancelNetworkCapacityTest();
+        }
+
+        bool replaceCurrentPlayback = targetRoom != null && IsPreviewing && PreviewingRoom != null;
         CancellationTokenSource cancellation = BeginPreviewTransition();
         ApplyPreviewRequestState(targetRoom);
         bool enteredGate = false;
@@ -955,10 +983,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             await previewTransitionGate.WaitAsync(cancellation.Token);
             enteredGate = true;
             cancellation.Token.ThrowIfCancellationRequested();
-            await livePreviewPlayer.StopAsync();
 
             if (targetRoom == null)
             {
+                await livePreviewPlayer.StopAsync();
                 return;
             }
 
@@ -975,6 +1003,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             cancellation.Token.ThrowIfCancellationRequested();
             if (!targetRoom.CanPreview)
             {
+                await livePreviewPlayer.StopAsync();
                 ApplyPreviewClosedState();
                 LivePreviewStatus = LivePreviewStatus.Unavailable;
                 Toast.Warning("LivePreviewUnavailable".Tr());
@@ -985,14 +1014,22 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             string previewUrl = GetPreviewPlaybackUrl(targetRoom);
             if (string.IsNullOrWhiteSpace(previewUrl))
             {
+                await livePreviewPlayer.StopAsync();
                 ApplyPreviewClosedState();
                 LivePreviewStatus = LivePreviewStatus.Unavailable;
                 Toast.Warning("LivePreviewUnavailable".Tr());
                 return;
             }
 
+            livePreviewPlayer.SetVolume(PreviewVolume);
             livePreviewPlayer.SetMuted(IsPreviewMuted);
-            await livePreviewPlayer.PlayAsync(previewUrl, Configurations.UserAgent.Get(), proxyUrl, targetRoom.Headers, cancellation.Token);
+            await livePreviewPlayer.PlayAsync(
+                previewUrl,
+                Configurations.UserAgent.Get(),
+                proxyUrl,
+                targetRoom.Headers,
+                cancellation.Token,
+                replaceCurrentPlayback);
             cancellation.Token.ThrowIfCancellationRequested();
             if (IsCurrentPreviewTransition(cancellation))
             {
@@ -1106,8 +1143,22 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         if (ShouldRefreshPreviewForHomePage(IsHomePageSelected, IsPreviewing, IsPreviewTransitioning, isPreviewPausedByPage))
         {
-            _ = RefreshPreviewForVisibleHomePageAsync();
+            QueuePreviewRefreshForVisibleHomePage();
         }
+    }
+
+    private void QueuePreviewRefreshForVisibleHomePage()
+    {
+        System.Windows.Threading.Dispatcher? dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher == null)
+        {
+            _ = RefreshPreviewForVisibleHomePageAsync();
+            return;
+        }
+
+        _ = dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.ContextIdle,
+            new Action(() => _ = RefreshPreviewForVisibleHomePageAsync()));
     }
 
     private void PausePreviewForHiddenPage()
@@ -1120,6 +1171,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     private async Task RefreshPreviewForVisibleHomePageAsync()
     {
+        if (!ShouldRefreshPreviewForHomePage(IsHomePageSelected, IsPreviewing, IsPreviewTransitioning, isPreviewPausedByPage))
+        {
+            return;
+        }
+
         RoomStatusReactive? targetRoom = PreviewingRoom;
         if (targetRoom == null)
         {
@@ -1270,7 +1326,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         {
             refreshed = await GlobalMonitor.RunRoomUpdateAsync(roomUrl, async () =>
             {
-                ISpiderResult? result = await Task.Run(() => Spider.GetResult(roomUrl, preferredQuality, bypassDouyinThrottle: true), cancellationToken);
+                ISpiderResult? result = await GlobalMonitor.GetManualSpiderResultAsync(roomUrl, preferredQuality, cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 if (!HasPreviewRefreshResult(result))
                 {
@@ -1416,16 +1472,119 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return;
         }
 
-        IsPreviewPaused = !IsPreviewPaused;
-        livePreviewPlayer.SetPaused(IsPreviewPaused);
-        LivePreviewStatus = IsPreviewPaused ? LivePreviewStatus.Ready : LivePreviewStatus.Playing;
+        if (!IsPreviewPaused)
+        {
+            IsPreviewPaused = true;
+            livePreviewPlayer.SetPaused(true);
+            LivePreviewStatus = LivePreviewStatus.Ready;
+            return;
+        }
+
+        await ReloadPreviewAsync();
+    }
+
+    [RelayCommand]
+    private async Task RefreshPreviewAsync()
+    {
+        await ReloadPreviewAsync();
+    }
+
+    private async Task ReloadPreviewAsync()
+    {
+        RoomStatusReactive? targetRoom = PreviewingRoom;
+        if (targetRoom == null || !targetRoom.CanPreview || IsPreviewTransitioning)
+        {
+            return;
+        }
+
+        await RequestPreviewTransitionAsync(targetRoom);
     }
 
     [RelayCommand]
     private void TogglePreviewMute()
     {
-        IsPreviewMuted = !IsPreviewMuted;
-        livePreviewPlayer.SetMuted(IsPreviewMuted);
+        if (IsPreviewMuted)
+        {
+            SetPreviewVolumeState(previewVolumeBeforeMute > 0 ? previewVolumeBeforeMute : 10, false);
+            RequestPreviewControlFeedback(PreviewControlFeedbackKind.Volume, PreviewVolume);
+            return;
+        }
+
+        previewVolumeBeforeMute = PreviewVolume > 0 ? PreviewVolume : 10;
+        SetPreviewVolumeState(0, true);
+        RequestPreviewControlFeedback(PreviewControlFeedbackKind.Volume, 0);
+    }
+
+    partial void OnPreviewVolumeChanged(int value)
+    {
+        int normalizedVolume = LivePreviewPlayer.NormalizeVolume(value);
+        if (normalizedVolume != value)
+        {
+            PreviewVolume = normalizedVolume;
+            return;
+        }
+
+        if (isSynchronizingPreviewVolume)
+        {
+            return;
+        }
+
+        livePreviewPlayer.SetVolume(normalizedVolume);
+        if (normalizedVolume == 0)
+        {
+            previewVolumeBeforeMute = 10;
+            IsPreviewMuted = true;
+            livePreviewPlayer.SetMuted(true);
+            SavePreviewAudioState();
+            RequestPreviewControlFeedback(PreviewControlFeedbackKind.Volume, 0);
+            return;
+        }
+
+        previewVolumeBeforeMute = normalizedVolume;
+        if (IsPreviewMuted)
+        {
+            IsPreviewMuted = false;
+            livePreviewPlayer.SetMuted(false);
+        }
+
+        SavePreviewAudioState();
+        RequestPreviewControlFeedback(PreviewControlFeedbackKind.Volume, normalizedVolume);
+    }
+
+    internal void AdjustPreviewVolume(int delta)
+    {
+        PreviewVolume = LivePreviewPlayer.NormalizeVolume(PreviewVolume + delta);
+    }
+
+    private void SetPreviewVolumeState(int volume, bool muted)
+    {
+        int normalizedVolume = muted ? 0 : LivePreviewPlayer.NormalizeVolume(volume);
+        isSynchronizingPreviewVolume = true;
+        try
+        {
+            PreviewVolume = normalizedVolume;
+        }
+        finally
+        {
+            isSynchronizingPreviewVolume = false;
+        }
+
+        IsPreviewMuted = muted;
+        livePreviewPlayer.SetVolume(normalizedVolume);
+        livePreviewPlayer.SetMuted(muted);
+        SavePreviewAudioState();
+    }
+
+    private void RequestPreviewControlFeedback(PreviewControlFeedbackKind kind, int volume = 0)
+    {
+        PreviewControlFeedbackRequested?.Invoke(this, new PreviewControlFeedbackEventArgs(kind, volume));
+    }
+
+    private void SavePreviewAudioState()
+    {
+        Configurations.PreviewVolume.Set(previewVolumeBeforeMute);
+        Configurations.IsPreviewMuted.Set(IsPreviewMuted);
+        ConfigurationSaveScheduler.Request();
     }
 
     [RelayCommand]
@@ -1569,16 +1728,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private static async Task<ContentDialogResult> ShowMainContentDialogAsync(ContentDialog dialog)
     {
         Window? owner = Application.Current?.MainWindow;
-        MainWindow? mainWindow = owner as MainWindow;
-        mainWindow?.SetPreviewPresentationSuspended(true);
-        try
-        {
-            return await WindowSizing.ShowContentDialogAsync(dialog, owner);
-        }
-        finally
-        {
-            mainWindow?.SetPreviewPresentationSuspended(false);
-        }
+        return await WindowSizing.ShowContentDialogAsync(dialog, owner);
     }
 
     private async Task AddConfirmedRoomAsync(string nickName, string roomUrl, ISpiderResult? spiderResult)
@@ -1768,7 +1918,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 string preferredQuality = RoomRecordingSettings.GetPreferredStreamQuality(room.RoomUrl);
                 bool updated = await GlobalMonitor.RunRoomUpdateAsync(room.RoomUrl, async () =>
                 {
-                    ISpiderResult? result = await Task.Run(() => Spider.GetResult(room.RoomUrl, preferredQuality, bypassDouyinThrottle: true));
+                    ISpiderResult? result = await GlobalMonitor.GetManualSpiderResultAsync(room.RoomUrl, preferredQuality);
                     if (result == null)
                     {
                         GlobalMonitor.SetRoomStreamCheckFailed(room.RoomUrl, true);
@@ -1824,7 +1974,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             string preferredQuality = RoomRecordingSettings.GetPreferredStreamQuality(roomUrl);
             bool updated = await GlobalMonitor.RunRoomUpdateAsync(roomUrl, async () =>
             {
-                ISpiderResult? result = await Task.Run(() => Spider.GetResult(roomUrl, preferredQuality, bypassDouyinThrottle: true));
+                ISpiderResult? result = await GlobalMonitor.GetManualSpiderResultAsync(roomUrl, preferredQuality);
                 if (result == null)
                 {
                     GlobalMonitor.SetRoomStreamCheckFailed(roomUrl, true);
@@ -1878,14 +2028,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
 
         RoomStatusReactive[] estimateRooms = GetNetworkCapacityEstimateRooms();
-        if (estimateRooms.Length == 0)
-        {
-            networkCapacityState = NetworkCapacityState.NoStream;
-            RefreshNetworkCapacityLocalization();
-            Toast.Warning(NetworkCapacityToolTip);
-            return;
-        }
-
+        CancellationTokenSource testCancellation = new();
+        networkCapacityTestCancellation = testCancellation;
         IsNetworkCapacityTesting = true;
         networkCapacityState = NetworkCapacityState.Testing;
         RefreshNetworkCapacityLocalization();
@@ -1893,7 +2037,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         try
         {
-            NetworkCapacityMeasurement measurement = await MeasureBestNetworkThroughputMbpsAsync();
+            NetworkCapacityMeasurement measurement = await MeasureBestNetworkThroughputMbpsAsync(testCancellation.Token);
             NetworkCapacityPresentation presentation = CreateNetworkCapacityPresentation(measurement, estimateRooms);
 
             networkCapacityState = NetworkCapacityState.Result;
@@ -1901,6 +2045,13 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             RefreshNetworkCapacityLocalization();
             AppSessionLogger.Write($"network capacity test completed, domesticMbps={measurement.Domestic?.Mbps:0.##}, overseasMbps={measurement.Overseas?.Mbps:0.##}, samples={measurement.SuccessfulSamples}/{measurement.AttemptedSamples}, confidence={measurement.Confidence}, domesticPerRoomMbps={presentation.DomesticPerRoomMbps:0.##}, overseasPerRoomMbps={presentation.OverseasPerRoomMbps:0.##}, domesticCapacity={presentation.DomesticCapacity}, overseasCapacity={presentation.OverseasCapacity}");
             Toast.Success(NetworkCapacityToolTip);
+        }
+        catch (OperationCanceledException) when (testCancellation.IsCancellationRequested)
+        {
+            networkCapacityState = networkCapacityPresentation == null
+                ? NetworkCapacityState.Idle
+                : NetworkCapacityState.Result;
+            AppSessionLogger.Event("info", "network", "network_capacity_test_cancelled", "network capacity test was cancelled for higher priority network activity");
         }
         catch (Exception e)
         {
@@ -1913,8 +2064,19 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
         finally
         {
+            if (ReferenceEquals(networkCapacityTestCancellation, testCancellation))
+            {
+                networkCapacityTestCancellation = null;
+            }
+            testCancellation.Dispose();
             IsNetworkCapacityTesting = false;
+            RefreshNetworkCapacityLocalization();
         }
+    }
+
+    private void CancelNetworkCapacityTest()
+    {
+        networkCapacityTestCancellation?.Cancel();
     }
 
     internal static int? CalculateNetworkCapacity(double? measuredMbps, double perRoomMbps)
@@ -1929,7 +2091,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return null;
         }
 
-        return Math.Max(1, (int)Math.Floor(measuredMbps.Value * 0.7d / perRoomMbps));
+        return Math.Max(1, (int)Math.Floor(measuredMbps.Value * NetworkCapacitySafetyRatio / perRoomMbps));
     }
 
     internal static double? CalculateStableNetworkThroughput(IEnumerable<double> measurements)
@@ -1949,21 +2111,12 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             : valid[middle];
     }
 
-    private static NetworkCapacityPresentation CreateNetworkCapacityPresentation(
+    internal static NetworkCapacityPresentation CreateNetworkCapacityPresentation(
         NetworkCapacityMeasurement measurement,
         IReadOnlyCollection<RoomStatusReactive> estimateRooms)
     {
-        double fallbackPerRoomMbps = estimateRooms.Select(EstimateRequiredMbps).DefaultIfEmpty(10d).Average();
-        double domesticPerRoomMbps = estimateRooms
-            .Where(room => !IsOverseasPlatform(room.PlatformName))
-            .Select(EstimateRequiredMbps)
-            .DefaultIfEmpty(fallbackPerRoomMbps)
-            .Average();
-        double overseasPerRoomMbps = estimateRooms
-            .Where(room => IsOverseasPlatform(room.PlatformName))
-            .Select(EstimateRequiredMbps)
-            .DefaultIfEmpty(fallbackPerRoomMbps)
-            .Average();
+        double domesticPerRoomMbps = DefaultNetworkCapacityPerRoomMbps;
+        double overseasPerRoomMbps = DefaultNetworkCapacityPerRoomMbps;
         int? domesticCapacity = CalculateNetworkCapacity(measurement.Domestic?.Mbps, domesticPerRoomMbps);
         int? overseasCapacity = CalculateNetworkCapacity(measurement.Overseas?.Mbps, overseasPerRoomMbps);
         if (!domesticCapacity.HasValue && !overseasCapacity.HasValue)
@@ -2051,7 +2204,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             result.Measurement.Overseas,
             result.OverseasCapacity,
             result.OverseasPerRoomMbps);
-        return $"多节点三轮实测：{domestic}，{overseas}。单路按当前直播码率估算，基于 {result.RoomCount} 个开播样本；共 {result.Measurement.SuccessfulSamples} 个有效样本，可信度 {GetNetworkMeasurementConfidenceText(result.Measurement.Confidence)}。";
+        return $"多节点三轮实测：{domestic}，{overseas}。单路统一按默认平均 {DefaultNetworkCapacityPerRoomMbps:0.##} Mbps 估算，不依赖当前直播流；共 {result.Measurement.SuccessfulSamples} 个有效样本，可信度 {GetNetworkMeasurementConfidenceText(result.Measurement.Confidence)}。";
     }
 
     private static string FormatNetworkRegionCapacity(
@@ -2127,10 +2280,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
     }
 
-    private async Task<NetworkCapacityMeasurement> MeasureBestNetworkThroughputMbpsAsync()
+    private async Task<NetworkCapacityMeasurement> MeasureBestNetworkThroughputMbpsAsync(CancellationToken cancellationToken)
     {
-        Task<NetworkRegionMeasurement?> domesticTask = MeasureNetworkRegionThroughputMbpsAsync(NetworkThroughputRegion.Domestic);
-        Task<NetworkRegionMeasurement?> overseasTask = MeasureNetworkRegionThroughputMbpsAsync(NetworkThroughputRegion.Overseas);
+        Task<NetworkRegionMeasurement?> domesticTask = MeasureNetworkRegionThroughputMbpsAsync(NetworkThroughputRegion.Domestic, cancellationToken);
+        Task<NetworkRegionMeasurement?> overseasTask = MeasureNetworkRegionThroughputMbpsAsync(NetworkThroughputRegion.Overseas, cancellationToken);
         await Task.WhenAll(domesticTask, overseasTask);
 
         NetworkRegionMeasurement? domestic = await domesticTask;
@@ -2152,7 +2305,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             GetNetworkMeasurementConfidence(successfulSamples, attemptedSamples, successfulEndpoints));
     }
 
-    private async Task<NetworkRegionMeasurement?> MeasureNetworkRegionThroughputMbpsAsync(NetworkThroughputRegion region)
+    private async Task<NetworkRegionMeasurement?> MeasureNetworkRegionThroughputMbpsAsync(NetworkThroughputRegion region, CancellationToken cancellationToken)
     {
         NetworkThroughputEndpoint[] endpoints = NetworkThroughputTestEndpoints
             .Where(endpoint => endpoint.Region == region)
@@ -2166,7 +2319,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                     roundCount: 1,
                     warmupBytes: 0,
                     bytesPerRound: NetworkThroughputProbeBytes,
-                    timeout: TimeSpan.FromSeconds(12))))
+                    timeout: TimeSpan.FromSeconds(12),
+                    cancellationToken)))
             .ToArray();
         (NetworkThroughputEndpoint Endpoint, double? Mbps)[] probes = await Task.WhenAll(probeTasks);
 
@@ -2192,7 +2346,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 NetworkThroughputRoundCount,
                 NetworkThroughputWarmupBytesPerConnection,
                 NetworkThroughputBytesPerConnectionRound,
-                TimeSpan.FromSeconds(45));
+                TimeSpan.FromSeconds(45),
+                cancellationToken);
             if (result != null)
             {
                 results.Add(result);
@@ -2216,7 +2371,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         int roundCount,
         long warmupBytes,
         long bytesPerRound,
-        TimeSpan timeout)
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
     {
         NetworkEndpointMeasurement? measurement = await MeasureNetworkEndpointAsync(
             endpoint,
@@ -2224,7 +2380,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             roundCount,
             warmupBytes,
             bytesPerRound,
-            timeout);
+            timeout,
+            cancellationToken);
         return measurement?.Mbps;
     }
 
@@ -2234,9 +2391,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         int roundCount,
         long warmupBytes,
         long bytesPerRound,
-        TimeSpan timeout)
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
     {
-        using CancellationTokenSource cancellationTokenSource = new(timeout);
+        using CancellationTokenSource cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cancellationTokenSource.CancelAfter(timeout);
         List<NetworkThroughputConnection> connections = [];
         try
         {
@@ -2245,6 +2404,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 try
                 {
                     connections.Add(await OpenNetworkThroughputConnectionAsync(endpoint, cancellationTokenSource.Token));
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
                 }
                 catch (Exception e)
                 {
@@ -2378,6 +2541,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
             stopwatch.Stop();
             return totalBytes >= 64 * 1024 ? totalBytes : null;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception e)
         {
@@ -3368,7 +3535,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         string prompt = targets.Length == 1
             ? "SureRemoveRoom".Tr(targets[0].NickName)
             : $"确定移除选中的 {targets.Length} 个直播间吗？";
-        using DialogBlurScope blurScope = new(Application.Current.MainWindow);
+        using DialogBlurScope blurScope = DialogBlurScope.ForMessageBox(Application.Current.MainWindow);
         MessageBoxResult result = await MessageBox.QuestionAsync(prompt);
 
         if (result == MessageBoxResult.Yes)
@@ -3673,6 +3840,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     public void Dispose()
     {
         AbortAutoShutdownCountdown();
+        CancelNetworkCapacityTest();
         AutoShutdownDispatcherTimer.Stop();
         DispatcherTimer.Stop();
         lock (previewTransitionSync)
@@ -3687,6 +3855,18 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         livePreviewPlayer.PlaybackEnded -= OnLivePreviewPlaybackEnded;
         livePreviewPlayer.Dispose();
     }
+}
+
+internal enum PreviewControlFeedbackKind
+{
+    Volume,
+}
+
+internal sealed class PreviewControlFeedbackEventArgs(PreviewControlFeedbackKind kind, int volume) : EventArgs
+{
+    public PreviewControlFeedbackKind Kind { get; } = kind;
+
+    public int Volume { get; } = volume;
 }
 
 internal abstract record RoomHistoryEntry;
