@@ -17,6 +17,9 @@ internal static class AppThemeBrushes
         SetBrush("EmerdeSurfaceBrush", isLightTheme ? Color.FromRgb(0xFF, 0xFF, 0xFF) : Color.FromRgb(0x1C, 0x1C, 0x1C));
         SetBrush("EmerdePanelBrush", isLightTheme ? Color.FromRgb(0xF8, 0xF8, 0xF8) : Color.FromRgb(0x20, 0x20, 0x20));
         SetBrush("EmerdeCardBrush", isLightTheme ? Color.FromRgb(0xFF, 0xFF, 0xFF) : Color.FromRgb(0x24, 0x24, 0x24));
+        SetBrush("EmerdeAboutCardTitleBrush", isLightTheme ? Color.FromRgb(0x56, 0x56, 0x56) : Color.FromRgb(0xD6, 0xD6, 0xD6));
+        SetBrush("EmerdeAboutShortcutKeyBrush", isLightTheme ? Color.FromRgb(0x66, 0x66, 0x66) : Color.FromRgb(0xC4, 0xC4, 0xC4));
+        SetBrush("EmerdeAboutShortcutDescriptionBrush", isLightTheme ? Color.FromRgb(0x73, 0x73, 0x73) : Color.FromRgb(0xAD, 0xAD, 0xAD));
         SetBrush("ControlElevationBorderBrush", isLightTheme ? Color.FromArgb(0x24, 0x00, 0x00, 0x00) : Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF));
         SetBrush("CircleElevationBorderBrush", isLightTheme ? Color.FromArgb(0x24, 0x00, 0x00, 0x00) : Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF));
         SetBrush("AccentControlElevationBorderBrush", Colors.Transparent);

@@ -9,15 +9,24 @@
              SizeChanged="AboutContentDialogSizeChanged"
              mc:Ignorable="d">
     <UserControl.Resources>
-        <Style x:Key="AboutSectionTitleStyle" TargetType="{x:Type TextBlock}">
-            <Setter Property="Margin" Value="0,10,0,2" />
-            <Setter Property="FontSize" Value="18" />
-            <Setter Property="FontWeight" Value="SemiBold" />
+        <Style x:Key="AboutHeroTitleStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="FontSize" Value="30" />
+            <Setter Property="FontWeight" Value="Bold" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="AboutSectionTitleStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Margin" Value="0,14,0,0" />
+            <Setter Property="FontSize" Value="22" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
         </Style>
         <Style x:Key="AboutSectionDescriptionStyle" TargetType="{x:Type TextBlock}">
-            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="Margin" Value="0,-2,0,2" />
+            <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="LineHeight" Value="20" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
         <Style x:Key="AboutCardStyle" TargetType="{x:Type Border}">
@@ -29,28 +38,57 @@
             <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
         </Style>
         <Style x:Key="AboutCardTitleStyle" TargetType="{x:Type TextBlock}">
-            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,0,10" />
             <Setter Property="FontSize" Value="15" />
             <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource EmerdeAboutCardTitleBrush}" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
+        <Style x:Key="AboutStepNumberStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
         <Style x:Key="AboutBodyTextStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="FontSize" Value="13" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
             <Setter Property="LineHeight" Value="20" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
-        <Style x:Key="AboutIconHostStyle" TargetType="{x:Type Border}">
-            <Setter Property="Width" Value="30" />
-            <Setter Property="Height" Value="30" />
-            <Setter Property="CornerRadius" Value="6" />
+        <Style x:Key="AboutBulletTextStyle" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource AboutBodyTextStyle}">
+            <Setter Property="Margin" Value="0,0,0,5" />
         </Style>
-        <Style x:Key="AboutKeyStyle" TargetType="{x:Type Border}">
-            <Setter Property="Margin" Value="0,0,6,6" />
-            <Setter Property="Padding" Value="8,4" />
-            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="6" />
+        <Style x:Key="AboutShortcutItemStyle" TargetType="{x:Type Border}">
+            <Setter Property="Margin" Value="0,0,10,10" />
+            <Setter Property="Padding" Value="2,3" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style x:Key="AboutShortcutKeyPillStyle" TargetType="{x:Type Border}">
+            <Setter Property="MinWidth" Value="86" />
+            <Setter Property="Padding" Value="0,1" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style x:Key="AboutShortcutKeyTextStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource EmerdeAboutShortcutKeyBrush}" />
+            <Setter Property="TextWrapping" Value="NoWrap" />
+        </Style>
+        <Style x:Key="AboutShortcutDescriptionTextStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Margin" Value="12,1,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="Foreground" Value="{DynamicResource EmerdeAboutShortcutDescriptionBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="AboutWarningTitleStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="#D83B01" />
         </Style>
     </UserControl.Resources>
 
@@ -60,407 +98,660 @@
                       FocusVisualStyle="{x:Null}"
                       HorizontalScrollBarVisibility="Disabled"
                       VerticalScrollBarVisibility="Auto">
-            <Border Padding="24,18,12,28">
-                <ui:StackPanel MaxWidth="1120"
-                               HorizontalAlignment="Left"
-                               Spacing="16">
-                    <TextBlock FontSize="24"
-                               FontWeight="SemiBold"
-                               Text="{I18N About}" />
+            <Border Padding="24,18,24,28">
+                <ui:StackPanel HorizontalAlignment="Stretch" Spacing="18">
+                    <Border Padding="18"
+                            Background="{DynamicResource EmerdeCardBrush}"
+                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Width="78"
+                                    Height="78"
+                                    Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                    CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                    ClipToBounds="True">
+                                <Image RenderOptions.BitmapScalingMode="HighQuality"
+                                       Source="pack://application:,,,/Assets/Favicon.png"
+                                       Stretch="UniformToFill" />
+                            </Border>
+                            <ui:StackPanel Grid.Column="1"
+                                           Margin="18,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Spacing="8">
+                                <WrapPanel>
+                                    <TextBlock Style="{StaticResource AboutHeroTitleStyle}"
+                                               Text="{x:Static base:AppConfig.PackName}" />
+                                    <Border Padding="8,3"
+                                            VerticalAlignment="Center"
+                                            Background="#14337DFF"
+                                            CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                                        <TextBlock Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                                   Text="{x:Static base:AppConfig.Version}" />
+                                    </Border>
+                                </WrapPanel>
+                                <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           LineHeight="20"
+                                           Text="面向多直播间的监控、预览、录制与文件管理工具。这里保留日常使用最需要知道的规则。"
+                                           TextWrapping="Wrap" />
+                                <WrapPanel>
+                                    <ui:HyperlinkButton Command="{Binding OpenHyperlinkCommand}"
+                                                        Content="项目主页"
+                                                        Cursor="Hand"
+                                                        Padding="0" />
+                                    <TextBlock Margin="10,0"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                               Text="·" />
+                                    <ui:HyperlinkButton Command="{Binding OpenHyperlinkCommand}"
+                                                        CommandParameter="https://github.com/ihmily/DouyinLiveRecorder"
+                                                        Content="参考仓库"
+                                                        Cursor="Hand"
+                                                        Padding="0" />
+                                </WrapPanel>
+                            </ui:StackPanel>
+                        </Grid>
+                    </Border>
 
-                    <Grid Margin="0,0,0,6">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Border Width="76"
-                                Height="76"
-                                Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                CornerRadius="8"
-                                ClipToBounds="True">
-                            <Image RenderOptions.BitmapScalingMode="HighQuality"
-                                   Source="pack://application:,,,/Assets/Favicon.png"
-                                   Stretch="UniformToFill" />
-                        </Border>
-                        <ui:StackPanel Grid.Column="1"
-                                       Margin="18,0,0,0"
-                                       VerticalAlignment="Center"
-                                       Spacing="5">
-                            <WrapPanel>
-                                <TextBlock Margin="0,0,10,0"
-                                           FontSize="22"
-                                           FontWeight="SemiBold"
-                                           Text="{x:Static base:AppConfig.PackName}" />
-                                <Border Padding="8,3"
-                                        VerticalAlignment="Center"
-                                        Background="#14337DFF"
-                                        CornerRadius="6">
-                                    <TextBlock Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
-                                               Text="{x:Static base:AppConfig.Version}" />
-                                </Border>
-                            </WrapPanel>
-                            <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                       Text="桌面直播监控、预览与录制工具"
-                                       TextWrapping="Wrap" />
-                            <WrapPanel>
-                                <ui:HyperlinkButton Command="{Binding OpenHyperlinkCommand}"
-                                                    Content="项目主页"
-                                                    Cursor="Hand"
-                                                    Padding="0" />
-                                <TextBlock Margin="10,0"
-                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                           Text="·" />
-                                <ui:HyperlinkButton Command="{Binding OpenHyperlinkCommand}"
-                                                    CommandParameter="https://github.com/ihmily/DouyinLiveRecorder"
-                                                    Content="参考仓库"
-                                                    Cursor="Hand"
-                                                    Padding="0" />
-                            </WrapPanel>
-                        </ui:StackPanel>
-                    </Grid>
-
-                    <TextBlock Style="{StaticResource AboutSectionTitleStyle}"
-                               Text="从直播间到录制文件" />
-                    <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}"
-                               Text="四个步骤构成完整录制流程，监控负责发现状态，录制负责保存可用直播流。" />
+                    <ui:StackPanel Spacing="3">
+                        <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="快速开始" />
+                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="正常录制只需要确认四个开关和一个保存位置。" />
+                    </ui:StackPanel>
                     <WrapPanel>
                         <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock FontSize="20"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
-                                           Text="01" />
+                                <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" Text="01" />
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="添加直播间" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="在首页新建房间，粘贴平台链接并确认主播信息。" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 粘贴直播间链接" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 确认平台和主播信息" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock FontSize="20"
-                                           FontWeight="SemiBold"
-                                           Foreground="#168A55"
-                                           Text="02" />
+                                <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="#168A55" Text="02" />
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="开启监控" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="监控定期检查直播状态，并在开播或状态变化时刷新信息。" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 发现开播、关播和状态变化" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 只录制不开监控，不会主动发现开播" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock FontSize="20"
-                                           FontWeight="SemiBold"
-                                           Foreground="#A15C00"
-                                           Text="03" />
+                                <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="#D83B01" Text="03" />
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="允许录制" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="录制开关允许软件在检测到可用直播流后启动 FFmpeg。" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 检测到可用直播流后才会开始" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 录制中会显示写入状态和读秒" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock FontSize="20"
-                                           FontWeight="SemiBold"
-                                           Foreground="#7A4DA0"
-                                           Text="04" />
+                                <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="#7A4DA0" Text="04" />
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="管理文件" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="在视频列表中查看、分割、转码、移动、复制或删除录制。" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 到视频列表查看成品" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 支持转码、分割、合并、移动和删除" />
                             </ui:StackPanel>
                         </Border>
                     </WrapPanel>
 
-                    <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="录制与运行" />
-                    <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}"
-                               Text="影响直播发现、文件完整性和持续运行的核心规则。" />
+                    <ui:StackPanel Spacing="3">
+                        <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="录制与检测" />
+                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="这些规则决定软件什么时候刷新、什么时候开始录制、什么时候停止录制。" />
+                    </ui:StackPanel>
                     <WrapPanel>
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
-                            <ui:StackPanel Spacing="10">
-                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Border Background="#14337DFF" Style="{StaticResource AboutIconHostStyle}">
-                                        <ui:FontIcon HorizontalAlignment="Center"
-                                                     VerticalAlignment="Center"
-                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                                     Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
-                                                     Glyph="{x:Static ui:FontSymbols.Sync}" />
-                                    </Border>
-                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="监控、直播状态与连麦" />
-                                </ui:StackPanel>
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="监控开关决定是否主动检查直播状态；只打开录制而未开启监控时，软件不会主动发现开播。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="抖音直播间已经开启连麦时，软件会继续按直播状态和实际可用流判断录制，不依赖单一房间状态字段。" />
+                            <ui:StackPanel Spacing="8">
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="监控、直播状态与连麦" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 连麦中的抖音直播间会结合直播状态和实际可用流判断" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 全部接口都无法确认时，会保留原状态，不把检测失败当成关播" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 手动刷新只刷新当前目标，不会被其他房间失败拖住" />
                             </ui:StackPanel>
                         </Border>
-
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
-                            <ui:StackPanel Spacing="10">
-                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Border Background="#1420A060" Style="{StaticResource AboutIconHostStyle}">
-                                        <ui:FontIcon HorizontalAlignment="Center"
-                                                     VerticalAlignment="Center"
-                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                                     Foreground="#168A55"
-                                                     Glyph="{x:Static ui:FontSymbols.Calendar}" />
-                                    </Border>
-                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="检测间隔" />
-                                </ui:StackPanel>
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="“检测间隔”决定未开播房间多久检查一次，默认 5 秒。间隔越短不代表越稳定，通常保持默认值即可。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="直播中的房间固定每 10 秒检查一次，不再使用一分钟内的随机抽样。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="直播结束后的 30 分钟内固定每 10 秒检查一次，之后恢复设置中的检测间隔。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="FFmpeg 录制进程结束后，软件会立即刷新对应卡片的录制状态；直播状态由下一次固定 10 秒检测更新。" />
+                            <ui:StackPanel Spacing="8">
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="检测间隔" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 未开播房间使用设置里的检测间隔，默认 5 秒，通常保持默认值即可" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 直播中的房间固定每 10 秒检查一次" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 直播结束后的 30 分钟内固定每 10 秒检查一次" />
                             </ui:StackPanel>
                         </Border>
-
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
-                            <ui:StackPanel Spacing="10">
-                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Border Background="#1420A060" Style="{StaticResource AboutIconHostStyle}">
-                                        <ui:FontIcon HorizontalAlignment="Center"
-                                                     VerticalAlignment="Center"
-                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                                     Foreground="#168A55"
-                                                     Glyph="{x:Static ui:FontSymbols.Record}" />
-                                    </Border>
-                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="格式、分段与音频" />
-                                </ui:StackPanel>
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="TS/FLV 更适合直接保存直播原始数据；MP4/MKV 会在录制结束后进行转换。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="文件可按时长或大小分段；同名输出会自动增加序号，FFmpeg 不会覆盖现有录制。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="带音轨的视频会保留原音频并生成优化音频，可在播放器中切换。" />
+                            <ui:StackPanel Spacing="8">
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="录制状态" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• FFmpeg 录制进程结束后，会立即刷新对应卡片的录制状态" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 直播状态由下一次固定 10 秒检测更新" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• TS/FLV 保存原始数据；MP4/MKV 会在录制结束后转换" />
                             </ui:StackPanel>
                         </Border>
-
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
-                            <ui:StackPanel Spacing="10">
-                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Border Background="#14A15C00" Style="{StaticResource AboutIconHostStyle}">
-                                        <ui:FontIcon HorizontalAlignment="Center"
-                                                     VerticalAlignment="Center"
-                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                                     Foreground="#A15C00"
-                                                     Glyph="{x:Static ui:FontSymbols.History}" />
-                                    </Border>
-                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="退出按钮、关闭窗口与恢复" />
-                                </ui:StackPanel>
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="标题栏右上角关闭按钮只隐藏主窗口，Emerde 会继续在系统托盘运行；需要完全结束程序时，请使用侧边栏或托盘菜单中的“退出”。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="存在录制或转码任务时，点击“退出”会先请求确认；确认后会停止监控和当前录制，不会等待耗时较长的分割或转码完成。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="未完成的收尾、分割或转码任务会保留恢复信息，并在下次启动时继续处理；请勿使用任务管理器强制结束进程。" />
-                            </ui:StackPanel>
-                        </Border>
-
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
-                            <ui:StackPanel Spacing="10">
-                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Border Background="#147A4DA0" Style="{StaticResource AboutIconHostStyle}">
-                                        <ui:FontIcon HorizontalAlignment="Center"
-                                                     VerticalAlignment="Center"
-                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                                     Foreground="#7A4DA0"
-                                                     Glyph="{x:Static ui:FontSymbols.Globe}" />
-                                    </Border>
-                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="网络测速与录制路数" />
-                                </ui:StackPanel>
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="点击首页底部状态栏的“测速”，可以查看当前网络状态以及预计能同时录制多少路直播。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="测速会分别检查国内和国外线路，每条线路都会先预热连接，再连续完成三轮下载并取平均值；可录路数会按当前开播房间的平台选择对应线路。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="可录路数是按当前网络与直播码率估算的参考值；实际多路录制时还应预留下载带宽和磁盘写入空间。" />
+                            <ui:StackPanel Spacing="8">
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="测速" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 首页底部状态栏的“测速”用于查看当前网络状态，并预计能同时录制多少路直播" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 会分别检查国内和国外线路，连续完成三轮下载并取平均值" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 可录路数会按当前开播房间的平台选择对应线路" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 多路录制时还要预留下载带宽和磁盘写入空间" />
                             </ui:StackPanel>
                         </Border>
                     </WrapPanel>
 
-                    <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="文件管理与维护" />
-                    <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}"
-                               Text="查看录制、保护数据以及定位问题时需要了解的行为。" />
+                    <ui:StackPanel Spacing="3">
+                        <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="文件与维护" />
+                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="录制文件、日志和配置都尽量保留可恢复空间，减少误删。" />
+                    </ui:StackPanel>
                     <WrapPanel>
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
-                            <ui:StackPanel Spacing="10">
-                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Border Background="#14337DFF" Style="{StaticResource AboutIconHostStyle}">
-                                        <ui:FontIcon HorizontalAlignment="Center"
-                                                     VerticalAlignment="Center"
-                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                                     Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
-                                                     Glyph="{x:Static ui:FontSymbols.Video}" />
-                                    </Border>
-                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="视频列表" />
-                                </ui:StackPanel>
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="刷新会扫描当前保存目录；导入文件夹只复制导入时已有的视频，不会持续监控原目录。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="视频可打开、分割、转码、合并、重命名、移动和复制；默认使用 Windows 关联的播放器打开。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="空列表不会进入多选；手动删除会先确认并将文件发送到回收站。" />
-                            </ui:StackPanel>
-                        </Border>
-
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
-                            <ui:StackPanel Spacing="10">
-                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Border Background="#1420A060" Style="{StaticResource AboutIconHostStyle}">
-                                        <ui:FontIcon HorizontalAlignment="Center"
-                                                     VerticalAlignment="Center"
-                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                                     Foreground="#168A55"
-                                                     Glyph="{x:Static ui:FontSymbols.Play}" />
-                                    </Border>
-                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="预览与全屏" />
-                                </ui:StackPanel>
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="点击直播间预览可打开画面，切换其他房间会复用同一播放器并切换媒体。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="再次点击同一直播间会关闭预览；全屏时移动鼠标可显示控制区，按 Esc 可退出全屏。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="不要短时间连续开关预览，播放器和网络资源需要时间释放。" />
-                            </ui:StackPanel>
-                        </Border>
-
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
-                            <ui:StackPanel Spacing="10">
-                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Border Background="#14A15C00" Style="{StaticResource AboutIconHostStyle}">
-                                        <ui:FontIcon HorizontalAlignment="Center"
-                                                     VerticalAlignment="Center"
-                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                                     Foreground="#A15C00"
-                                                     Glyph="{x:Static ui:FontSymbols.Folder}" />
-                                    </Border>
-                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="保存目录、清理与备份" />
-                                </ui:StackPanel>
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="保存目录应位于空间充足且不会被清理软件自动删除的位置，重要录制应定期备份到其他磁盘。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="保留期清理只处理带有有效 Emerde 元数据的录制，避免误删保存目录中的普通媒体文件。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="更新版本时保留 downloads、video_thumbnails、logs、cache 和配置文件。" />
-                            </ui:StackPanel>
-                        </Border>
-
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
-                            <ui:StackPanel Spacing="10">
-                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Border Background="#147A4DA0" Style="{StaticResource AboutIconHostStyle}">
-                                        <ui:FontIcon HorizontalAlignment="Center"
-                                                     VerticalAlignment="Center"
-                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                                     Foreground="#7A4DA0"
-                                                     Glyph="{x:Static ui:FontSymbols.Document}" />
-                                    </Border>
-                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="日志、配置与排查" />
-                                </ui:StackPanel>
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="普通日志和错误日志按日期保存；遇到无法发现开播、录制中断或转码失败时，请先在设置中打开日志目录。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="导入配置前会自动检查文件；无效配置不会覆盖当前设置。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="配置文件统一保存在文档目录的 Emerde\config 文件夹内，当前配置和备份点都在同一处管理。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="导入、恢复或重置配置前都会先备份当前配置；确认并重启前，不会替换正在使用的设置。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="恢复配置窗口支持点击“导入配置”，也可以直接拖入 .yaml 或 .yml 配置文件后再确认生效。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="反馈问题时请提供日志、直播间链接、发生时间、操作步骤和截图。" />
-                            </ui:StackPanel>
-                        </Border>
-
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
-                            <ui:StackPanel Spacing="10">
-                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Border Background="#14337DFF" Style="{StaticResource AboutIconHostStyle}">
-                                        <ui:FontIcon HorizontalAlignment="Center"
-                                                     VerticalAlignment="Center"
-                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                                     Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
-                                                     Glyph="{x:Static ui:FontSymbols.Settings}" />
-                                    </Border>
-                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="定时关闭" />
-                                </ui:StackPanel>
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="定时关闭默认只退出 Emerde；只有启用“关闭电脑”后才会请求系统关机。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="触发前会停止启动新的录制并显示倒计时，可在执行前取消本次计划。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="启用系统关机前，请先保存其他应用中的工作。" />
-                            </ui:StackPanel>
-                        </Border>
-
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
-                            <ui:StackPanel Spacing="10">
-                                <ui:StackPanel Orientation="Horizontal" Spacing="10">
-                                    <Border Background="#1420A060" Style="{StaticResource AboutIconHostStyle}">
-                                        <ui:FontIcon HorizontalAlignment="Center"
-                                                     VerticalAlignment="Center"
-                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                                     Foreground="#168A55"
-                                                     Glyph="{x:Static ui:FontSymbols.Info}" />
-                                    </Border>
-                                    <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="日常检查建议" />
-                                </ui:StackPanel>
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="定期确认保存目录剩余空间、FFmpeg 文件完整性和平台 Cookie 是否仍然有效。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="直播平台接口可能随时变化；某个平台突然无法解析时，应保留日志并避免反复删除配置。" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="运行时间较长时，可通过状态栏和日志确认监控轮次、录制进程与待恢复任务。" />
-                            </ui:StackPanel>
-                        </Border>
-                    </WrapPanel>
-
-                    <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="操作速查" />
-                    <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}"
-                               Text="快捷键只在对应页面生效，输入框内仍保留系统文字编辑行为。" />
-                    <WrapPanel>
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
-                            <ui:StackPanel Spacing="10">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="首页" />
-                                <WrapPanel>
-                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Ctrl+A  全选" /></Border>
-                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Del  移除房间" /></Border>
-                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Ctrl+Z  撤销" /></Border>
-                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Ctrl+Y  恢复" /></Border>
-                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Esc  清除选择" /></Border>
-                                </WrapPanel>
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="普通点击单选，Ctrl 点击增减选择，Shift 点击连续选择；卡片可直接拖动排序，空白区域可拖动框选。" />
-                            </ui:StackPanel>
-                        </Border>
-
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
-                            <ui:StackPanel Spacing="10">
+                            <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="视频列表" />
-                                <WrapPanel>
-                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Ctrl+A  全选" /></Border>
-                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Del  删除" /></Border>
-                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Shift+S  移动" /></Border>
-                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Ctrl+Shift+S  复制" /></Border>
-                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Esc  退出多选" /></Border>
-                                </WrapPanel>
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="双击打开视频；Ctrl 或 Shift 点击可进入多选，多选时点击卡片可增减选择，空列表不会显示多选入口。" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 显示可管理的视频和任务状态" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 正在录制写入的文件不能选中或操作" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 转码中的文件会显示状态提示，避免误删" />
                             </ui:StackPanel>
                         </Border>
-
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
-                            <ui:StackPanel Spacing="10">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="通用操作" />
-                                <WrapPanel>
-                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Esc  退出预览全屏" /></Border>
-                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="↑ / ↓  调整数值" /></Border>
-                                    <Border Style="{StaticResource AboutKeyStyle}"><TextBlock Text="Enter  确认输入" /></Border>
-                                </WrapPanel>
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="关闭窗口不等于退出软件；需要彻底结束时，请使用侧边栏或托盘菜单中的“退出”。" />
+                            <ui:StackPanel Spacing="8">
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="保存目录与清理" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 保存目录应放在空间充足的位置" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 保留期清理只处理带有效 Emerde 元数据的录制" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 更新版本时保留 downloads、video_thumbnails、logs、cache 和配置文件" />
+                            </ui:StackPanel>
+                        </Border>
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="8">
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="日志与配置" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 导出当天日志会打包当天文件，导出全部会打包全部日志" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 配置文件和备份点都在 Emerde\config 文件夹内管理" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 导入、恢复或重置配置前会先验证文件" />
+                            </ui:StackPanel>
+                        </Border>
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="8">
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="退出按钮、关闭窗口与恢复" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 右上角关闭按钮只隐藏主窗口，软件仍会留在托盘" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 完全退出请使用侧边栏或托盘菜单中的“退出”" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 未完成的收尾、分割或转码任务会在下次启动继续处理" />
+                            </ui:StackPanel>
+                        </Border>
+                    </WrapPanel>
+
+                    <ui:StackPanel Spacing="3">
+                        <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="快捷键速查" />
+                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="快捷键按当前页面生效；输入框内可直接撤销、恢复、复制和粘贴文字。" />
+                    </ui:StackPanel>
+                    <WrapPanel>
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="8">
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="页面与窗口" />
+                                <UniformGrid Columns="2">
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Tab" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="向上切换页面" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="CapsLock" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="向下切换页面" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Alt+1~4" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="直达页面" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+W" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="关闭窗口" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Shift+W" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="退出软件" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Z" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="输入框撤销文字" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Y" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="输入框恢复文字" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+C" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="输入框复制文字" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+V" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="输入框粘贴文字" />
+                                        </Grid>
+                                    </Border>
+                                </UniformGrid>
+                            </ui:StackPanel>
+                        </Border>
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="8">
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="首页直播间" />
+                                <UniformGrid Columns="2">
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="↑/↓/←/→" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="微调" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="W/A/S/D" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="微调" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Q" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="预览" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="E" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="进入直播间" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="M" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="当前监控" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="R" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="当前录制" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="F" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="刷新当前" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="C" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="复制房间地址" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Shift+C" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="复制直播流" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Del" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="移除房间" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+A" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="全选房间" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Z" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="撤销选择或列表操作" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Y" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="恢复选择或列表操作" />
+                                        </Grid>
+                                    </Border>
+                                </UniformGrid>
+                            </ui:StackPanel>
+                        </Border>
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="8">
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="预览播放" />
+                                <UniformGrid Columns="2">
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Space" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="播放或暂停" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="G" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="刷新预览" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="M" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="静音或恢复声音" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="- / =" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="音量降低或增加 5%" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="V" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="全屏或退出全屏" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Esc" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="退出全屏或关闭预览" />
+                                        </Grid>
+                                    </Border>
+                                </UniformGrid>
+                            </ui:StackPanel>
+                        </Border>
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="8">
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="全局操作" />
+                                <UniformGrid Columns="2">
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+N" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="添加直播间" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+T" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="测速" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+M" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="全部监控" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+R" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="全部录制" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+F" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="刷新全部" />
+                                        </Grid>
+                                    </Border>
+                                </UniformGrid>
+                            </ui:StackPanel>
+                        </Border>
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="8">
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="视频列表" />
+                                <UniformGrid Columns="2">
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="↑/↓/←/→" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="微调" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="W/A/S/D" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="微调" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Enter" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="打开视频" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="F5" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="刷新列表" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+A" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="全选" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Del" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="删除" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Shift+S" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="移动" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Shift+S" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="复制" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Esc" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="退出多选" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Z" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="撤销视频选择" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Y" /></Border>
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="恢复视频选择" />
+                                        </Grid>
+                                    </Border>
+                                </UniformGrid>
                             </ui:StackPanel>
                         </Border>
                     </WrapPanel>
@@ -470,30 +761,14 @@
                             Background="#14D83B01"
                             BorderBrush="#55D83B01"
                             BorderThickness="1"
-                            CornerRadius="8">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Border Width="34"
-                                    Height="34"
-                                    Background="#20D83B01"
-                                    CornerRadius="6">
-                                <ui:FontIcon HorizontalAlignment="Center"
-                                             VerticalAlignment="Center"
-                                             FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                             Foreground="#D83B01"
-                                             Glyph="{x:Static ui:FontSymbols.Important}" />
-                            </Border>
-                            <ui:StackPanel Grid.Column="1" Margin="12,0,0,0" Spacing="6">
-                                <TextBlock FontWeight="SemiBold"
-                                           Foreground="#D83B01"
-                                           Text="重要注意事项" />
-                                <TextBlock Style="{StaticResource AboutBodyTextStyle}"
-                                           Text="不要在录制文件仍在写入时强制结束进程、断电或直接删除软件目录；不要删除或单独移动 ffmpeg、libvlc 等程序依赖文件夹。平台接口发生变化时请先保留日志，系统关机功能启用前请保存其他应用中的工作。" />
-                            </ui:StackPanel>
-                        </Grid>
+                            CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                        <ui:StackPanel Spacing="8">
+                            <TextBlock Style="{StaticResource AboutWarningTitleStyle}"
+                                       Text="重要注意事项" />
+                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 不要在录制文件仍在写入时强制结束进程、断电或直接删除软件目录" />
+                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 不要删除或单独移动 ffmpeg、libvlc 等程序依赖文件夹" />
+                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 平台接口发生变化时请先保留日志，再反馈直播间链接、发生时间、操作步骤和截图" />
+                        </ui:StackPanel>
                     </Border>
                 </ui:StackPanel>
             </Border>

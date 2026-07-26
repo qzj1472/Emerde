@@ -1,6 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using System.Windows.Controls;
 using Windows.System;
 
 namespace Emerde.Views;
@@ -27,7 +26,7 @@ public partial class AboutContentDialog : System.Windows.Controls.UserControl
 
     internal static (double AboutCardWidth, double WorkflowCardWidth) CalculateCardWidths(double controlWidth)
     {
-        double availableWidth = Math.Max(0, Math.Min(1120, controlWidth - 54));
+        double availableWidth = Math.Max(0, controlWidth - 54);
         int cardColumns = availableWidth >= 760 ? 2 : 1;
         int workflowColumns = availableWidth >= 960 ? 4 : availableWidth >= 560 ? 2 : 1;
         double cardWidth = Math.Max(0, Math.Floor(availableWidth / cardColumns - 12));
