@@ -1,7 +1,8 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:controls="clr-namespace:Emerde.Controls"
-                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                    xmlns:vio="clr-namespace:Wpf.Ui.Violeta.Controls;assembly=Wpf.Ui.Violeta">
 
     <FontFamily x:Key="VioletaFluentIcons">pack://application:,,,/Wpf.Ui.Violeta;component/Resources/Fonts/Violeta Fluent Icons.ttf#Violeta Fluent Icons</FontFamily>
 
@@ -51,6 +52,37 @@
         <GradientStop Offset="0" Color="#00FFFFFF" />
         <GradientStop Offset="1" Color="#FFFFFFFF" />
     </LinearGradientBrush>
+
+    <Style TargetType="{x:Type ToolTip}">
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="HasDropShadow" Value="True" />
+        <Setter Property="Padding" Value="10,7" />
+        <Setter Property="MaxWidth" Value="360" />
+        <Setter Property="Background" Value="{DynamicResource EmerdeSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ToolTip}">
+                    <Border Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Left"
+                                          VerticalAlignment="Center"
+                                          Content="{TemplateBinding Content}"
+                                          ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          RecognizesAccessKey="True" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 
     <Style TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
@@ -132,6 +164,10 @@
 
     <Style TargetType="{x:Type ui:Button}" BasedOn="{StaticResource {x:Type ui:Button}}">
         <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
+    </Style>
+
+    <Style TargetType="{x:Type vio:MessageBoxDialog}" BasedOn="{StaticResource {x:Type vio:MessageBoxDialog}}">
+        <Setter Property="CornerRadius" Value="{StaticResource ContentDialogCornerRadius}" />
     </Style>
 
     <Style TargetType="{x:Type TextBox}" BasedOn="{StaticResource {x:Type TextBox}}">

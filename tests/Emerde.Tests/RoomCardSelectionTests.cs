@@ -11,8 +11,12 @@ public sealed class RoomCardSelectionTests
     [InlineData(System.Windows.Input.Key.Down, true)]
     [InlineData(System.Windows.Input.Key.Left, true)]
     [InlineData(System.Windows.Input.Key.Right, true)]
+    [InlineData(System.Windows.Input.Key.W, true)]
+    [InlineData(System.Windows.Input.Key.A, true)]
+    [InlineData(System.Windows.Input.Key.S, true)]
+    [InlineData(System.Windows.Input.Key.D, true)]
     [InlineData(System.Windows.Input.Key.Home, false)]
-    public void RoomCardKeyboardNavigation_UsesArrowKeys(System.Windows.Input.Key key, bool expected)
+    public void RoomCardKeyboardNavigation_UsesArrowAndWasdKeys(System.Windows.Input.Key key, bool expected)
     {
         Assert.Equal(expected, MainWindow.IsRoomCardKeyboardNavigationKey(key));
     }

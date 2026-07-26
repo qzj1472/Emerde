@@ -29,6 +29,7 @@ namespace Emerde.Views;
 
 public partial class MainWindow : FluentWindow
 {
+    private const int VirtualKeyCapsLock = 0x14;
     private HwndSource? hwndSource;
     public MainViewModel ViewModel { get; }
 
@@ -260,7 +261,6 @@ public partial class MainWindow : FluentWindow
     private bool isPreviewDwmBorderColorCaptured;
     private bool isPreviewDwmCornerPreferenceCaptured;
     private bool isPreviewFullScreen;
-    private bool isPreviewPresentationSuspendedByOverlay;
     private bool previousPreviewingState;
     private bool isStartupAboutNoticeQueued;
     private bool isStartupAboutNoticeShowing;
@@ -425,9 +425,22 @@ public partial class MainWindow : FluentWindow
 
     private void MainWindowPreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && isPreviewFullScreen)
+        Key key = GetShortcutKey(e);
+        ModifierKeys modifiers = Keyboard.Modifiers;
+
+        if (ShouldBypassAppShortcutsForDialog(IsModalDialogActive()))
         {
-            ExitPreviewFullScreen();
+            return;
+        }
+
+        if (isPreviewFullScreen)
+        {
+            e.Handled = TryHandlePreviewShortcut(key, modifiers);
+            return;
+        }
+
+        if (TryHandleWindowShortcut(key, modifiers))
+        {
             e.Handled = true;
             return;
         }
@@ -439,75 +452,427 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
-        if (!ViewModel.IsHomePageSelected
-            || e.OriginalSource is System.Windows.Controls.Primitives.TextBoxBase or System.Windows.Controls.PasswordBox)
+        if (IsShortcutInputSuppressed(e.OriginalSource as DependencyObject))
         {
             return;
         }
 
-        if (IsRoomCardKeyboardNavigationKey(e.Key)
-            && Keyboard.Modifiers == ModifierKeys.None
-            && RoomCardList.IsKeyboardFocusWithin)
+        if (TryHandlePreviewShortcut(key, modifiers))
         {
-            _ = Dispatcher.BeginInvoke(DispatcherPriority.Input, SynchronizeRoomCardKeyboardSelection);
-            return;
-        }
-
-        if (e.Key == Key.Delete)
-        {
-            ViewModel.RemoveRoomUrlCommand.Execute(null);
             e.Handled = true;
             return;
         }
 
-        if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
+        if (TryHandlePageShortcut(key, modifiers)
+            || TryHandleGlobalShortcut(key, modifiers))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (!ViewModel.IsHomePageSelected)
         {
             return;
         }
 
-        if (e.Key == Key.A)
+        e.Handled = TryHandleHomeShortcut(key, modifiers);
+    }
+
+    private bool TryHandleWindowShortcut(Key key, ModifierKeys modifiers)
+    {
+        if (key != Key.W)
         {
-            ViewModel.SelectAllRoomCardsCommand.Execute(null);
-            e.Handled = true;
+            return false;
         }
-        else if (e.Key == Key.Z)
+
+        if (modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
         {
-            ViewModel.UndoRoomSelection();
-            e.Handled = true;
+            ViewModel.ExitApplicationCommand.Execute(null);
+            return true;
         }
-        else if (e.Key == Key.Y)
+
+        if (modifiers == ModifierKeys.Control)
         {
-            ViewModel.RedoRoomSelection();
-            e.Handled = true;
+            HideMainWindowToTray();
+            return true;
         }
+
+        return false;
+    }
+
+    private static Key GetShortcutKey(KeyEventArgs e)
+    {
+        return e.Key == Key.System ? e.SystemKey : e.Key;
+    }
+
+    private bool TryHandlePageShortcut(Key key, ModifierKeys modifiers)
+    {
+        if (modifiers == ModifierKeys.Alt)
+        {
+            int pageIndex = key switch
+            {
+                Key.D1 or Key.NumPad1 => 0,
+                Key.D2 or Key.NumPad2 => 1,
+                Key.D3 or Key.NumPad3 => 2,
+                Key.D4 or Key.NumPad4 => 3,
+                _ => -1,
+            };
+            if (pageIndex < 0)
+            {
+                return false;
+            }
+
+            ViewModel.SelectedMainPageIndex = pageIndex;
+            FocusActivePage();
+            return true;
+        }
+
+        if (modifiers != ModifierKeys.None)
+        {
+            return false;
+        }
+
+        int direction = key switch
+        {
+            Key.Tab => -1,
+            Key.CapsLock => 1,
+            _ => 0,
+        };
+        if (direction == 0)
+        {
+            return false;
+        }
+
+        if (key == Key.CapsLock)
+        {
+            RestoreCapsLockState();
+        }
+
+        ViewModel.SelectedMainPageIndex = (ViewModel.SelectedMainPageIndex + direction + 4) % 4;
+        FocusActivePage();
+        return true;
+    }
+
+    private bool TryHandleGlobalShortcut(Key key, ModifierKeys modifiers)
+    {
+        if (modifiers != ModifierKeys.Control)
+        {
+            return false;
+        }
+
+        switch (key)
+        {
+            case Key.N:
+                ViewModel.AddRoomCommand.Execute(null);
+                return true;
+            case Key.T:
+                ViewModel.TestNetworkCapacityCommand.Execute(null);
+                return true;
+            case Key.M:
+                ViewModel.ToggleMonitorCommand.Execute(null);
+                return true;
+            case Key.R:
+                ViewModel.ToggleStatusRecordCommand.Execute(null);
+                return true;
+            case Key.F:
+                ViewModel.RefreshRoomCardsCommand.Execute(null);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private bool TryHandleHomeShortcut(Key key)
+    {
+        if (IsRoomCardKeyboardNavigationKey(key))
+        {
+            MoveRoomCardSelection(key);
+            return true;
+        }
+
+        switch (key)
+        {
+            case Key.Delete:
+                ViewModel.RemoveRoomUrlCommand.Execute(null);
+                return true;
+            case Key.M:
+                ViewModel.ToggleSelectedRoomMonitorCommand.Execute(null);
+                return true;
+            case Key.R:
+                ViewModel.ToggleSelectedRoomRecordCommand.Execute(null);
+                return true;
+            case Key.E:
+                ViewModel.GotoRoomUrlCommand.Execute(null);
+                return true;
+            case Key.Q:
+                ViewModel.PreviewLiveRoomCommand.Execute(ViewModel.SelectedItem);
+                FocusRoomCardList();
+                return true;
+            case Key.C:
+                ViewModel.CopySelectedRoomUrlCommand.Execute(null);
+                return true;
+            case Key.F:
+                ViewModel.RefreshSelectedRoomInfoCommand.Execute(null);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private bool TryHandleHomeShiftShortcut(Key key)
+    {
+        if (key != Key.C)
+        {
+            return false;
+        }
+
+        ViewModel.CopySelectedPreviewUrlCommand.Execute(null);
+        return true;
+    }
+
+    private bool TryHandleHomeControlShortcut(Key key)
+    {
+        switch (key)
+        {
+            case Key.A:
+                ViewModel.SelectAllRoomCardsCommand.Execute(null);
+                return true;
+            case Key.Z:
+                ViewModel.UndoRoomSelection();
+                return true;
+            case Key.Y:
+                ViewModel.RedoRoomSelection();
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private bool TryHandleHomeShortcut(Key key, ModifierKeys modifiers)
+    {
+        return modifiers switch
+        {
+            ModifierKeys.None => TryHandleHomeShortcut(key),
+            ModifierKeys.Shift => TryHandleHomeShiftShortcut(key),
+            ModifierKeys.Control => TryHandleHomeControlShortcut(key),
+            _ => false,
+        };
     }
 
     internal static bool IsRoomCardKeyboardNavigationKey(Key key)
     {
-        return key is Key.Up or Key.Down or Key.Left or Key.Right;
+        return key is Key.Up or Key.Down or Key.Left or Key.Right or Key.W or Key.A or Key.S or Key.D;
     }
 
-    private void SynchronizeRoomCardKeyboardSelection()
+    private void MoveRoomCardSelection(Key key)
     {
-        if (RoomCardList.SelectedItem is not RoomStatusReactive room)
+        RoomStatusReactive[] visibleRooms = RoomStatusesViewItems();
+        if (visibleRooms.Length == 0)
         {
             return;
         }
+
+        int currentIndex = ViewModel.SelectedItem == null ? -1 : Array.IndexOf(visibleRooms, ViewModel.SelectedItem);
+        int offset = key switch
+        {
+            Key.Up or Key.W => -Math.Max(1, RoomCardColumnCount),
+            Key.Down or Key.S => Math.Max(1, RoomCardColumnCount),
+            Key.Left or Key.A => -1,
+            Key.Right or Key.D => 1,
+            _ => 0,
+        };
+        int nextIndex = currentIndex < 0
+            ? offset < 0 ? visibleRooms.Length - 1 : 0
+            : Math.Clamp(currentIndex + offset, 0, visibleRooms.Length - 1);
+        RoomStatusReactive room = visibleRooms[nextIndex];
 
         ViewModel.SelectRoom(room, false, false);
         ViewModel.SelectedItem = room;
+        RoomCardList.SelectedItem = room;
         RoomCardList.ScrollIntoView(room);
+        FocusRoomCardList();
     }
 
-    private void MainWindowThreadPreprocessMessage(ref System.Windows.Interop.MSG msg, ref bool handled)
+    private RoomStatusReactive[] RoomStatusesViewItems()
     {
-        if (handled || !IsPreviewFullScreenExitMessage(isPreviewFullScreen, msg.message, msg.wParam))
+        return RoomCardList.Items
+            .OfType<RoomStatusReactive>()
+            .Where(room => !string.IsNullOrWhiteSpace(room.RoomUrl))
+            .ToArray();
+    }
+
+    private void FocusActivePage()
+    {
+        if (ViewModel.IsHomePageSelected)
+        {
+            FocusRoomCardList();
+        }
+    }
+
+    private void FocusRoomCardList()
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (IsVisible && ViewModel.IsHomePageSelected)
+            {
+                Keyboard.Focus(RoomCardList);
+            }
+        }, DispatcherPriority.Input);
+    }
+
+    private void HideMainWindowToTray()
+    {
+        PrepareForTrayHide();
+        Hide();
+    }
+
+    private static bool IsShortcutInputSuppressed(DependencyObject? source)
+    {
+        while (source != null)
+        {
+            if (source is System.Windows.Controls.Primitives.TextBoxBase
+                or System.Windows.Controls.PasswordBox)
+            {
+                return true;
+            }
+
+            source = GetShortcutParent(source);
+        }
+
+        return false;
+    }
+
+    private static DependencyObject? GetShortcutParent(DependencyObject source)
+    {
+        if (source is FrameworkElement element && element.Parent is DependencyObject frameworkParent)
+        {
+            return frameworkParent;
+        }
+
+        return source is Visual or System.Windows.Media.Media3D.Visual3D
+            ? VisualTreeHelper.GetParent(source)
+            : null;
+    }
+
+    private static void RestoreCapsLockState()
+    {
+        byte[] keyboardState = new byte[256];
+        if (!GetKeyboardState(keyboardState))
         {
             return;
         }
 
-        ExitPreviewFullScreen();
-        handled = true;
+        keyboardState[VirtualKeyCapsLock] ^= 1;
+        _ = SetKeyboardState(keyboardState);
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetKeyboardState([Out] byte[] keyState);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetKeyboardState(byte[] keyState);
+
+    private void MainWindowThreadPreprocessMessage(ref System.Windows.Interop.MSG msg, ref bool handled)
+    {
+        if (handled || msg.message is not 0x0100 and not 0x0104)
+        {
+            return;
+        }
+
+        Key key = KeyInterop.KeyFromVirtualKey(msg.wParam.ToInt32());
+        ModifierKeys modifiers = Keyboard.Modifiers;
+        if (ShouldBypassAppShortcutsForDialog(IsModalDialogActive()))
+        {
+            return;
+        }
+
+        if (IsShortcutInputSuppressed(Keyboard.FocusedElement as DependencyObject))
+        {
+            return;
+        }
+
+        handled = TryHandlePreviewShortcut(key, modifiers);
+        if (handled)
+        {
+            return;
+        }
+
+        if (isPreviewFullScreen)
+        {
+            handled = modifiers != ModifierKeys.Alt || key != Key.F4;
+            return;
+        }
+
+        if (TryHandleWindowShortcut(key, modifiers)
+            || TryHandlePageShortcut(key, modifiers)
+            || TryHandleGlobalShortcut(key, modifiers))
+        {
+            handled = true;
+            return;
+        }
+
+        handled = ViewModel.IsHomePageSelected && TryHandleHomeShortcut(key, modifiers);
+    }
+
+    private static bool IsModalDialogActive()
+    {
+        return WindowSizing.HasOpenContentDialog || DialogBlurScope.HasActiveDialog;
+    }
+
+    internal static bool ShouldBypassAppShortcutsForDialog(bool hasOpenDialog)
+    {
+        return hasOpenDialog;
+    }
+
+    private bool TryHandlePreviewShortcut(Key key, ModifierKeys modifiers)
+    {
+        if (!IsPreviewControlShortcut(ViewModel.IsPreviewing, key, modifiers))
+        {
+            return false;
+        }
+
+        switch (key)
+        {
+            case Key.Space:
+                ViewModel.TogglePreviewPauseCommand.Execute(null);
+                return true;
+            case Key.M:
+                ViewModel.TogglePreviewMuteCommand.Execute(null);
+                return true;
+            case Key.OemMinus:
+                ViewModel.AdjustPreviewVolume(-5);
+                return true;
+            case Key.OemPlus:
+                ViewModel.AdjustPreviewVolume(5);
+                return true;
+            case Key.G:
+                ViewModel.RefreshPreviewCommand.Execute(null);
+                return true;
+            case Key.V:
+                TogglePreviewFullScreen();
+                return true;
+            case Key.Escape:
+                if (isPreviewFullScreen)
+                {
+                    ExitPreviewFullScreen();
+                }
+                else
+                {
+                    ViewModel.StopPreviewCommand.Execute(null);
+                }
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    internal static bool IsPreviewControlShortcut(bool isPreviewing, Key key, ModifierKeys modifiers)
+    {
+        return isPreviewing
+            && modifiers == ModifierKeys.None
+            && key is Key.Space or Key.M or Key.OemMinus or Key.OemPlus or Key.G or Key.V or Key.Escape;
     }
 
     internal static bool IsPreviewFullScreenExitMessage(bool isFullScreen, int message, IntPtr key)
@@ -552,6 +917,10 @@ public partial class MainWindow : FluentWindow
             {
                 BringSelectedRoomCardIntoView();
             }
+            if (!ViewModel.IsPreviewing && ViewModel.IsHomePageSelected)
+            {
+                FocusRoomCardList();
+            }
         }, DispatcherPriority.Loaded);
     }
 
@@ -574,18 +943,9 @@ public partial class MainWindow : FluentWindow
         }, DispatcherPriority.Render);
     }
 
-    internal void SetPreviewPresentationSuspended(bool isSuspended)
-    {
-        isPreviewPresentationSuspendedByOverlay = isSuspended;
-        UpdatePreviewPresentationState();
-    }
-
     private void UpdatePreviewPresentationState()
     {
-        bool isSuspended = ShouldSuspendPreviewPresentation(
-            isPreviewPresentationSuspendedByOverlay,
-            ViewModel.IsPreviewing,
-            ViewModel.IsHomePageSelected);
+        bool isSuspended = ShouldSuspendPreviewPresentation(ViewModel.IsPreviewing);
         HomePreviewPanel.SetVideoPresentationSuspended(isSuspended);
 
         if (!isSuspended && (isPreviewFullScreen || ViewModel.IsHomePageSelected))
@@ -594,9 +954,9 @@ public partial class MainWindow : FluentWindow
         }
     }
 
-    internal static bool ShouldSuspendPreviewPresentation(bool isSuspendedByOverlay, bool isPreviewing, bool isHomePageSelected)
+    internal static bool ShouldSuspendPreviewPresentation(bool isPreviewing)
     {
-        return isSuspendedByOverlay || !isPreviewing || !isHomePageSelected;
+        return !isPreviewing;
     }
 
     private void UpdateHomePreviewLayout()
@@ -980,6 +1340,7 @@ public partial class MainWindow : FluentWindow
         QueuePreviewLayoutRefreshAfterFullScreen();
         Activate();
         Focus();
+        FocusRoomCardList();
     }
 
     private void SavePreviewFullScreenLayout()
@@ -1352,7 +1713,7 @@ public partial class MainWindow : FluentWindow
         isStartupAboutNoticeShowing = true;
         try
         {
-            using DialogBlurScope blurScope = new(this);
+            using DialogBlurScope blurScope = DialogBlurScope.ForMessageBox(this);
             System.Windows.MessageBoxResult result = MessageBox.Information(
                 $"{AppResources.StartupAboutNoticeTitle}{Environment.NewLine}{Environment.NewLine}{AppResources.StartupAboutNoticeDescription}");
             if (ShouldPersistStartupAboutNoticeAcknowledgement(result))

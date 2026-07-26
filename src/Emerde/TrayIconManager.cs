@@ -89,7 +89,7 @@ internal sealed class TrayIconManager : IDisposable
 
     private async Task ShutdownApplicationAsync(bool confirmRecording)
     {
-        if (confirmRecording && !ConfirmRecordingInterruption())
+        if (confirmRecording && !await ConfirmRecordingInterruptionAsync())
         {
             return;
         }
@@ -131,7 +131,7 @@ internal sealed class TrayIconManager : IDisposable
 
     public async Task RestartApplicationAsync(bool confirmRecording = true)
     {
-        if (confirmRecording && !ConfirmRecordingInterruption())
+        if (confirmRecording && !await ConfirmRecordingInterruptionAsync())
         {
             return;
         }
@@ -266,15 +266,19 @@ internal sealed class TrayIconManager : IDisposable
         currentIcon = null;
     }
 
-    private static bool ConfirmRecordingInterruption()
+    private static async Task<bool> ConfirmRecordingInterruptionAsync()
     {
         if (!HasShutdownSensitiveWork(GlobalMonitor.HasActiveRecorders, Converter.HasActiveConversions, MediaOperationRegistry.HasActiveOperations))
         {
             return true;
         }
 
-        using DialogBlurScope blurScope = new(Application.Current.MainWindow);
-        return MessageBox.Question("SureOnRecording".Tr()) == MessageBoxResult.Yes;
+        ActivateMainWindow();
+        Window? owner = Application.Current.MainWindow;
+        ExitConfirmationContentDialog dialog = new("SureOnRecording".Tr());
+        using DialogBlurScope blurScope = DialogBlurScope.ForDialog(owner, dialog);
+        ContentDialogResult result = await WindowSizing.ShowContentDialogAsync(dialog, owner);
+        return result == ContentDialogResult.Primary;
     }
 
     internal static bool HasShutdownSensitiveWork(bool hasActiveRecorders, bool hasActiveConversions)

@@ -573,12 +573,16 @@
             </Style>
 
             <Style x:Key="RoomCardListBoxStyle" TargetType="{x:Type ListBox}">
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="{x:Type ListBox}">
                             <Grid ClipToBounds="True">
                                 <ScrollViewer x:Name="RoomCardScrollViewer"
                                               Focusable="False"
+                                              FocusVisualStyle="{x:Null}"
+                                              BorderThickness="0"
                                               Padding="9"
                                               HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
                                               VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}">
@@ -622,7 +626,8 @@
                                    Orientation="Vertical">
                     <ToggleButton Command="{Binding ShowHomePageCommand}"
                                   IsChecked="{Binding IsHomePageSelected, Mode=OneWay}"
-                                  Style="{StaticResource ShellNavButtonStyle}">
+                                  Style="{StaticResource ShellNavButtonStyle}"
+                                  ToolTip="首页（Alt+1，Tab 向上 / CapsLock 向下）">
                         <ui:StackPanel HorizontalAlignment="Center" Spacing="4">
                             <ui:FontIcon HorizontalAlignment="Center"
                                          FontFamily="{DynamicResource SymbolThemeFontFamily}"
@@ -633,7 +638,8 @@
                     </ToggleButton>
                     <ToggleButton Command="{Binding OpenScreenRecordListCommand}"
                                   IsChecked="{Binding IsVideoListPageSelected, Mode=OneWay}"
-                                  Style="{StaticResource ShellNavButtonStyle}">
+                                  Style="{StaticResource ShellNavButtonStyle}"
+                                  ToolTip="视频列表（Alt+2，Tab 向上 / CapsLock 向下）">
                         <ui:StackPanel HorizontalAlignment="Center" Spacing="4">
                             <ui:FontIcon HorizontalAlignment="Center"
                                          FontFamily="{DynamicResource SymbolThemeFontFamily}"
@@ -644,7 +650,8 @@
                     </ToggleButton>
                     <ToggleButton Command="{Binding OpenSettingsDialogCommand}"
                                   IsChecked="{Binding IsSettingsPageSelected, Mode=OneWay}"
-                                  Style="{StaticResource ShellNavButtonStyle}">
+                                  Style="{StaticResource ShellNavButtonStyle}"
+                                  ToolTip="设置（Alt+3，Tab 向上 / CapsLock 向下）">
                         <ui:StackPanel HorizontalAlignment="Center" Spacing="4">
                             <ui:FontIcon HorizontalAlignment="Center"
                                          FontFamily="{DynamicResource SymbolThemeFontFamily}"
@@ -655,7 +662,8 @@
                     </ToggleButton>
                     <ToggleButton Command="{Binding OpenAboutCommand}"
                                   IsChecked="{Binding IsAboutPageSelected, Mode=OneWay}"
-                                  Style="{StaticResource ShellNavButtonStyle}">
+                                  Style="{StaticResource ShellNavButtonStyle}"
+                                  ToolTip="关于（Alt+4，Tab 向上 / CapsLock 向下）">
                         <ui:StackPanel HorizontalAlignment="Center" Spacing="4">
                             <ui:FontIcon HorizontalAlignment="Center"
                                          FontFamily="{DynamicResource SymbolThemeFontFamily}"
@@ -667,7 +675,8 @@
                     </ui:StackPanel>
                     <Button Grid.Row="2"
                             Command="{Binding ExitApplicationCommand}"
-                            Style="{StaticResource ShellExitButtonStyle}">
+                            Style="{StaticResource ShellExitButtonStyle}"
+                            ToolTip="退出软件（Ctrl+Shift+W）">
                         <ui:StackPanel Orientation="Horizontal" Spacing="5">
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          Glyph="{x:Static ui:FontSymbols.PowerButton}" />
@@ -697,7 +706,8 @@
             <ui:Grid x:Name="HomeActionBar" Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
                 <ui:StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
                     <Button MinWidth="72"
-                            Command="{Binding AddRoomCommand}">
+                            Command="{Binding AddRoomCommand}"
+                            ToolTip="添加直播间（Ctrl+N）">
                         <Button.Content>
                             <ui:StackPanel Orientation="Horizontal" Spacing="8">
                                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Add}" />
@@ -708,7 +718,8 @@
                     <Button MinWidth="72"
                             Command="{Binding ToggleMonitorCommand}"
                             Style="{StaticResource MonitorActionButtonStyle}"
-                            Tag="{Binding StatusOfIsMonitorRunning}">
+                            Tag="{Binding StatusOfIsMonitorRunning}"
+                            ToolTip="开启/暂停全部监控（Ctrl+M）">
                         <Button.Content>
                             <ui:StackPanel Orientation="Horizontal" Spacing="8">
                                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
@@ -721,7 +732,8 @@
                     <Button MinWidth="72"
                             Command="{Binding ToggleStatusRecordCommand}"
                             Style="{StaticResource RecordActionButtonStyle}"
-                            Tag="{Binding StatusOfIsToRecord}">
+                            Tag="{Binding StatusOfIsToRecord}"
+                            ToolTip="开启/暂停全部录制（Ctrl+R）">
                         <Button.Content>
                             <ui:StackPanel Orientation="Horizontal" Spacing="8">
                                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
@@ -752,6 +764,10 @@
                         BorderThickness="0"
                         CornerRadius="{StaticResource Win11ControlCornerRadius}"
                         ClipToBounds="True"
+                        Focusable="False"
+                        FocusVisualStyle="{x:Null}"
+                        KeyboardNavigation.DirectionalNavigation="None"
+                        KeyboardNavigation.TabNavigation="None"
                         MouseLeftButtonDown="RoomCardPanelMouseLeftButtonDown"
                         PreviewMouseLeftButtonDown="RoomCardListPreviewMouseLeftButtonDown"
                         PreviewMouseLeftButtonUp="RoomCardListPreviewMouseLeftButtonUp"
@@ -796,12 +812,17 @@
                     </Border.ContextMenu>
                     <Grid x:Name="RoomCardPanelContent"
                           ClipToBounds="True"
+                          Focusable="False"
+                          FocusVisualStyle="{x:Null}"
+                          KeyboardNavigation.DirectionalNavigation="None"
+                          KeyboardNavigation.TabNavigation="None"
                           SizeChanged="RoomCardPanelContentSizeChanged">
                         <ListBox x:Name="RoomCardList"
-                                 Background="Transparent"
-                                 BorderThickness="0"
-                                 ClipToBounds="True"
-                                 ItemsSource="{Binding RoomStatusesView}"
+                                  Background="Transparent"
+                                  BorderThickness="0"
+                                  ClipToBounds="True"
+                                  FocusVisualStyle="{x:Null}"
+                                  ItemsSource="{Binding RoomStatusesView}"
                                  Loaded="RoomCardListLoaded"
                                  LostMouseCapture="RoomCardListLostMouseCapture"
                                  Padding="0"
@@ -1148,7 +1169,7 @@
                                         MinWidth="28"
                                         Padding="0"
                                         Command="{Binding RefreshSelectedRoomInfoCommand}"
-                                        ToolTip="刷新直播间信息">
+                                        ToolTip="刷新当前直播间（F）">
                                     <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                                  Glyph="{x:Static ui:FontSymbols.Sync}"
                                                  RenderTransformOrigin="0.5,0.5">
@@ -1218,7 +1239,7 @@
                                             Margin="8,0,0,0"
                                             Padding="0"
                                             Command="{Binding CopySelectedRoomUrlCommand}"
-                                            ToolTip="复制直播间地址">
+                                            ToolTip="复制房间地址（C）">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Copy}" />
                                     </Button>
                                 </ui:Grid>
@@ -1233,7 +1254,7 @@
                                             Margin="8,0,0,0"
                                             Padding="0"
                                             Command="{Binding CopySelectedPreviewUrlCommand}"
-                                            ToolTip="复制直播流地址">
+                                            ToolTip="复制直播流（Shift+C）">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Copy}" />
                                     </Button>
                                 </ui:Grid>
@@ -1258,7 +1279,8 @@
                                         HorizontalAlignment="Stretch"
                                         Command="{Binding PreviewLiveRoomCommand}"
                                         CommandParameter="{Binding SelectedItem}"
-                                        IsEnabled="{Binding CanPreviewSelectedRoom}">
+                                        IsEnabled="{Binding CanPreviewSelectedRoom}"
+                                        ToolTip="预览/关闭当前直播间预览（Q）">
                                     <ui:StackPanel Orientation="Horizontal" Spacing="6">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Play}" />
                                         <TextBlock Text="{I18N PreviewLiveRoom}" />
@@ -1270,7 +1292,8 @@
                                         Height="42"
                                         Margin="4,0,0,6"
                                         HorizontalAlignment="Stretch"
-                                        Command="{Binding GotoRoomUrlCommand}">
+                                        Command="{Binding GotoRoomUrlCommand}"
+                                        ToolTip="打开当前直播间网页（E）">
                                     <ui:StackPanel Orientation="Horizontal" Spacing="6">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.OpenInNewWindow}" />
                                         <TextBlock Text="{I18N ButtonOfGoto}" />
@@ -1284,7 +1307,8 @@
                                         HorizontalAlignment="Stretch"
                                         Command="{Binding ToggleSelectedRoomMonitorCommand}"
                                         Style="{StaticResource MonitorActionButtonStyle}"
-                                        Tag="{Binding SelectedItem.EffectiveIsToMonitor}">
+                                        Tag="{Binding SelectedItem.EffectiveIsToMonitor}"
+                                        ToolTip="开启/暂停当前直播间监控（M）">
                                     <ui:StackPanel Orientation="Horizontal" Spacing="6">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                                      Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
@@ -1300,7 +1324,8 @@
                                         HorizontalAlignment="Stretch"
                                         Command="{Binding ToggleSelectedRoomRecordCommand}"
                                         Style="{StaticResource RecordActionButtonStyle}"
-                                        Tag="{Binding SelectedItem.EffectiveIsToRecord}">
+                                        Tag="{Binding SelectedItem.EffectiveIsToRecord}"
+                                        ToolTip="开启/暂停当前直播间录制（R）">
                                     <ui:StackPanel Orientation="Horizontal" Spacing="6">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                                      Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
@@ -1314,7 +1339,8 @@
                                         FontSize="14"
                                         Height="42"
                                         HorizontalAlignment="Stretch"
-                                        Command="{Binding OpenLocalSettingsCommand}">
+                                        Command="{Binding OpenLocalSettingsCommand}"
+                                        ToolTip="打开当前直播间设置">
                                     <ui:StackPanel Orientation="Horizontal" Spacing="6">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Settings}" />
                                         <TextBlock Text="设置" />
@@ -1356,7 +1382,8 @@
                                Style="{StaticResource StatusTrayTextBlockStyle}"
                                Text="{Binding PlatformSummaryText}" />
                     <Button Command="{Binding TestNetworkCapacityCommand}"
-                            Style="{StaticResource StatusTrayCapacityButtonStyle}">
+                            Style="{StaticResource StatusTrayCapacityButtonStyle}"
+                            ToolTip="测试当前网络可同时录制的路数（Ctrl+T）">
                         <ui:StackPanel VerticalAlignment="Center"
                                        Orientation="Horizontal"
                                        Spacing="5">
@@ -1433,7 +1460,7 @@
                         <Button Command="{Binding ToggleMonitorCommand}"
                                 Style="{StaticResource MonitorStatusTrayButtonStyle}"
                                 Tag="{Binding StatusOfIsMonitorRunning}"
-                                ToolTip="监控">
+                                ToolTip="开启/暂停全部监控（Ctrl+M）">
                             <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
                                          Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
                                          Glyph="{x:Static ui:FontSymbols.Radar}" />
@@ -1457,7 +1484,7 @@
                         <Button Command="{Binding ToggleStatusRecordCommand}"
                                 Style="{StaticResource RecordStatusTrayButtonStyle}"
                                 Tag="{Binding StatusOfIsToRecord}"
-                                ToolTip="{I18N EnableRecord}">
+                                ToolTip="开启/暂停全部录制（Ctrl+R）">
                             <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
                                          Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
                                          Glyph="{x:Static ui:FontSymbols.Video}" />

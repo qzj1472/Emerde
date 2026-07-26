@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Emerde.Core;
+using System.Windows.Input;
+using System.Windows.Threading;
 using Wpf.Ui.Violeta.Controls;
 
 namespace Emerde.Views;
@@ -35,6 +37,18 @@ public sealed partial class AddRoomContentDialog : ContentDialog
     {
         DataContext = this;
         InitializeComponent();
+        Loaded += AddRoomContentDialogLoaded;
+    }
+
+    private void AddRoomContentDialogLoaded(object sender, System.Windows.RoutedEventArgs e)
+    {
+        _ = Dispatcher.BeginInvoke(
+            DispatcherPriority.ContextIdle,
+            new Action(() =>
+            {
+                RoomUrlTextBox.Focus();
+                Keyboard.Focus(RoomUrlTextBox);
+            }));
     }
 
     private async void OnPrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs e)
@@ -79,7 +93,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
                 try
                 {
                     string preferredQuality = RoomRecordingSettings.GetGlobal().PreferredStreamQuality;
-                    ISpiderResult? spider = await Task.Run(() => Spider.GetResult(normalizedRoomUrl, preferredQuality, bypassDouyinThrottle: true));
+                    ISpiderResult? spider = await GlobalMonitor.GetManualSpiderResultAsync(normalizedRoomUrl, preferredQuality);
                     string roomUrl = string.IsNullOrWhiteSpace(spider?.RoomUrl)
                         ? normalizedRoomUrl
                         : Spider.ParseUrl(spider.RoomUrl!) ?? spider.RoomUrl!;

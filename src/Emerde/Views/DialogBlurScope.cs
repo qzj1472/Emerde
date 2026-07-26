@@ -44,8 +44,12 @@ internal sealed class DialogBlurScope : IDisposable
     private readonly bool previousOwnerIsEnabled;
     private readonly DispatcherTimer? ownerEnableTimer;
     private readonly DispatcherTimer? dialogMaskClearTimer;
+    private static int activeDialogCount;
+    private bool isDisposed;
 
-    public DialogBlurScope(Window? owner = null, double radius = 8d, object? dialog = null, bool isLightDismissEnabled = false, bool keepOwnerEnabled = true)
+    public static bool HasActiveDialog => Volatile.Read(ref activeDialogCount) > 0;
+
+    public DialogBlurScope(Window? owner = null, double radius = 8d, object? dialog = null, bool isLightDismissEnabled = false, bool keepOwnerEnabled = true, bool showBackdrop = true)
     {
         WpfBrush backdropBrush = CreateBackdropBrush();
         ApplyBuiltInSmoke(dialog, backdropBrush);
@@ -71,7 +75,7 @@ internal sealed class DialogBlurScope : IDisposable
             };
         }
 
-        backdrop = FindBackdrop(window);
+        backdrop = showBackdrop ? FindBackdrop(window) : null;
         if (backdrop != null)
         {
             previousBackdropBackground = backdrop.Background;
@@ -93,6 +97,8 @@ internal sealed class DialogBlurScope : IDisposable
             backdrop.MouseDown += backdropMouseDownHandler;
             backdrop.Visibility = Visibility.Visible;
         }
+
+        Interlocked.Increment(ref activeDialogCount);
     }
 
     public static DialogBlurScope ForLightDismiss(Window? owner, object dialog, double radius = 8d)
@@ -110,8 +116,19 @@ internal sealed class DialogBlurScope : IDisposable
         return new DialogBlurScope(owner, radius, null, false, false);
     }
 
+    public static DialogBlurScope ForMessageBox(Window? owner, double radius = 8d)
+    {
+        return new DialogBlurScope(owner, radius, null, false, false, false);
+    }
+
     public void Dispose()
     {
+        if (isDisposed)
+        {
+            return;
+        }
+
+        isDisposed = true;
         ownerEnableTimer?.Stop();
         dialogMaskClearTimer?.Stop();
         if (ownerWindow != null)
@@ -135,6 +152,8 @@ internal sealed class DialogBlurScope : IDisposable
         {
             blurTarget.Effect = previousBlurEffect;
         }
+
+        Interlocked.Decrement(ref activeDialogCount);
     }
 
     public static void ApplyBuiltInSmoke(object? dialog, WpfBrush? backdropBrush = null)

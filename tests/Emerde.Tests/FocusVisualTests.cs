@@ -33,6 +33,58 @@ public sealed class FocusVisualTests
         Assert.Equal("0", (string?)scrollViewer.Attribute("BorderThickness"));
     }
 
+    [Fact]
+    public void HomeRoomCardPanel_DoesNotRenderWindowSwitchFocusOutline()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XElement panel = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomCardPanel");
+        XElement content = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomCardPanelContent");
+        XElement list = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomCardList");
+
+        Assert.Equal("False", (string?)panel.Attribute("Focusable"));
+        Assert.Equal("{x:Null}", (string?)panel.Attribute("FocusVisualStyle"));
+        Assert.Equal("False", (string?)content.Attribute("Focusable"));
+        Assert.Equal("{x:Null}", (string?)content.Attribute("FocusVisualStyle"));
+        Assert.Equal("{x:Null}", (string?)list.Attribute("FocusVisualStyle"));
+    }
+
+    [Fact]
+    public void GlobalToolTip_UsesApplicationRoundedChrome()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Resources.xaml"));
+        XElement style = document.Descendants()
+            .Single(element => element.Name.LocalName == "Style" && (string?)element.Attribute("TargetType") == "{x:Type ToolTip}");
+
+        Assert.Contains(style.Descendants().Where(element => element.Name.LocalName == "Border"), border =>
+            (string?)border.Attribute("CornerRadius") == "{StaticResource Win11ControlCornerRadius}");
+    }
+
+    [Fact]
+    public void AddRoomDialog_HasNamedUrlInputForInitialFocus()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AddRoomContentDialog.xaml"));
+        XElement textBox = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomUrlTextBox");
+
+        Assert.Equal("{Binding Url, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}", (string?)textBox.Attribute("Text"));
+    }
+
+    [Fact]
+    public void ExitConfirmationDialog_UsesApplicationContentDialogTemplate()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ExitConfirmationContentDialog.xaml"));
+        XElement dialog = document.Root!;
+
+        Assert.Equal("ContentDialog", dialog.Name.LocalName);
+        Assert.Equal("{StaticResource DefaultVioletaContentDialogStyle}", (string?)dialog.Attribute("Style"));
+        Assert.Equal("Primary", (string?)dialog.Attribute("DefaultButton"));
+        Assert.Equal("是", (string?)dialog.Attribute("PrimaryButtonText"));
+        Assert.Equal("否", (string?)dialog.Attribute("CloseButtonText"));
+    }
+
     [Theory]
     [InlineData("SettingsWindow.xaml", "SettingsScrollViewer")]
     [InlineData("LocalSettingsContentDialog.xaml", "LocalSettingsScrollViewer")]
