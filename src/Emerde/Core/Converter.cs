@@ -262,10 +262,8 @@ public sealed class Converter
         }
 
         List<string> arguments = ["-n"];
-        if (sourceExtension.Equals(".ts", StringComparison.OrdinalIgnoreCase))
-        {
-            arguments.AddRange(["-fflags", "+genpts"]);
-        }
+        arguments.AddRange(["-fflags", "+genpts+discardcorrupt+sortdts"]);
+        arguments.AddRange(["-err_detect", "ignore_err"]);
 
         arguments.AddRange(["-i", sourceFileName]);
         if (audioPresence == AudioStreamPresence.Present)
@@ -323,7 +321,7 @@ public sealed class Converter
 
     internal static IReadOnlyList<string> BuildConcatArguments(string concatListPath, string targetFileName, VideoRecordingMetadata metadata, AudioStreamPresence audioPresence)
     {
-        List<string> arguments = ["-n", "-fflags", "+genpts", "-f", "concat", "-safe", "0", "-i", concatListPath];
+        List<string> arguments = ["-n", "-fflags", "+genpts+discardcorrupt+sortdts", "-err_detect", "ignore_err", "-f", "concat", "-safe", "0", "-i", concatListPath];
         AppendOutputMappingArguments(arguments, targetFileName, metadata, audioPresence);
         return arguments;
     }

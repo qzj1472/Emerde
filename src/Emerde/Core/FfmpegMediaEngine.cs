@@ -27,6 +27,10 @@ internal sealed record FfmpegMediaRunResult(
 
 internal static unsafe class FfmpegMediaEngine
 {
+    private const int InputFormatFlags = ffmpeg.AVFMT_FLAG_GENPTS
+        | ffmpeg.AVFMT_FLAG_DISCARD_CORRUPT
+        | ffmpeg.AVFMT_FLAG_SORT_DTS;
+    private const int InputErrorRecognitionFlags = ffmpeg.AV_EF_IGNORE_ERR;
     private static readonly object InitializeLock = new();
     private static bool initialized;
 
@@ -90,6 +94,7 @@ internal static unsafe class FfmpegMediaEngine
             {
                 return new FfmpegMediaRunResult(openResult, false, false, ErrorToString(openResult));
             }
+            ApplyInputRepairPolicy(inputContext);
 
             int streamInfoResult = ffmpeg.avformat_find_stream_info(inputContext, null);
             if (streamInfoResult < 0)
@@ -227,6 +232,7 @@ internal static unsafe class FfmpegMediaEngine
                 error = ErrorToString(openResult);
                 return false;
             }
+            ApplyInputRepairPolicy(inputContext);
 
             int streamInfoResult = ffmpeg.avformat_find_stream_info(inputContext, null);
             if (streamInfoResult < 0)
@@ -336,6 +342,7 @@ internal static unsafe class FfmpegMediaEngine
                     {
                         return new FfmpegMediaRunResult(openResult, false, hadProgress, ErrorToString(openResult));
                     }
+                    ApplyInputRepairPolicy(inputContext);
 
                     int streamInfoResult = ffmpeg.avformat_find_stream_info(inputContext, null);
                     if (streamInfoResult < 0)
@@ -650,6 +657,8 @@ internal static unsafe class FfmpegMediaEngine
 
     private static void AddInputOptions(AVDictionary** options, FfmpegInputOptions inputOptions)
     {
+        ffmpeg.av_dict_set(options, "fflags", "+genpts+discardcorrupt+sortdts", 0);
+        ffmpeg.av_dict_set(options, "err_detect", "ignore_err", 0);
         ffmpeg.av_dict_set(options, "rw_timeout", inputOptions.IsLive ? "15000000" : "5000000", 0);
         ffmpeg.av_dict_set(options, "reconnect", "1", 0);
         ffmpeg.av_dict_set(options, "reconnect_streamed", "1", 0);
@@ -670,6 +679,15 @@ internal static unsafe class FfmpegMediaEngine
         if (inputOptions.IsUseProxy && !string.IsNullOrWhiteSpace(inputOptions.HttpProxy))
         {
             ffmpeg.av_dict_set(options, "http_proxy", inputOptions.HttpProxy, 0);
+        }
+    }
+
+    private static void ApplyInputRepairPolicy(AVFormatContext* inputContext)
+    {
+        if (inputContext != null)
+        {
+            inputContext->flags |= InputFormatFlags;
+            inputContext->error_recognition |= InputErrorRecognitionFlags;
         }
     }
 

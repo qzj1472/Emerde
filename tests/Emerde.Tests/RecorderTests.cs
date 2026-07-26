@@ -290,6 +290,9 @@ public sealed class RecorderTests
         Assert.True(argumentList.IndexOf("-reconnect_at_eof") < inputIndex);
         Assert.True(argumentList.IndexOf("-reconnect_on_network_error") < inputIndex);
         Assert.Equal("15000000", argumentList[argumentList.IndexOf("-rw_timeout") + 1]);
+        Assert.Equal("+genpts+discardcorrupt+sortdts", argumentList[argumentList.IndexOf("-fflags") + 1]);
+        Assert.Equal("ignore_err", argumentList[argumentList.IndexOf("-err_detect") + 1]);
+        Assert.True(argumentList.IndexOf("-err_detect") < inputIndex);
         Assert.Equal("90", argumentList[argumentList.IndexOf("-reconnect_delay_total_max") + 1]);
         Assert.Equal("12", argumentList[argumentList.IndexOf("-reconnect_max_retries") + 1]);
         Assert.Equal("pipe:1", argumentList[argumentList.IndexOf("-progress") + 1]);

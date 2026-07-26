@@ -6,9 +6,9 @@ namespace Emerde.Tests;
 public sealed class ConverterTests
 {
     [Theory]
-    [InlineData("record.ts", true)]
-    [InlineData("record.flv", false)]
-    public void BuildArguments_PreservesOriginalAudioAndAddsOptimizedAudio(string sourceFileName, bool expectsGeneratedTimestamps)
+    [InlineData("record.ts")]
+    [InlineData("record.flv")]
+    public void BuildArguments_PreservesOriginalAudioAndAddsOptimizedAudio(string sourceFileName)
     {
         VideoRecordingMetadata metadata = new()
         {
@@ -20,8 +20,13 @@ public sealed class ConverterTests
         };
 
         IReadOnlyList<string> arguments = Converter.BuildArguments(sourceFileName, "record.mp4", metadata);
+        List<string> argumentList = arguments.ToList();
+        int inputIndex = argumentList.IndexOf("-i");
 
-        Assert.Equal(expectsGeneratedTimestamps, arguments.Contains("+genpts"));
+        Assert.Contains("+genpts+discardcorrupt+sortdts", arguments);
+        Assert.True(argumentList.IndexOf("-fflags") < inputIndex);
+        Assert.Equal("ignore_err", argumentList[argumentList.IndexOf("-err_detect") + 1]);
+        Assert.True(argumentList.IndexOf("-err_detect") < inputIndex);
         Assert.Contains("[0:a:0]volume=30dB,acompressor=threshold=-10dB:ratio=3,alimiter=limit=0.316227766:level=false[aopt]", arguments);
         Assert.Contains("0:a:0?", arguments);
         Assert.Contains("[aopt]", arguments);
@@ -96,6 +101,8 @@ public sealed class ConverterTests
         Assert.Contains("-f", arguments);
         Assert.Contains("concat", arguments);
         Assert.Contains("-safe", arguments);
+        Assert.Contains("+genpts+discardcorrupt+sortdts", arguments);
+        Assert.Contains("ignore_err", arguments);
         Assert.Contains("0:a?", arguments);
         Assert.Equal("record.mkv", arguments[^1]);
     }

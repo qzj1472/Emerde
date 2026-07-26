@@ -581,7 +581,8 @@ public sealed class Recorder
             "-thread_queue_size", "1024",
             "-analyzeduration", "20000000",
             "-probesize", "10000000",
-            "-fflags", "+discardcorrupt",
+            "-fflags", "+genpts+discardcorrupt+sortdts",
+            "-err_detect", "ignore_err",
         ];
 
         arguments
