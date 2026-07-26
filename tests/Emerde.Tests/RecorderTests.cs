@@ -339,6 +339,46 @@ public sealed class RecorderTests
         Assert.False(tracker.IsStalled(startedAt.AddSeconds(59), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(15)));
     }
 
+    [Fact]
+    public void MediaSpeedSummaryWindow_CompressesSamplesIntoIntervalSummary()
+    {
+        DateTime startedAt = new(2026, 7, 25, 20, 30, 0, DateTimeKind.Utc);
+        MediaSpeedSummaryWindow window = new(TimeSpan.FromSeconds(30));
+
+        window.Observe(startedAt, 10, 10_000_000, 8_000_000, 1_000_000);
+        window.Observe(startedAt.AddSeconds(10), 10, 20_000_000, 16_000_000, 2_000_000);
+
+        Assert.False(window.ShouldFlush(startedAt.AddSeconds(20)));
+
+        window.Observe(startedAt.AddSeconds(30), 10, 30_000_000, 24_000_000, 3_000_000);
+
+        Assert.True(window.ShouldFlush(startedAt.AddSeconds(30)));
+        MediaSpeedSummary? summary = window.Drain();
+        Assert.NotNull(summary);
+        Assert.Equal(3, summary.Samples);
+        Assert.Equal(30, summary.DurationSeconds);
+        Assert.Equal(60_000_000, summary.InputBytes);
+        Assert.Equal(48_000_000, summary.OutputBytes);
+        Assert.Equal(16d, summary.ReadAverageMbps, 6);
+        Assert.Equal(8d, summary.ReadMinMbps, 6);
+        Assert.Equal(24d, summary.ReadMaxMbps, 6);
+        Assert.Null(window.Drain());
+    }
+
+    [Fact]
+    public void MediaSpeedSummaryWindow_IncludesZeroSpeedSamplesWithoutReusingPreviousRate()
+    {
+        DateTime startedAt = new(2026, 7, 25, 20, 30, 0, DateTimeKind.Utc);
+        MediaSpeedSummaryWindow window = new(TimeSpan.FromSeconds(30));
+
+        window.Observe(startedAt, 10, 10_000_000, 8_000_000, 1_000_000);
+        window.Observe(startedAt.AddSeconds(10), 10, 0, 1_000_000, 0);
+
+        MediaSpeedSummary summary = Assert.IsType<MediaSpeedSummary>(window.Drain());
+        Assert.Equal(0, summary.ReadMinMbps);
+        Assert.Equal(8, summary.ReadMaxMbps);
+    }
+
     [Theory]
     [InlineData("Stream specifier ':a:0' matches no streams")]
     [InlineData("Cannot find a matching stream for unlabeled input pad")]

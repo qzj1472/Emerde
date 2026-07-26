@@ -557,6 +557,7 @@ internal sealed class LogContextCompactor
         CompactRepeatedText(jsonObject, "innerException", isErrorLevel);
         CompactRepeatedText(jsonObject, "resolverError", isErrorLevel);
         CompactRepeatedText(jsonObject, "FileName", isErrorLevel);
+        CompactRepeatedText(jsonObject, "outputFileName", isErrorLevel);
         CompactRepeatedText(jsonObject, "sourceFileName", isErrorLevel);
         CompactRepeatedText(jsonObject, "targetFileName", isErrorLevel);
         CompactRepeatedText(jsonObject, "path", isErrorLevel);

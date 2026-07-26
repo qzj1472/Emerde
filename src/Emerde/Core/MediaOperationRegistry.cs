@@ -108,9 +108,9 @@ internal static class MediaOperationRegistry
         CancelWhere(static _ => true);
     }
 
-    public static void Cancel(MediaOperationKind kind)
+    public static int Cancel(MediaOperationKind kind)
     {
-        CancelWhere(operation => operation.Kind == kind);
+        return CancelWhere(operation => operation.Kind == kind);
     }
 
     public static int Cancel(MediaOperationKind kind, string path)
@@ -121,6 +121,23 @@ internal static class MediaOperationRegistry
         }
 
         return CancelWhere(operation => operation.Kind == kind && OperationProtectsPath(operation, normalizedPath));
+    }
+
+    public static int Cancel(MediaOperationKind kind, IEnumerable<string> paths)
+    {
+        string[] normalizedPaths = paths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => TryNormalizePath(path, out string normalizedPath) ? normalizedPath : string.Empty)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (normalizedPaths.Length == 0)
+        {
+            return 0;
+        }
+
+        return CancelWhere(operation => operation.Kind == kind
+            && normalizedPaths.Any(path => OperationProtectsPath(operation, path)));
     }
 
     public static async Task WaitForCompletionAsync(TimeSpan timeout)

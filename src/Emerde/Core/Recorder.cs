@@ -16,6 +16,7 @@ public sealed class Recorder
     private const int ProcessOutputTailLimit = 8192;
     private static readonly TimeSpan ProgressStartupTimeout = TimeSpan.FromSeconds(15);
     internal static readonly TimeSpan ProgressStallTimeout = TimeSpan.FromSeconds(90);
+    internal static readonly TimeSpan MediaSpeedSummaryInterval = TimeSpan.FromSeconds(30);
     private const string OptimizedAudioFilter = "[0:a:0]volume=30dB,acompressor=threshold=-10dB:ratio=3,alimiter=limit=0.316227766:level=false[aopt]";
 
     internal static readonly TimeSpan ProcessStopGracePeriod = TimeSpan.FromSeconds(3);
@@ -94,6 +95,8 @@ public sealed class Recorder
 
     private DateTime lastMediaProgressAt = DateTime.MinValue;
 
+    private readonly MediaSpeedSummaryWindow mediaSpeedSummaryWindow = new(MediaSpeedSummaryInterval);
+
     public Task Start(RecorderStartInfo startInfo, CancellationTokenSource? tokenSource = null)
     {
         lock (stateLock)
@@ -118,6 +121,7 @@ public sealed class Recorder
             lastMediaProgressBytes = 0;
             lastMediaInputBytes = 0;
             lastMediaProgressAt = DateTime.MinValue;
+            mediaSpeedSummaryWindow.Reset();
             RequestedAt = DateTime.Now;
             StartTime = DateTime.MinValue;
             EndTime = DateTime.MinValue;
@@ -242,7 +246,7 @@ public sealed class Recorder
                 sessionOutputPattern = sessionOutputReservation.OutputPattern;
                 sessionMetadata = BuildMetadata(sessionBaseFileName, sessionSourceExtension, startInfo, sessionTimestamp);
                 sessionMetadataPath = VideoRecordingMetadataStore.WriteSidecar(saveFolder, sessionBaseFileName, sessionMetadata);
-                string? pendingRecordingPath = RecordingRecoveryService.RegisterSessionParts(sessionOutputPattern, sessionTargetFormat, recordingOptions.IsRemoveTs);
+                string? pendingRecordingPath = RecordingRecoveryService.RegisterSessionParts(sessionOutputPattern, sessionTargetFormat, recordingOptions.IsRemoveTs, startInfo.RoomUrl);
                 if (!string.IsNullOrWhiteSpace(pendingRecordingPath))
                 {
                     pendingRecordingPaths.Add(pendingRecordingPath);
@@ -273,7 +277,7 @@ public sealed class Recorder
                     FileName = outputReservation.OutputPattern;
                     metadata = BuildMetadata(baseFileName, useTransportStream ? "ts" : "flv", startInfo, now);
                     MetadataPath = VideoRecordingMetadataStore.WriteSidecar(saveFolder, baseFileName, metadata);
-                    string? pendingRecordingPath = RecordingRecoveryService.Register(FileName, recordingOptions);
+                    string? pendingRecordingPath = RecordingRecoveryService.Register(FileName, recordingOptions, startInfo.RoomUrl);
                     if (!string.IsNullOrWhiteSpace(pendingRecordingPath))
                     {
                         pendingRecordingPaths.Add(pendingRecordingPath);
@@ -472,7 +476,7 @@ public sealed class Recorder
 
                 foreach (string sourcePattern in unregisteredRecordingPatterns)
                 {
-                    string? pendingPath = RecordingRecoveryService.Register(sourcePattern, postProcessingOptions);
+                    string? pendingPath = RecordingRecoveryService.Register(sourcePattern, postProcessingOptions, startInfo.RoomUrl);
                     if (!string.IsNullOrWhiteSpace(pendingPath))
                     {
                         pendingRecordingPaths.Add(pendingPath);
@@ -485,7 +489,7 @@ public sealed class Recorder
 
                 foreach ((string sourcePattern, string format) in unregisteredSessionRecordings)
                 {
-                    string? pendingPath = RecordingRecoveryService.RegisterSessionParts(sourcePattern, format, postProcessingOptions.IsRemoveTs);
+                    string? pendingPath = RecordingRecoveryService.RegisterSessionParts(sourcePattern, format, postProcessingOptions.IsRemoveTs, startInfo.RoomUrl);
                     if (!string.IsNullOrWhiteSpace(pendingPath))
                     {
                         pendingRecordingPaths.Add(pendingPath);
@@ -682,7 +686,7 @@ public sealed class Recorder
             RecorderProgressTracker progressTracker = new(DateTime.UtcNow);
             using CancellationTokenSource processCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
             using CancellationTokenRegistration cancellationRegistration = token.Register(() => KillProcessTree(process));
-            Task outputTask = ReadMediaWorkerOutputAsync(process.StandardOutput, progressTracker, startInfo, processCancellation.Token);
+            Task outputTask = ReadMediaWorkerOutputAsync(process.StandardOutput, progressTracker, startInfo, outputFileName, processCancellation.Token);
             Task errorTask = ReadMediaWorkerErrorAsync(process.StandardError, errorOutput, processCancellation.Token);
             Task exitTask = process.WaitForExitAsync(CancellationToken.None);
             Task<bool> stallTask = WaitForProgressStallAsync(progressTracker, processCancellation.Token);
@@ -715,6 +719,7 @@ public sealed class Recorder
         }
         finally
         {
+            FlushMediaWorkerSpeedSummary(startInfo, outputFileName);
             if (!string.IsNullOrWhiteSpace(commandPath))
             {
                 DeleteFileIfExists(commandPath);
@@ -726,6 +731,7 @@ public sealed class Recorder
             lastMediaProgressBytes = 0;
             lastMediaInputBytes = 0;
             lastMediaProgressAt = DateTime.MinValue;
+            mediaSpeedSummaryWindow.Reset();
         }
 
         wasCanceled = wasCanceled || token.IsCancellationRequested;
@@ -799,6 +805,7 @@ public sealed class Recorder
         StreamReader reader,
         RecorderProgressTracker progressTracker,
         RecorderStartInfo startInfo,
+        string outputFileName,
         CancellationToken token)
     {
         try
@@ -808,7 +815,7 @@ public sealed class Recorder
                 if (line.StartsWith("progress", StringComparison.Ordinal))
                 {
                     DateTime now = DateTime.UtcNow;
-                    UpdateMediaWorkerWriteSpeed(line, now);
+                    UpdateMediaWorkerWriteSpeed(line, now, startInfo, outputFileName);
                     if (progressTracker.Observe($"out_time={now.Ticks}", now))
                     {
                         ConfirmMediaProgress(startInfo);
@@ -825,7 +832,7 @@ public sealed class Recorder
         }
     }
 
-    private void UpdateMediaWorkerWriteSpeed(string line, DateTime now)
+    private void UpdateMediaWorkerWriteSpeed(string line, DateTime now, RecorderStartInfo startInfo, string outputFileName)
     {
         string[] parts = line.Split('|');
         if (parts.Length < 2
@@ -836,9 +843,11 @@ public sealed class Recorder
         }
 
         long inputBytes = lastMediaInputBytes;
-        if (parts.Length >= 3
-            && long.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out long parsedInputBytes)
-            && parsedInputBytes >= 0)
+        long parsedInputBytes = 0;
+        bool hasInputCounter = parts.Length >= 3
+            && long.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out parsedInputBytes)
+            && parsedInputBytes >= 0;
+        if (hasInputCounter)
         {
             inputBytes = parsedInputBytes;
         }
@@ -849,9 +858,21 @@ public sealed class Recorder
             if (seconds > 0)
             {
                 MediaWorkerWriteBytesPerSecond = (outputBytes - lastMediaProgressBytes) / seconds;
-                if (inputBytes >= lastMediaInputBytes)
+                double sampleReadBytesPerSecond = double.NaN;
+                if (hasInputCounter && inputBytes >= lastMediaInputBytes)
                 {
                     MediaWorkerReadBytesPerSecond = (inputBytes - lastMediaInputBytes) / seconds;
+                    sampleReadBytesPerSecond = MediaWorkerReadBytesPerSecond;
+                }
+                mediaSpeedSummaryWindow.Observe(
+                    now,
+                    seconds,
+                    inputBytes >= lastMediaInputBytes ? inputBytes - lastMediaInputBytes : 0,
+                    outputBytes - lastMediaProgressBytes,
+                    sampleReadBytesPerSecond);
+                if (mediaSpeedSummaryWindow.ShouldFlush(now))
+                {
+                    FlushMediaWorkerSpeedSummary(startInfo, outputFileName);
                 }
             }
         }
@@ -859,6 +880,32 @@ public sealed class Recorder
         lastMediaProgressBytes = outputBytes;
         lastMediaInputBytes = inputBytes;
         lastMediaProgressAt = now;
+    }
+
+    private void FlushMediaWorkerSpeedSummary(RecorderStartInfo startInfo, string outputFileName)
+    {
+        MediaSpeedSummary? summary = mediaSpeedSummaryWindow.Drain();
+        if (summary == null)
+        {
+            return;
+        }
+
+        AppSessionLogger.Event("info", "recorder", "record_speed_summary", "recording download speed summary", new
+        {
+            startInfo.RoomUrl,
+            startInfo.NickName,
+            startInfo.PlatformName,
+            FileName,
+            outputFileName,
+            summary.Samples,
+            durationSeconds = Math.Round(summary.DurationSeconds, 2),
+            readAvgMbps = Math.Round(summary.ReadAverageMbps, 3),
+            readMinMbps = Math.Round(summary.ReadMinMbps, 3),
+            readMaxMbps = Math.Round(summary.ReadMaxMbps, 3),
+            writeAvgMbps = Math.Round(summary.WriteAverageMbps, 3),
+            inputMb = Math.Round(summary.InputBytes / 1024d / 1024d, 2),
+            outputMb = Math.Round(summary.OutputBytes / 1024d / 1024d, 2),
+        });
     }
 
     private async Task ReadMediaWorkerErrorAsync(StreamReader reader, StringBuilder errorOutput, CancellationToken token)
@@ -1540,6 +1587,110 @@ public enum RecordStatus
     [Obsolete("Should retry recording instead of pushing an Error Status")]
     Error,
 }
+
+internal sealed class MediaSpeedSummaryWindow(TimeSpan interval)
+{
+    private DateTime startedAt = DateTime.MinValue;
+    private DateTime lastObservedAt = DateTime.MinValue;
+    private int samples;
+    private double durationSeconds;
+    private long inputBytes;
+    private long outputBytes;
+    private double readMinBytesPerSecond = double.MaxValue;
+    private double readMaxBytesPerSecond;
+
+    public void Observe(
+        DateTime now,
+        double sampleSeconds,
+        long inputBytesDelta,
+        long outputBytesDelta,
+        double readBytesPerSecond)
+    {
+        if (sampleSeconds <= 0 || double.IsNaN(sampleSeconds) || double.IsInfinity(sampleSeconds))
+        {
+            return;
+        }
+
+        if (inputBytesDelta <= 0 && outputBytesDelta <= 0)
+        {
+            return;
+        }
+
+        if (startedAt == DateTime.MinValue)
+        {
+            startedAt = now;
+        }
+
+        lastObservedAt = now;
+        samples++;
+        durationSeconds += sampleSeconds;
+        inputBytes += Math.Max(0, inputBytesDelta);
+        outputBytes += Math.Max(0, outputBytesDelta);
+
+        if (readBytesPerSecond >= 0 && !double.IsNaN(readBytesPerSecond) && !double.IsInfinity(readBytesPerSecond))
+        {
+            readMinBytesPerSecond = Math.Min(readMinBytesPerSecond, readBytesPerSecond);
+            readMaxBytesPerSecond = Math.Max(readMaxBytesPerSecond, readBytesPerSecond);
+        }
+    }
+
+    public bool ShouldFlush(DateTime now)
+    {
+        return samples > 0 && startedAt != DateTime.MinValue && now - startedAt >= interval;
+    }
+
+    public MediaSpeedSummary? Drain()
+    {
+        if (samples == 0 || durationSeconds <= 0)
+        {
+            Reset();
+            return null;
+        }
+
+        MediaSpeedSummary summary = new(
+            samples,
+            durationSeconds,
+            inputBytes,
+            outputBytes,
+            ToMbps(inputBytes / durationSeconds),
+            readMinBytesPerSecond == double.MaxValue ? 0 : ToMbps(readMinBytesPerSecond),
+            ToMbps(readMaxBytesPerSecond),
+            ToMbps(outputBytes / durationSeconds),
+            startedAt,
+            lastObservedAt);
+        Reset();
+        return summary;
+    }
+
+    public void Reset()
+    {
+        startedAt = DateTime.MinValue;
+        lastObservedAt = DateTime.MinValue;
+        samples = 0;
+        durationSeconds = 0;
+        inputBytes = 0;
+        outputBytes = 0;
+        readMinBytesPerSecond = double.MaxValue;
+        readMaxBytesPerSecond = 0;
+    }
+
+    private static double ToMbps(double bytesPerSecond)
+    {
+        return bytesPerSecond * 8d / 1_000_000d;
+    }
+}
+
+internal sealed record MediaSpeedSummary(
+    int Samples,
+    double DurationSeconds,
+    long InputBytes,
+    long OutputBytes,
+    double ReadAverageMbps,
+    double ReadMinMbps,
+    double ReadMaxMbps,
+    double WriteAverageMbps,
+    DateTime StartedAt,
+    DateTime LastObservedAt);
 
 internal sealed class RecorderProgressTracker(DateTime startedAt)
 {

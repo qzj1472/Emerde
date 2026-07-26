@@ -14,9 +14,10 @@ internal static class RecordingRecoveryService
     };
 
     private static readonly ConcurrentDictionary<string, Task> ProcessingTasks = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly SemaphoreSlim PendingOptionsUpdateGate = new(1, 1);
     private static readonly DateTime ProcessStartedAtUtc = Process.GetCurrentProcess().StartTime.ToUniversalTime();
 
-    public static string? Register(string sourcePattern, RoomRecordingOptions options)
+    public static string? Register(string sourcePattern, RoomRecordingOptions options, string roomUrl = "")
     {
         string? targetFormat = Recorder.GetTargetFormat(options.RecordFormat);
         if (string.IsNullOrWhiteSpace(sourcePattern) || string.IsNullOrWhiteSpace(targetFormat))
@@ -24,20 +25,20 @@ internal static class RecordingRecoveryService
             return null;
         }
 
-        return Register(sourcePattern, targetFormat, options.IsRemoveTs, mergeSessionParts: false);
+        return Register(sourcePattern, targetFormat, options.IsRemoveTs, mergeSessionParts: false, roomUrl);
     }
 
-    internal static string? RegisterSessionParts(string sourcePattern, string targetFormat, bool removeSource)
+    internal static string? RegisterSessionParts(string sourcePattern, string targetFormat, bool removeSource, string roomUrl = "")
     {
         if (string.IsNullOrWhiteSpace(sourcePattern) || string.IsNullOrWhiteSpace(targetFormat))
         {
             return null;
         }
 
-        return Register(sourcePattern, targetFormat, removeSource, mergeSessionParts: true);
+        return Register(sourcePattern, targetFormat, removeSource, mergeSessionParts: true, roomUrl);
     }
 
-    private static string? Register(string sourcePattern, string targetFormat, bool removeSource, bool mergeSessionParts)
+    private static string? Register(string sourcePattern, string targetFormat, bool removeSource, bool mergeSessionParts, string roomUrl)
     {
         string? temporaryPath = null;
         try
@@ -51,6 +52,7 @@ internal static class RecordingRecoveryService
                 TargetFormat = targetFormat,
                 RemoveSource = removeSource,
                 MergeSessionParts = mergeSessionParts,
+                RoomUrl = roomUrl ?? string.Empty,
             };
             using (FileStream stream = new(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             using (StreamWriter writer = new(stream, new System.Text.UTF8Encoding(false)))
@@ -77,7 +79,7 @@ internal static class RecordingRecoveryService
         }
     }
 
-    internal static bool UpdateOptions(string path, RoomRecordingOptions options)
+    internal static bool UpdateOptions(string path, RoomRecordingOptions options, string? roomUrl = null)
     {
         string? targetFormat = Recorder.GetTargetFormat(options.RecordFormat);
         PendingRecording? item = Load(path, out _, validateAllowedDirectory: false);
@@ -93,12 +95,16 @@ internal static class RecordingRecoveryService
                 return false;
             }
 
-            targetFormat = item.TargetFormat;
+            targetFormat = Path.GetExtension(item.SourcePattern);
         }
 
         string temporaryPath = path + ".tmp";
         try
         {
+            if (!string.IsNullOrWhiteSpace(roomUrl))
+            {
+                item.RoomUrl = roomUrl;
+            }
             item.TargetFormat = targetFormat;
             item.RemoveSource = options.IsRemoveTs;
             using (FileStream stream = new(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None))
@@ -371,6 +377,137 @@ internal static class RecordingRecoveryService
         }
     }
 
+    internal static async Task<PendingOptionsUpdateResult> UpdatePendingOptionsForGlobalChangeAsync(RoomRecordingOptions options)
+    {
+        await PendingOptionsUpdateGate.WaitAsync();
+        try
+        {
+            if (!string.Equals(Configurations.RecordFormat.Get(), options.RecordFormat, StringComparison.Ordinal))
+            {
+                return new PendingOptionsUpdateResult(0, 0, 0);
+            }
+
+            Room[] rooms = Configurations.Rooms.Get() ?? [];
+            List<(string MarkerPath, string[] SourceFiles, string RoomUrl)> eligible = [];
+            foreach (string path in GetPendingPaths())
+            {
+                PendingRecording? item = Load(path, out _, validateAllowedDirectory: false);
+                if (item == null)
+                {
+                    continue;
+                }
+
+                string[] sourceFiles = GetSourceFiles(item.SourcePattern);
+                string roomUrl = ResolveRoomUrl(item.RoomUrl, sourceFiles);
+                if (ShouldUpdateForGlobalChange(roomUrl, rooms))
+                {
+                    eligible.Add((path, sourceFiles, roomUrl));
+                }
+            }
+
+            string[] sourcePaths = eligible.SelectMany(item => item.SourceFiles).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            int cancelled = MediaOperationRegistry.Cancel(MediaOperationKind.Conversion, sourcePaths);
+            bool released = await MediaOperationRegistry.WaitForPathReleaseAsync(
+                MediaOperationKind.Conversion,
+                sourcePaths,
+                TimeSpan.FromSeconds(10));
+            released = released && await WaitForPendingProcessingAsync(
+                eligible.Select(item => item.MarkerPath),
+                TimeSpan.FromSeconds(10));
+            if (!released)
+            {
+                AppSessionLogger.Event("warn", "recovery", "pending_options_wait_timeout", "conversion did not release source files before pending options update", new
+                {
+                    sourcePaths,
+                    cancelled,
+                });
+                return new PendingOptionsUpdateResult(0, cancelled, eligible.Count);
+            }
+
+            if (!string.Equals(Configurations.RecordFormat.Get(), options.RecordFormat, StringComparison.Ordinal))
+            {
+                return new PendingOptionsUpdateResult(0, cancelled, 0);
+            }
+
+            int updated = 0;
+            foreach ((string markerPath, _, string roomUrl) in eligible)
+            {
+                bool existed = File.Exists(markerPath);
+                if (UpdateOptions(markerPath, options, roomUrl) || existed && !File.Exists(markerPath))
+                {
+                    updated++;
+                }
+            }
+
+            return new PendingOptionsUpdateResult(updated, cancelled, 0);
+        }
+        finally
+        {
+            PendingOptionsUpdateGate.Release();
+        }
+    }
+
+    internal static string ResolveRoomUrl(string? markerRoomUrl, IEnumerable<string> sourceFiles)
+    {
+        if (!string.IsNullOrWhiteSpace(markerRoomUrl))
+        {
+            return markerRoomUrl;
+        }
+
+        foreach (string sourceFile in sourceFiles)
+        {
+            try
+            {
+                string roomUrl = VideoRecordingMetadataStore.Load(new FileInfo(sourceFile)).RoomUrl;
+                if (!string.IsNullOrWhiteSpace(roomUrl))
+                {
+                    return roomUrl;
+                }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                AppSessionLogger.WriteException(e);
+            }
+        }
+        return string.Empty;
+    }
+
+    private static async Task<bool> WaitForPendingProcessingAsync(IEnumerable<string> markerPaths, TimeSpan timeout)
+    {
+        Task[] tasks = markerPaths
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(path => ProcessingTasks.TryGetValue(path, out Task? task) ? task : null)
+            .Where(task => task != null)
+            .Select(task => task!)
+            .ToArray();
+        if (tasks.Length == 0)
+        {
+            return true;
+        }
+
+        try
+        {
+            await Task.WhenAll(tasks).WaitAsync(timeout);
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
+        catch
+        {
+            return tasks.All(task => task.IsCompleted);
+        }
+    }
+
+    internal static bool ShouldUpdateForGlobalChange(string? roomUrl, IEnumerable<Room> rooms)
+    {
+        return !string.IsNullOrWhiteSpace(roomUrl)
+            && rooms.Any(room => room.IsFollowGlobalSettings
+                && string.Equals(room.RoomUrl, roomUrl, StringComparison.OrdinalIgnoreCase));
+    }
+
     private static PendingRecording? Load(string path, out string? invalidReason, bool validateAllowedDirectory = true)
     {
         invalidReason = null;
@@ -550,5 +687,9 @@ internal static class RecordingRecoveryService
         public bool RemoveSource { get; set; }
 
         public bool MergeSessionParts { get; set; }
+
+        public string RoomUrl { get; set; } = string.Empty;
     }
 }
+
+internal sealed record PendingOptionsUpdateResult(int Updated, int Cancelled, int Deferred);

@@ -2,8 +2,65 @@ using Emerde.Core;
 
 namespace Emerde.Tests;
 
+[Collection("MediaOperationRegistry")]
 public sealed class RecordingRecoveryServiceTests
 {
+    [Fact]
+    public void ShouldUpdateForGlobalChange_OnlyMatchesRoomsFollowingGlobalSettings()
+    {
+        Room globalRoom = new() { RoomUrl = "https://example.com/global", IsFollowGlobalSettings = true };
+        Room localRoom = new() { RoomUrl = "https://example.com/local", IsFollowGlobalSettings = false };
+
+        Assert.True(RecordingRecoveryService.ShouldUpdateForGlobalChange(globalRoom.RoomUrl, [globalRoom, localRoom]));
+        Assert.False(RecordingRecoveryService.ShouldUpdateForGlobalChange(localRoom.RoomUrl, [globalRoom, localRoom]));
+        Assert.False(RecordingRecoveryService.ShouldUpdateForGlobalChange("https://example.com/missing", [globalRoom, localRoom]));
+        Assert.False(RecordingRecoveryService.ShouldUpdateForGlobalChange(string.Empty, [globalRoom, localRoom]));
+    }
+
+    [Fact]
+    public void Register_StoresRoomOwnershipForAutomaticPostProcessing()
+    {
+        string sourcePattern = Path.Combine(Path.GetTempPath(), $"emerde-recording-{Guid.NewGuid():N}.ts");
+        string roomUrl = "https://example.com/room";
+        string? markerPath = RecordingRecoveryService.Register(sourcePattern, new RoomRecordingOptions
+        {
+            RecordFormat = "TS/FLV -> MKV",
+        }, roomUrl);
+
+        Assert.NotNull(markerPath);
+        try
+        {
+            Assert.Contains($"\"RoomUrl\": \"{roomUrl}\"", File.ReadAllText(markerPath!));
+        }
+        finally
+        {
+            File.Delete(markerPath);
+            File.Delete(markerPath + ".tmp");
+        }
+    }
+
+    [Fact]
+    public void ResolveRoomUrl_UsesEmbeddedMetadataForLegacyMarker()
+    {
+        string mediaPath = Path.Combine(Path.GetTempPath(), $"emerde-legacy-{Guid.NewGuid():N}.ts");
+        const string roomUrl = "https://example.com/legacy-room";
+        File.WriteAllBytes(mediaPath, [1, 2, 3]);
+        try
+        {
+            Assert.True(VideoRecordingMetadataStore.WriteCompletedMetadata(mediaPath, new VideoRecordingMetadata
+            {
+                RoomUrl = roomUrl,
+            }));
+
+            Assert.Equal(roomUrl, RecordingRecoveryService.ResolveRoomUrl(string.Empty, [mediaPath]));
+        }
+        finally
+        {
+            File.Delete(mediaPath);
+            File.Delete(mediaPath + ".mplr.json");
+        }
+    }
+
     [Fact]
     public void UpdateOptions_AppliesLatestFormatAndRemoveSourceOutsideCurrentSaveFolder()
     {

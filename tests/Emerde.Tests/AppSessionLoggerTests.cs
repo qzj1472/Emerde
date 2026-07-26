@@ -165,6 +165,26 @@ public sealed class AppSessionLoggerTests
     }
 
     [Fact]
+    public void LogContextCompactor_ReusesOutputFileNameReferences()
+    {
+        LogContextCompactor compactor = new();
+        DateTime date = new(2026, 7, 25);
+        JsonNode first = JsonSerializer.SerializeToNode(new
+        {
+            outputFileName = "D:\\records\\host\\2026-07\\25\\host_2026-07-25_20-30-00_000.ts",
+        })!;
+        JsonNode second = first.DeepClone();
+
+        JsonObject firstResult = Assert.IsType<JsonObject>(compactor.Compact(first, "info", date));
+        JsonObject secondResult = Assert.IsType<JsonObject>(compactor.Compact(second, "info", date));
+
+        Assert.Equal("e1", firstResult["outputFileNameRef"]!.GetValue<string>());
+        Assert.NotNull(firstResult["outputFileName"]);
+        Assert.Equal("e1", secondResult["outputFileNameRef"]!.GetValue<string>());
+        Assert.Null(secondResult["outputFileName"]);
+    }
+
+    [Fact]
     public void LogContextCompactor_ReusesExceptionMessageReferences()
     {
         LogContextCompactor compactor = new();

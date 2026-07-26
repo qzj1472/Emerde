@@ -71,6 +71,31 @@ public sealed class MediaOperationRegistryTests
     }
 
     [Fact]
+    public void Cancel_ByMultiplePathsCancelsEachMatchingOperationOnce()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-operation-{Guid.NewGuid():N}");
+        string first = Path.Combine(directory, "first.ts");
+        string second = Path.Combine(directory, "second.ts");
+        string unrelated = Path.Combine(directory, "unrelated.ts");
+        int matchingCancelled = 0;
+        int unrelatedCancelled = 0;
+        using IDisposable matching = MediaOperationRegistry.Register(
+            MediaOperationKind.Conversion,
+            () => [first, second],
+            () => matchingCancelled++);
+        using IDisposable other = MediaOperationRegistry.Register(
+            MediaOperationKind.Conversion,
+            () => [unrelated],
+            () => unrelatedCancelled++);
+
+        int cancelled = MediaOperationRegistry.Cancel(MediaOperationKind.Conversion, [first, second]);
+
+        Assert.Equal(1, cancelled);
+        Assert.Equal(1, matchingCancelled);
+        Assert.Equal(0, unrelatedCancelled);
+    }
+
+    [Fact]
     public async Task WaitForPathReleaseAsync_WaitsForMatchingPathOnly()
     {
         string directory = Path.Combine(Path.GetTempPath(), $"emerde-operation-{Guid.NewGuid():N}");
