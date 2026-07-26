@@ -4,6 +4,17 @@ namespace Emerde.Tests;
 
 public sealed class SpiderTests
 {
+    [Fact]
+    public void GetResult_StopsBeforeResolvingWhenCancellationIsRequested()
+    {
+        using CancellationTokenSource cancellation = new();
+        cancellation.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() => Spider.GetResult(
+            "https://live.douyin.com/72024000076",
+            cancellationToken: cancellation.Token));
+    }
+
     [Theory]
     [InlineData("Twitch", "https://usher.ttvnw.net/channel/master.m3u8", true)]
     [InlineData("twitch", "https://usher.ttvnw.net/channel/master.m3u8", true)]

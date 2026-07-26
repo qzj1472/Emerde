@@ -83,9 +83,15 @@ internal static class Spider
         return null;
     }
 
-    public static ISpiderResult? GetResult(string url, string? preferredQuality = null, bool bypassDouyinThrottle = false, bool prioritizeDouyin = false)
+    public static ISpiderResult? GetResult(
+        string url,
+        string? preferredQuality = null,
+        bool bypassDouyinThrottle = false,
+        bool prioritizeDouyin = false,
+        bool allowDouyinWebViewFallback = true,
+        CancellationToken cancellationToken = default)
     {
-        return ExternalStreamResolver.GetResult(url, preferredQuality, bypassDouyinThrottle, prioritizeDouyin);
+        return ExternalStreamResolver.GetResult(url, preferredQuality, bypassDouyinThrottle, prioritizeDouyin, allowDouyinWebViewFallback, cancellationToken);
     }
 
     internal static ISpiderResult? GetLegacyResult(string url, string? preferredQuality = null)

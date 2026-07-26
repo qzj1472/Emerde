@@ -30,6 +30,7 @@ internal static partial class StreamResolver
     private static readonly ConcurrentDictionary<string, DouyinThrottleState> DouyinThrottleStates = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, DouyinRoomSession> DouyinRoomSessions = new(StringComparer.OrdinalIgnoreCase);
     private static readonly SemaphoreSlim DouyinResolverSemaphore = new(DouyinResolverConcurrency, DouyinResolverConcurrency);
+    private static readonly SemaphoreSlim DouyinHttpRequestGate = new(1, 1);
     private static readonly object DouyinThrottleSync = new();
     private static readonly Queue<long> DouyinBlockingResponses = new();
     private static long douyinNextRequestAt;
@@ -91,7 +92,7 @@ internal static partial class StreamResolver
         return string.Empty;
     }
 
-    public static string? NormalizeUrl(string url, bool allowNetwork = false)
+    public static string? NormalizeUrl(string url, bool allowNetwork = false, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(url))
         {
@@ -117,7 +118,7 @@ internal static partial class StreamResolver
         string host = uri.Host.ToLowerInvariant();
         if (host is "v.douyin.com" or "www.iesdouyin.com" or "iesdouyin.com")
         {
-            return allowNetwork && TryResolveRedirect(trimmed, out string? redirected)
+            return allowNetwork && TryResolveRedirect(trimmed, cancellationToken, out string? redirected)
                 ? NormalizeUrl(redirected ?? string.Empty, allowNetwork: false) ?? redirected
                 : null;
         }
@@ -130,7 +131,7 @@ internal static partial class StreamResolver
 
         if (host is "vm.tiktok.com" or "vt.tiktok.com")
         {
-            return allowNetwork && TryResolveRedirect(trimmed, out string? redirected)
+            return allowNetwork && TryResolveRedirect(trimmed, cancellationToken, out string? redirected)
                 ? NormalizeUrl(redirected ?? string.Empty, allowNetwork: false) ?? redirected
                 : null;
         }
@@ -147,9 +148,16 @@ internal static partial class StreamResolver
         return null;
     }
 
-    public static ISpiderResult? GetResult(string url, string? preferredQuality = null, bool bypassDouyinThrottle = false, bool prioritizeDouyin = false)
+    public static ISpiderResult? GetResult(
+        string url,
+        string? preferredQuality = null,
+        bool bypassDouyinThrottle = false,
+        bool prioritizeDouyin = false,
+        bool allowDouyinWebViewFallback = true,
+        CancellationToken cancellationToken = default)
     {
-        string? normalizedUrl = NormalizeUrl(url, allowNetwork: true);
+        cancellationToken.ThrowIfCancellationRequested();
+        string? normalizedUrl = NormalizeUrl(url, allowNetwork: true, cancellationToken);
         string resolverUrl = normalizedUrl ?? url.Trim();
 
         try
@@ -170,7 +178,7 @@ internal static partial class StreamResolver
             string host = uri.Host.ToLowerInvariant();
             if (HostMatchesDomain(host, "douyin.com"))
             {
-                if (!DouyinResolverSemaphore.Wait(DouyinResolverQueueTimeoutMilliseconds))
+                if (!DouyinResolverSemaphore.Wait(DouyinResolverQueueTimeoutMilliseconds, cancellationToken))
                 {
                     SetLastError(resolverUrl, DouyinResolverBusyError);
                     return null;
@@ -187,7 +195,7 @@ internal static partial class StreamResolver
                         return null;
                     }
 
-                    StreamResolverResult? result = ResolveDouyin(resolverUrl, preferredQuality, bypassDouyinThrottle, prioritizeDouyin);
+                    StreamResolverResult? result = ResolveDouyin(resolverUrl, preferredQuality, bypassDouyinThrottle, prioritizeDouyin, allowDouyinWebViewFallback, cancellationToken);
                     UpdateDouyinThrottle(resolverUrl, result, GetLastError(resolverUrl));
                     return result;
                 }
@@ -203,6 +211,10 @@ internal static partial class StreamResolver
             }
 
             return null;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception e)
         {
@@ -572,7 +584,13 @@ internal static partial class StreamResolver
         return result;
     }
 
-    private static StreamResolverResult? ResolveDouyin(string roomUrl, string? preferredQuality, bool tryAllRoutes, bool prioritizeDouyin)
+    private static StreamResolverResult? ResolveDouyin(
+        string roomUrl,
+        string? preferredQuality,
+        bool tryAllRoutes,
+        bool prioritizeDouyin,
+        bool allowWebViewFallback,
+        CancellationToken cancellationToken)
     {
         DouyinRoomSession session = DouyinRoomSessions.GetOrAdd(roomUrl, static _ => new DouyinRoomSession());
         DouyinResolveRoute firstRoute = tryAllRoutes ? DouyinResolveRoute.WebEnter : session.TakeNextRoute();
@@ -585,7 +603,8 @@ internal static partial class StreamResolver
 
         foreach (DouyinResolveRoute route in routes)
         {
-            StreamResolverResult? routeResult = ResolveDouyinRoute(roomUrl, preferredQuality, session, route);
+            cancellationToken.ThrowIfCancellationRequested();
+            StreamResolverResult? routeResult = ResolveDouyinRoute(roomUrl, preferredQuality, session, route, cancellationToken);
             result = MergeResults(roomUrl, result, routeResult);
             if (IsCompleteDouyinResult(result))
             {
@@ -598,20 +617,23 @@ internal static partial class StreamResolver
         {
             session.ResetFailures();
         }
-        else if (TryReserveDouyinWebViewFallback(tryAllRoutes, prioritizeDouyin, failureCount))
+        else if (allowWebViewFallback && TryReserveDouyinWebViewFallback(tryAllRoutes, prioritizeDouyin, failureCount))
         {
-            DouyinWebViewSnapshot snapshot = DouyinWebViewResolver.Resolve(roomUrl, GetDouyinCookie(), tryAllRoutes);
+            cancellationToken.ThrowIfCancellationRequested();
+            DouyinWebViewSnapshot snapshot = DouyinWebViewResolver.Resolve(roomUrl, GetDouyinCookie(), tryAllRoutes, cancellationToken);
             StreamResolverResult browserResult = ExtractDouyinWebViewSnapshot(roomUrl, snapshot, preferredQuality, session);
             result = MergeResults(roomUrl, result, browserResult);
             if (!IsCompleteDouyinResult(result)
                 && session.TryGetIdentity(out string roomId, out string secUid))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 StreamResolverResult? reflowResult = ResolveDouyinAppReflow(
                     roomUrl,
                     roomId,
                     secUid,
                     GetDouyinCookie(),
-                    preferredQuality);
+                    preferredQuality,
+                    cancellationToken);
                 result = MergeResults(roomUrl, result, reflowResult);
             }
             if (IsCompleteDouyinResult(result))
@@ -660,19 +682,20 @@ internal static partial class StreamResolver
         string roomUrl,
         string? preferredQuality,
         DouyinRoomSession session,
-        DouyinResolveRoute route)
+        DouyinResolveRoute route,
+        CancellationToken cancellationToken)
     {
         return route switch
         {
-            DouyinResolveRoute.WebEnter => ResolveDouyinWebEnter(roomUrl, preferredQuality, session),
-            DouyinResolveRoute.RoomPage => ResolveDouyinRoomPage(roomUrl, preferredQuality, session),
+            DouyinResolveRoute.WebEnter => ResolveDouyinWebEnter(roomUrl, preferredQuality, session, cancellationToken),
+            DouyinResolveRoute.RoomPage => ResolveDouyinRoomPage(roomUrl, preferredQuality, session, cancellationToken),
             DouyinResolveRoute.AppReflow when session.TryGetIdentity(out string roomId, out string secUid) =>
-                ResolveDouyinAppReflow(roomUrl, roomId, secUid, GetDouyinCookie(), preferredQuality),
+                ResolveDouyinAppReflow(roomUrl, roomId, secUid, GetDouyinCookie(), preferredQuality, cancellationToken),
             _ => null,
         };
     }
 
-    private static StreamResolverResult? ResolveDouyinWebEnter(string roomUrl, string? preferredQuality, DouyinRoomSession session)
+    private static StreamResolverResult? ResolveDouyinWebEnter(string roomUrl, string? preferredQuality, DouyinRoomSession session, CancellationToken cancellationToken)
     {
         if (!Uri.TryCreate(roomUrl, UriKind.Absolute, out Uri? uri))
         {
@@ -707,7 +730,8 @@ internal static partial class StreamResolver
             roomUrl,
             GetDouyinCookie(),
             DouyinWebUserAgent,
-            "application/json,text/plain,*/*");
+            "application/json,text/plain,*/*",
+            cancellationToken);
 
         StreamResolverResult result = ExtractDouyinWebEnterData(roomUrl, json, preferredQuality);
         if (TryExtractDouyinReflowIdentity(json, out string roomId, out string secUid))
@@ -721,14 +745,15 @@ internal static partial class StreamResolver
         return HasRoomData(result) ? result : null;
     }
 
-    private static StreamResolverResult? ResolveDouyinRoomPage(string roomUrl, string? preferredQuality, DouyinRoomSession session)
+    private static StreamResolverResult? ResolveDouyinRoomPage(string roomUrl, string? preferredQuality, DouyinRoomSession session, CancellationToken cancellationToken)
     {
         string? html = RequestDouyinText(
             roomUrl,
             roomUrl,
             "https://live.douyin.com/",
             GetDouyinCookie(),
-            DouyinWebUserAgent);
+            DouyinWebUserAgent,
+            cancellationToken: cancellationToken);
         if (TryExtractDouyinPageIdentity(html, out string roomId, out string secUid))
         {
             session.UpdateIdentity(roomId, secUid);
@@ -899,7 +924,8 @@ internal static partial class StreamResolver
         string roomId,
         string secUid,
         string cookie,
-        string? preferredQuality)
+        string? preferredQuality,
+        CancellationToken cancellationToken)
     {
         string query = string.Join("&",
         [
@@ -919,7 +945,8 @@ internal static partial class StreamResolver
             roomUrl,
             cookie,
             DouyinWebUserAgent,
-            "application/json,text/plain,*/*");
+            "application/json,text/plain,*/*",
+            cancellationToken);
         StreamResolverResult result = ExtractDouyinReflowData(roomUrl, json, preferredQuality);
         return HasRoomData(result) ? result : null;
     }
@@ -930,11 +957,13 @@ internal static partial class StreamResolver
         string referer,
         string? cookie,
         string userAgent,
-        string accept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+        string accept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        CancellationToken cancellationToken = default)
     {
-        WaitForDouyinHttpRequestSlot();
+        WaitForDouyinHttpRequestSlot(cancellationToken);
         using HttpRequestMessage request = CreateRequest(url, referer, cookie, userAgent, accept);
-        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(RequestTimeoutSeconds));
+        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(RequestTimeoutSeconds));
         try
         {
             using HttpResponseMessage response = ProxyHttpClientPool.GetCurrent().Send(
@@ -959,7 +988,7 @@ internal static partial class StreamResolver
             }
             return text;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             SetLastError(roomUrl, "Douyin request timed out.");
             return null;
@@ -990,19 +1019,29 @@ internal static partial class StreamResolver
         return request;
     }
 
-    private static void WaitForDouyinHttpRequestSlot()
+    private static void WaitForDouyinHttpRequestSlot(CancellationToken cancellationToken)
     {
-        long now = Environment.TickCount64;
-        long requestAt;
-        lock (DouyinThrottleSync)
+        DouyinHttpRequestGate.Wait(cancellationToken);
+        try
         {
-            requestAt = Math.Max(now, douyinNextRequestAt);
-            douyinNextRequestAt = requestAt + DouyinRequestSpacingMilliseconds;
+            long delay;
+            lock (DouyinThrottleSync)
+            {
+                delay = Math.Max(0, douyinNextRequestAt - Environment.TickCount64);
+            }
+            if (delay > 0 && cancellationToken.WaitHandle.WaitOne(TimeSpan.FromMilliseconds(delay)))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (DouyinThrottleSync)
+            {
+                douyinNextRequestAt = Environment.TickCount64 + DouyinRequestSpacingMilliseconds;
+            }
         }
-        long delay = requestAt - now;
-        if (delay > 0)
+        finally
         {
-            Thread.Sleep(TimeSpan.FromMilliseconds(delay));
+            DouyinHttpRequestGate.Release();
         }
     }
 
@@ -1318,7 +1357,7 @@ internal static partial class StreamResolver
             : null;
     }
 
-    private static bool TryResolveRedirect(string url, out string? redirected)
+    private static bool TryResolveRedirect(string url, CancellationToken cancellationToken, out string? redirected)
     {
         redirected = null;
 
@@ -1327,9 +1366,13 @@ internal static partial class StreamResolver
             using HttpClient client = CreateHttpClient(timeoutSeconds: RedirectTimeoutSeconds);
             using HttpRequestMessage request = new(HttpMethod.Get, url);
             request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0");
-            using HttpResponseMessage response = client.Send(request, HttpCompletionOption.ResponseHeadersRead);
+            using HttpResponseMessage response = client.Send(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             redirected = response.RequestMessage?.RequestUri?.ToString();
             return !string.IsNullOrWhiteSpace(redirected);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch
         {

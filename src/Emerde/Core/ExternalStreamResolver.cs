@@ -47,7 +47,7 @@ internal static class ExternalStreamResolver
         return StreamResolver.HasConclusiveData(result);
     }
 
-    public static string? NormalizeUrl(string? url, bool allowNetwork = false)
+    public static string? NormalizeUrl(string? url, bool allowNetwork = false, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(url))
         {
@@ -60,7 +60,7 @@ internal static class ExternalStreamResolver
             value = "https://" + value;
         }
 
-        string? resolverNormalized = StreamResolver.NormalizeUrl(value, allowNetwork);
+        string? resolverNormalized = StreamResolver.NormalizeUrl(value, allowNetwork, cancellationToken);
         if (!string.IsNullOrWhiteSpace(resolverNormalized))
         {
             return resolverNormalized;
@@ -69,9 +69,16 @@ internal static class ExternalStreamResolver
         return NormalizeKnownPlatformUrl(value);
     }
 
-    public static ISpiderResult? GetResult(string url, string? streamQuality = null, bool bypassDouyinThrottle = false, bool prioritizeDouyin = false)
+    public static ISpiderResult? GetResult(
+        string url,
+        string? streamQuality = null,
+        bool bypassDouyinThrottle = false,
+        bool prioritizeDouyin = false,
+        bool allowDouyinWebViewFallback = true,
+        CancellationToken cancellationToken = default)
     {
-        string? normalizedUrl = NormalizeUrl(url, allowNetwork: true) ?? Spider.ParseLegacyUrl(url);
+        cancellationToken.ThrowIfCancellationRequested();
+        string? normalizedUrl = NormalizeUrl(url, allowNetwork: true, cancellationToken) ?? Spider.ParseLegacyUrl(url);
         ClearLastError(url, normalizedUrl);
         string lastError;
 
@@ -81,7 +88,7 @@ internal static class ExternalStreamResolver
             return null;
         }
 
-        ISpiderResult? resolverResult = StreamResolver.GetResult(normalizedUrl, streamQuality, bypassDouyinThrottle, prioritizeDouyin);
+        ISpiderResult? resolverResult = StreamResolver.GetResult(normalizedUrl, streamQuality, bypassDouyinThrottle, prioritizeDouyin, allowDouyinWebViewFallback, cancellationToken);
         if (!StreamResolver.NeedsSupplementalData(resolverResult))
         {
             SetLastError(url, normalizedUrl, string.Empty);
@@ -95,10 +102,12 @@ internal static class ExternalStreamResolver
             return resolverResult;
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         ISpiderResult? legacyResult = Spider.GetLegacyResult(normalizedUrl, streamQuality);
         StreamResolverResult result = StreamResolver.MergeResults(normalizedUrl, resolverResult, legacyResult);
         if (ShouldResolveHlsVariant(result.PlatformName, result.HlsUrl))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             StreamResolver.EnrichHighestHlsVariant(
                 result,
                 StreamQualityCatalog.Original,

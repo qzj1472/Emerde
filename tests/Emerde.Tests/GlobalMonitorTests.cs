@@ -212,7 +212,9 @@ public sealed class GlobalMonitorTests
 
     [Theory]
     [InlineData(1, true, 1)]
-    [InlineData(5, true, 1)]
+    [InlineData(3, true, 3)]
+    [InlineData(5, true, 4)]
+    [InlineData(100, true, 4)]
     [InlineData(5, false, 5)]
     [InlineData(100, false, 5)]
     public void GetMonitorConcurrency_SeparatesRecordingLane(int roomCount, bool recordingLane, int expected)
@@ -221,12 +223,21 @@ public sealed class GlobalMonitorTests
     }
 
     [Theory]
-    [InlineData(22, false, 5)]
+    [InlineData(22, false, 20)]
     [InlineData(3, false, 3)]
     [InlineData(22, true, 22)]
     public void GetRoutineBatchSize_LimitsRoutineBatchesAndKeepsForceAll(int roomCount, bool force, int expected)
     {
         Assert.Equal(expected, GlobalMonitor.GetRoutineBatchSize(roomCount, force));
+    }
+
+    [Theory]
+    [InlineData(8, false, 8)]
+    [InlineData(8, true, 8)]
+    [InlineData(22, true, 10)]
+    public void GetRoutineBatchSize_AllowsLargerRecordingLaneBatches(int roomCount, bool recordingLane, int expected)
+    {
+        Assert.Equal(expected, GlobalMonitor.GetRoutineBatchSize(roomCount, force: false, recordingLane));
     }
 
     [Theory]
@@ -237,6 +248,16 @@ public sealed class GlobalMonitorTests
     public void UsesRecordingCheckLane_OnlyRoutesActiveRecorders(RecordStatus recordStatus, bool expected)
     {
         Assert.Equal(expected, GlobalMonitor.UsesRecordingCheckLane(recordStatus));
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, true)]
+    public void ShouldAllowDouyinWebViewFallback_DisablesHeavyFallbackForRoutineInitialChecks(bool force, bool prioritizeDouyin, bool expected)
+    {
+        Assert.Equal(expected, GlobalMonitor.ShouldAllowDouyinWebViewFallback(force, prioritizeDouyin));
     }
 
     [Theory]
@@ -695,5 +716,22 @@ public sealed class GlobalMonitorTests
         GlobalMonitor.SyncRecordStatus(status);
 
         Assert.Equal(RecordStatus.NotRecording, status.RecordStatus);
+    }
+
+    [Theory]
+    [InlineData(0, "原画", 0, "原画", true)]
+    [InlineData(2, "原画", 0, "原画", true)]
+    [InlineData(0, "原画", 2, "原画", false)]
+    [InlineData(2, "原画", 2, "高清", false)]
+    public void CanReuseSpiderResultTask_RequiresSufficientPriorityAndMatchingQuality(
+        int activePriority,
+        string activeQuality,
+        int requestedPriority,
+        string requestedQuality,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            GlobalMonitor.CanReuseSpiderResultTask(activePriority, activeQuality, requestedPriority, requestedQuality));
     }
 }

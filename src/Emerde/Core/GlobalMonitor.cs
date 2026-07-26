@@ -20,7 +20,10 @@ namespace Emerde.Core;
 internal static class GlobalMonitor
 {
     private const int DefaultSchedulerPeriodMilliseconds = MonitorTiming.MinimumRoutineIntervalMilliseconds;
-    private const int MaximumBatchSize = MonitorTiming.MonitorBatchLimit;
+    private const int MaximumMonitorConcurrency = MonitorTiming.MonitorBatchLimit;
+    private const int MaximumBatchSize = 20;
+    private const int MaximumRecordingBatchSize = 10;
+    private const int MaximumRecordingConcurrency = 4;
     internal const long FixedRoomMetadataRefreshIntervalMilliseconds = 60 * 60 * 1000;
     internal const long InconclusiveLogIntervalMilliseconds = 60 * 60 * 1000;
     private static readonly TimeSpan StreamingCycleInterval = TimeSpan.FromMilliseconds(MonitorTiming.LiveRoutineIntervalMilliseconds);
@@ -54,6 +57,10 @@ internal static class GlobalMonitor
     private static readonly ConcurrentDictionary<string, DateTime> RoomRecordStartPausedUntil = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly ConcurrentDictionary<string, long> InconclusiveLogTimestamps = new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly Dictionary<string, ActiveSpiderResultTask> ActiveSpiderResultTasks = new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly object ActiveSpiderResultTasksSync = new();
 
     public static PeriodicWait RoutinePeriodicWait = new(GetRoutinePeriod(), TimeSpan.Zero);
 
@@ -405,6 +412,12 @@ internal static class GlobalMonitor
             StartScheduledChecksAsync(token, generation, priorityPeriodicWait, recordingLaneOnly: true));
     }
 
+    private sealed record ActiveSpiderResultTask(
+        Task<ISpiderResult?> Task,
+        CancellationTokenSource Cancellation,
+        int Priority,
+        string PreferredQuality);
+
     private static async Task StartScheduledChecksAsync(CancellationToken token, long generation, PeriodicWait periodicWait, bool recordingLaneOnly)
     {
         while (!token.IsCancellationRequested && generation == Volatile.Read(ref monitorGeneration))
@@ -479,7 +492,7 @@ internal static class GlobalMonitor
             var selectedRooms = dueRooms
                 .OrderBy(item => GetRoomCheckPriority(item.RoomStatus.StreamStatus, item.RoomStatus.RecordStatus))
                 .ThenBy(item => item.DueAt)
-                .Take(GetRoutineBatchSize(dueRooms.Count, force))
+                .Take(GetRoutineBatchSize(dueRooms.Count, force, recordingLaneOnly == true))
                 .ToArray();
             using SemaphoreSlim semaphore = new(GetMonitorConcurrency(selectedRooms.Length, recordingLaneOnly == true));
             List<Task> tasks = new(selectedRooms.Length);
@@ -502,27 +515,40 @@ internal static class GlobalMonitor
 
     internal static int GetMonitorConcurrency(int roomCount)
     {
-        return Math.Clamp(roomCount, 1, MaximumBatchSize);
+        return Math.Clamp(roomCount, 1, MaximumMonitorConcurrency);
     }
 
     internal static int GetMonitorConcurrency(int roomCount, bool recordingLane)
     {
-        return recordingLane ? 1 : GetMonitorConcurrency(roomCount);
+        return recordingLane
+            ? Math.Clamp(roomCount, 1, MaximumRecordingConcurrency)
+            : GetMonitorConcurrency(roomCount);
     }
 
     internal static int GetRoutineBatchSize(int dueRoomCount, bool force)
+    {
+        return GetRoutineBatchSize(dueRoomCount, force, false);
+    }
+
+    internal static int GetRoutineBatchSize(int dueRoomCount, bool force, bool recordingLane)
     {
         if (dueRoomCount <= 0)
         {
             return 0;
         }
 
-        return force ? dueRoomCount : Math.Min(dueRoomCount, MaximumBatchSize);
+        int maximumBatchSize = recordingLane ? MaximumRecordingBatchSize : MaximumBatchSize;
+        return force ? dueRoomCount : Math.Min(dueRoomCount, maximumBatchSize);
     }
 
     internal static bool UsesRecordingCheckLane(RecordStatus recordStatus)
     {
         return recordStatus == RecordStatus.Recording;
+    }
+
+    internal static bool ShouldAllowDouyinWebViewFallback(bool force, bool prioritizeDouyin)
+    {
+        return force || prioritizeDouyin;
     }
 
     internal static TimeSpan GetRoomCheckTimeout(bool force)
@@ -902,13 +928,25 @@ internal static class GlobalMonitor
     private static async Task<ISpiderResult?> GetSpiderResultAsync(Room room, RoomRecordingOptions settings, bool prioritizeDouyin, bool force, CancellationToken token)
     {
         TimeSpan timeout = GetRoomCheckTimeout(force);
-        Task<ISpiderResult?> task = StartSpiderResultTask(room, settings, prioritizeDouyin, token);
+        int requestPriority = force ? 1 : 0;
+        using CancellationTokenSource timeoutCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
+        timeoutCancellation.CancelAfter(timeout);
+        bool allowDouyinWebViewFallback = ShouldAllowDouyinWebViewFallback(force, prioritizeDouyin);
+        ActiveSpiderResultTask activeTask = StartSpiderResultTask(
+            room.RoomUrl,
+            settings.PreferredStreamQuality,
+            bypassDouyinThrottle: false,
+            prioritizeDouyin,
+            allowDouyinWebViewFallback,
+            requestPriority,
+            token);
         try
         {
-            return await task.WaitAsync(timeout, token);
+            return await activeTask.Task.WaitAsync(timeoutCancellation.Token);
         }
-        catch (TimeoutException)
+        catch (OperationCanceledException) when (!token.IsCancellationRequested && timeoutCancellation.IsCancellationRequested)
         {
+            CancelSpiderResultTask(room.RoomUrl, activeTask, requestPriority);
             AppSessionLogger.Event("warn", "business", "room_check_timeout", "room check timed out and the room lock was released", new
             {
                 room.RoomUrl,
@@ -918,16 +956,122 @@ internal static class GlobalMonitor
             });
             return null;
         }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        {
+            return null;
+        }
     }
 
-    private static Task<ISpiderResult?> StartSpiderResultTask(Room room, RoomRecordingOptions settings, bool prioritizeDouyin, CancellationToken token)
+    internal static async Task<ISpiderResult?> GetManualSpiderResultAsync(string roomUrl, string? preferredQuality, CancellationToken token = default)
+    {
+        if (string.IsNullOrWhiteSpace(roomUrl))
+        {
+            return null;
+        }
+
+        using CancellationTokenSource timeoutCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
+        timeoutCancellation.CancelAfter(ForcedRoomCheckTimeout);
+        ActiveSpiderResultTask activeTask = StartSpiderResultTask(
+            roomUrl,
+            preferredQuality,
+            bypassDouyinThrottle: true,
+            prioritizeDouyin: true,
+            allowDouyinWebViewFallback: true,
+            priority: 2,
+            token);
+        try
+        {
+            return await activeTask.Task.WaitAsync(timeoutCancellation.Token);
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested && timeoutCancellation.IsCancellationRequested)
+        {
+            CancelSpiderResultTask(roomUrl, activeTask, 2);
+            AppSessionLogger.Event("warn", "business", "manual_room_check_timeout", "manual room check timed out", new
+            {
+                RoomUrl = roomUrl,
+                timeoutSeconds = ForcedRoomCheckTimeout.TotalSeconds,
+            });
+            return null;
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        {
+            return null;
+        }
+    }
+
+    private static ActiveSpiderResultTask StartSpiderResultTask(
+        string roomUrl,
+        string? preferredQuality,
+        bool bypassDouyinThrottle,
+        bool prioritizeDouyin,
+        bool allowDouyinWebViewFallback,
+        int priority,
+        CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        return Task.Factory.StartNew(
-            () => Spider.GetResult(room.RoomUrl, settings.PreferredStreamQuality, bypassDouyinThrottle: false, prioritizeDouyin),
+        string normalizedQuality = preferredQuality ?? string.Empty;
+        ActiveSpiderResultTask createdTask;
+        lock (ActiveSpiderResultTasksSync)
+        {
+            if (ActiveSpiderResultTasks.TryGetValue(roomUrl, out ActiveSpiderResultTask? activeTask))
+            {
+                if (CanReuseSpiderResultTask(activeTask.Priority, activeTask.PreferredQuality, priority, normalizedQuality))
+                {
+                    return activeTask;
+                }
+
+                activeTask.Cancellation.Cancel();
+                ActiveSpiderResultTasks.Remove(roomUrl);
+            }
+
+            CancellationTokenSource workerCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
+            Task<ISpiderResult?> workerTask = Task.Factory.StartNew(
+                () => Spider.GetResult(roomUrl, preferredQuality, bypassDouyinThrottle, prioritizeDouyin, allowDouyinWebViewFallback, workerCancellation.Token),
+                workerCancellation.Token,
+                TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
+            createdTask = new ActiveSpiderResultTask(workerTask, workerCancellation, priority, normalizedQuality);
+            ActiveSpiderResultTasks[roomUrl] = createdTask;
+        }
+
+        _ = createdTask.Task.ContinueWith(
+            _ => CompleteSpiderResultTask(roomUrl, createdTask),
             CancellationToken.None,
-            TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning,
+            TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
+        return createdTask;
+    }
+
+    internal static bool CanReuseSpiderResultTask(int activePriority, string? activeQuality, int requestedPriority, string? requestedQuality)
+    {
+        return activePriority >= requestedPriority
+            && string.Equals(activeQuality ?? string.Empty, requestedQuality ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void CancelSpiderResultTask(string roomUrl, ActiveSpiderResultTask activeTask, int requestPriority)
+    {
+        lock (ActiveSpiderResultTasksSync)
+        {
+            if (ActiveSpiderResultTasks.TryGetValue(roomUrl, out ActiveSpiderResultTask? current)
+                && ReferenceEquals(current, activeTask)
+                && current.Priority <= requestPriority)
+            {
+                activeTask.Cancellation.Cancel();
+            }
+        }
+    }
+
+    private static void CompleteSpiderResultTask(string roomUrl, ActiveSpiderResultTask activeTask)
+    {
+        lock (ActiveSpiderResultTasksSync)
+        {
+            if (ActiveSpiderResultTasks.TryGetValue(roomUrl, out ActiveSpiderResultTask? current)
+                && ReferenceEquals(current, activeTask))
+            {
+                ActiveSpiderResultTasks.Remove(roomUrl);
+            }
+        }
+        activeTask.Cancellation.Dispose();
     }
 
     private static void LogRoomCheckDispatchDelay(Room room, DateTime dueAt, DateTime startedAt, bool force)

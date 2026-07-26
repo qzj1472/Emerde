@@ -11,6 +11,7 @@ internal readonly record struct DouyinWebViewSnapshot(string? WebEnterJson, stri
 
 internal static class DouyinWebViewResolver
 {
+    private static readonly TimeSpan BrowserInitializationTimeout = TimeSpan.FromSeconds(8);
     private static readonly SemaphoreSlim ResolveGate = new(1, 1);
     private static Window? hostWindow;
     private static WebView2? browser;
@@ -30,7 +31,7 @@ internal static class DouyinWebViewResolver
         }
     }
 
-    public static DouyinWebViewSnapshot Resolve(string roomUrl, string cookie, bool allowInteractiveVerification)
+    public static DouyinWebViewSnapshot Resolve(string roomUrl, string cookie, bool allowInteractiveVerification, CancellationToken cancellationToken = default)
     {
         Application? application = Application.Current;
         if (application == null || application.Dispatcher.HasShutdownStarted)
@@ -40,7 +41,11 @@ internal static class DouyinWebViewResolver
 
         try
         {
-            return ResolveAsync(application, roomUrl, cookie, allowInteractiveVerification).GetAwaiter().GetResult();
+            return ResolveAsync(application, roomUrl, cookie, allowInteractiveVerification, cancellationToken).GetAwaiter().GetResult();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception e)
         {
@@ -67,13 +72,14 @@ internal static class DouyinWebViewResolver
         Application application,
         string roomUrl,
         string cookie,
-        bool allowInteractiveVerification)
+        bool allowInteractiveVerification,
+        CancellationToken cancellationToken)
     {
-        await ResolveGate.WaitAsync();
+        await ResolveGate.WaitAsync(cancellationToken);
         try
         {
             return await application.Dispatcher
-                .InvokeAsync(() => ResolveOnUiThreadAsync(roomUrl, cookie, allowInteractiveVerification))
+                .InvokeAsync(() => ResolveOnUiThreadAsync(roomUrl, cookie, allowInteractiveVerification, cancellationToken))
                 .Task
                 .Unwrap();
         }
@@ -86,23 +92,36 @@ internal static class DouyinWebViewResolver
     private static async Task<DouyinWebViewSnapshot> ResolveOnUiThreadAsync(
         string roomUrl,
         string cookie,
-        bool allowInteractiveVerification)
+        bool allowInteractiveVerification,
+        CancellationToken cancellationToken)
     {
-        WebView2 webView = await EnsureBrowserAsync();
-        await ApplyCookiesAsync(webView.CoreWebView2.CookieManager, cookie);
-        DouyinWebViewSnapshot snapshot = await NavigateAndCaptureAsync(webView, roomUrl, TimeSpan.FromSeconds(12));
-        if (allowInteractiveVerification && StreamResolver.ContainsDouyinChallenge(snapshot.Html))
+        WebView2? webView = null;
+        try
         {
-            ShowInteractiveWindow();
-            snapshot = await WaitForInteractiveVerificationAsync(webView, roomUrl, snapshot);
+            cancellationToken.ThrowIfCancellationRequested();
+            webView = await EnsureBrowserAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            await ApplyCookiesAsync(webView.CoreWebView2.CookieManager, cookie);
+            DouyinWebViewSnapshot snapshot = await NavigateAndCaptureAsync(webView, roomUrl, TimeSpan.FromSeconds(12), cancellationToken);
+            if (allowInteractiveVerification && StreamResolver.ContainsDouyinChallenge(snapshot.Html))
+            {
+                ShowInteractiveWindow();
+                snapshot = await WaitForInteractiveVerificationAsync(webView, roomUrl, snapshot, cancellationToken);
+            }
+            return snapshot;
         }
-        webView.CoreWebView2.Stop();
-        webView.NavigateToString("<html></html>");
-        HideWindow();
-        return snapshot;
+        finally
+        {
+            if (webView?.CoreWebView2 != null)
+            {
+                webView.CoreWebView2.Stop();
+                webView.NavigateToString("<html></html>");
+            }
+            HideWindow();
+        }
     }
 
-    private static async Task<WebView2> EnsureBrowserAsync()
+    private static async Task<WebView2> EnsureBrowserAsync(CancellationToken cancellationToken)
     {
         string proxyKey = GetProxyKey();
         if (browser != null && string.Equals(browserProxyKey, proxyKey, StringComparison.OrdinalIgnoreCase))
@@ -114,10 +133,13 @@ internal static class DouyinWebViewResolver
         DisposeBrowser();
         Directory.CreateDirectory(AppPaths.DouyinWebViewDataDirectory);
         CoreWebView2EnvironmentOptions options = new(GetBrowserArguments(proxyKey));
+        using CancellationTokenSource initializationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        initializationCancellation.CancelAfter(BrowserInitializationTimeout);
         CoreWebView2Environment environment = await CoreWebView2Environment.CreateAsync(
-            null,
-            AppPaths.DouyinWebViewDataDirectory,
-            options);
+                null,
+                AppPaths.DouyinWebViewDataDirectory,
+                options)
+            .WaitAsync(initializationCancellation.Token);
         WebView2 createdBrowser = new();
         Window createdWindow = new()
         {
@@ -137,18 +159,27 @@ internal static class DouyinWebViewResolver
         browser = createdBrowser;
         browserProxyKey = proxyKey;
         ShowHiddenWindow();
-        await createdBrowser.EnsureCoreWebView2Async(environment);
-        ApplyProxyCredentials(createdBrowser.CoreWebView2, proxyKey);
-        createdBrowser.CoreWebView2.Settings.AreDevToolsEnabled = false;
-        createdBrowser.CoreWebView2.Settings.IsPasswordAutosaveEnabled = false;
-        createdBrowser.CoreWebView2.Settings.IsGeneralAutofillEnabled = false;
-        return createdBrowser;
+        try
+        {
+            await createdBrowser.EnsureCoreWebView2Async(environment).WaitAsync(initializationCancellation.Token);
+            ApplyProxyCredentials(createdBrowser.CoreWebView2, proxyKey);
+            createdBrowser.CoreWebView2.Settings.AreDevToolsEnabled = false;
+            createdBrowser.CoreWebView2.Settings.IsPasswordAutosaveEnabled = false;
+            createdBrowser.CoreWebView2.Settings.IsGeneralAutofillEnabled = false;
+            return createdBrowser;
+        }
+        catch
+        {
+            DisposeBrowser();
+            throw;
+        }
     }
 
     private static async Task<DouyinWebViewSnapshot> NavigateAndCaptureAsync(
         WebView2 webView,
         string roomUrl,
-        TimeSpan timeout)
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
     {
         TaskCompletionSource navigationCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource roomDataReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -172,9 +203,9 @@ internal static class DouyinWebViewResolver
             }
             try
             {
-                using Stream content = await args.Response.GetContentAsync();
+                using Stream content = await args.Response.GetContentAsync().WaitAsync(cancellationToken);
                 using StreamReader reader = new(content);
-                string response = await reader.ReadToEndAsync();
+                string response = await reader.ReadToEndAsync(cancellationToken);
                 if (!string.IsNullOrWhiteSpace(response))
                 {
                     lock (responseSync)
@@ -194,10 +225,12 @@ internal static class DouyinWebViewResolver
         try
         {
             webView.CoreWebView2.Navigate(roomUrl);
-            Task timeoutTask = Task.Delay(timeout);
+            Task timeoutTask = Task.Delay(timeout, cancellationToken);
             await Task.WhenAny(navigationCompleted.Task, timeoutTask);
-            await Task.WhenAny(roomDataReceived.Task, Task.Delay(TimeSpan.FromSeconds(3)));
-            await Task.Delay(300);
+            cancellationToken.ThrowIfCancellationRequested();
+            await Task.WhenAny(roomDataReceived.Task, Task.Delay(TimeSpan.FromSeconds(3), cancellationToken));
+            cancellationToken.ThrowIfCancellationRequested();
+            await Task.Delay(300, cancellationToken);
             string? html = await GetPageHtmlAsync(webView);
             lock (responseSync)
             {
@@ -216,23 +249,31 @@ internal static class DouyinWebViewResolver
     private static async Task<DouyinWebViewSnapshot> WaitForInteractiveVerificationAsync(
         WebView2 webView,
         string roomUrl,
-        DouyinWebViewSnapshot initialSnapshot)
+        DouyinWebViewSnapshot initialSnapshot,
+        CancellationToken cancellationToken)
     {
         interactiveClosed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         DateTime deadline = DateTime.UtcNow.AddSeconds(60);
         DouyinWebViewSnapshot snapshot = initialSnapshot;
-        while (DateTime.UtcNow < deadline && !interactiveClosed.Task.IsCompleted)
+        try
         {
-            await Task.WhenAny(Task.Delay(1000), interactiveClosed.Task);
-            string? html = await GetPageHtmlAsync(webView);
-            if (!StreamResolver.ContainsDouyinChallenge(html))
+            while (DateTime.UtcNow < deadline && !interactiveClosed.Task.IsCompleted)
             {
-                snapshot = await NavigateAndCaptureAsync(webView, roomUrl, TimeSpan.FromSeconds(8));
-                break;
+                await Task.WhenAny(Task.Delay(1000, cancellationToken), interactiveClosed.Task);
+                cancellationToken.ThrowIfCancellationRequested();
+                string? html = await GetPageHtmlAsync(webView);
+                if (!StreamResolver.ContainsDouyinChallenge(html))
+                {
+                    snapshot = await NavigateAndCaptureAsync(webView, roomUrl, TimeSpan.FromSeconds(8), cancellationToken);
+                    break;
+                }
             }
+            return snapshot;
         }
-        interactiveClosed = null;
-        return snapshot;
+        finally
+        {
+            interactiveClosed = null;
+        }
     }
 
     private static async Task<string?> GetPageHtmlAsync(WebView2 webView)
