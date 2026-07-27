@@ -2,10 +2,13 @@ using Emerde.Core;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
+using Wpf.Ui.Violeta.Controls;
 using WpfBorder = System.Windows.Controls.Border;
 using WpfBrush = System.Windows.Media.Brush;
 using WpfControl = System.Windows.Controls.Control;
@@ -16,6 +19,12 @@ namespace Emerde.Views;
 
 internal sealed class DialogBlurScope : IDisposable
 {
+    internal const int BlurEntranceDurationMilliseconds = 320;
+    internal const int BackdropEntranceDurationMilliseconds = 240;
+    internal const int ExitDurationMilliseconds = 190;
+    internal const int OwnerEnablePumpMaximumTicks = 12;
+    internal const int DialogMaskClearPumpMaximumTicks = 16;
+
     [DllImport("user32.dll")]
     private static extern bool EnableWindow(IntPtr hWnd, bool bEnable);
 
@@ -35,6 +44,7 @@ internal sealed class DialogBlurScope : IDisposable
 
     private readonly WpfPanel? backdrop;
     private readonly WpfBrush? previousBackdropBackground;
+    private readonly double previousBackdropOpacity;
     private readonly Visibility previousBackdropVisibility;
     private readonly bool previousBackdropHitTestVisible;
     private readonly MouseButtonEventHandler? backdropMouseDownHandler;
@@ -44,13 +54,19 @@ internal sealed class DialogBlurScope : IDisposable
     private readonly bool previousOwnerIsEnabled;
     private readonly DispatcherTimer? ownerEnableTimer;
     private readonly DispatcherTimer? dialogMaskClearTimer;
+    private readonly ContentDialog? contentDialog;
+    private readonly BlurEffect? activeBlurEffect;
+    private readonly double targetBlurRadius;
     private static int activeDialogCount;
     private bool isDisposed;
+    private bool isExitAnimating;
+    private bool isExitComplete;
 
     public static bool HasActiveDialog => Volatile.Read(ref activeDialogCount) > 0;
 
     public DialogBlurScope(Window? owner = null, double radius = 8d, object? dialog = null, bool isLightDismissEnabled = false, bool keepOwnerEnabled = true, bool showBackdrop = true)
     {
+        bool animate = ShouldAnimate();
         WpfBrush backdropBrush = CreateBackdropBrush();
         ApplyBuiltInSmoke(dialog, backdropBrush);
         AttachDialogMask(dialog, backdropBrush, isLightDismissEnabled);
@@ -67,21 +83,36 @@ internal sealed class DialogBlurScope : IDisposable
         if (blurTarget != null && radius > 0d)
         {
             previousBlurEffect = blurTarget.Effect;
-            blurTarget.Effect = new System.Windows.Media.Effects.BlurEffect()
+            double initialRadius = previousBlurEffect is BlurEffect previousBlur
+                ? Math.Max(0d, previousBlur.Radius)
+                : 0d;
+            double targetRadius = Math.Max(initialRadius, radius);
+            BlurEffect blurEffect = new()
             {
-                Radius = radius,
-                KernelType = System.Windows.Media.Effects.KernelType.Gaussian,
-                RenderingBias = System.Windows.Media.Effects.RenderingBias.Performance,
+                Radius = animate ? initialRadius : targetRadius,
+                KernelType = KernelType.Gaussian,
+                RenderingBias = RenderingBias.Performance,
             };
+            activeBlurEffect = blurEffect;
+            targetBlurRadius = targetRadius;
+            blurTarget.Effect = blurEffect;
+            if (animate && targetRadius > initialRadius)
+            {
+                blurEffect.BeginAnimation(
+                    BlurEffect.RadiusProperty,
+                    CreateBlurEntranceAnimation(initialRadius, targetRadius));
+            }
         }
 
         backdrop = showBackdrop ? FindBackdrop(window) : null;
         if (backdrop != null)
         {
             previousBackdropBackground = backdrop.Background;
+            previousBackdropOpacity = backdrop.Opacity;
             previousBackdropVisibility = backdrop.Visibility;
             previousBackdropHitTestVisible = backdrop.IsHitTestVisible;
             backdrop.Background = backdropBrush;
+            backdrop.Opacity = animate ? 0d : previousBackdropOpacity;
             backdrop.IsHitTestVisible = true;
             backdropMouseDownHandler = (_, e) =>
             {
@@ -96,6 +127,18 @@ internal sealed class DialogBlurScope : IDisposable
             };
             backdrop.MouseDown += backdropMouseDownHandler;
             backdrop.Visibility = Visibility.Visible;
+            if (animate)
+            {
+                backdrop.BeginAnimation(
+                    UIElement.OpacityProperty,
+                    CreateBackdropEntranceAnimation(previousBackdropOpacity));
+            }
+        }
+
+        if (dialog is ContentDialog currentDialog)
+        {
+            contentDialog = currentDialog;
+            contentDialog.Closing += ContentDialogClosing;
         }
 
         Interlocked.Increment(ref activeDialogCount);
@@ -121,6 +164,40 @@ internal sealed class DialogBlurScope : IDisposable
         return new DialogBlurScope(owner, radius, null, false, false, false);
     }
 
+    internal async Task PlayExitAsync()
+    {
+        if (!ShouldAnimate())
+        {
+            return;
+        }
+
+        List<Task> animations = [];
+        IEasingFunction easing = new SineEase { EasingMode = EasingMode.EaseIn };
+        if (activeBlurEffect != null)
+        {
+            double previousRadius = previousBlurEffect is BlurEffect previousBlur
+                ? Math.Max(0d, previousBlur.Radius)
+                : 0d;
+            animations.Add(BeginAnimationAsync(
+                activeBlurEffect,
+                BlurEffect.RadiusProperty,
+                CreateExitAnimation(activeBlurEffect.Radius, previousRadius, easing)));
+        }
+
+        if (backdrop != null)
+        {
+            double targetOpacity = previousBackdropVisibility == Visibility.Visible
+                ? previousBackdropOpacity
+                : 0d;
+            animations.Add(BeginAnimationAsync(
+                backdrop,
+                UIElement.OpacityProperty,
+                CreateExitAnimation(backdrop.Opacity, targetOpacity, easing)));
+        }
+
+        await Task.WhenAll(animations);
+    }
+
     public void Dispose()
     {
         if (isDisposed)
@@ -129,6 +206,10 @@ internal sealed class DialogBlurScope : IDisposable
         }
 
         isDisposed = true;
+        if (contentDialog != null)
+        {
+            contentDialog.Closing -= ContentDialogClosing;
+        }
         ownerEnableTimer?.Stop();
         dialogMaskClearTimer?.Stop();
         if (ownerWindow != null)
@@ -144,6 +225,8 @@ internal sealed class DialogBlurScope : IDisposable
             }
 
             backdrop.Background = previousBackdropBackground;
+            backdrop.BeginAnimation(UIElement.OpacityProperty, null);
+            backdrop.Opacity = previousBackdropOpacity;
             backdrop.IsHitTestVisible = previousBackdropHitTestVisible;
             backdrop.Visibility = previousBackdropVisibility;
         }
@@ -154,6 +237,151 @@ internal sealed class DialogBlurScope : IDisposable
         }
 
         Interlocked.Decrement(ref activeDialogCount);
+    }
+
+    internal static DoubleAnimation CreateBlurEntranceAnimation(double from, double to)
+    {
+        return new DoubleAnimation
+        {
+            From = from,
+            To = to,
+            Duration = TimeSpan.FromMilliseconds(BlurEntranceDurationMilliseconds),
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+            FillBehavior = FillBehavior.HoldEnd,
+        };
+    }
+
+    internal static DoubleAnimation CreateBackdropEntranceAnimation(double to)
+    {
+        return new DoubleAnimation
+        {
+            From = 0d,
+            To = to,
+            Duration = TimeSpan.FromMilliseconds(BackdropEntranceDurationMilliseconds),
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseOut },
+            FillBehavior = FillBehavior.HoldEnd,
+        };
+    }
+
+    internal static DoubleAnimation CreateExitAnimation(double from, double to, IEasingFunction? easing = null)
+    {
+        return new DoubleAnimation
+        {
+            From = from,
+            To = to,
+            Duration = TimeSpan.FromMilliseconds(ExitDurationMilliseconds),
+            EasingFunction = easing ?? new SineEase { EasingMode = EasingMode.EaseIn },
+            FillBehavior = FillBehavior.HoldEnd,
+        };
+    }
+
+    private void ContentDialogClosing(ContentDialog sender, ContentDialogClosingEventArgs args)
+    {
+        if (isDisposed || isExitComplete || args.Cancel)
+        {
+            return;
+        }
+
+        ownerEnableTimer?.Stop();
+        dialogMaskClearTimer?.Stop();
+        ClearDialogMaskVisuals(sender);
+        if (ownerWindow != null)
+        {
+            EnableOwnerWindow(ownerWindow);
+        }
+
+        if (isExitAnimating)
+        {
+            return;
+        }
+
+        isExitAnimating = true;
+        _ = CompleteContentDialogExitAsync(args);
+    }
+
+    private async Task CompleteContentDialogExitAsync(ContentDialogClosingEventArgs args)
+    {
+        try
+        {
+            await PlayExitAsync();
+            if (args.Cancel)
+            {
+                RestoreEntrance();
+            }
+            else
+            {
+                isExitComplete = true;
+            }
+        }
+        catch
+        {
+            RestoreEntrance();
+        }
+        finally
+        {
+            isExitAnimating = false;
+        }
+    }
+
+    private void RestoreEntrance()
+    {
+        if (!ShouldAnimate())
+        {
+            return;
+        }
+
+        IEasingFunction easing = new SineEase { EasingMode = EasingMode.EaseOut };
+        if (activeBlurEffect != null)
+        {
+            activeBlurEffect.BeginAnimation(
+                BlurEffect.RadiusProperty,
+                CreateEntranceAnimation(activeBlurEffect.Radius, targetBlurRadius, easing));
+        }
+
+        if (backdrop != null)
+        {
+            backdrop.BeginAnimation(
+                UIElement.OpacityProperty,
+                CreateEntranceAnimation(backdrop.Opacity, previousBackdropOpacity, easing));
+        }
+    }
+
+    private static DoubleAnimation CreateEntranceAnimation(double from, double to, IEasingFunction easing)
+    {
+        return new DoubleAnimation
+        {
+            From = from,
+            To = to,
+            Duration = TimeSpan.FromMilliseconds(ExitDurationMilliseconds),
+            EasingFunction = easing,
+            FillBehavior = FillBehavior.HoldEnd,
+        };
+    }
+
+    private static Task BeginAnimationAsync(Animatable target, DependencyProperty property, DoubleAnimation animation)
+    {
+        TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        animation.Completed += (_, _) => completion.TrySetResult();
+        target.BeginAnimation(property, animation);
+        return WaitForAnimationAsync(completion.Task);
+    }
+
+    private static Task BeginAnimationAsync(UIElement target, DependencyProperty property, DoubleAnimation animation)
+    {
+        TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        animation.Completed += (_, _) => completion.TrySetResult();
+        target.BeginAnimation(property, animation);
+        return WaitForAnimationAsync(completion.Task);
+    }
+
+    private static async Task WaitForAnimationAsync(Task completion)
+    {
+        await Task.WhenAny(completion, Task.Delay(ExitDurationMilliseconds + 100));
+    }
+
+    private static bool ShouldAnimate()
+    {
+        return SystemParameters.ClientAreaAnimation;
     }
 
     public static void ApplyBuiltInSmoke(object? dialog, WpfBrush? backdropBrush = null)
@@ -271,9 +499,15 @@ internal sealed class DialogBlurScope : IDisposable
         {
             Interval = TimeSpan.FromMilliseconds(50),
         };
+        int remainingTicks = OwnerEnablePumpMaximumTicks;
         timer.Tick += (_, _) =>
         {
             EnableOwnerWindow(window);
+            remainingTicks--;
+            if (remainingTicks <= 0)
+            {
+                timer.Stop();
+            }
         };
         EnableOwnerWindow(window);
         timer.Start();
@@ -286,9 +520,15 @@ internal sealed class DialogBlurScope : IDisposable
         {
             Interval = TimeSpan.FromMilliseconds(25),
         };
+        int remainingTicks = DialogMaskClearPumpMaximumTicks;
         timer.Tick += (_, _) =>
         {
             ClearDialogMaskVisuals(dialogElement);
+            remainingTicks--;
+            if (remainingTicks <= 0)
+            {
+                timer.Stop();
+            }
         };
         ClearDialogMaskVisuals(dialogElement);
         timer.Start();
