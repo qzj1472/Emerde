@@ -278,6 +278,7 @@ internal static class ConfigFileManager
             : Path.Combine(directory, $".{Path.GetFileName(targetPath)}.{Guid.NewGuid():N}.restore");
         string temporaryPath = Path.Combine(directory, $".{Path.GetFileName(targetPath)}.{Guid.NewGuid():N}.tmp");
         string? restorePath = null;
+        bool targetReplaced = false;
 
         try
         {
@@ -292,6 +293,7 @@ internal static class ConfigFileManager
             {
                 File.Move(temporaryPath, targetPath);
             }
+            targetReplaced = true;
             setup(targetPath);
             string resultBackupPath = backupPath;
             if (keepBackup)
@@ -310,24 +312,27 @@ internal static class ConfigFileManager
         }
         catch
         {
-            try
+            if (targetReplaced)
             {
-                if (targetExisted)
+                try
                 {
-                    restorePath = Path.Combine(directory, $".{Path.GetFileName(targetPath)}.{Guid.NewGuid():N}.restore");
-                    File.Copy(backupPath, restorePath, overwrite: false);
-                    File.Replace(restorePath, targetPath, null, true);
-                    restorePath = null;
+                    if (targetExisted)
+                    {
+                        restorePath = Path.Combine(directory, $".{Path.GetFileName(targetPath)}.{Guid.NewGuid():N}.restore");
+                        File.Copy(backupPath, restorePath, overwrite: false);
+                        File.Replace(restorePath, targetPath, null, true);
+                        restorePath = null;
+                    }
+                    else
+                    {
+                        File.Delete(targetPath);
+                    }
+                    setup(targetPath);
                 }
-                else
+                catch (Exception restoreException)
                 {
-                    File.Delete(targetPath);
+                    AppSessionLogger.WriteException(restoreException);
                 }
-                setup(targetPath);
-            }
-            catch (Exception restoreException)
-            {
-                AppSessionLogger.WriteException(restoreException);
             }
             throw;
         }
@@ -471,8 +476,16 @@ internal static class ConfigFileManager
             return backupPath;
         }
 
-        File.Delete(backupPath);
-        return existingPath;
+        try
+        {
+            File.Delete(backupPath);
+            return existingPath;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(e);
+            return backupPath;
+        }
     }
 
     private static string? FindEquivalentConfigArtifact(string sourcePath, string targetPath, bool includeImports, string? excludedPath = null)

@@ -35,6 +35,21 @@ public sealed partial class ConfigRestoreContentDialog : System.Windows.Controls
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    private void ConfigRestoreContentLoaded(object sender, RoutedEventArgs e)
+    {
+        UpdateEdgeFadeVisibility();
+    }
+
+    private void ConfigRestoreContentSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateEdgeFadeVisibility();
+    }
+
+    private void OptionsScrollViewerScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        UpdateEdgeFadeVisibility(sender as ScrollViewer);
+    }
+
     public void AddOptionAndSelect(ConfigRestoreOption option)
     {
         Options.Insert(0, option);
@@ -45,8 +60,9 @@ public sealed partial class ConfigRestoreContentDialog : System.Windows.Controls
 
     public bool SelectOptionByFilePath(string filePath)
     {
+        string normalizedPath = NormalizePath(filePath);
         ConfigRestoreOption? option = Options.FirstOrDefault(item =>
-            string.Equals(item.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
+            string.Equals(NormalizePath(item.FilePath), normalizedPath, StringComparison.OrdinalIgnoreCase));
         if (option == null)
         {
             return false;
@@ -98,7 +114,7 @@ public sealed partial class ConfigRestoreContentDialog : System.Windows.Controls
             return false;
         }
 
-        filePath = files.FirstOrDefault(IsYamlFile);
+        filePath = files.FirstOrDefault(path => File.Exists(path) && IsYamlFile(path));
         return !string.IsNullOrWhiteSpace(filePath);
     }
 
@@ -109,16 +125,41 @@ public sealed partial class ConfigRestoreContentDialog : System.Windows.Controls
             || extension.Equals(".yml", StringComparison.OrdinalIgnoreCase);
     }
 
-    private void UpdateEdgeFadeVisibility()
+    private void UpdateEdgeFadeVisibility(ScrollViewer? scrollViewer = null)
     {
-        Visibility visibility = Options.Count > 3 ? Visibility.Visible : Visibility.Collapsed;
-        OptionsTopFade.Visibility = visibility;
-        OptionsBottomFade.Visibility = visibility;
+        scrollViewer ??= FindVisualChild<ScrollViewer>(OptionsListBox, "OptionsScrollViewer");
+        if (scrollViewer == null || scrollViewer.ScrollableHeight <= 0.5d)
+        {
+            OptionsTopFade.Visibility = Visibility.Collapsed;
+            OptionsBottomFade.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        OptionsTopFade.Visibility = scrollViewer.VerticalOffset > 0.5d ? Visibility.Visible : Visibility.Collapsed;
+        OptionsBottomFade.Visibility = scrollViewer.VerticalOffset < scrollViewer.ScrollableHeight - 0.5d
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private static string NormalizePath(string path)
+    {
+        try
+        {
+            return Path.GetFullPath(path);
+        }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return path;
+        }
     }
 
     private static T? FindVisualChild<T>(DependencyObject parent, string? name = null)
         where T : FrameworkElement
     {
+        if (parent is not Visual and not System.Windows.Media.Media3D.Visual3D)
+        {
+            return null;
+        }
         for (int index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
         {
             DependencyObject child = VisualTreeHelper.GetChild(parent, index);

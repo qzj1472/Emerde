@@ -6,6 +6,8 @@
              AllowDrop="True"
              DragOver="ConfigRestoreDragOver"
              Drop="ConfigRestoreDrop"
+             Loaded="ConfigRestoreContentLoaded"
+             SizeChanged="ConfigRestoreContentSizeChanged"
              Focusable="False"
              FocusVisualStyle="{x:Null}">
     <UserControl.Resources>
@@ -50,7 +52,8 @@
                                           Focusable="False"
                                           CanContentScroll="False"
                                           HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
-                                          VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}">
+                                          VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}"
+                                          ScrollChanged="OptionsScrollViewerScrollChanged">
                                 <Border Padding="0,16,0,8"
                                         Background="{DynamicResource EmerdeSurfaceBrush}">
                                     <ItemsPresenter />

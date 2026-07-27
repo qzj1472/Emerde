@@ -47,15 +47,15 @@ public sealed partial class ConfigRestoreWindow : Window, INotifyPropertyChanged
     {
         double ownerWidth = owner?.ActualWidth > 1d ? owner.ActualWidth : owner?.Width ?? SystemParameters.WorkArea.Width;
         double ownerHeight = owner?.ActualHeight > 1d ? owner.ActualHeight : owner?.Height ?? SystemParameters.WorkArea.Height;
-        double maxWidth = Math.Max(DialogMinimumWidth, ownerWidth - DialogWindowHorizontalMargin);
-        double maxHeight = Math.Max(DialogMinimumHeight, ownerHeight - DialogWindowVerticalMargin);
+        double availableWidth = Math.Max(320d, ownerWidth - DialogWindowHorizontalMargin);
+        double availableHeight = Math.Max(320d, ownerHeight - DialogWindowVerticalMargin);
 
-        Width = Math.Min(DialogBaseWidth, maxWidth);
-        Height = Math.Min(DialogBaseHeight, maxHeight);
-        MinWidth = Width;
-        MinHeight = Height;
-        MaxWidth = Width;
-        MaxHeight = Height;
+        Width = Math.Min(DialogBaseWidth, availableWidth);
+        Height = Math.Min(DialogBaseHeight, availableHeight);
+        MinWidth = Math.Min(DialogMinimumWidth, Width);
+        MinHeight = Math.Min(DialogMinimumHeight, Height);
+        MaxWidth = availableWidth;
+        MaxHeight = availableHeight;
     }
 
     internal Func<Task>? BackgroundExitAnimation { get; set; }
@@ -93,7 +93,7 @@ public sealed partial class ConfigRestoreWindow : Window, INotifyPropertyChanged
         try
         {
             Task backgroundExit = BackgroundExitAnimation?.Invoke() ?? Task.CompletedTask;
-            await Task.WhenAll(MotionAssist.PlayExitAsync(DialogSurface), backgroundExit);
+            await Task.WhenAll(MotionAssist.PlayExitAsync(DialogSurface), backgroundExit).WaitAsync(TimeSpan.FromSeconds(2));
         }
         catch
         {

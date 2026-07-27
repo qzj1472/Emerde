@@ -6,6 +6,33 @@ namespace Emerde.Tests;
 
 public sealed class ConfigFileManagerTests
 {
+    [Fact]
+    public void ReplaceConfigurationFile_DoesNotRunSetupBeforeTargetIsReplaced()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "EmerdeConfigFileManagerTests", Guid.NewGuid().ToString("N"));
+        string sourcePath = Path.Combine(root, "invalid.yaml");
+        string targetPath = Path.Combine(root, "config.yaml");
+        Directory.CreateDirectory(root);
+        File.WriteAllText(sourcePath, "Rooms: [");
+        int setupCalls = 0;
+
+        try
+        {
+            Assert.ThrowsAny<Exception>(() => ConfigFileManager.ReplaceConfigurationFile(
+                sourcePath,
+                targetPath,
+                _ => setupCalls++));
+
+            Assert.Equal(0, setupCalls);
+            Assert.False(File.Exists(targetPath));
+            Assert.Empty(Directory.GetFiles(root, ".config.yaml.*.restore"));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     [Theory]
     [InlineData("# Rooms:\n#   - RoomUrl: https://live.douyin.com/123456", false)]
     [InlineData("Wrapper:\n  Rooms: []", false)]
