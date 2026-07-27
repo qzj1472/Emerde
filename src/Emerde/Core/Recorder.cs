@@ -208,6 +208,9 @@ public sealed class Recorder
             int segmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(recordingOptions.SegmentTimeUnit);
             bool isToSegment = recordingOptions.IsToSegment && segmentTime > 0;
             bool isToSegmentBySize = isToSegment && SegmentTimeUnitHelper.IsSizeUnit(segmentTimeUnit);
+            FfmpegSegmentOptions? segmentOptions = isToSegment
+                ? new FfmpegSegmentOptions(segmentTime, segmentTimeUnit)
+                : null;
             string headers = NormalizeHeaders(startInfo.Headers);
             string? targetFormat = GetTargetFormat(recordingOptions.RecordFormat);
 
@@ -332,8 +335,18 @@ public sealed class Recorder
                     attempt,
                 });
 
-                int exitCode = await ExecuteRecorderAsync(outputFileName, isUseProxy, httpProxy, headers, userAgent, metadata, startInfo, token);
-                bool hasSessionOutput = useSessionPartFiles && GetRecordedSourceFilesForPattern(outputFileName).Length > 0;
+                int exitCode = await ExecuteRecorderAsync(
+                    outputFileName,
+                    isUseProxy,
+                    httpProxy,
+                    headers,
+                    userAgent,
+                    metadata,
+                    segmentOptions,
+                    startInfo,
+                    token);
+                DeleteEmptyOutputFiles(outputFileName);
+                bool hasSessionOutput = useSessionPartFiles && HasUsableOutput(outputFileName);
                 if (!useSessionPartFiles)
                 {
                     DeleteMetadataIfNoOutput(FileName, MetadataPath);
@@ -501,7 +514,9 @@ public sealed class Recorder
 
                 foreach ((string sourcePattern, string format) in unregisteredSessionRecordings)
                 {
-                    string? pendingPath = RecordingRecoveryService.RegisterSessionParts(sourcePattern, format, postProcessingOptions.IsRemoveTs, startInfo.RoomUrl);
+                    string latestTargetFormat = GetTargetFormat(postProcessingOptions.RecordFormat)
+                        ?? Path.GetExtension(sourcePattern);
+                    string? pendingPath = RecordingRecoveryService.RegisterSessionParts(sourcePattern, latestTargetFormat, postProcessingOptions.IsRemoveTs, startInfo.RoomUrl);
                     if (!string.IsNullOrWhiteSpace(pendingPath))
                     {
                         pendingRecordingPaths.Add(pendingPath);
@@ -636,11 +651,6 @@ public sealed class Recorder
                 "-segment_atclocktime", "0",
                 "-segment_format", "mpegts"
             )
-            .AddIf(isToSegmentBySize,
-                "-f", "segment",
-                "-segment_size", segmentTime.ToString(),
-                "-segment_format", "mpegts"
-            )
             .AddIf(isToSegment,
                 "-reset_timestamps", "1"
             );
@@ -665,6 +675,7 @@ public sealed class Recorder
         string headers,
         string userAgent,
         VideoRecordingMetadata metadata,
+        FfmpegSegmentOptions? segmentOptions,
         RecorderStartInfo startInfo,
         CancellationToken token)
     {
@@ -686,10 +697,11 @@ public sealed class Recorder
         string commandPath = string.Empty;
         StringBuilder errorOutput = new();
         Process? process = null;
+        RecorderProgressTracker? progressTracker = null;
 
         try
         {
-            commandPath = MediaWorker.WriteCommand(Url ?? string.Empty, outputFileName, metadata, inputOptions);
+            commandPath = MediaWorker.WriteCommand(Url ?? string.Empty, outputFileName, metadata, inputOptions, segmentOptions);
             process = StartMediaWorkerProcess(commandPath);
             MediaWorkerProcessId = process.Id;
             MediaWorkerProcessName = process.ProcessName;
@@ -705,14 +717,14 @@ public sealed class Recorder
             });
             _ = WeakReferenceMessenger.Default.Send(new RoomRecordingStateChangedMessage(startInfo.RoomUrl));
             TryTraceProcess(process);
-            RecorderProgressTracker progressTracker = new(DateTime.UtcNow);
-            using CancellationTokenSource processCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
-            using CancellationTokenRegistration cancellationRegistration = token.Register(() => KillProcessTree(process));
+            progressTracker = new(DateTime.UtcNow);
+            using CancellationTokenSource processCancellation = new();
             Task outputTask = ReadMediaWorkerOutputAsync(process.StandardOutput, progressTracker, startInfo, outputFileName, processCancellation.Token);
             Task errorTask = ReadMediaWorkerErrorAsync(process.StandardError, errorOutput, processCancellation.Token);
             Task exitTask = process.WaitForExitAsync(CancellationToken.None);
             Task<bool> stallTask = WaitForProgressStallAsync(progressTracker, processCancellation.Token);
-            Task completedTask = await Task.WhenAny(exitTask, stallTask);
+            Task cancellationTask = WaitForCancellationAsync(token);
+            Task completedTask = await Task.WhenAny(exitTask, stallTask, cancellationTask);
             if (completedTask == stallTask && await stallTask)
             {
                 wasStalled = true;
@@ -727,6 +739,15 @@ public sealed class Recorder
                 });
                 _ = WeakReferenceMessenger.Default.Send(new RoomRecordingStateChangedMessage(startInfo.RoomUrl));
                 KillProcessTree(process);
+            }
+            else if (completedTask == cancellationTask && token.IsCancellationRequested)
+            {
+                wasCanceled = true;
+                RequestProcessExit(process);
+                if (!await WaitForExitAsync(process, ProcessStopGracePeriod))
+                {
+                    KillProcessTree(process);
+                }
             }
 
             await exitTask;
@@ -767,7 +788,7 @@ public sealed class Recorder
         }
 
         wasCanceled = wasCanceled || token.IsCancellationRequested;
-        lastAttemptHadMediaProgress = HasMediaProgress;
+        lastAttemptHadMediaProgress = progressTracker?.HasProgress == true;
         lastAttemptWasCanceled = wasCanceled;
         lastAttemptWasStalled = wasStalled;
         processLifetime.Stop();
@@ -815,6 +836,7 @@ public sealed class Recorder
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            RedirectStandardInput = true,
             CreateNoWindow = true,
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8,
@@ -851,8 +873,8 @@ public sealed class Recorder
                 if (line.StartsWith("progress", StringComparison.Ordinal))
                 {
                     DateTime now = DateTime.UtcNow;
-                    UpdateMediaWorkerWriteSpeed(line, now, startInfo, outputFileName);
-                    if (progressTracker.Observe($"out_time={now.Ticks}", now))
+                    if (UpdateMediaWorkerWriteSpeed(line, now, startInfo, outputFileName, out long progressBytes)
+                        && progressTracker.Observe($"out_time={progressBytes}", now))
                     {
                         ConfirmMediaProgress(startInfo);
                     }
@@ -868,14 +890,16 @@ public sealed class Recorder
         }
     }
 
-    private void UpdateMediaWorkerWriteSpeed(string line, DateTime now, RecorderStartInfo startInfo, string outputFileName)
+    internal bool UpdateMediaWorkerWriteSpeed(string line, DateTime now, RecorderStartInfo startInfo, string outputFileName, out long progressBytes)
     {
         string[] parts = line.Split('|');
+        long outputBytes;
         if (parts.Length < 2
-            || !long.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out long outputBytes)
+            || !long.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out outputBytes)
             || outputBytes < 0)
         {
-            return;
+            progressBytes = 0;
+            return false;
         }
 
         long inputBytes = lastMediaInputBytes;
@@ -887,6 +911,7 @@ public sealed class Recorder
         {
             inputBytes = parsedInputBytes;
         }
+        bool advanced = outputBytes > lastMediaProgressBytes || inputBytes > lastMediaInputBytes;
 
         if (lastMediaProgressAt > DateTime.MinValue && now > lastMediaProgressAt && outputBytes >= lastMediaProgressBytes)
         {
@@ -916,6 +941,10 @@ public sealed class Recorder
         lastMediaProgressBytes = outputBytes;
         lastMediaInputBytes = inputBytes;
         lastMediaProgressAt = now;
+        progressBytes = outputBytes > long.MaxValue - inputBytes
+            ? long.MaxValue
+            : outputBytes + inputBytes;
+        return advanced;
     }
 
     private void FlushMediaWorkerSpeedSummary(RecorderStartInfo startInfo, string outputFileName)
@@ -1048,12 +1077,18 @@ public sealed class Recorder
         }
 
         string regexPattern = "^" + Regex.Escape(pattern).Replace("%03d", @"\d{3,}") + "$";
-        Regex regex = new(regexPattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Regex regex = new(
+            regexPattern,
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking,
+            TimeSpan.FromMilliseconds(100));
+        string searchPattern = pattern.Replace("%03d", "*", StringComparison.Ordinal);
 
-        return Directory.EnumerateFiles(directory)
-            .Where(file => regex.IsMatch(Path.GetFileName(file)))
-            .OrderBy(file => file, StringComparer.OrdinalIgnoreCase)
+        string[] segments = MediaFileCatalog.OrderSegmentPaths(
+                Directory.EnumerateFiles(directory, searchPattern, SearchOption.TopDirectoryOnly)
+                    .Where(file => regex.IsMatch(Path.GetFileName(file))),
+                pattern)
             .ToArray();
+        return File.Exists(fileName) ? [fileName, .. segments] : segments;
     }
 
     private static void DeleteMetadataIfNoOutput(string fileName, string? metadataPath)
@@ -1117,6 +1152,38 @@ public sealed class Recorder
         }
         catch (Exception e) when (e is InvalidOperationException or ArgumentException or Win32Exception or NotSupportedException)
         {
+        }
+    }
+
+    internal static bool HasUsableOutput(string fileName)
+    {
+        return GetRecordedSourceFilesForPattern(fileName).Any(path =>
+        {
+            try
+            {
+                return new FileInfo(path).Length > 0;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or FileNotFoundException)
+            {
+                return false;
+            }
+        });
+    }
+
+    internal static void DeleteEmptyOutputFiles(string fileName)
+    {
+        foreach (string path in GetRecordedSourceFilesForPattern(fileName))
+        {
+            try
+            {
+                if (new FileInfo(path).Length == 0)
+                {
+                    File.Delete(path);
+                }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or FileNotFoundException)
+            {
+            }
         }
     }
 

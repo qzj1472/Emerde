@@ -226,6 +226,145 @@ public sealed class RecorderTests
     }
 
     [Fact]
+    public void UsableOutput_ExcludesAndRemovesZeroByteSessionParts()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-recorder-empty-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string pattern = Path.Combine(directory, "record_%03d.ts");
+        string emptyPart = Path.Combine(directory, "record_000.ts");
+        string mediaPart = Path.Combine(directory, "record_001.ts");
+
+        try
+        {
+            File.WriteAllBytes(emptyPart, []);
+            Assert.False(Recorder.HasUsableOutput(pattern));
+
+            File.WriteAllBytes(mediaPart, [1, 2, 3]);
+            Assert.True(Recorder.HasUsableOutput(pattern));
+
+            Recorder.DeleteEmptyOutputFiles(pattern);
+
+            Assert.False(File.Exists(emptyPart));
+            Assert.True(File.Exists(mediaPart));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void UsableOutput_IncludesLegacyLiteralSegmentPattern()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-recorder-legacy-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string pattern = Path.Combine(directory, "record_%03d.ts");
+
+        try
+        {
+            File.WriteAllBytes(pattern, [1, 2, 3]);
+
+            Assert.True(Recorder.HasUsableOutput(pattern));
+
+            Recorder.DeleteFailedOutputFiles(pattern, metadataPath: null);
+
+            Assert.False(File.Exists(pattern));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MediaWorkerOutputLength_SumsMatchingSegmentFiles()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-worker-progress-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string pattern = Path.Combine(directory, "record_%03d.ts");
+
+        try
+        {
+            File.WriteAllBytes(Path.Combine(directory, "record_000.ts"), new byte[3]);
+            File.WriteAllBytes(Path.Combine(directory, "record_001.ts"), new byte[5]);
+            File.WriteAllBytes(Path.Combine(directory, "record_other.ts"), new byte[11]);
+
+            Assert.Equal(8, MediaWorker.GetOutputLength(pattern, 0));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void SegmentPaths_OrderFourDigitIndexesNumerically()
+    {
+        string[] paths =
+        [
+            @"D:\records\record_1000.ts",
+            @"D:\records\record_101.ts",
+            @"D:\records\record_999.ts",
+        ];
+
+        Assert.Equal(
+            [@"D:\records\record_101.ts", @"D:\records\record_999.ts", @"D:\records\record_1000.ts"],
+            MediaFileCatalog.OrderSegmentPaths(paths, "record_%03d.ts"));
+    }
+
+    [Fact]
+    public void MediaWorkerControlInput_RunsOnBackgroundThreadAndCancelsOnQuit()
+    {
+        using CancellationTokenSource stopSource = new();
+        using StringReader reader = new("q" + Environment.NewLine);
+
+        Thread thread = MediaWorker.StartControlInputReader(stopSource, reader);
+
+        Assert.True(thread.IsBackground);
+        Assert.True(thread.Join(TimeSpan.FromSeconds(1)));
+        Assert.True(stopSource.IsCancellationRequested);
+    }
+
+    [Fact]
+    public void MediaWorkerProgress_AcceptsInputAdvanceBeforeFileLengthChanges()
+    {
+        Recorder recorder = new();
+        RecorderStartInfo startInfo = new();
+        DateTime startedAt = DateTime.UtcNow;
+
+        Assert.True(recorder.UpdateMediaWorkerWriteSpeed("progress|0|1024", startedAt, startInfo, "record.ts", out long firstProgress));
+        Assert.False(recorder.UpdateMediaWorkerWriteSpeed("progress|0|1024", startedAt.AddSeconds(1), startInfo, "record.ts", out _));
+        Assert.True(recorder.UpdateMediaWorkerWriteSpeed("progress|0|2048", startedAt.AddSeconds(2), startInfo, "record.ts", out long secondProgress));
+
+        Assert.Equal(1024, firstProgress);
+        Assert.Equal(2048, secondProgress);
+    }
+
+    [Fact]
+    public void MediaWorkerCommand_PreservesSegmentConfiguration()
+    {
+        string commandPath = MediaWorker.WriteCommand(
+            "https://example.test/live.flv",
+            @"D:\records\record_%03d.ts",
+            new VideoRecordingMetadata(),
+            new FfmpegInputOptions("EmerdeTest", string.Empty, false, string.Empty, true),
+            new FfmpegSegmentOptions(30, SegmentTimeUnitHelper.Seconds));
+
+        try
+        {
+            using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(commandPath));
+            System.Text.Json.JsonElement segmentOptions = document.RootElement.GetProperty("SegmentOptions");
+
+            Assert.Equal(30, segmentOptions.GetProperty("Value").GetInt64());
+            Assert.Equal(SegmentTimeUnitHelper.Seconds, segmentOptions.GetProperty("Unit").GetInt32());
+        }
+        finally
+        {
+            File.Delete(commandPath);
+        }
+    }
+
+    [Fact]
     public void BuildAudioMappingArguments_AddsOriginalAndOptimizedTracks()
     {
         IReadOnlyList<string> arguments = Recorder.BuildAudioMappingArguments(useOptimizedAudio: true);
@@ -297,6 +436,27 @@ public sealed class RecorderTests
         Assert.Equal("12", argumentList[argumentList.IndexOf("-reconnect_max_retries") + 1]);
         Assert.Equal("pipe:1", argumentList[argumentList.IndexOf("-progress") + 1]);
         Assert.Equal("1", argumentList[argumentList.IndexOf("-stats_period") + 1]);
+    }
+
+    [Fact]
+    public void BuildArguments_DoesNotAdvertiseUnsupportedSizeSegmentOption()
+    {
+        Recorder recorder = new() { Url = "https://example.test/live.flv" };
+
+        IReadOnlyList<string> arguments = recorder.BuildArguments(
+            @"D:\records\Host_%03d.ts",
+            false,
+            string.Empty,
+            string.Empty,
+            "EmerdeTest",
+            true,
+            true,
+            100_000_000,
+            SegmentTimeUnitHelper.Megabytes,
+            new VideoRecordingMetadata(),
+            false);
+
+        Assert.DoesNotContain("-segment_size", arguments);
     }
 
     [Theory]

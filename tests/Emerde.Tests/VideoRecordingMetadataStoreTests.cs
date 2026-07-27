@@ -4,6 +4,26 @@ namespace Emerde.Tests;
 
 public sealed class VideoRecordingMetadataStoreTests
 {
+    [Fact]
+    public void FromTags_ReadsEmbeddedMetadataDictionary()
+    {
+        Dictionary<string, string> tags = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["emerde_nick_name"] = "Host",
+            ["emerde_room_url"] = "https://example.test/room",
+            ["emerde_title"] = "Live title",
+            ["emerde_recorded_at"] = "2026-07-27 22:30:00",
+        };
+
+        VideoRecordingMetadata metadata = VideoRecordingMetadataStore.FromTags(tags, "record.mkv");
+
+        Assert.Equal("record.mkv", metadata.FileName);
+        Assert.Equal("Host", metadata.NickName);
+        Assert.Equal("https://example.test/room", metadata.RoomUrl);
+        Assert.Equal("Live title", metadata.Title);
+        Assert.Equal(new DateTime(2026, 7, 27, 22, 30, 0), metadata.RecordedAt);
+    }
+
     [Theory]
     [InlineData(".ts")]
     [InlineData(".flv")]

@@ -297,7 +297,8 @@ internal static class VideoRecordingMetadataStore
     {
         string extension = Path.GetExtension(targetFileName);
         return extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".mov", StringComparison.OrdinalIgnoreCase);
+            || extension.Equals(".mov", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".m4v", StringComparison.OrdinalIgnoreCase);
     }
 
     public static VideoRecordingMetadata FromTags(JsonElement tags, string fileName)
@@ -320,6 +321,34 @@ internal static class VideoRecordingMetadataStore
         };
 
         string recordedAtText = First(GetTag(tags, "emerde_recorded_at"), GetTag(tags, "creation_time"), GetTag(tags, "date"));
+        if (DateTime.TryParse(recordedAtText, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal, out DateTime recordedAt))
+        {
+            metadata.RecordedAt = recordedAt;
+        }
+
+        return metadata;
+    }
+
+    public static VideoRecordingMetadata FromTags(IReadOnlyDictionary<string, string> tags, string fileName)
+    {
+        string Get(string key)
+        {
+            return tags.TryGetValue(key, out string? value) ? value : string.Empty;
+        }
+
+        VideoRecordingMetadata metadata = new()
+        {
+            FileName = First(Get("emerde_file_name"), fileName),
+            NickName = First(Get("emerde_nick_name"), Get("artist")),
+            RoomUrl = Get("emerde_room_url"),
+            Platform = Get("emerde_platform"),
+            Title = First(Get("emerde_title"), Get("title")),
+            Resolution = Get("emerde_resolution"),
+            Bitrate = Get("emerde_bitrate"),
+            CoverPath = Get("emerde_cover_path"),
+        };
+
+        string recordedAtText = First(Get("emerde_recorded_at"), Get("creation_time"), Get("date"));
         if (DateTime.TryParse(recordedAtText, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal, out DateTime recordedAt))
         {
             metadata.RecordedAt = recordedAt;

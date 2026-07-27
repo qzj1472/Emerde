@@ -13,9 +13,11 @@ internal static class RecordingRecoveryService
         WriteIndented = true,
     };
 
-    private static readonly ConcurrentDictionary<string, Task> ProcessingTasks = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, Lazy<Task>> ProcessingTasks = new(StringComparer.OrdinalIgnoreCase);
     private static readonly SemaphoreSlim PendingOptionsUpdateGate = new(1, 1);
+    private static readonly object StartupMaintenanceLock = new();
     private static readonly DateTime ProcessStartedAtUtc = Process.GetCurrentProcess().StartTime.ToUniversalTime();
+    private static Task? startupMaintenanceTask;
 
     public static string? Register(string sourcePattern, RoomRecordingOptions options, string roomUrl = "")
     {
@@ -98,47 +100,77 @@ internal static class RecordingRecoveryService
             targetFormat = Path.GetExtension(item.SourcePattern);
         }
 
-        string temporaryPath = path + ".tmp";
-        try
+        if (!string.IsNullOrWhiteSpace(roomUrl))
         {
-            if (!string.IsNullOrWhiteSpace(roomUrl))
+            item.RoomUrl = roomUrl;
+        }
+        if (IsUsableSource(item.CompletedTargetPath))
+        {
+            return Save(path, item);
+        }
+        if (!string.Equals(item.TargetFormat, targetFormat, StringComparison.OrdinalIgnoreCase))
+        {
+            item.CompletedSources.Clear();
+            item.CompletedTargetPath = string.Empty;
+            string sourceFormat = Path.GetExtension(item.SourcePattern);
+            if (item.MergeSessionParts
+                && sourceFormat.Equals(targetFormat, StringComparison.OrdinalIgnoreCase)
+                && IsUsableSource(item.IntermediateTargetPath))
             {
-                item.RoomUrl = roomUrl;
+                item.CompletedTargetPath = item.IntermediateTargetPath;
+                item.IntermediateTargetPath = string.Empty;
             }
-            item.TargetFormat = targetFormat;
-            item.RemoveSource = options.IsRemoveTs;
-            using (FileStream stream = new(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None))
-            using (StreamWriter writer = new(stream, new System.Text.UTF8Encoding(false)))
-            {
-                writer.Write(JsonSerializer.Serialize(item, JsonOptions));
-                writer.Flush();
-                stream.Flush(flushToDisk: true);
-            }
-            File.Move(temporaryPath, path, overwrite: true);
-            return true;
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            AppSessionLogger.WriteException(e);
-            return false;
-        }
-        finally
-        {
-            DeleteMarker(temporaryPath);
-        }
+        item.TargetFormat = targetFormat;
+        item.RemoveSource = options.IsRemoveTs;
+        return Save(path, item);
     }
 
     public static void QueueRun()
     {
-        _ = Task.Run(RunStartupMaintenanceAsync);
+        lock (StartupMaintenanceLock)
+        {
+            startupMaintenanceTask ??= Task.Run(RunStartupMaintenanceAsync);
+        }
     }
 
     private static async Task RunStartupMaintenanceAsync()
     {
-        DeleteIncompleteMarkers();
-        DeleteStaleTemporaryMediaFiles();
-        await ProcessPendingAsync(GetPendingPaths());
-        await RecordingCleanupService.RunAsync();
+        try
+        {
+            DeleteIncompleteMarkers();
+        }
+        catch (Exception e)
+        {
+            AppSessionLogger.WriteException(e);
+        }
+
+        try
+        {
+            DeleteStaleTemporaryMediaFiles();
+        }
+        catch (Exception e)
+        {
+            AppSessionLogger.WriteException(e);
+        }
+
+        try
+        {
+            await ProcessPendingAsync(GetPendingPaths());
+        }
+        catch (Exception e)
+        {
+            AppSessionLogger.WriteException(e);
+        }
+
+        try
+        {
+            await RecordingCleanupService.RunAsync();
+        }
+        catch (Exception e)
+        {
+            AppSessionLogger.WriteException(e);
+        }
     }
 
     private static void DeleteIncompleteMarkers()
@@ -171,10 +203,20 @@ internal static class RecordingRecoveryService
 
     private static async Task ProcessPendingAsync(IEnumerable<string> paths)
     {
-        foreach (string path in paths)
+        using SemaphoreSlim concurrency = new(2, 2);
+        Task[] tasks = paths.Select(async path =>
         {
-            await ProcessAsync(path);
-        }
+            await concurrency.WaitAsync();
+            try
+            {
+                await ProcessAsync(path);
+            }
+            finally
+            {
+                concurrency.Release();
+            }
+        }).ToArray();
+        await Task.WhenAll(tasks);
     }
 
     private static string[] GetPendingPaths()
@@ -197,8 +239,20 @@ internal static class RecordingRecoveryService
 
     public static async Task ProcessAsync(string path)
     {
-        string lockKey = Path.GetFullPath(path);
-        Task processingTask = ProcessingTasks.GetOrAdd(lockKey, _ => ProcessCoreAsync(path));
+        string lockKey;
+        try
+        {
+            lockKey = Path.GetFullPath(path);
+        }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            AppSessionLogger.WriteException(e);
+            return;
+        }
+        Lazy<Task> processing = ProcessingTasks.GetOrAdd(
+            lockKey,
+            _ => new Lazy<Task>(() => ProcessCoreAsync(path), LazyThreadSafetyMode.ExecutionAndPublication));
+        Task processingTask = processing.Value;
         try
         {
             await processingTask;
@@ -209,7 +263,7 @@ internal static class RecordingRecoveryService
         }
         finally
         {
-            if (ProcessingTasks.TryGetValue(lockKey, out Task? current) && ReferenceEquals(current, processingTask))
+            if (ProcessingTasks.TryGetValue(lockKey, out Lazy<Task>? current) && ReferenceEquals(current, processing))
             {
                 _ = ProcessingTasks.TryRemove(lockKey, out _);
             }
@@ -221,11 +275,77 @@ internal static class RecordingRecoveryService
         PendingRecording? item = Load(path, out string? invalidReason);
         if (item == null)
         {
-            QuarantineInvalidMarker(path, invalidReason ?? "恢复标记内容无效");
+            if (!string.IsNullOrWhiteSpace(invalidReason))
+            {
+                QuarantineInvalidMarker(path, invalidReason);
+            }
             return;
         }
 
-        bool completed = await ProcessSourcePatternAsync(item.SourcePattern, item.TargetFormat, item.RemoveSource, item.MergeSessionParts);
+        if (IsUsableSource(item.CompletedTargetPath))
+        {
+            if (!item.MergeSessionParts || DeleteSources(item.SourcePattern))
+            {
+                DeleteMarker(path);
+            }
+            return;
+        }
+
+        bool completed = await ProcessSourcePatternAsync(
+            item.SourcePattern,
+            item.TargetFormat,
+            item.RemoveSource,
+            item.MergeSessionParts,
+            completedTargetPath =>
+            {
+                item.CompletedTargetPath = completedTargetPath;
+                if (!Save(path, item))
+                {
+                    throw new IOException("pending recording completion state could not be saved");
+                }
+            },
+            item.CompletedSources,
+            (sourcePath, completedTargetPath) =>
+            {
+                item.CompletedSources[sourcePath] = completedTargetPath;
+                if (!Save(path, item))
+                {
+                    throw new IOException("pending recording source completion state could not be saved");
+                }
+            },
+            item.IntermediateTargetPath,
+            intermediateTargetPath =>
+            {
+                item.IntermediateTargetPath = intermediateTargetPath;
+                if (!Save(path, item))
+                {
+                    throw new IOException("pending recording intermediate state could not be saved");
+                }
+            },
+            reservedTargetPath =>
+            {
+                item.CompletedTargetPath = reservedTargetPath;
+                if (!Save(path, item))
+                {
+                    throw new IOException("pending recording reserved target state could not be saved");
+                }
+            },
+            (sourcePath, reservedTargetPath) =>
+            {
+                item.CompletedSources[sourcePath] = reservedTargetPath;
+                if (!Save(path, item))
+                {
+                    throw new IOException("pending recording reserved source target state could not be saved");
+                }
+            },
+            reservedIntermediatePath =>
+            {
+                item.IntermediateTargetPath = reservedIntermediatePath;
+                if (!Save(path, item))
+                {
+                    throw new IOException("pending recording reserved intermediate state could not be saved");
+                }
+            });
         if (GetSourceFiles(item.SourcePattern).Length == 0)
         {
             DeleteMarker(path);
@@ -243,7 +363,19 @@ internal static class RecordingRecoveryService
         return ProcessSourcePatternAsync(sourcePattern, targetFormat, removeSource, mergeSessionParts: false);
     }
 
-    internal static async Task<bool> ProcessSourcePatternAsync(string sourcePattern, string targetFormat, bool removeSource, bool mergeSessionParts)
+    internal static async Task<bool> ProcessSourcePatternAsync(
+        string sourcePattern,
+        string targetFormat,
+        bool removeSource,
+        bool mergeSessionParts,
+        Action<string>? onMergeCompleted = null,
+        IReadOnlyDictionary<string, string>? completedSources = null,
+        Action<string, string>? onSourceCompleted = null,
+        string? intermediateTargetPath = null,
+        Action<string>? onIntermediateCompleted = null,
+        Action<string>? onMergeTargetReserved = null,
+        Action<string, string>? onSourceTargetReserved = null,
+        Action<string>? onIntermediateTargetReserved = null)
     {
         string[] sources = GetSourceFiles(sourcePattern);
         if (sources.Length == 0)
@@ -257,7 +389,12 @@ internal static class RecordingRecoveryService
             bool targetIsSourceFormat = sourceFormat.Equals(targetFormat, StringComparison.OrdinalIgnoreCase);
             if (targetIsSourceFormat || removeSource)
             {
-                if (!await new Converter().ExecuteSessionPartsAsync(sourcePattern, sources, targetFormat))
+                if (!await new Converter().ExecuteSessionPartsAsync(
+                    sourcePattern,
+                    sources,
+                    targetFormat,
+                    onCompleted: onMergeCompleted,
+                    onTargetReserved: onMergeTargetReserved))
                 {
                     return false;
                 }
@@ -271,14 +408,34 @@ internal static class RecordingRecoveryService
                 return true;
             }
 
-            string mergedSource = Converter.BuildSessionTargetPath(sourcePattern, sourceFormat);
-            if (!IsUsableSource(mergedSource)
-                && !await new Converter().ExecuteSessionPartsAsync(sourcePattern, sources, sourceFormat))
+            string mergedSource = IsUsableSource(intermediateTargetPath)
+                ? intermediateTargetPath!
+                : string.Empty;
+            if (string.IsNullOrWhiteSpace(mergedSource))
             {
-                return false;
+                string? createdIntermediate = null;
+                bool merged = await new Converter().ExecuteSessionPartsAsync(
+                    sourcePattern,
+                    sources,
+                    sourceFormat,
+                    onCompleted: completedPath =>
+                    {
+                        createdIntermediate = completedPath;
+                        onIntermediateCompleted?.Invoke(completedPath);
+                    },
+                    onTargetReserved: onIntermediateTargetReserved);
+                if (!merged || !IsUsableSource(createdIntermediate))
+                {
+                    return false;
+                }
+                mergedSource = createdIntermediate!;
             }
 
-            bool completed = await new Converter().ExecuteAsync(mergedSource, targetFormat);
+            bool completed = await new Converter().ExecuteWithCompletionAsync(
+                mergedSource,
+                targetFormat,
+                onMergeCompleted ?? (_ => { }),
+                onTargetReserved: onMergeTargetReserved);
             if (completed)
             {
                 foreach (string source in sources)
@@ -293,9 +450,26 @@ internal static class RecordingRecoveryService
 
         foreach (string source in sources)
         {
-            if (!await new Converter().ExecuteAsync(source, targetFormat))
+            string? completedTarget = completedSources?
+                .FirstOrDefault(item => item.Key.Equals(source, StringComparison.OrdinalIgnoreCase))
+                .Value;
+            if (!IsUsableSource(completedTarget))
             {
-                return false;
+                string? createdTarget = null;
+                bool converted = await new Converter().ExecuteWithCompletionAsync(
+                    source,
+                    targetFormat,
+                    completedPath =>
+                    {
+                        onSourceCompleted?.Invoke(source, completedPath);
+                        createdTarget = completedPath;
+                    },
+                    onTargetReserved: reservedPath => onSourceTargetReserved?.Invoke(source, reservedPath));
+                if (!converted || !IsUsableSource(createdTarget))
+                {
+                    return false;
+                }
+                completedTarget = createdTarget!;
             }
 
             if (removeSource)
@@ -327,11 +501,24 @@ internal static class RecordingRecoveryService
             return [];
         }
 
-        Regex regex = new("^" + Regex.Escape(pattern).Replace("%03d", @"\d{3,}") + "$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        return Directory.EnumerateFiles(directory)
-            .Where(file => regex.IsMatch(Path.GetFileName(file)) && IsUsableSource(file))
-            .OrderBy(file => file, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        try
+        {
+            Regex regex = new(
+                "^" + Regex.Escape(pattern).Replace("%03d", @"\d{3,}") + "$",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking,
+                TimeSpan.FromMilliseconds(250));
+            string[] segments = MediaFileCatalog.OrderSegmentPaths(
+                    Directory.EnumerateFiles(directory)
+                        .Where(file => regex.IsMatch(Path.GetFileName(file)) && IsUsableSource(file)),
+                    pattern)
+                .ToArray();
+            return IsUsableSource(sourcePattern) ? [sourcePattern, .. segments] : segments;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or RegexMatchTimeoutException)
+        {
+            AppSessionLogger.WriteException(e);
+            return [];
+        }
     }
 
     internal static bool IsPendingSourcePath(string path)
@@ -342,11 +529,33 @@ internal static class RecordingRecoveryService
     internal static string[] GetPendingSourcePatterns()
     {
         return GetPendingPaths()
-            .Select(path => Load(path, out _))
+            .Select(path => Load(path, out _, validateAllowedDirectory: false))
             .Where(item => item != null)
-            .Select(item => item!.SourcePattern)
+            .SelectMany(item => GetProtectedPaths(item!))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static IEnumerable<string> GetProtectedPaths(PendingRecording item)
+    {
+        yield return item.SourcePattern;
+        foreach (string source in GetSourceFiles(item.SourcePattern))
+        {
+            yield return source;
+        }
+        if (!string.IsNullOrWhiteSpace(item.IntermediateTargetPath))
+        {
+            yield return item.IntermediateTargetPath;
+        }
+        if (!string.IsNullOrWhiteSpace(item.CompletedTargetPath))
+        {
+            yield return item.CompletedTargetPath;
+        }
+        foreach ((string source, string target) in item.CompletedSources)
+        {
+            yield return source;
+            yield return target;
+        }
     }
 
     internal static bool IsPendingSourcePath(string path, IReadOnlyCollection<string> sourcePatterns)
@@ -364,8 +573,13 @@ internal static class RecordingRecoveryService
         return sourcePatterns.Any(pattern => MediaOperationRegistry.PathMatches(fullPath, pattern));
     }
 
-    private static bool IsUsableSource(string path)
+    private static bool IsUsableSource(string? path)
     {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
         try
         {
             FileInfo file = new(path);
@@ -477,7 +691,7 @@ internal static class RecordingRecoveryService
         Task[] tasks = markerPaths
             .Select(Path.GetFullPath)
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(path => ProcessingTasks.TryGetValue(path, out Task? task) ? task : null)
+            .Select(path => ProcessingTasks.TryGetValue(path, out Lazy<Task>? task) ? task.Value : null)
             .Where(task => task != null)
             .Select(task => task!)
             .ToArray();
@@ -516,6 +730,12 @@ internal static class RecordingRecoveryService
             PendingRecording? item = File.Exists(path)
                 ? JsonSerializer.Deserialize<PendingRecording>(File.ReadAllText(path))
                 : null;
+            if (item != null)
+            {
+                item.CompletedSources = new Dictionary<string, string>(
+                    item.CompletedSources ?? [],
+                    StringComparer.OrdinalIgnoreCase);
+            }
             invalidReason = GetValidationError(item, validateAllowedDirectory);
             return invalidReason == null ? item : null;
         }
@@ -523,6 +743,11 @@ internal static class RecordingRecoveryService
         {
             AppSessionLogger.WriteException(e);
             invalidReason = $"JSON 语法损坏：{e.Message}";
+            return null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(e);
             return null;
         }
     }
@@ -560,6 +785,59 @@ internal static class RecordingRecoveryService
             return item.MergeSessionParts
                 ? "目标格式只能是 MP4、MKV、TS 或 FLV"
                 : "目标格式只能是 MP4 或 MKV";
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.CompletedTargetPath))
+        {
+            if (!Path.IsPathFullyQualified(item.CompletedTargetPath)
+                || !MediaFileCatalog.IsMediaPath(item.CompletedTargetPath)
+                || !Path.GetExtension(item.CompletedTargetPath).Equals(item.TargetFormat, StringComparison.OrdinalIgnoreCase))
+            {
+                return "已完成目标文件路径或格式无效";
+            }
+
+            try
+            {
+                string sourceDirectory = Path.GetDirectoryName(Path.GetFullPath(item.SourcePattern)) ?? string.Empty;
+                string targetDirectory = Path.GetDirectoryName(Path.GetFullPath(item.CompletedTargetPath)) ?? string.Empty;
+                if (!sourceDirectory.Equals(targetDirectory, StringComparison.OrdinalIgnoreCase))
+                {
+                    return "已完成目标文件不在源录制目录中";
+                }
+            }
+            catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                return $"已完成目标文件路径无效：{e.Message}";
+            }
+        }
+
+        string stateDirectory;
+        try
+        {
+            stateDirectory = Path.GetDirectoryName(Path.GetFullPath(item.SourcePattern)) ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(item.IntermediateTargetPath)
+                && (!Path.IsPathFullyQualified(item.IntermediateTargetPath)
+                    || !Path.GetExtension(item.IntermediateTargetPath).Equals(Path.GetExtension(item.SourcePattern), StringComparison.OrdinalIgnoreCase)
+                    || !(Path.GetDirectoryName(Path.GetFullPath(item.IntermediateTargetPath)) ?? string.Empty).Equals(stateDirectory, StringComparison.OrdinalIgnoreCase)))
+            {
+                return "中间合并文件路径无效";
+            }
+
+            foreach ((string completedSource, string completedTarget) in item.CompletedSources)
+            {
+                if (!Path.IsPathFullyQualified(completedSource)
+                    || !Path.IsPathFullyQualified(completedTarget)
+                    || !(Path.GetDirectoryName(Path.GetFullPath(completedSource)) ?? string.Empty).Equals(stateDirectory, StringComparison.OrdinalIgnoreCase)
+                    || !(Path.GetDirectoryName(Path.GetFullPath(completedTarget)) ?? string.Empty).Equals(stateDirectory, StringComparison.OrdinalIgnoreCase)
+                    || !Path.GetExtension(completedTarget).Equals(item.TargetFormat, StringComparison.OrdinalIgnoreCase))
+                {
+                    return "已完成源文件状态无效";
+                }
+            }
+        }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return $"已完成录制状态路径无效：{e.Message}";
         }
 
         string sourcePath;
@@ -609,7 +887,10 @@ internal static class RecordingRecoveryService
             AttributesToSkip = FileAttributes.ReparsePoint,
         };
 
-        foreach (string root in MediaFileCatalog.GetConfiguredSaveFolders().Where(Directory.Exists))
+        foreach (string root in MediaFileCatalog.GetConfiguredSaveFolders()
+            .Concat(SaveFolderHelper.GetFallbackSaveFolders())
+            .Where(Directory.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase))
         {
             try
             {
@@ -654,6 +935,52 @@ internal static class RecordingRecoveryService
         }
     }
 
+    private static bool DeleteSources(string sourcePattern)
+    {
+        bool deleted = true;
+        foreach (string source in GetSourceFiles(sourcePattern))
+        {
+            try
+            {
+                File.Delete(source);
+                VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(source);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                deleted = false;
+                AppSessionLogger.WriteException(e);
+            }
+        }
+        return deleted && GetSourceFiles(sourcePattern).Length == 0;
+    }
+
+    private static bool Save(string path, PendingRecording item)
+    {
+        string directory = Path.GetDirectoryName(path) ?? AppPaths.PendingRecordingsDirectory;
+        string temporaryPath = Path.Combine(directory, $".emerde-pending-{Guid.NewGuid():N}.tmp");
+        try
+        {
+            using (FileStream stream = new(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            using (StreamWriter writer = new(stream, new System.Text.UTF8Encoding(false)))
+            {
+                writer.Write(JsonSerializer.Serialize(item, JsonOptions));
+                writer.Flush();
+                stream.Flush(flushToDisk: true);
+            }
+            File.Move(temporaryPath, path, overwrite: true);
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(e);
+            return false;
+        }
+        finally
+        {
+            DeleteMarker(temporaryPath);
+        }
+    }
+
     private static void QuarantineInvalidMarker(string path, string reason)
     {
         try
@@ -689,6 +1016,12 @@ internal static class RecordingRecoveryService
         public bool MergeSessionParts { get; set; }
 
         public string RoomUrl { get; set; } = string.Empty;
+
+        public string CompletedTargetPath { get; set; } = string.Empty;
+
+        public Dictionary<string, string> CompletedSources { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public string IntermediateTargetPath { get; set; } = string.Empty;
     }
 }
 
