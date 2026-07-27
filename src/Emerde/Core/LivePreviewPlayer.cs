@@ -36,6 +36,7 @@ public sealed class LivePreviewPlayer : IDisposable
     private readonly LibVLC libVlc;
     private readonly List<PreviewSession> sessions = [];
     private readonly HashSet<Task> pendingSessionDisposals = [];
+    private Task sessionDisposalTail = Task.CompletedTask;
     private readonly System.Threading.Timer standbyTimer;
     private PreviewSession currentSession;
     private bool muted = true;
@@ -298,9 +299,27 @@ public sealed class LivePreviewPlayer : IDisposable
             .ToArray();
     }
 
-    public Task<(uint Width, uint Height)?> ResolveVideoDimensionsAsync(CancellationToken cancellationToken = default)
+    public async Task<(uint Width, uint Height)?> ResolveVideoDimensionsAsync(CancellationToken cancellationToken = default)
     {
-        return Volatile.Read(ref currentSession).ResolveVideoDimensionsAsync(cancellationToken);
+        PreviewSession session;
+        lock (syncRoot)
+        {
+            if (disposed)
+            {
+                return null;
+            }
+
+            session = currentSession;
+        }
+
+        try
+        {
+            return await session.ResolveVideoDimensionsAsync(cancellationToken);
+        }
+        catch (ObjectDisposedException)
+        {
+            return null;
+        }
     }
 
     public void Dispose()
@@ -395,6 +414,11 @@ public sealed class LivePreviewPlayer : IDisposable
         lock (syncRoot)
         {
             ThrowIfDisposed();
+            if (sessions.Count == 1 && ReferenceEquals(sessions[0], currentSession) && !currentSession.HasMedia)
+            {
+                return [];
+            }
+
             stoppedSessions = sessions.ToArray();
             PreviewSession replacement = CreateSession(string.Empty);
             sessions.Clear();
@@ -435,13 +459,19 @@ public sealed class LivePreviewPlayer : IDisposable
             return;
         }
 
-        Task cleanup = Task.Run(() =>
-        {
-            foreach (PreviewSession session in removedSessions)
+        PreviewSession[] sessionsToDispose = removedSessions.ToArray();
+        Task cleanup = sessionDisposalTail.ContinueWith(
+            _ =>
             {
-                session.Dispose();
-            }
-        });
+                foreach (PreviewSession session in sessionsToDispose)
+                {
+                    session.Dispose();
+                }
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.None,
+            TaskScheduler.Default);
+        sessionDisposalTail = cleanup;
         pendingSessionDisposals.Add(cleanup);
         _ = cleanup.ContinueWith(
             completed =>

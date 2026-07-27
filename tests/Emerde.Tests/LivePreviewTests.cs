@@ -78,6 +78,19 @@ public sealed class LivePreviewTests
     }
 
     [Fact]
+    public void LivePreviewFrameSource_CopiesLatestFrameBeforeCoalescingPresentation()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "LivePreviewFrameSource.cs"));
+        int unlockIndex = source.IndexOf("private void UnlockVideo", StringComparison.Ordinal);
+        int presentIndex = source.IndexOf("private void PresentFrame", unlockIndex, StringComparison.Ordinal);
+        string unlockMethod = source[unlockIndex..presentIndex];
+
+        Assert.True(unlockMethod.IndexOf("Marshal.Copy", StringComparison.Ordinal)
+            < unlockMethod.IndexOf("Interlocked.CompareExchange(ref framePending", StringComparison.Ordinal));
+        Assert.Contains("lock (syncRoot)", source[presentIndex..]);
+    }
+
+    [Fact]
     public void LivePreviewPlayer_UsesImmediateAudioSwitchingWithTrackRecovery()
     {
         Assert.Equal(TimeSpan.FromMilliseconds(10), LivePreviewPlayer.AudioTrackRestoreStep);
@@ -499,7 +512,7 @@ public sealed class LivePreviewTests
     }
 
     [Fact]
-    public void PreviewUrl_UsesRecordUrlBeforeHls()
+    public void PreviewUrl_UsesFlvBeforeRecordUrl()
     {
         RoomStatusReactive room = new()
         {
@@ -509,12 +522,12 @@ public sealed class LivePreviewTests
             HlsUrl = "https://example.test/live.m3u8",
         };
 
-        Assert.Equal("https://example.test/live-record.flv", room.PreviewUrl);
+        Assert.Equal("https://example.test/live.flv", room.PreviewUrl);
         Assert.Equal("FLV", room.PreviewSourceText);
     }
 
     [Fact]
-    public void PreviewSourceText_UsesRecordUrlFormat()
+    public void PreviewSourceText_UsesLowLatencyFlvFormat()
     {
         RoomStatusReactive room = new()
         {
@@ -523,7 +536,7 @@ public sealed class LivePreviewTests
             FlvUrl = "https://example.test/live.flv",
         };
 
-        Assert.Equal("HLS", room.PreviewSourceText);
+        Assert.Equal("FLV", room.PreviewSourceText);
     }
 
     [Fact]

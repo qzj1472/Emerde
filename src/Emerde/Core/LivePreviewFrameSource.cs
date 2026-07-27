@@ -183,8 +183,7 @@ public sealed class LivePreviewFrameSource : IDisposable
         }
 
         long timestamp = System.Diagnostics.Stopwatch.GetTimestamp();
-        if (timestamp - Interlocked.Read(ref lastFrameTimestamp) < MinimumFrameInterval
-            || Interlocked.CompareExchange(ref framePending, 1, 0) != 0)
+        if (timestamp - Interlocked.Read(ref lastFrameTimestamp) < MinimumFrameInterval)
         {
             return;
         }
@@ -197,7 +196,6 @@ public sealed class LivePreviewFrameSource : IDisposable
         {
             if (disposed || picture == 0 || framePixels == null)
             {
-                Interlocked.Exchange(ref framePending, 0);
                 return;
             }
 
@@ -209,6 +207,11 @@ public sealed class LivePreviewFrameSource : IDisposable
         }
 
         Interlocked.Exchange(ref lastFrameTimestamp, timestamp);
+        if (Interlocked.CompareExchange(ref framePending, 1, 0) != 0)
+        {
+            return;
+        }
+
         try
         {
             _ = dispatcher.BeginInvoke(
@@ -247,28 +250,37 @@ public sealed class LivePreviewFrameSource : IDisposable
 
     private void PresentFrame(int expectedGeneration, int expectedPresentationEpoch, byte[] pixels, int currentPitch, int currentHeight)
     {
+        bool firstFramePresented = false;
         try
         {
-            if (disposed
-                || !IsCurrentPresentation(
-                    expectedGeneration,
-                    generation,
-                    expectedPresentationEpoch,
-                    Volatile.Read(ref presentationEpoch),
-                    Volatile.Read(ref presentationEnabled))
-                || source == null)
+            lock (syncRoot)
             {
-                return;
+                if (disposed
+                    || !IsCurrentPresentation(
+                        expectedGeneration,
+                        generation,
+                        expectedPresentationEpoch,
+                        Volatile.Read(ref presentationEpoch),
+                        Volatile.Read(ref presentationEnabled))
+                    || source == null)
+                {
+                    return;
+                }
+
+                source.WritePixels(
+                    new System.Windows.Int32Rect(0, 0, source.PixelWidth, source.PixelHeight),
+                    pixels,
+                    currentPitch,
+                    0);
+                if (presentedGeneration != expectedGeneration)
+                {
+                    presentedGeneration = expectedGeneration;
+                    firstFramePresented = true;
+                }
             }
 
-            source.WritePixels(
-                new System.Windows.Int32Rect(0, 0, source.PixelWidth, source.PixelHeight),
-                pixels,
-                currentPitch,
-                0);
-            if (presentedGeneration != expectedGeneration)
+            if (firstFramePresented)
             {
-                presentedGeneration = expectedGeneration;
                 FirstFramePresented?.Invoke(this, EventArgs.Empty);
             }
         }
