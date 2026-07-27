@@ -90,4 +90,30 @@ public sealed class LogExporterTests
         using StreamReader reader = new(entry.Open());
         return reader.ReadToEnd();
     }
+
+    [Fact]
+    public void GetLogFilesForDate_IncludesSessionSegmentCreatedAfterMidnight()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "EmerdeLogExporterTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            string mainLog = Path.Combine(root, "20260724_235958_21460_20260725.log");
+            string errorLog = Path.Combine(root, "20260724_235958_21460_20260725.error.log");
+            string previousDayLog = Path.Combine(root, "20260724_235958_21460.log");
+            File.WriteAllText(mainLog, "main");
+            File.WriteAllText(errorLog, "error");
+            File.WriteAllText(previousDayLog, "previous");
+
+            string[] files = LogExporter.GetLogFilesForDate(root, new DateTime(2026, 7, 25));
+
+            Assert.Contains(mainLog, files);
+            Assert.Contains(errorLog, files);
+            Assert.DoesNotContain(previousDayLog, files);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
 }

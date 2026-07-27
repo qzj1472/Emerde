@@ -54,7 +54,9 @@ internal static class LogExporter
     {
         string fileName = Path.GetFileName(file);
         return fileName.StartsWith(compactPrefix, StringComparison.OrdinalIgnoreCase) ||
-               fileName.StartsWith(dashedPrefix, StringComparison.OrdinalIgnoreCase);
+               fileName.StartsWith(dashedPrefix, StringComparison.OrdinalIgnoreCase) ||
+               fileName.EndsWith($"_{compactPrefix}.log", StringComparison.OrdinalIgnoreCase) ||
+               fileName.EndsWith($"_{compactPrefix}.error.log", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static string CreateArchive(string targetDirectory, string archiveName, IReadOnlyList<string> files)
