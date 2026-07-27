@@ -55,6 +55,9 @@
 
     <Style TargetType="{x:Type ToolTip}">
         <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="controls:MotionAssist.IsEntranceEnabled" Value="True" />
+        <Setter Property="controls:MotionAssist.EntranceOffsetY" Value="4" />
+        <Setter Property="controls:MotionAssist.EntranceScale" Value="0.98" />
         <Setter Property="HasDropShadow" Value="True" />
         <Setter Property="Padding" Value="10,7" />
         <Setter Property="MaxWidth" Value="360" />
@@ -86,15 +89,18 @@
 
     <Style TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
         <Setter Property="MinHeight" Value="34" />
     </Style>
 
     <Style TargetType="{x:Type ToggleButton}" BasedOn="{StaticResource {x:Type ToggleButton}}">
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
         <Setter Property="MinHeight" Value="34" />
     </Style>
 
     <Style TargetType="{x:Type CheckBox}" BasedOn="{StaticResource {x:Type CheckBox}}">
+        <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
         <Setter Property="MinHeight" Value="24" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
@@ -164,6 +170,7 @@
 
     <Style TargetType="{x:Type ui:Button}" BasedOn="{StaticResource {x:Type ui:Button}}">
         <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
+        <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
     </Style>
 
     <Style TargetType="{x:Type vio:MessageBoxDialog}" BasedOn="{StaticResource {x:Type vio:MessageBoxDialog}}">
