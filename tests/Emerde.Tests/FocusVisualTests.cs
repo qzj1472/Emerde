@@ -1,3 +1,4 @@
+using Emerde.Controls;
 using System.Xml.Linq;
 using Emerde.Core;
 
@@ -69,6 +70,8 @@ public sealed class FocusVisualTests
         Assert.Contains("PulseAnimationGeneration", source);
         Assert.Contains("ResetPulse(state)", source);
         Assert.Contains("scaleYAnimation.Completed", source);
+        Assert.DoesNotContain("AnimateInteractionScale", source);
+        Assert.Contains("ReadLocalValue(FrameworkElement.RenderTransformOriginProperty)", source);
     }
 
     [Fact]
@@ -92,7 +95,8 @@ public sealed class FocusVisualTests
         Assert.Contains("dialog.Closing += DialogClosing", source);
         Assert.Contains("PlayContentDialogExitTransformAsync(LocalSettingsSurface)", source);
         Assert.DoesNotContain("MotionAssist.PlayExitAsync(LocalSettingsSurface)", source);
-        Assert.DoesNotContain("args.GetDeferral()", source);
+        Assert.Contains("args.GetDeferral()", source);
+        Assert.Contains("deferral.Complete()", source);
     }
 
     [Theory]
@@ -195,6 +199,153 @@ public sealed class FocusVisualTests
         Assert.Contains("ControlStrokeColorDefaultBrush", source);
     }
 
+    [Theory]
+    [InlineData("{x:Type TextBox}")]
+    [InlineData("{x:Type ui:TextBox}")]
+    [InlineData("{x:Type ui:PasswordBox}")]
+    [InlineData("{x:Type ui:NumberBox}")]
+    public void GlobalInputStyles_RemoveBottomAccentAndCommitOnEnter(string targetType)
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Resources.xaml"));
+        XElement style = document.Descendants()
+            .Single(element => element.Name.LocalName == "Style" && (string?)element.Attribute("TargetType") == targetType);
+
+        Assert.Contains(style.Descendants(), element =>
+            element.Name.LocalName == "SolidColorBrush"
+            && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "ControlStrokeColorDefaultBrush"
+            && (string?)element.Attribute("Color") == "Transparent");
+        Assert.Contains(style.Descendants(), element =>
+            element.Name.LocalName == "SolidColorBrush"
+            && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "TextControlFocusedBorderBrush"
+            && (string?)element.Attribute("Color") == "Transparent");
+        Assert.Contains(style.Elements().Where(element => element.Name.LocalName == "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "controls:InputAssist.CommitOnEnter"
+            && (string?)setter.Attribute("Value") == "True");
+    }
+
+    [Fact]
+    public void InputAssist_UpdatesExplicitTextBindingSource()
+    {
+        string value = "before";
+        Exception? error = null;
+        Thread thread = new(() =>
+        {
+            try
+            {
+                System.Windows.Controls.TextBox textBox = new();
+                System.Windows.Data.Binding binding = new()
+                {
+                    Source = new ExplicitBindingTarget(
+                        () => value,
+                        updated => value = updated),
+                    Path = new System.Windows.PropertyPath(nameof(ExplicitBindingTarget.Value)),
+                    Mode = System.Windows.Data.BindingMode.TwoWay,
+                    UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.Explicit,
+                };
+                System.Windows.Data.BindingOperations.SetBinding(textBox, System.Windows.Controls.TextBox.TextProperty, binding);
+                textBox.Text = "after";
+
+                InputAssist.UpdateBindingSources(textBox);
+            }
+            catch (Exception exception)
+            {
+                error = exception;
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        Assert.Null(error);
+        Assert.Equal("after", value);
+    }
+
+    [Fact]
+    public void InputAssist_PreservesEnterForMultilineTextBoxes()
+    {
+        Exception? error = null;
+        bool preservesMultilineEnter = false;
+        bool acceptsExplicitCommand = false;
+        Thread thread = new(() =>
+        {
+            try
+            {
+                System.Windows.Controls.TextBox textBox = new() { AcceptsReturn = true };
+                preservesMultilineEnter = !InputAssist.ShouldProcessEnter(textBox, null);
+                acceptsExplicitCommand = InputAssist.ShouldProcessEnter(
+                    textBox,
+                    new CommunityToolkit.Mvvm.Input.RelayCommand(() => { }));
+            }
+            catch (Exception exception)
+            {
+                error = exception;
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        Assert.Null(error);
+        Assert.True(preservesMultilineEnter);
+        Assert.True(acceptsExplicitCommand);
+    }
+
+    [Fact]
+    public void CompactNumberBox_NormalizesValuesToDisplayedPrecision()
+    {
+        Exception? error = null;
+        double? integerValue = null;
+        double? highPrecisionValue = null;
+        Thread thread = new(() =>
+        {
+            try
+            {
+                CompactNumberBox numberBox = new()
+                {
+                    Minimum = 0,
+                    Maximum = 10,
+                    MaxDecimalPlaces = 0,
+                    Value = 1.6,
+                };
+                integerValue = numberBox.Value;
+
+                numberBox.MaxDecimalPlaces = 99;
+                numberBox.Value = 1.2345678901234567;
+                highPrecisionValue = numberBox.Value;
+            }
+            catch (Exception exception)
+            {
+                error = exception;
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        Assert.Null(error);
+        Assert.Equal(2d, integerValue);
+        Assert.Equal(1.234567890123457d, highPrecisionValue);
+    }
+
+    [Fact]
+    public void SplitInput_ConfirmsOnEnterAndSelectsValueWhenOpened()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+        XElement input = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "SplitDurationTextBox");
+
+        Assert.Equal("{Binding ConfirmSplitCommand}", input.Attributes().Single(attribute => attribute.Name.LocalName == "InputAssist.EnterCommand").Value);
+        Assert.Equal("True", input.Attributes().Single(attribute => attribute.Name.LocalName == "InputAssist.SelectAllOnVisible").Value);
+
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Controls", "CompactNumberBox.cs"));
+        Assert.Contains("UpdateTextFromValue(force: true)", source, StringComparison.Ordinal);
+        Assert.Contains("Keyboard.ClearFocus()", source, StringComparison.Ordinal);
+
+        string assistSource = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Controls", "InputAssist.cs"));
+        Assert.Contains("if (GetCommitOnEnter(element))", assistSource, StringComparison.Ordinal);
+        Assert.Contains("Keyboard.ClearFocus()", assistSource, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void ExitConfirmationDialog_UsesApplicationContentDialogTemplate()
     {
@@ -295,7 +446,6 @@ public sealed class FocusVisualTests
 
     [Theory]
     [InlineData("RoomCardSelectionLayer", "MainWindow.xaml")]
-    [InlineData("VideoCardSelectionLayer", "ScreenRecordListWindow.xaml")]
     public void SelectionLayers_DoNotSetFinalOpacityBeforeAnimation(string elementName, string fileName)
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", fileName));
@@ -351,12 +501,12 @@ public sealed class FocusVisualTests
         Assert.Contains(style.Descendants().Where(element => element.Name.LocalName == "DoubleAnimation"), animation =>
             (string?)animation.Attribute("Storyboard.TargetName") == "ExpandSite"
             && (string?)animation.Attribute("Storyboard.TargetProperty") == "(FrameworkElement.LayoutTransform).(ScaleTransform.ScaleY)"
-            && (string?)animation.Attribute("From") == "0"
+            && animation.Attribute("From") == null
             && (string?)animation.Attribute("To") == "1");
         Assert.Contains(style.Descendants().Where(element => element.Name.LocalName == "DoubleAnimation"), animation =>
             (string?)animation.Attribute("Storyboard.TargetName") == "ExpandSite"
             && (string?)animation.Attribute("Storyboard.TargetProperty") == "(FrameworkElement.LayoutTransform).(ScaleTransform.ScaleY)"
-            && (string?)animation.Attribute("From") == "1"
+            && animation.Attribute("From") == null
             && (string?)animation.Attribute("To") == "0");
     }
 
@@ -419,16 +569,12 @@ public sealed class FocusVisualTests
         Assert.Same(surface, content.Parent);
         Assert.Equal("1", (string?)surfaceStroke.Attribute("BorderThickness"));
         Assert.Equal("1", (string?)selectionLayer.Attribute("BorderThickness"));
-        Assert.Equal("13", (string?)content.Attribute("Padding"));
+        Assert.Equal("14", (string?)content.Attribute("Padding"));
         Assert.DoesNotContain(document.Descendants(), element =>
             element.Name.LocalName == "Setter"
             && (string?)element.Attribute("TargetName") == "VideoCardShell"
             && (string?)element.Attribute("Property") is "BorderBrush" or "BorderThickness");
-        Assert.Contains(document.Descendants(), element =>
-            element.Name.LocalName == "Setter"
-            && (string?)element.Attribute("TargetName") == "VideoCardSelectionLayer"
-            && (string?)element.Attribute("Property") == "BorderBrush"
-            && (string?)element.Attribute("Value") == "#70337DFF");
+        Assert.Equal("#78337DFF", (string?)selectionLayer.Attribute("BorderBrush"));
     }
 
     [Fact]
@@ -560,5 +706,14 @@ public sealed class FocusVisualTests
         }
 
         throw new FileNotFoundException(string.Join(Path.DirectorySeparatorChar, parts));
+    }
+
+    private sealed class ExplicitBindingTarget(Func<string> getter, Action<string> setter)
+    {
+        public string Value
+        {
+            get => getter();
+            set => setter(value);
+        }
     }
 }
