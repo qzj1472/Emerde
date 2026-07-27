@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using Emerde.Core;
 using Vanara.PInvoke;
 
 namespace Emerde.Threading;
@@ -17,19 +18,28 @@ public partial class ChildProcessTracerPeriodicTimer(TimeSpan period) : IDisposa
     public HashSet<string>? WhiteList { get; set; } = null;
     private readonly object syncRoot = new();
     private Task? workerTask = null;
+    private bool ownsTokenSource;
+    private bool disposed;
 
     public void Start(CancellationTokenSource? tokenSource = null)
     {
         lock (syncRoot)
         {
+            ObjectDisposedException.ThrowIf(disposed, this);
             if (workerTask is { IsCompleted: false })
             {
                 return;
             }
 
-            TokenSource = tokenSource ?? new CancellationTokenSource();
+            if (ownsTokenSource)
+            {
+                TokenSource?.Dispose();
+            }
+            CancellationTokenSource activeSource = tokenSource ?? new CancellationTokenSource();
+            TokenSource = activeSource;
+            ownsTokenSource = tokenSource == null;
             workerTask = Task.Factory.StartNew(
-                () => StartAsync(TokenSource.Token),
+                () => StartAsync(activeSource.Token),
                 CancellationToken.None,
                 TaskCreationOptions.LongRunning,
                 TaskScheduler.Default
@@ -70,6 +80,13 @@ public partial class ChildProcessTracerPeriodicTimer(TimeSpan period) : IDisposa
         }
         catch (OperationCanceledException)
         {
+        }
+        catch (ObjectDisposedException) when (disposed)
+        {
+        }
+        catch (Exception e)
+        {
+            AppSessionLogger.WriteException(e);
         }
     }
 
@@ -135,7 +152,13 @@ public partial class ChildProcessTracerPeriodicTimer(TimeSpan period) : IDisposa
 
     public void Stop(bool killChildren = false)
     {
-        TokenSource?.Cancel();
+        try
+        {
+            TokenSource?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
 
         if (killChildren)
         {
@@ -184,8 +207,45 @@ public partial class ChildProcessTracerPeriodicTimer(TimeSpan period) : IDisposa
     [SuppressMessage("CodeQuality", "IDE0079:Remove unnecessary suppression")]
     public void Dispose()
     {
+        Task? stoppingWorker;
+        CancellationTokenSource? stoppingSource;
+        bool disposeSource;
+        lock (syncRoot)
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            disposed = true;
+            stoppingWorker = workerTask;
+            stoppingSource = TokenSource;
+            disposeSource = ownsTokenSource;
+            workerTask = null;
+            TokenSource = null;
+            ownsTokenSource = false;
+        }
+
+        try
+        {
+            stoppingSource?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        PeriodicTimer.Dispose();
+        try
+        {
+            _ = stoppingWorker?.Wait(TimeSpan.FromSeconds(1));
+        }
+        catch (AggregateException)
+        {
+        }
+        if (disposeSource)
+        {
+            stoppingSource?.Dispose();
+        }
         Tracer.Dispose();
-        PeriodicTimer?.Dispose();
     }
 }
 
