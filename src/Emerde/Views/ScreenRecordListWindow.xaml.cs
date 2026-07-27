@@ -2904,6 +2904,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
     private static void TransferAcrossVolumes(string sourceFilePath, string targetFilePath)
     {
         string temporaryTargetPath = MediaFileCatalog.CreateTemporaryPath(targetFilePath, "move");
+        bool targetCommitted = false;
         try
         {
             File.Copy(sourceFilePath, temporaryTargetPath, overwrite: false);
@@ -2913,6 +2914,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
             }
 
             File.Move(temporaryTargetPath, targetFilePath, overwrite: false);
+            targetCommitted = true;
             CopyAssociatedMetadata(sourceFilePath, targetFilePath);
             File.Delete(sourceFilePath);
             VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(sourceFilePath);
@@ -2920,8 +2922,11 @@ public partial class ScreenRecordListViewModel : ObservableObject
         catch
         {
             DeleteFileIfExists(temporaryTargetPath);
-            DeleteFileIfExists(targetFilePath);
-            VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(targetFilePath);
+            if (targetCommitted)
+            {
+                DeleteFileIfExists(targetFilePath);
+                VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(targetFilePath);
+            }
             throw;
         }
     }
@@ -3623,6 +3628,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
             MediaOperationKind.Merge,
             () => [.. ordered.Select(item => item.FullPath), temporaryTarget, target],
             operationCancellation.Cancel);
+        bool targetCommitted = false;
         try
         {
             double totalSeconds = await Task.Run(() => ordered.Sum(item => GetVideoDurationSeconds(item.FullPath)));
@@ -3654,6 +3660,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
                 VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(first);
                 bool hasMetadata = VideoRecordingMetadataStore.HasAnyMetadata(metadata);
                 File.Move(temporaryTarget, target, overwrite: false);
+                targetCommitted = true;
                 if (hasMetadata && !VideoRecordingMetadataStore.WriteCompletedMetadata(target, metadata))
                 {
                     throw new IOException("Failed to store merged recording metadata.");
@@ -3663,8 +3670,11 @@ public partial class ScreenRecordListViewModel : ObservableObject
             catch (Exception e)
             {
                 AppSessionLogger.WriteException(e);
-                DeleteFileIfExists(target);
-                VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(target);
+                if (targetCommitted)
+                {
+                    DeleteFileIfExists(target);
+                    VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(target);
+                }
                 return false;
             }
         }

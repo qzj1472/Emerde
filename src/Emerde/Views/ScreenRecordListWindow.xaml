@@ -1,6 +1,7 @@
 ﻿<UserControl x:Class="Emerde.Views.ScreenRecordListWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:controls="clr-namespace:Emerde.Controls"
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                  xmlns:c="http://schemas.github.com/computedconverters/2024/xaml"
                  xmlns:local="clr-namespace:Emerde.Views"
@@ -40,7 +41,11 @@
     </UserControl.Resources>
 
     <Grid x:Name="VideoListDialogContent">
-        <Grid x:Name="VideoListContentRoot" Margin="0">
+        <Grid x:Name="VideoListContentRoot"
+              Margin="0"
+              controls:MotionAssist.IsEntranceEnabled="True"
+              controls:MotionAssist.EntranceOffsetY="8"
+              controls:MotionAssist.EntranceTrigger="{Binding IsVideoListPageSelected}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="84" />
                 <RowDefinition Height="*" />
@@ -165,7 +170,11 @@
                 <StackPanel Grid.Row="1"
                             HorizontalAlignment="Left"
                             VerticalAlignment="Center"
-                            Orientation="Horizontal">
+                            Orientation="Horizontal"
+                            controls:MotionAssist.IsEntranceEnabled="True"
+                            controls:MotionAssist.EntranceOffsetY="5"
+                            controls:MotionAssist.EntranceScale="0.992"
+                            controls:MotionAssist.EntranceTrigger="{Binding IsVideoListPageSelected}">
                     <Button Command="{Binding ToggleSortCommand}"
                             Margin="0,0,8,0"
                             IsEnabled="{Binding IsIdle}"
@@ -229,6 +238,12 @@
                          VirtualizingPanel.VirtualizationMode="Recycling">
                 <ListBox.ItemContainerStyle>
                     <Style TargetType="{x:Type ListBoxItem}" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                        <Setter Property="controls:MotionAssist.IsEntranceEnabled" Value="True" />
+                        <Setter Property="controls:MotionAssist.EntranceOffsetY" Value="7" />
+                        <Setter Property="controls:MotionAssist.EntranceScale" Value="0.99" />
+                        <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
+                        <Setter Property="controls:MotionAssist.HoverScale" Value="1" />
+                        <Setter Property="controls:MotionAssist.PressScale" Value="0.996" />
                         <Setter Property="Padding" Value="0" />
                         <Setter Property="Margin" Value="0" />
                         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -252,14 +267,16 @@
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <Border x:Name="VideoCardShell"
-                                Margin="2,8,10,0"
-                                Padding="12"
-                                Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
-                                Background="{DynamicResource CardBackground}"
-                                BorderBrush="{DynamicResource CardBorderBrush}"
-                                 BorderThickness="1"
-                                 CornerRadius="{StaticResource Win11ControlCornerRadius}"
-                                 Loaded="VideoCardLoaded">
+                                 Margin="2,8,10,0"
+                                 Padding="0"
+                                 Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
+                                 Background="{DynamicResource EmerdeCardBrush}"
+                                 BorderBrush="Transparent"
+                                 BorderThickness="0"
+                                CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                controls:MotionAssist.IsDataContextEntranceEnabled="True"
+                                controls:MotionAssist.EntranceTrigger="{Binding DataContext.IsVideoListPageSelected, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
+                                Loaded="VideoCardLoaded">
                             <Border.ContextMenu>
                                 <ContextMenu DataContext="{Binding PlacementTarget, RelativeSource={RelativeSource Self}}">
                                     <MenuItem Header="打开视频"
@@ -301,6 +318,22 @@
                                 </ContextMenu>
                             </Border.ContextMenu>
                             <Grid>
+                                <Border x:Name="VideoCardSurfaceStroke"
+                                        BorderBrush="{DynamicResource ControlElevationBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                        IsHitTestVisible="False" />
+                                <Border x:Name="VideoCardSelectionLayer"
+                                        Background="#10337DFF"
+                                        BorderBrush="#70337DFF"
+                                        BorderThickness="1"
+                                        CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                        IsHitTestVisible="False"
+                                        Opacity="0" />
+                                <Border x:Name="VideoCardContent"
+                                        Padding="13"
+                                        Background="Transparent">
+                                    <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="146" />
                                     <ColumnDefinition Width="*" />
@@ -484,16 +517,60 @@
                                         </Style>
                                     </CheckBox.Style>
                                 </CheckBox>
+                                    </Grid>
+                                </Border>
                             </Grid>
                         </Border>
                         <DataTemplate.Triggers>
                             <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="True">
-                                <Setter TargetName="VideoCardShell" Property="Background" Value="#18337DFF" />
-                                <Setter TargetName="VideoCardShell" Property="BorderBrush" Value="#60337DFF" />
+                                <Setter TargetName="VideoCardSelectionLayer" Property="Background" Value="#10337DFF" />
+                                <Setter TargetName="VideoCardSelectionLayer" Property="BorderBrush" Value="#70337DFF" />
+                                <DataTrigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="VideoCardSelectionLayer"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             From="0"
+                                                             To="1"
+                                                             Duration="0:0:0.18" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.EnterActions>
+                                <DataTrigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="VideoCardSelectionLayer"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0"
+                                                             Duration="0:0:0.14" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.ExitActions>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                <Setter TargetName="VideoCardShell" Property="Background" Value="#2A4DA7B0" />
-                                <Setter TargetName="VideoCardShell" Property="BorderBrush" Value="#884DA7B0" />
+                                <Setter TargetName="VideoCardSelectionLayer" Property="Background" Value="#144DA7B0" />
+                                <Setter TargetName="VideoCardSelectionLayer" Property="BorderBrush" Value="#784DA7B0" />
+                                <DataTrigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="VideoCardSelectionLayer"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             From="0"
+                                                             To="1"
+                                                             Duration="0:0:0.18" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.EnterActions>
+                                <DataTrigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="VideoCardSelectionLayer"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0"
+                                                             Duration="0:0:0.14" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.ExitActions>
                             </DataTrigger>
                         </DataTemplate.Triggers>
                     </DataTemplate>
