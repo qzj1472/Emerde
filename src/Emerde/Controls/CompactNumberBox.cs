@@ -144,9 +144,9 @@ public sealed class CompactNumberBox : Control
             return;
         }
 
-        if (TryParse(text, out double parsed))
+        if (TryParse(text, out double parsed) && double.IsFinite(parsed))
         {
-            SetCurrentValue(ValueProperty, Clamp(parsed));
+            SetCurrentValue(ValueProperty, Normalize(parsed));
         }
     }
 
@@ -169,7 +169,8 @@ public sealed class CompactNumberBox : Control
         }
         else if (e.Key == Key.Enter)
         {
-            UpdateTextFromValue();
+            UpdateTextFromValue(force: true);
+            Keyboard.ClearFocus();
         }
     }
 
@@ -214,7 +215,7 @@ public sealed class CompactNumberBox : Control
     private void ChangeValue(double delta)
     {
         double current = Value ?? 0d;
-        SetCurrentValue(ValueProperty, Clamp(current + delta));
+        SetCurrentValue(ValueProperty, Normalize(current + delta));
         UpdateTextFromValue(force: true);
     }
 
@@ -225,11 +226,21 @@ public sealed class CompactNumberBox : Control
             return;
         }
 
-        double clamped = Clamp(value);
-        if (Math.Abs(clamped - value) > double.Epsilon)
+        if (!double.IsFinite(value))
         {
-            SetCurrentValue(ValueProperty, clamped);
+            return;
         }
+
+        double normalized = Normalize(value);
+        if (Math.Abs(normalized - value) > double.Epsilon)
+        {
+            SetCurrentValue(ValueProperty, normalized);
+        }
+    }
+
+    private double Normalize(double value)
+    {
+        return Clamp(Math.Round(value, GetEffectiveDecimalPlaces()));
     }
 
     private double Clamp(double value)
@@ -264,7 +275,7 @@ public sealed class CompactNumberBox : Control
             return string.Empty;
         }
 
-        int decimalPlaces = Math.Max(0, MaxDecimalPlaces);
+        int decimalPlaces = GetEffectiveDecimalPlaces();
         if (decimalPlaces == 0)
         {
             return Math.Round(numericValue).ToString("0", CultureInfo.CurrentCulture);
@@ -278,6 +289,11 @@ public sealed class CompactNumberBox : Control
     {
         return double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value)
             || double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+    }
+
+    private int GetEffectiveDecimalPlaces()
+    {
+        return Math.Clamp(MaxDecimalPlaces, 0, 15);
     }
 
     private void DetachTemplateEvents()
