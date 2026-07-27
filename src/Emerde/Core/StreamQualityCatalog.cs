@@ -98,7 +98,7 @@ internal static class StreamQualityCatalog
             {
                 "Bilibili" => token switch
                 {
-                    "10000" => "原画",
+                    "30000" or "20000" or "10000" => "原画",
                     "400" => "蓝光",
                     "250" => "超清",
                     "150" => "高清",

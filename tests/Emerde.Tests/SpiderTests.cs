@@ -1004,6 +1004,88 @@ public sealed class SpiderTests
     }
 
     [Fact]
+    public void BilibiliPlaybackHeaders_IncludePageIdentityAndOptionalCookie()
+    {
+        const string roomUrl = "https://live.bilibili.com/456";
+
+        string anonymous = BilibiliSpider.BuildPlaybackHeaders(roomUrl, string.Empty);
+        string authenticated = BilibiliSpider.BuildPlaybackHeaders(roomUrl, "SESSDATA=token");
+
+        Assert.Contains("User-Agent: Mozilla/5.0", anonymous, StringComparison.Ordinal);
+        Assert.Contains($"Referer: {roomUrl}", anonymous, StringComparison.Ordinal);
+        Assert.Contains("Origin: https://live.bilibili.com", anonymous, StringComparison.Ordinal);
+        Assert.DoesNotContain("Cookie:", anonymous, StringComparison.Ordinal);
+        Assert.Contains("Cookie: SESSDATA=token", authenticated, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BilibiliPlayInfo_UsesHighestAdvertisedQualityAndCompatibleCodec()
+    {
+        BilibiliSpiderResult result = new()
+        {
+            RoomUrl = "https://live.bilibili.com/456",
+            PlatformName = "Bilibili",
+        };
+        const string json = """
+            {
+              "code": 0,
+              "data": {
+                "playurl_info": {
+                  "playurl": {
+                    "g_qn_desc": [{ "qn": 10000 }, { "qn": 20000 }],
+                    "stream": [
+                      {
+                        "protocol_name": "http_stream",
+                        "format": [{
+                          "format_name": "flv",
+                          "codec": [
+                            {
+                              "codec_name": "hevc",
+                              "current_qn": 10000,
+                              "accept_qn": [20000, 10000, 150],
+                              "base_url": "/live-hevc.flv",
+                              "url_info": [{ "host": "https://cdn.example.test", "extra": "?token=hevc" }]
+                            },
+                            {
+                              "codec_name": "avc",
+                              "current_qn": 10000,
+                              "accept_qn": [20000, 10000, 150],
+                              "base_url": "/live-avc.flv",
+                              "url_info": [{ "host": "https://cdn.example.test/", "extra": "?token=avc" }]
+                            }
+                          ]
+                        }]
+                      },
+                      {
+                        "protocol_name": "http_hls",
+                        "format": [{
+                          "format_name": "ts",
+                          "codec": [{
+                            "codec_name": "avc",
+                            "current_qn": 10000,
+                            "accept_qn": [20000, 10000, 150],
+                            "base_url": "/live.m3u8",
+                            "url_info": [{ "host": "https://hls.example.test", "extra": "?token=hls" }]
+                          }]
+                        }]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+            """;
+
+        BilibiliPlayInfo playInfo = BilibiliSpider.ExtractPlayInfo(json, result);
+
+        Assert.Equal(10000, playInfo.CurrentQuality);
+        Assert.Equal(20000, playInfo.HighestAvailableQuality);
+        Assert.Equal("10000", result.Quality);
+        Assert.Equal("https://cdn.example.test/live-avc.flv?token=avc", result.FlvUrl);
+        Assert.Equal("https://hls.example.test/live.m3u8?token=hls", result.HlsUrl);
+    }
+
+    [Fact]
     public void KuaishouExtractInitialState_UsesHighestBitrateFlv()
     {
         KuaishouSpiderResult result = new()
