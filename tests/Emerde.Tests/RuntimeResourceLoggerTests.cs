@@ -7,8 +7,12 @@ public sealed class RuntimeResourceLoggerTests
     [Fact]
     public void Stop_AllowsSamplerToRestart()
     {
-        RuntimeResourceLogger.Start();
-        RuntimeResourceLogger.Stop();
+        for (int index = 0; index < 20; index++)
+        {
+            RuntimeResourceLogger.Start();
+            RuntimeResourceLogger.Stop();
+        }
+
         RuntimeResourceLogger.Start();
         RuntimeResourceLogger.Stop();
     }

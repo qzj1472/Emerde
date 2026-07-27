@@ -23,6 +23,7 @@ internal static class RuntimeResourceLogger
 
     public static void Start()
     {
+        CancellationTokenSource? completedSource = null;
         lock (SyncRoot)
         {
             if (workerTask is { IsCompleted: false })
@@ -30,9 +31,12 @@ internal static class RuntimeResourceLogger
                 return;
             }
 
-            tokenSource = new CancellationTokenSource();
-            workerTask = Task.Run(() => RunAsync(tokenSource.Token));
+            completedSource = tokenSource;
+            CancellationTokenSource activeSource = new();
+            tokenSource = activeSource;
+            workerTask = Task.Run(() => RunAsync(activeSource.Token));
         }
+        completedSource?.Dispose();
     }
 
     public static void Stop()
@@ -44,19 +48,44 @@ internal static class RuntimeResourceLogger
         {
             stoppingTokenSource = tokenSource;
             stoppingWorkerTask = workerTask;
-            stoppingTokenSource?.Cancel();
         }
 
+        stoppingTokenSource?.Cancel();
+
+        bool completed = true;
         try
         {
-            _ = stoppingWorkerTask?.Wait(TimeSpan.FromSeconds(2));
+            completed = stoppingWorkerTask?.Wait(TimeSpan.FromSeconds(2)) ?? true;
         }
         catch (AggregateException)
         {
         }
 
+        if (!completed && stoppingWorkerTask != null)
+        {
+            _ = stoppingWorkerTask.ContinueWith(
+                _ => Cleanup(stoppingTokenSource, stoppingWorkerTask),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+            return;
+        }
+
+        Cleanup(stoppingTokenSource, stoppingWorkerTask);
+    }
+
+    private static void Cleanup(CancellationTokenSource? stoppingTokenSource, Task? stoppingWorkerTask)
+    {
+        bool ownsState;
         lock (SyncRoot)
         {
+            ownsState = ReferenceEquals(tokenSource, stoppingTokenSource)
+                || ReferenceEquals(workerTask, stoppingWorkerTask);
+            if (!ownsState)
+            {
+                return;
+            }
+
             if (ReferenceEquals(tokenSource, stoppingTokenSource))
             {
                 tokenSource = null;
