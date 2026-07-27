@@ -25,7 +25,13 @@ public class PeriodicWait
             CancellationTokenSource previous;
             lock (periodLock)
             {
-                period = value <= TimeSpan.Zero ? TimeSpan.FromMilliseconds(1) : value;
+                TimeSpan normalized = value <= TimeSpan.Zero ? TimeSpan.FromMilliseconds(1) : value;
+                if (period == normalized)
+                {
+                    return;
+                }
+
+                period = normalized;
                 previous = periodChanged;
                 periodChanged = new CancellationTokenSource();
             }
