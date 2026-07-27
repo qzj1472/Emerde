@@ -1384,6 +1384,7 @@ public partial class SettingsViewModel : ReactiveObject
             }
         }
         using DialogBlurScope blurScope = DialogBlurScope.ForOwnedWindow(OwnerWindow, dialog);
+        dialog.BackgroundExitAnimation = blurScope.PlayExitAsync;
         bool? result = dialog.ShowDialog();
         if (result != true || content.SelectedOption is not ConfigRestoreOption selected)
         {
