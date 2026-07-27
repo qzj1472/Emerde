@@ -1,9 +1,100 @@
 using System.Xml.Linq;
+using Emerde.Core;
 
 namespace Emerde.Tests;
 
 public sealed class FocusVisualTests
 {
+    [Theory]
+    [InlineData(false, AppThemeBrushes.DarkThemeTransitionDurationMilliseconds)]
+    [InlineData(true, AppThemeBrushes.LightThemeTransitionDurationMilliseconds)]
+    public void ThemeTransition_UsesALongerDurationWhenSwitchingToLight(bool isLightTheme, int expectedMilliseconds)
+    {
+        Assert.Equal(expectedMilliseconds, AppThemeBrushes.GetTransitionDurationMilliseconds(isLightTheme));
+        Assert.Equal(
+            AppThemeBrushes.DarkThemeTransitionDurationMilliseconds * 5 / 4,
+            AppThemeBrushes.LightThemeTransitionDurationMilliseconds);
+    }
+
+    [Fact]
+    public void SelectedRoomRefresh_DoesNotResetTheWholeCardView()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "ViewModels", "MainViewModel.cs"));
+        AssertMethodDoesNotResetRoomView(
+            source,
+            "private async Task RefreshSelectedRoomInfoAsync()",
+            "private bool TryBeginManualRefresh()");
+        AssertMethodDoesNotResetRoomView(
+            source,
+            "private async Task RefreshPreviewStreamQualityAsync(",
+            "private bool ShouldRefreshPreviewStreamQuality(");
+    }
+
+    [Fact]
+    public void RoomView_UsesLiveSortingAndFilteringAfterTargetedRefresh()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "ViewModels", "MainViewModel.cs"));
+
+        Assert.Contains("LiveSortingProperties.Add(nameof(RoomStatusReactive.NickName))", source);
+        Assert.Contains("liveView.IsLiveSorting = true", source);
+        Assert.Contains("LiveFilteringProperties.Add(nameof(RoomStatusReactive.PlatformName))", source);
+        Assert.Contains("liveView.IsLiveFiltering = true", source);
+    }
+
+    private static void AssertMethodDoesNotResetRoomView(string source, string methodSignature, string nextMethodSignature)
+    {
+        int methodStart = source.IndexOf(methodSignature, StringComparison.Ordinal);
+        int methodEnd = source.IndexOf(nextMethodSignature, methodStart, StringComparison.Ordinal);
+
+        Assert.True(methodStart >= 0 && methodEnd > methodStart);
+        string method = source[methodStart..methodEnd];
+        Assert.DoesNotContain("RoomStatusesView.Refresh()", method);
+    }
+
+    [Fact]
+    public void MotionAssist_PreservesReusableAnimationState()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Controls", "MotionAssist.cs"));
+
+        Assert.Contains("GetAnimationBaseValue(UIElement.OpacityProperty)", source);
+        Assert.DoesNotContain("element.Opacity = 0d", source);
+        Assert.Contains("EntranceOperation is { Status: DispatcherOperationStatus.Pending or DispatcherOperationStatus.Executing }", source);
+        Assert.Contains("state.EntranceOperation?.Abort()", source);
+        Assert.Contains("ResetEntrance(element, state)", source);
+        Assert.Contains("ResetInteractionScale(element)", source);
+        Assert.Contains("state.PulseScale.BeginAnimation", source);
+        Assert.Contains("element.Unloaded += SpinUnloaded", source);
+        Assert.Contains("element.Unloaded += MotionElementUnloaded", source);
+        Assert.Contains("EntranceAnimationGeneration", source);
+        Assert.Contains("PulseAnimationGeneration", source);
+        Assert.Contains("ResetPulse(state)", source);
+        Assert.Contains("scaleYAnimation.Completed", source);
+    }
+
+    [Fact]
+    public void ContentDialogs_KeepNativePopupExitAnimationAndCoordinateOnlyTheBackdrop()
+    {
+        string sizingSource = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "WindowSizing.cs"));
+        string blurSource = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "DialogBlurScope.cs"));
+
+        Assert.DoesNotContain("FindName(\"LayoutRoot\", sender)", sizingSource);
+        Assert.DoesNotContain("MotionAssist.PlayExitAsync", sizingSource);
+        Assert.Contains("contentDialog.Closing += ContentDialogClosing", blurSource);
+        Assert.Contains("_ = CompleteContentDialogExitAsync(args)", blurSource);
+        Assert.DoesNotContain("args.GetDeferral()", blurSource);
+    }
+
+    [Fact]
+    public void LocalSettings_AddsSurfaceTransformWithoutReplacingNativeDialogOpacity()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "LocalSettingsContentDialog.xaml.cs"));
+
+        Assert.Contains("dialog.Closing += DialogClosing", source);
+        Assert.Contains("PlayContentDialogExitTransformAsync(LocalSettingsSurface)", source);
+        Assert.DoesNotContain("MotionAssist.PlayExitAsync(LocalSettingsSurface)", source);
+        Assert.DoesNotContain("args.GetDeferral()", source);
+    }
+
     [Theory]
     [InlineData("StatusTrayChipButtonStyle")]
     [InlineData("StatusTrayCapacityButtonStyle")]
@@ -73,6 +164,38 @@ public sealed class FocusVisualTests
     }
 
     [Fact]
+    public void AddRoomDialog_UsesOneUniformInputBorderWithoutTextBoxElevation()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AddRoomContentDialog.xaml"));
+        XElement border = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomUrlInputBorder");
+        XElement textBox = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomUrlTextBox");
+
+        Assert.Equal("1", (string?)border.Attribute("BorderThickness"));
+        Assert.Equal("{DynamicResource ControlStrokeColorDefaultBrush}", (string?)border.Attribute("BorderBrush"));
+        Assert.Equal("False", (string?)border.Attribute("IsHitTestVisible"));
+        Assert.Same(border.Parent, textBox.Parent);
+        Assert.Equal("0", (string?)textBox.Attribute("BorderThickness"));
+        Assert.Equal("Transparent", (string?)textBox.Attribute("BorderBrush"));
+        Assert.Equal("{x:Null}", (string?)textBox.Attribute("FocusVisualStyle"));
+        Assert.Equal("RoomUrlTextBoxFocusWithinChanged", (string?)textBox.Attribute("IsKeyboardFocusWithinChanged"));
+        Assert.Contains(textBox.Descendants(), element =>
+            element.Name.LocalName == "SolidColorBrush"
+            && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "ControlStrokeColorDefaultBrush"
+            && (string?)element.Attribute("Color") == "Transparent");
+        Assert.Contains(textBox.Descendants(), element =>
+            element.Name.LocalName == "SolidColorBrush"
+            && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "TextControlFocusedBorderBrush"
+            && (string?)element.Attribute("Color") == "Transparent");
+
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "AddRoomContentDialog.xaml.cs"));
+        Assert.Contains("RoomUrlTextBox.IsKeyboardFocusWithin", source);
+        Assert.Contains("SystemAccentColorPrimaryBrush", source);
+        Assert.Contains("ControlStrokeColorDefaultBrush", source);
+    }
+
+    [Fact]
     public void ExitConfirmationDialog_UsesApplicationContentDialogTemplate()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ExitConfirmationContentDialog.xaml"));
@@ -121,7 +244,307 @@ public sealed class FocusVisualTests
         Assert.Contains("SaveFolderPathLevel), 3", source);
     }
 
+    [Theory]
+    [InlineData("Button")]
+    [InlineData("ToggleButton")]
+    [InlineData("CheckBox")]
+    public void GlobalInteractiveControls_UseMotionFeedback(string targetType)
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Resources.xaml"));
+        XElement style = document.Descendants()
+            .First(element => element.Name.LocalName == "Style" && (string?)element.Attribute("TargetType") == $"{{x:Type {targetType}}}");
+
+        Assert.Contains(style.Elements().Where(element => element.Name.LocalName == "Setter"), IsPressMotionSetter);
+    }
+
+    [Fact]
+    public void MainPageSurfaces_UseEntranceMotion()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        foreach (string elementName in new[] { "MainContentRoot", "ShellNavigationPanel", "HomePageRoot" })
+        {
+            XElement element = document.Descendants()
+                .Single(item => (string?)item.Attribute(XName.Get("Name", XamlNamespace)) == elementName);
+            Assert.True(HasMotionAttribute(element, "IsEntranceEnabled"));
+        }
+    }
+
+    [Theory]
+    [InlineData("HomePageRoot")]
+    [InlineData("RoomCardShell")]
+    public void HomePageSurfaces_ReplayEntranceMotionWhenPageBecomesVisible(string elementName)
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XElement element = document.Descendants()
+            .Single(item => (string?)item.Attribute(XName.Get("Name", XamlNamespace)) == elementName);
+
+        Assert.True(HasAttribute(element, "EntranceTrigger"));
+    }
+
+    [Theory]
+    [InlineData("VideoListContentRoot")]
+    [InlineData("VideoCardShell")]
+    public void VideoListSurfaces_ReplayEntranceMotionWhenPageBecomesVisible(string elementName)
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+        XElement element = document.Descendants()
+            .Single(item => (string?)item.Attribute(XName.Get("Name", XamlNamespace)) == elementName);
+
+        Assert.True(HasAttribute(element, "EntranceTrigger"));
+    }
+
+    [Theory]
+    [InlineData("RoomCardSelectionLayer", "MainWindow.xaml")]
+    [InlineData("VideoCardSelectionLayer", "ScreenRecordListWindow.xaml")]
+    public void SelectionLayers_DoNotSetFinalOpacityBeforeAnimation(string elementName, string fileName)
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", fileName));
+
+        Assert.DoesNotContain(document.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("TargetName") == elementName
+            && (string?)element.Attribute("Property") == "Opacity"
+            && (string?)element.Attribute("Value") == "1");
+    }
+
+    [Theory]
+    [InlineData("MainWindow.xaml")]
+    [InlineData("ScreenRecordListWindow.xaml")]
+    public void CardContainers_DoNotGrowOnHover(string fileName)
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", fileName));
+
+        Assert.DoesNotContain(document.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "controls:MotionAssist.HoverScale"
+            && double.TryParse((string?)element.Attribute("Value"), out double value)
+            && value > 1d
+            && element.Ancestors().Any(ancestor => ancestor.Name.LocalName.Contains("ItemContainerStyle", StringComparison.Ordinal)));
+    }
+
+    [Theory]
+    [InlineData("VideoListPage", "DataContext.IsVideoListPageSelected")]
+    [InlineData("SettingsPage", "DataContext.IsSettingsPageSelected")]
+    [InlineData("AboutPage", "DataContext.IsAboutPageSelected")]
+    public void MainChildPages_BindEntranceMotionToMainPageState(string elementName, string expectedPath)
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XElement element = document.Descendants()
+            .Single(item => (string?)item.Attribute(XName.Get("Name", XamlNamespace)) == elementName);
+
+        Assert.Contains(element.Attributes(), attribute =>
+            attribute.Name.ToString().EndsWith("EntranceTrigger", StringComparison.Ordinal)
+            && attribute.Value == $"{{Binding {expectedPath}, ElementName=ShellPageHost}}");
+    }
+
+    [Fact]
+    public void SettingsCardExpander_AnimatesTheMeasuredContentLayout()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml"));
+        XElement style = document.Descendants()
+            .Single(element => element.Name.LocalName == "Style" && (string?)element.Attribute("TargetType") == "{x:Type ui:CardExpander}");
+
+        XElement expandSite = style.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "ExpandSite");
+        Assert.Contains(expandSite.Descendants(), element =>
+            element.Name.LocalName == "ScaleTransform" && (string?)element.Attribute("ScaleY") == "0");
+        Assert.Contains(style.Descendants().Where(element => element.Name.LocalName == "DoubleAnimation"), animation =>
+            (string?)animation.Attribute("Storyboard.TargetName") == "ExpandSite"
+            && (string?)animation.Attribute("Storyboard.TargetProperty") == "(FrameworkElement.LayoutTransform).(ScaleTransform.ScaleY)"
+            && (string?)animation.Attribute("From") == "0"
+            && (string?)animation.Attribute("To") == "1");
+        Assert.Contains(style.Descendants().Where(element => element.Name.LocalName == "DoubleAnimation"), animation =>
+            (string?)animation.Attribute("Storyboard.TargetName") == "ExpandSite"
+            && (string?)animation.Attribute("Storyboard.TargetProperty") == "(FrameworkElement.LayoutTransform).(ScaleTransform.ScaleY)"
+            && (string?)animation.Attribute("From") == "1"
+            && (string?)animation.Attribute("To") == "0");
+    }
+
+    [Fact]
+    public void HomeRoomCards_DrawSelectionAcrossTheSurfaceWithAnInnerStroke()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XElement card = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomCardShell");
+        XElement selectionLayer = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomCardSelectionLayer");
+        XElement content = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomCardContent");
+        XElement surface = card.Elements().Single(element => element.Name.LocalName == "Grid");
+
+        Assert.Equal("0", (string?)card.Attribute("Padding"));
+        Assert.Equal("0", (string?)card.Attribute("BorderThickness"));
+        Assert.Equal("Transparent", (string?)card.Attribute("BorderBrush"));
+        Assert.Equal("0", (string?)selectionLayer.Attribute("Margin"));
+        Assert.Equal("#2A4DA7B0", (string?)selectionLayer.Attribute("Background"));
+        Assert.Equal("#884DA7B0", (string?)selectionLayer.Attribute("BorderBrush"));
+        Assert.Equal("1", (string?)selectionLayer.Attribute("BorderThickness"));
+        Assert.Same(surface, selectionLayer.Parent);
+        Assert.Same(surface, content.Parent);
+        Assert.Equal("{Binding RoomCardPadding, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}", (string?)content.Attribute("Padding"));
+        Assert.DoesNotContain(document.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("TargetName") == "RoomCardShell"
+            && (string?)element.Attribute("Property") is "BorderBrush" or "BorderThickness");
+        Assert.Contains(document.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("TargetName") == "RoomCardSelectionLayer"
+            && (string?)element.Attribute("Background") == null
+            && (string?)element.Attribute("Value") == "#2A4DA7B0");
+        Assert.Contains(document.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("TargetName") == "RoomCardSelectionLayer"
+            && (string?)element.Attribute("Property") == "BorderBrush"
+            && (string?)element.Attribute("Value") == "#884DA7B0");
+    }
+
+    [Fact]
+    public void VideoCards_DrawAllStrokesInsideTheSurface()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+        XElement card = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "VideoCardShell");
+        XElement surfaceStroke = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "VideoCardSurfaceStroke");
+        XElement selectionLayer = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "VideoCardSelectionLayer");
+        XElement content = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "VideoCardContent");
+        XElement surface = card.Elements().Single(element => element.Name.LocalName == "Grid");
+
+        Assert.Equal("0", (string?)card.Attribute("Padding"));
+        Assert.Equal("0", (string?)card.Attribute("BorderThickness"));
+        Assert.Same(surface, surfaceStroke.Parent);
+        Assert.Same(surface, selectionLayer.Parent);
+        Assert.Same(surface, content.Parent);
+        Assert.Equal("1", (string?)surfaceStroke.Attribute("BorderThickness"));
+        Assert.Equal("1", (string?)selectionLayer.Attribute("BorderThickness"));
+        Assert.Equal("13", (string?)content.Attribute("Padding"));
+        Assert.DoesNotContain(document.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("TargetName") == "VideoCardShell"
+            && (string?)element.Attribute("Property") is "BorderBrush" or "BorderThickness");
+        Assert.Contains(document.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("TargetName") == "VideoCardSelectionLayer"
+            && (string?)element.Attribute("Property") == "BorderBrush"
+            && (string?)element.Attribute("Value") == "#70337DFF");
+    }
+
+    [Fact]
+    public void PreviewOpenAndClose_UseTheSameColumnAnimationWithoutPanelTranslation()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
+
+        Assert.DoesNotContain("RoomCardPanelTranslate", xaml);
+        Assert.DoesNotContain("RoomDetailPanelTranslate", xaml);
+        Assert.DoesNotContain("ApplyClosedHomePreviewLayout", source);
+        Assert.DoesNotContain("AnimateClosedPreviewPanel", source);
+        Assert.Contains("IsPreviewSurfaceVisible", xaml);
+        Assert.Contains("SetVideoPresentationState(isSuspended, isPreviewClosingTransitionActive)", source);
+        Assert.Contains("InterruptHomePreviewColumnAnimation()", source);
+        Assert.Contains("homePreviewLayoutUpdateGeneration != layoutUpdateGeneration", source);
+        Assert.Contains("previewPresentationUpdateGeneration == updateGeneration", source);
+        Assert.Contains("!ViewModel.IsHomePageSelected && isPreviewClosingTransitionActive", source);
+        Assert.Contains("CompletePreviewClosingTransition()", source);
+    }
+
+    [Fact]
+    public void ConfigRestoreCards_DrawStateStrokesInsideTheSurface()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ConfigRestoreContentDialog.xaml"));
+        XElement card = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "Card");
+        XElement strokeLayer = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "CardStrokeLayer");
+        XElement surface = card.Elements().Single(element => element.Name.LocalName == "Grid");
+
+        Assert.Equal("0", (string?)card.Attribute("Padding"));
+        Assert.Equal("0", (string?)card.Attribute("BorderThickness"));
+        Assert.Equal("1", (string?)strokeLayer.Attribute("BorderThickness"));
+        Assert.Same(surface, strokeLayer.Parent);
+        Assert.DoesNotContain(document.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("TargetName") == "Card"
+            && (string?)element.Attribute("Property") is "BorderBrush" or "BorderThickness");
+        Assert.Contains(document.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("TargetName") == "CardStrokeLayer"
+            && (string?)element.Attribute("Property") == "BorderBrush"
+            && (string?)element.Attribute("Value") == "#60337DFF");
+    }
+
+    [Fact]
+    public void SettingsCards_UseBorderlessPanelSurfaces()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml"));
+        foreach (string targetType in new[] { "{x:Type ui:Card}", "{x:Type ui:CardExpander}" })
+        {
+            XElement style = document.Descendants()
+                .Single(element => element.Name.LocalName == "Style" && (string?)element.Attribute("TargetType") == targetType);
+            Assert.Contains(style.Elements().Where(element => element.Name.LocalName == "Setter"), setter =>
+                (string?)setter.Attribute("Property") == "Background"
+                && (string?)setter.Attribute("Value") == "{DynamicResource EmerdePanelBrush}");
+            Assert.Contains(style.Elements().Where(element => element.Name.LocalName == "Setter"), setter =>
+                (string?)setter.Attribute("Property") == "BorderThickness"
+                && (string?)setter.Attribute("Value") == "0");
+        }
+    }
+
+    [Fact]
+    public void AddRoomDetectionSummary_DoesNotDrawAnInputAdjacentBorder()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AddRoomContentDialog.xaml"));
+        XElement summary = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomDetectionSummary");
+
+        Assert.Equal("0", (string?)summary.Attribute("BorderThickness"));
+    }
+
+    [Fact]
+    public void TooltipTraversal_OnlyUsesVisualTreeForVisualObjects()
+    {
+        Assert.False(Emerde.Views.MainWindow.CanEnumerateVisualChildren(new System.Windows.Controls.RowDefinition()));
+        Assert.True(Emerde.Views.MainWindow.CanEnumerateVisualChildren(new System.Windows.Media.DrawingVisual()));
+    }
+
+    [Theory]
+    [InlineData("AddRoomContentDialog.xaml")]
+    [InlineData("AutoShutdownContentDialog.xaml")]
+    [InlineData("ExitConfirmationContentDialog.xaml")]
+    [InlineData("ConfigRestoreContentDialog.xaml")]
+    [InlineData("ConfigRestoreWindow.xaml")]
+    [InlineData("LoadingWindow.xaml")]
+    [InlineData("LocalSettingsContentDialog.xaml")]
+    [InlineData("SettingsWindow.xaml")]
+    [InlineData("AboutContentDialog.xaml")]
+    [InlineData("ScreenRecordListWindow.xaml")]
+    [InlineData("TrayMenuWindow.xaml")]
+    public void DialogAndPageSurfaces_UseEntranceMotion(string fileName)
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", fileName));
+
+        Assert.Contains(document.Descendants(), element => HasMotionAttribute(element, "IsEntranceEnabled"));
+    }
+
     private const string XamlNamespace = "http://schemas.microsoft.com/winfx/2006/xaml";
+
+    private static bool IsPressMotionSetter(XElement setter)
+    {
+        return (string?)setter.Attribute("Property") == "controls:MotionAssist.IsPressEnabled"
+            && (string?)setter.Attribute("Value") == "True";
+    }
+
+    private static bool HasMotionAttribute(XElement element, string propertyName)
+    {
+        return element.Attributes().Any(attribute => attribute.Name.ToString().EndsWith(propertyName, StringComparison.Ordinal) && attribute.Value == "True");
+    }
+
+    private static bool HasAttribute(XElement element, string propertyName)
+    {
+        return element.Attributes().Any(attribute => attribute.Name.ToString().EndsWith(propertyName, StringComparison.Ordinal));
+    }
 
     private static string FindRepositoryFile(params string[] parts)
     {
