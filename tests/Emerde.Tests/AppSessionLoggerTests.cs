@@ -7,6 +7,21 @@ namespace Emerde.Tests;
 public sealed class AppSessionLoggerTests
 {
     [Fact]
+    public void Event_DoesNotPropagateUnsupportedPayloadSerialization()
+    {
+        List<object> payload = [];
+        payload.Add(payload);
+
+        Exception? error = Record.Exception(() => AppSessionLogger.Event(
+            "info",
+            "test",
+            "cyclic_payload",
+            data: payload));
+
+        Assert.Null(error);
+    }
+
+    [Fact]
     public void GetSessionLogPaths_UsesStartupTimestampAndProcessId()
     {
         string directory = Path.Combine("D:\\", "logs");
@@ -18,8 +33,8 @@ public sealed class AppSessionLoggerTests
             new DateTime(2026, 7, 22, 23, 59, 59, DateTimeKind.Local),
             21460);
 
-        Assert.Equal(Path.Combine(directory, "20260722_235958_21460.log"), filePath);
-        Assert.Equal(Path.Combine(directory, "20260722_235958_21460.error.log"), errorFilePath);
+        Assert.Equal(Path.Combine(directory, "20260722_235958_000_21460.log"), filePath);
+        Assert.Equal(Path.Combine(directory, "20260722_235958_000_21460.error.log"), errorFilePath);
     }
 
     [Fact]
@@ -40,8 +55,8 @@ public sealed class AppSessionLoggerTests
             21460);
 
         Assert.NotEqual(firstFilePath, secondFilePath);
-        Assert.Equal(Path.Combine(directory, "20260722_235958_21460_20260723.log"), secondFilePath);
-        Assert.Equal(Path.Combine(directory, "20260722_235958_21460_20260723.error.log"), secondErrorFilePath);
+        Assert.Equal(Path.Combine(directory, "20260722_235958_000_21460_20260723.log"), secondFilePath);
+        Assert.Equal(Path.Combine(directory, "20260722_235958_000_21460_20260723.error.log"), secondErrorFilePath);
     }
 
     [Fact]
@@ -77,15 +92,6 @@ public sealed class AppSessionLoggerTests
     public void NormalizeRetentionDays_ClampsConfiguredValue(int value, int expected)
     {
         Assert.Equal(expected, AppSessionLogger.NormalizeRetentionDays(value));
-    }
-
-    [Fact]
-    public void IsDisabledForDate_OnlySuppressesTheFailedLocalDate()
-    {
-        DateTime failedDate = new(2026, 7, 22);
-
-        Assert.True(AppSessionLogger.IsDisabledForDate(new DateTime(2026, 7, 22, 23, 59, 59), failedDate));
-        Assert.False(AppSessionLogger.IsDisabledForDate(new DateTime(2026, 7, 23), failedDate));
     }
 
     [Theory]

@@ -14,6 +14,7 @@ internal static class AppSessionLogger
     private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(2);
 
     private static readonly object LockObject = new();
+    private static readonly object QueueLock = new();
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = false,
@@ -28,7 +29,7 @@ internal static class AppSessionLogger
     private static DateTime sessionStartedAt = DateTime.MinValue;
     private static int sessionProcessId;
     private static DateTime currentLogDate = DateTime.MinValue;
-    private static DateTime disabledLogDate = DateTime.MinValue;
+    private static DateTime retryLogAfter = DateTime.MinValue;
     private static volatile bool isAvailable;
     private static string? lastFailureMessage;
 
@@ -54,19 +55,14 @@ internal static class AppSessionLogger
             return;
         }
 
-        if (writer is not null)
-        {
-            return;
-        }
-
         lock (LockObject)
         {
-            if (worker is not null)
+            if (worker is not null || writer is not null || queue is not null)
             {
                 return;
             }
 
-            disabledLogDate = DateTime.MinValue;
+            retryLogAfter = DateTime.MinValue;
             sessionStartedAt = DateTime.Now;
             sessionProcessId = Environment.ProcessId;
             ContextCompactor.Reset(sessionStartedAt.Date);
@@ -75,7 +71,10 @@ internal static class AppSessionLogger
             {
                 return;
             }
-            queue = new BlockingCollection<LogLine>(new ConcurrentQueue<LogLine>(), QueueCapacity);
+            lock (QueueLock)
+            {
+                queue = new BlockingCollection<LogLine>(new ConcurrentQueue<LogLine>(), QueueCapacity);
+            }
             workerCancellation = new CancellationTokenSource();
             worker = Task.Run(() => DrainQueue(workerCancellation.Token));
 
@@ -95,7 +94,10 @@ internal static class AppSessionLogger
             }
 
             Enqueue(BuildEvent("info", "application", "stop", reason));
-            queue?.CompleteAdding();
+            lock (QueueLock)
+            {
+                queue?.CompleteAdding();
+            }
             stoppingWorker = worker;
             stoppingCancellation = workerCancellation;
         }
@@ -135,6 +137,10 @@ internal static class AppSessionLogger
 
     private static void Cleanup(Task? stoppingWorker)
     {
+        StreamWriter? stoppingWriter;
+        StreamWriter? stoppingErrorWriter;
+        BlockingCollection<LogLine>? stoppingQueue;
+        CancellationTokenSource? stoppingCancellation;
         lock (LockObject)
         {
             if (!ReferenceEquals(worker, stoppingWorker))
@@ -142,20 +148,31 @@ internal static class AppSessionLogger
                 return;
             }
 
-            writer?.Dispose();
-            errorWriter?.Dispose();
-            queue?.Dispose();
-            workerCancellation?.Dispose();
+            stoppingWriter = writer;
+            stoppingErrorWriter = errorWriter;
+            lock (QueueLock)
+            {
+                stoppingQueue = queue;
+                queue = null;
+            }
+            stoppingCancellation = workerCancellation;
             writer = null;
             errorWriter = null;
-            queue = null;
             worker = null;
             workerCancellation = null;
             sessionStartedAt = DateTime.MinValue;
             sessionProcessId = 0;
             currentLogDate = DateTime.MinValue;
+            retryLogAfter = DateTime.MinValue;
+            CurrentFilePath = null;
+            CurrentErrorFilePath = null;
             isAvailable = false;
         }
+
+        DisposeSafely(stoppingWriter);
+        DisposeSafely(stoppingErrorWriter);
+        DisposeSafely(stoppingQueue);
+        DisposeSafely(stoppingCancellation);
     }
 
     public static void Write(string message)
@@ -175,7 +192,14 @@ internal static class AppSessionLogger
 
     public static void Event(string level, string category, string action, string message = "", object? data = null)
     {
-        Enqueue(BuildEvent(level, category, action, message, data));
+        try
+        {
+            Enqueue(BuildEvent(level, category, action, message, data));
+        }
+        catch (Exception e) when (e is JsonException or NotSupportedException or InvalidOperationException)
+        {
+            Debug.WriteLine(e);
+        }
     }
 
     private static LogLine BuildEvent(string level, string category, string action, string message = "", object? data = null)
@@ -197,28 +221,51 @@ internal static class AppSessionLogger
 
     private static void Enqueue(LogLine line)
     {
-        BlockingCollection<LogLine>? currentQueue = queue;
-
-        if (currentQueue == null || currentQueue.IsAddingCompleted)
+        lock (QueueLock)
         {
-            return;
-        }
-
-        try
-        {
-            if (currentQueue.TryAdd(line))
+            BlockingCollection<LogLine>? currentQueue = queue;
+            if (currentQueue == null || currentQueue.IsAddingCompleted)
             {
                 return;
             }
 
-            if (IsDiagnosticLevel(line.Level) && currentQueue.TryTake(out _))
+            try
             {
-                _ = currentQueue.TryAdd(line);
+                if (currentQueue.TryAdd(line))
+                {
+                    return;
+                }
+
+                if (IsDiagnosticLevel(line.Level) && TryMakeRoomForDiagnostic(currentQueue))
+                {
+                    _ = currentQueue.TryAdd(line);
+                }
+            }
+            catch (InvalidOperationException)
+            {
             }
         }
-        catch (InvalidOperationException)
+    }
+
+    private static bool TryMakeRoomForDiagnostic(BlockingCollection<LogLine> currentQueue)
+    {
+        List<LogLine> diagnosticLines = [];
+        bool removedNormal = false;
+        while (diagnosticLines.Count < 128 && currentQueue.TryTake(out LogLine? queuedLine))
         {
+            if (!IsDiagnosticLevel(queuedLine.Level))
+            {
+                removedNormal = true;
+                break;
+            }
+            diagnosticLines.Add(queuedLine);
         }
+
+        foreach (LogLine diagnosticLine in diagnosticLines)
+        {
+            _ = currentQueue.TryAdd(diagnosticLine);
+        }
+        return removedNormal;
     }
 
     private static void DrainQueue(CancellationToken token)
@@ -250,7 +297,7 @@ internal static class AppSessionLogger
                 }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException or ObjectDisposedException)
                 {
-                    DisableForDate(line.Timestamp, e);
+                    DisableTemporarily(line.Timestamp, e);
                 }
             }
         }
@@ -261,7 +308,7 @@ internal static class AppSessionLogger
 
     private static bool EnsureLogDate(DateTime timestamp)
     {
-        if (IsDisabledForDate(timestamp, disabledLogDate))
+        if (retryLogAfter != DateTime.MinValue && DateTime.Now < retryLogAfter)
         {
             return false;
         }
@@ -281,14 +328,14 @@ internal static class AppSessionLogger
             return true;
         }
 
-        string fallbackDirectory = Path.Combine(Path.GetTempPath(), AppConfig.PackName, "logs");
+        string fallbackDirectory = FallbackLogsDirectory;
         if (!string.Equals(directory, fallbackDirectory, StringComparison.OrdinalIgnoreCase)
             && TryOpenWritersCore(fallbackDirectory, timestamp, out Exception? fallbackError))
         {
             return true;
         }
 
-        DisableForDate(timestamp, primaryError ?? new IOException("No writable log directory is available."));
+        DisableTemporarily(timestamp, primaryError ?? new IOException("No writable log directory is available."));
         return false;
     }
 
@@ -333,22 +380,24 @@ internal static class AppSessionLogger
         }
         catch
         {
-            newWriter.Dispose();
-            newErrorWriter?.Dispose();
+            DisposeSafely(newWriter);
+            DisposeSafely(newErrorWriter);
             throw;
         }
 
-        writer?.Dispose();
-        errorWriter?.Dispose();
+        StreamWriter? oldWriter = writer;
+        StreamWriter? oldErrorWriter = errorWriter;
+        writer = newWriter;
+        errorWriter = newErrorWriter;
         CurrentFilePath = filePath;
         CurrentErrorFilePath = errorFilePath;
         currentLogDate = timestamp.Date;
         ContextCompactor.Reset(timestamp.Date);
-        disabledLogDate = DateTime.MinValue;
+        retryLogAfter = DateTime.MinValue;
         lastFailureMessage = null;
         isAvailable = true;
-        writer = newWriter;
-        errorWriter = newErrorWriter;
+        DisposeSafely(oldWriter);
+        DisposeSafely(oldErrorWriter);
     }
 
     internal static string BuildSessionHeader(
@@ -374,30 +423,31 @@ internal static class AppSessionLogger
         return JsonSerializer.Serialize(payload, JsonOptions);
     }
 
-    private static void DisableForDate(DateTime timestamp, Exception error)
+    private static void DisableTemporarily(DateTime timestamp, Exception error)
     {
         Debug.WriteLine(error);
-        try
-        {
-            writer?.Dispose();
-            errorWriter?.Dispose();
-        }
-        catch (Exception disposeError) when (disposeError is IOException or ObjectDisposedException)
-        {
-            Debug.WriteLine(disposeError);
-        }
-
+        StreamWriter? failedWriter = writer;
+        StreamWriter? failedErrorWriter = errorWriter;
         writer = null;
         errorWriter = null;
         currentLogDate = DateTime.MinValue;
-        disabledLogDate = timestamp.Date;
+        retryLogAfter = DateTime.Now.AddSeconds(30);
         lastFailureMessage = $"{timestamp:yyyy-MM-dd HH:mm:ss} {error.GetType().Name}: {error.Message}";
         isAvailable = false;
+        DisposeSafely(failedWriter);
+        DisposeSafely(failedErrorWriter);
     }
 
-    internal static bool IsDisabledForDate(DateTime timestamp, DateTime disabledDate)
+    private static void DisposeSafely(IDisposable? disposable)
     {
-        return disabledDate != DateTime.MinValue && timestamp.Date == disabledDate.Date;
+        try
+        {
+            disposable?.Dispose();
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e);
+        }
     }
 
     private static StreamWriter CreateWriter(string filePath)
@@ -414,7 +464,7 @@ internal static class AppSessionLogger
         DateTime timestamp,
         int processId)
     {
-        string sessionName = $"{startedAt:yyyyMMdd_HHmmss}_{processId}";
+        string sessionName = $"{startedAt:yyyyMMdd_HHmmss_fff}_{processId}";
         if (timestamp.Date != startedAt.Date)
         {
             sessionName += $"_{timestamp:yyyyMMdd}";
@@ -431,6 +481,8 @@ internal static class AppSessionLogger
             || level.Equals("error", StringComparison.OrdinalIgnoreCase)
             || level.Equals("fatal", StringComparison.OrdinalIgnoreCase);
     }
+
+    internal static string FallbackLogsDirectory => Path.Combine(Path.GetTempPath(), AppConfig.PackName, "logs");
 
     private static void DeleteExpiredLogs(string directory)
     {

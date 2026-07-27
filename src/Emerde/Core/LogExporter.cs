@@ -8,29 +8,36 @@ internal static class LogExporter
 {
     public static string ExportToday(string targetDirectory)
     {
-        string[] files = GetLogFilesForDate(AppPaths.LogsDirectory, DateTime.Now);
+        DateTime now = DateTime.Now;
+        string[] files = GetLogDirectories()
+            .SelectMany(directory => GetLogFilesForDate(directory, now))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static file => file, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         if (files.Length == 0)
         {
             throw new FileNotFoundException("没有找到可导出的日志文件。");
         }
 
-        return CreateArchive(targetDirectory, $"Emerde_logs_today_{DateTime.Now:yyyyMMdd_HHmmss}", files);
+        return CreateArchive(targetDirectory, $"Emerde_logs_today_{now:yyyyMMdd_HHmmss}", files);
     }
 
     public static string ExportAll(string targetDirectory)
     {
-        string[] files = Directory.Exists(AppPaths.LogsDirectory)
-            ? Directory.GetFiles(AppPaths.LogsDirectory, "*.log", SearchOption.TopDirectoryOnly)
-                .OrderBy(static file => file, StringComparer.OrdinalIgnoreCase)
-                .ToArray()
-            : [];
+        DateTime now = DateTime.Now;
+        string[] files = GetLogDirectories()
+            .Where(Directory.Exists)
+            .SelectMany(directory => Directory.GetFiles(directory, "*.log", SearchOption.TopDirectoryOnly))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static file => file, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
         if (files.Length == 0)
         {
             throw new FileNotFoundException("没有找到可导出的日志文件。");
         }
 
-        return CreateArchive(targetDirectory, $"Emerde_logs_all_{DateTime.Now:yyyyMMdd_HHmmss}", files);
+        return CreateArchive(targetDirectory, $"Emerde_logs_all_{now:yyyyMMdd_HHmmss}", files);
     }
 
     internal static string[] GetLogFilesForDate(string logDirectory, DateTime date)
@@ -50,6 +57,15 @@ internal static class LogExporter
             .ToArray();
     }
 
+    private static IEnumerable<string> GetLogDirectories()
+    {
+        yield return AppPaths.LogsDirectory;
+        if (!string.Equals(AppPaths.LogsDirectory, AppSessionLogger.FallbackLogsDirectory, StringComparison.OrdinalIgnoreCase))
+        {
+            yield return AppSessionLogger.FallbackLogsDirectory;
+        }
+    }
+
     private static bool IsLogFileForDate(string file, string compactPrefix, string dashedPrefix)
     {
         string fileName = Path.GetFileName(file);
@@ -65,6 +81,7 @@ internal static class LogExporter
         string archivePath = GetAvailableFilePath(Path.Combine(targetDirectory, archiveName + ".zip"));
         string temporaryPath = archivePath + $".{Guid.NewGuid():N}.tmp";
         int entryCount = 0;
+        Exception? archiveError = null;
 
         try
         {
@@ -91,11 +108,22 @@ internal static class LogExporter
             File.Move(temporaryPath, archivePath);
             return archivePath;
         }
+        catch (Exception e)
+        {
+            archiveError = e;
+            throw;
+        }
         finally
         {
-            if (File.Exists(temporaryPath))
+            try
             {
-                File.Delete(temporaryPath);
+                if (File.Exists(temporaryPath))
+                {
+                    File.Delete(temporaryPath);
+                }
+            }
+            catch (Exception e) when (archiveError != null && e is IOException or UnauthorizedAccessException)
+            {
             }
         }
     }

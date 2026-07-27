@@ -1260,15 +1260,15 @@ public partial class SettingsViewModel : ReactiveObject
         ContentDialogResult result = await WindowSizing.ShowContentDialogAsync(dialog, OwnerWindow);
         if (result == ContentDialogResult.Primary)
         {
-            ExportLogsToArchive(todayOnly: false);
+            await ExportLogsToArchiveAsync(todayOnly: false);
         }
         else if (result == ContentDialogResult.Secondary)
         {
-            ExportLogsToArchive(todayOnly: true);
+            await ExportLogsToArchiveAsync(todayOnly: true);
         }
     }
 
-    private static void ExportLogsToArchive(bool todayOnly)
+    private static async Task ExportLogsToArchiveAsync(bool todayOnly)
     {
         using CommonOpenFileDialog dialog = new()
         {
@@ -1284,9 +1284,10 @@ public partial class SettingsViewModel : ReactiveObject
 
         try
         {
-            string exportPath = todayOnly
-                ? LogExporter.ExportToday(dialog.FileName)
-                : LogExporter.ExportAll(dialog.FileName);
+            string targetDirectory = dialog.FileName;
+            string exportPath = await Task.Run(() => todayOnly
+                ? LogExporter.ExportToday(targetDirectory)
+                : LogExporter.ExportAll(targetDirectory));
             AppSessionLogger.Write($"logs exported to {exportPath}");
             Toast.Success($"日志已导出：{exportPath}");
         }

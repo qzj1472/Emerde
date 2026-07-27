@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Net.NetworkInformation;
 
@@ -138,7 +139,7 @@ internal static class RuntimeResourceLogger
                 extra,
             });
         }
-        catch (Exception e) when (e is InvalidOperationException or ArgumentException)
+        catch (Exception e) when (e is InvalidOperationException or ArgumentException or Win32Exception)
         {
         }
     }
@@ -183,20 +184,25 @@ internal static class RuntimeResourceLogger
                 using Process process = Process.GetProcessById(context.ProcessId);
                 if (process.HasExited)
                 {
-                    _ = Processes.TryRemove(context.ProcessId, out _);
+                    _ = Processes.TryRemove(new KeyValuePair<int, RuntimeProcessContext>(context.ProcessId, context));
                     continue;
                 }
 
                 DateTime now = DateTime.Now;
                 TimeSpan totalCpu = process.TotalProcessorTime;
                 double elapsedSeconds = Math.Max(0.001d, (now - context.LastSampleAt).TotalSeconds);
-                double cpuPercent = Math.Round((totalCpu - context.LastCpuTime).TotalMilliseconds / (elapsedSeconds * Environment.ProcessorCount * 10d), 2);
+                double cpuPercent = CalculateCpuPercent(totalCpu, context.LastCpuTime, elapsedSeconds, Environment.ProcessorCount);
+                double workingSetMb = Math.Round(process.WorkingSet64 / 1024d / 1024d, 2);
 
-                Processes[context.ProcessId] = context with
+                RuntimeProcessContext updatedContext = context with
                 {
                     LastCpuTime = totalCpu,
                     LastSampleAt = now,
                 };
+                if (!Processes.TryUpdate(context.ProcessId, updatedContext, context))
+                {
+                    continue;
+                }
 
                 samples.Add(new RuntimeProcessSample(
                     context.RoomUrl,
@@ -206,13 +212,13 @@ internal static class RuntimeResourceLogger
                     context.ProcessName,
                     context.ProcessId,
                     cpuPercent,
-                    Math.Round(process.WorkingSet64 / 1024d / 1024d, 2),
+                    workingSetMb,
                     context.StartedAt,
                     Math.Round((now - context.StartedAt).TotalSeconds, 1)));
             }
-            catch (Exception e) when (e is InvalidOperationException or ArgumentException)
+            catch (Exception e) when (e is InvalidOperationException or ArgumentException or Win32Exception)
             {
-                _ = Processes.TryRemove(context.ProcessId, out _);
+                _ = Processes.TryRemove(new KeyValuePair<int, RuntimeProcessContext>(context.ProcessId, context));
             }
         }
 
@@ -289,6 +295,14 @@ internal static class RuntimeResourceLogger
 
         return elapsed >= SnapshotMinimumInterval
             && Math.Abs(ramMb - lastSnapshotRamMb) >= SnapshotRamDeltaMb;
+    }
+
+    internal static double CalculateCpuPercent(TimeSpan totalCpu, TimeSpan previousCpu, double elapsedSeconds, int processorCount)
+    {
+        double safeElapsedSeconds = Math.Max(0.001d, elapsedSeconds);
+        int safeProcessorCount = Math.Max(1, processorCount);
+        double cpuMilliseconds = Math.Max(0d, (totalCpu - previousCpu).TotalMilliseconds);
+        return Math.Round(Math.Clamp(cpuMilliseconds / (safeElapsedSeconds * safeProcessorCount * 10d), 0d, 100d), 2);
     }
 
     internal static void SetSnapshotStateForTest(DateTime snapshotAt, string processSignature, double ramMb)
