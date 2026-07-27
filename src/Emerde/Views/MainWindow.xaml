@@ -1637,6 +1637,7 @@
                 </ui:Grid>
 
                 <views:ScreenRecordListWindow x:Name="VideoListPage"
+                                              Margin="0,0,-10,0"
                                               controls:MotionAssist.IsEntranceEnabled="True"
                                               controls:MotionAssist.EntranceOffsetY="8"
                                               controls:MotionAssist.EntranceTrigger="{Binding DataContext.IsVideoListPageSelected, ElementName=ShellPageHost}">

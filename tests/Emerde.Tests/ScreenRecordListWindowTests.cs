@@ -2,11 +2,27 @@ using Emerde.Core;
 using Emerde.Views;
 using System.Collections.ObjectModel;
 using System.Text.Json;
+using System.Xml.Linq;
 
 namespace Emerde.Tests;
 
 public sealed class ScreenRecordListWindowTests
 {
+    [Fact]
+    public void IsIdle_AllowsUserTakeoverWhileListTranscodeIsRunning()
+    {
+        ScreenRecordListViewModel viewModel = new()
+        {
+            IsOperating = true,
+        };
+
+        Assert.False(viewModel.IsIdle);
+
+        viewModel.IsUserTranscoding = true;
+
+        Assert.True(viewModel.IsIdle);
+    }
+
     [Fact]
     public void EnumerateVideoFiles_StopsWhenCancellationIsRequested()
     {
@@ -133,6 +149,37 @@ public sealed class ScreenRecordListWindowTests
         string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
 
         Assert.Contains("PreviewMouseWheel=\"VideoListBoxPreviewMouseWheel\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("VirtualizingPanel.ScrollUnit=\"Pixel\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ScrollViewer.IsDeferredScrollingEnabled=\"False\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("HorizontalAlignment=\"Center\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("TargetName=\"ThumbSurface\" Property=\"Width\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VideoListXaml_AlignsEdgeFadesWithScrollableContent()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+
+        Assert.Contains("Margin=\"10,8,22,0\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("OpacityMask=\"{StaticResource TopEdgeFadeOpacityMask}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Margin=\"10,0,22,10\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("OpacityMask=\"{StaticResource BottomEdgeFadeOpacityMask}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"VideoListTopFade\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"VideoListBottomFade\"", xaml, StringComparison.Ordinal);
+
+        string codeBehind = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
+        Assert.Contains("scrollViewer.VerticalOffset > 0.5d", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("scrollViewer.VerticalOffset < scrollViewer.ScrollableHeight - 0.5d", codeBehind, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StreamerFilter_DefaultsToAllStreamers()
+    {
+        ScreenRecordListViewModel viewModel = new();
+
+        Assert.NotEmpty(viewModel.StreamerOptions);
+        Assert.Equal(viewModel.StreamerOptions[0], viewModel.SelectedStreamer);
+        Assert.False(string.IsNullOrWhiteSpace(viewModel.SelectedStreamer));
     }
 
     [Fact]
@@ -209,6 +256,207 @@ public sealed class ScreenRecordListWindowTests
         Assert.True(first.IsSelected);
         Assert.True(second.IsSelected);
         Assert.True(viewModel.IsMultiSelectMode);
+    }
+
+    [Fact]
+    public void VideoSelection_CanSelectRegularItemAfterLeavingMultiSelect()
+    {
+        ScreenRecordListViewModel viewModel = new();
+        ObservableCollection<RecordedVideoItem> videos = Assert.IsType<ObservableCollection<RecordedVideoItem>>(viewModel.Videos.SourceCollection);
+        RecordedVideoItem item = new() { FullPath = @"C:\videos\first.ts" };
+        videos.Add(item);
+        viewModel.SelectRegularItem(item);
+
+        viewModel.SelectMultipleItem(item, true, false);
+
+        Assert.True(viewModel.IsMultiSelectMode);
+        Assert.True(item.IsSelected);
+
+        viewModel.CancelMultiSelectCommand.Execute(null);
+        Assert.Null(viewModel.RegularSelectedItem);
+        Assert.False(viewModel.IsMultiSelectMode);
+        Assert.False(item.IsSelected);
+
+        viewModel.SelectRegularItem(item);
+
+        Assert.Same(item, viewModel.RegularSelectedItem);
+        Assert.False(viewModel.IsMultiSelectMode);
+        Assert.False(item.IsSelected);
+        Assert.Equal(0, item.SelectionOrder);
+    }
+
+    [Fact]
+    public void VideoSelection_AssignsOrderByUserSelectionSequence()
+    {
+        ScreenRecordListViewModel viewModel = new();
+        ObservableCollection<RecordedVideoItem> videos = Assert.IsType<ObservableCollection<RecordedVideoItem>>(viewModel.Videos.SourceCollection);
+        RecordedVideoItem first = new() { FileName = "first.ts", FullPath = @"C:\videos\first.ts" };
+        RecordedVideoItem second = new() { FileName = "second.ts", FullPath = @"C:\videos\second.ts" };
+        RecordedVideoItem third = new() { FileName = "third.ts", FullPath = @"C:\videos\third.ts" };
+        videos.Add(first);
+        videos.Add(second);
+        videos.Add(third);
+
+        viewModel.SelectMultipleItem(third, true, false);
+        viewModel.SelectMultipleItem(first, true, false);
+
+        Assert.Equal(2, first.SelectionOrder);
+        Assert.Equal(0, second.SelectionOrder);
+        Assert.Equal(1, third.SelectionOrder);
+        Assert.Equal(["third.ts", "first.ts"], ScreenRecordListViewModel.OrderVideosForMerge([first, third]).Select(item => item.FileName));
+    }
+
+    [Fact]
+    public void VideoSelection_DeselectCompactsOrderAndReselectMovesToEnd()
+    {
+        ScreenRecordListViewModel viewModel = new();
+        ObservableCollection<RecordedVideoItem> videos = Assert.IsType<ObservableCollection<RecordedVideoItem>>(viewModel.Videos.SourceCollection);
+        RecordedVideoItem first = new() { FullPath = @"C:\videos\first.ts" };
+        RecordedVideoItem second = new() { FullPath = @"C:\videos\second.ts" };
+        videos.Add(first);
+        videos.Add(second);
+
+        viewModel.SelectMultipleItem(first, true, false);
+        viewModel.SelectMultipleItem(second, true, false);
+        viewModel.SelectMultipleItem(first, true, false);
+
+        Assert.Equal(0, first.SelectionOrder);
+        Assert.Equal(1, second.SelectionOrder);
+
+        viewModel.SelectMultipleItem(first, true, false);
+
+        Assert.Equal(2, first.SelectionOrder);
+        Assert.Equal(1, second.SelectionOrder);
+    }
+
+    [Fact]
+    public void VideoSelection_UndoRedoRestoresSelectionOrder()
+    {
+        ScreenRecordListViewModel viewModel = new();
+        ObservableCollection<RecordedVideoItem> videos = Assert.IsType<ObservableCollection<RecordedVideoItem>>(viewModel.Videos.SourceCollection);
+        RecordedVideoItem first = new() { FullPath = @"C:\videos\first.ts" };
+        RecordedVideoItem second = new() { FullPath = @"C:\videos\second.ts" };
+        videos.Add(first);
+        videos.Add(second);
+
+        viewModel.SelectMultipleItem(second, true, false);
+        viewModel.SelectMultipleItem(first, true, false);
+        viewModel.UndoSelection();
+
+        Assert.Equal(0, first.SelectionOrder);
+        Assert.Equal(1, second.SelectionOrder);
+
+        viewModel.RedoSelection();
+
+        Assert.Equal(2, first.SelectionOrder);
+        Assert.Equal(1, second.SelectionOrder);
+    }
+
+    [Fact]
+    public void VideoSelection_UsesSegmentOrderOnlyWhileSelectionIsOneSegmentSeries()
+    {
+        ScreenRecordListViewModel viewModel = new();
+        ObservableCollection<RecordedVideoItem> videos = Assert.IsType<ObservableCollection<RecordedVideoItem>>(viewModel.Videos.SourceCollection);
+        RecordedVideoItem secondSegment = new() { FileName = "record_001.ts", FullPath = @"C:\videos\record_001.ts" };
+        RecordedVideoItem firstSegment = new() { FileName = "record_000.ts", FullPath = @"C:\videos\record_000.ts" };
+        RecordedVideoItem intro = new() { FileName = "intro.ts", FullPath = @"C:\videos\intro.ts" };
+        videos.Add(secondSegment);
+        videos.Add(firstSegment);
+        videos.Add(intro);
+
+        viewModel.SelectMultipleItem(secondSegment, true, false);
+        viewModel.SelectMultipleItem(firstSegment, true, false);
+
+        Assert.Equal(2, secondSegment.SelectionOrder);
+        Assert.Equal(1, firstSegment.SelectionOrder);
+
+        viewModel.SelectMultipleItem(intro, true, false);
+
+        Assert.Equal(1, secondSegment.SelectionOrder);
+        Assert.Equal(2, firstSegment.SelectionOrder);
+        Assert.Equal(3, intro.SelectionOrder);
+    }
+
+    [Fact]
+    public void VideoSelection_FilterKeepsVisibleOrdersContinuousAndRestoresUserOrder()
+    {
+        ScreenRecordListViewModel viewModel = new();
+        ObservableCollection<RecordedVideoItem> videos = Assert.IsType<ObservableCollection<RecordedVideoItem>>(viewModel.Videos.SourceCollection);
+        RecordedVideoItem hidden = new() { FullPath = @"C:\videos\hidden.ts", NickName = "Hidden" };
+        RecordedVideoItem visible = new() { FullPath = @"C:\videos\visible.ts", NickName = "Visible" };
+        videos.Add(hidden);
+        videos.Add(visible);
+        viewModel.SelectMultipleItem(hidden, true, false);
+        viewModel.SelectMultipleItem(visible, true, false);
+
+        viewModel.SelectedStreamer = "Visible";
+
+        Assert.True(hidden.IsSelected);
+        Assert.Equal(0, hidden.SelectionOrder);
+        Assert.Equal(1, visible.SelectionOrder);
+
+        viewModel.SelectedStreamer = string.Empty;
+
+        Assert.Equal(1, hidden.SelectionOrder);
+        Assert.Equal(2, visible.SelectionOrder);
+    }
+
+    [Fact]
+    public void VideoList_ShowsSelectionOrderBadgeInTheSelectionControlSlot()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+        XElement badge = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "VideoSelectionOrderBadge");
+
+        Assert.Equal("24", (string?)badge.Attribute("Height"));
+        Assert.Equal("12", (string?)badge.Attribute("CornerRadius"));
+        Assert.Contains(badge.Descendants(), element => (string?)element.Attribute("Text") == "{Binding SelectionOrder}");
+        Assert.Contains(badge.Descendants(), element =>
+            element.Name.LocalName == "Condition"
+            && (string?)element.Attribute("Binding") == "{Binding IsSelected}"
+            && (string?)element.Attribute("Value") == "True");
+    }
+
+    [Fact]
+    public void VideoList_UsesMutuallyExclusiveRegularAndMultiSelectionLayers()
+    {
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+        XElement[] triggers = document.Descendants().Where(element => element.Name.LocalName == "MultiDataTrigger").ToArray();
+        XElement regularTrigger = Assert.Single(triggers, trigger =>
+            trigger.Descendants().Any(element =>
+                element.Name.LocalName == "Condition"
+                && (string?)element.Attribute("Binding") == "{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                && (string?)element.Attribute("Value") == "True")
+            && trigger.Descendants().Any(element =>
+                element.Name.LocalName == "Condition"
+                && (string?)element.Attribute("Binding") == "{Binding DataContext.IsMultiSelectMode, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
+                && (string?)element.Attribute("Value") == "False"));
+        XElement multiTrigger = Assert.Single(triggers, trigger =>
+            trigger.Descendants().Any(element =>
+                element.Name.LocalName == "Condition"
+                && (string?)element.Attribute("Binding") == "{Binding IsSelected}"
+                && (string?)element.Attribute("Value") == "True")
+            && trigger.Descendants().Any(element =>
+                element.Name.LocalName == "Condition"
+                && (string?)element.Attribute("Binding") == "{Binding DataContext.IsMultiSelectMode, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
+                && (string?)element.Attribute("Value") == "True")
+            && trigger.Descendants().Any(element =>
+                element.Name.LocalName == "DoubleAnimation"
+                && (string?)element.Attribute("Storyboard.TargetName") == "VideoCardMultiSelectionLayer"));
+
+        Assert.Contains(document.Descendants(), element => (string?)element.Attribute(x + "Name") == "VideoCardSelectionLayer");
+        Assert.Contains(document.Descendants(), element => (string?)element.Attribute(x + "Name") == "VideoCardMultiSelectionLayer");
+        Assert.All(regularTrigger.Descendants().Where(element => element.Name.LocalName == "DoubleAnimation"), animation =>
+        {
+            Assert.Equal("VideoCardSelectionLayer", (string?)animation.Attribute("Storyboard.TargetName"));
+            Assert.Equal("Stop", (string?)animation.Attribute("FillBehavior"));
+        });
+        Assert.All(multiTrigger.Descendants().Where(element => element.Name.LocalName == "DoubleAnimation"), animation =>
+        {
+            Assert.Equal("VideoCardMultiSelectionLayer", (string?)animation.Attribute("Storyboard.TargetName"));
+            Assert.Equal("Stop", (string?)animation.Attribute("FillBehavior"));
+        });
     }
 
     [Fact]
@@ -309,11 +557,12 @@ public sealed class ScreenRecordListWindowTests
     [Fact]
     public void RecordingVideoItem_CannotBeSelectedOrModified()
     {
-        RecordedVideoItem item = new() { SupportsTranscode = true, IsSelected = true };
+        RecordedVideoItem item = new() { SupportsTranscode = true, IsSelected = true, SelectionOrder = 1 };
 
         item.IsRecordingFile = true;
 
         Assert.False(item.IsSelected);
+        Assert.Equal(0, item.SelectionOrder);
         Assert.False(item.CanSelect);
         Assert.False(item.CanModify);
         Assert.False(item.CanTranscode);
@@ -543,6 +792,48 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
+    public void OrderVideosForMerge_SameSegmentSeriesOverridesUserSelectionOrder()
+    {
+        RecordedVideoItem[] videos =
+        [
+            new() { FileName = "record_001.ts", FullPath = @"C:\videos\record_001.ts", SelectionOrder = 1 },
+            new() { FileName = "record_000.ts", FullPath = @"C:\videos\record_000.ts", SelectionOrder = 2 },
+        ];
+
+        string[] result = ScreenRecordListViewModel.OrderVideosForMerge(videos).Select(video => video.FileName).ToArray();
+
+        Assert.Equal(["record_000.ts", "record_001.ts"], result);
+    }
+
+    [Fact]
+    public void OrderVideosForMerge_MixedFilesUseUserSelectionOrder()
+    {
+        RecordedVideoItem[] videos =
+        [
+            new() { FileName = "record_000.ts", FullPath = @"C:\videos\record_000.ts", SelectionOrder = 2 },
+            new() { FileName = "intro.ts", FullPath = @"C:\videos\intro.ts", SelectionOrder = 1 },
+        ];
+
+        string[] result = ScreenRecordListViewModel.OrderVideosForMerge(videos).Select(video => video.FileName).ToArray();
+
+        Assert.Equal(["intro.ts", "record_000.ts"], result);
+    }
+
+    [Fact]
+    public void OrderVideosForMerge_DifferentSegmentSeriesUseUserSelectionOrder()
+    {
+        RecordedVideoItem[] videos =
+        [
+            new() { FileName = "first_000.ts", FullPath = @"C:\videos\first_000.ts", SelectionOrder = 2 },
+            new() { FileName = "second_000.ts", FullPath = @"C:\videos\second_000.ts", SelectionOrder = 1 },
+        ];
+
+        string[] result = ScreenRecordListViewModel.OrderVideosForMerge(videos).Select(video => video.FileName).ToArray();
+
+        Assert.Equal(["second_000.ts", "first_000.ts"], result);
+    }
+
+    [Fact]
     public void BuildMergeWarningText_ReportsNonContinuousSegments()
     {
         RecordedVideoItem[] videos =
@@ -553,7 +844,8 @@ public sealed class ScreenRecordListWindowTests
 
         string result = ScreenRecordListViewModel.BuildMergeWarningText(videos);
 
-        Assert.Contains("不是同一组连续分段", result);
+        Assert.Contains("分段编号不连续", result);
+        Assert.Contains("按分段编号合并", result);
     }
 
     [Fact]

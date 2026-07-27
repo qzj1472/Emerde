@@ -36,6 +36,36 @@ internal static class MediaFileCatalog
         return Path.Combine(directory, $".emerde-{safePurpose}-{Guid.NewGuid():N}{extension}");
     }
 
+    public static IEnumerable<string> OrderSegmentPaths(IEnumerable<string> paths, string pattern)
+    {
+        return paths
+            .Select(path => (Path: path, Index: GetSegmentIndex(path, pattern)))
+            .OrderBy(item => item.Index)
+            .ThenBy(item => item.Path, StringComparer.OrdinalIgnoreCase)
+            .Select(item => item.Path);
+    }
+
+    private static long GetSegmentIndex(string path, string pattern)
+    {
+        string fileName = Path.GetFileName(path);
+        string patternFileName = Path.GetFileName(pattern);
+        int markerIndex = patternFileName.IndexOf("%03d", StringComparison.Ordinal);
+        if (markerIndex < 0)
+        {
+            return long.MaxValue;
+        }
+
+        string prefix = patternFileName[..markerIndex];
+        string suffix = patternFileName[(markerIndex + 4)..];
+        int numberLength = fileName.Length - prefix.Length - suffix.Length;
+        return numberLength >= 3
+            && fileName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            && fileName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
+            && long.TryParse(fileName.AsSpan(prefix.Length, numberLength), out long index)
+                ? index
+                : long.MaxValue;
+    }
+
     public static string[] GetConfiguredSaveFolders(bool createDirectories = false)
     {
         List<string?> configuredFolders = [Configurations.SaveFolder.Get()];
