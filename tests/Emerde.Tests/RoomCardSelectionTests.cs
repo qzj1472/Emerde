@@ -21,6 +21,26 @@ public sealed class RoomCardSelectionTests
         Assert.Equal(expected, MainWindow.IsRoomCardKeyboardNavigationKey(key));
     }
 
+    [Theory]
+    [InlineData(0, -1, 4, 3)]
+    [InlineData(3, 1, 4, 0)]
+    [InlineData(1, 1, 4, 2)]
+    [InlineData(2, -1, 4, 1)]
+    [InlineData(0, -3, 4, 1)]
+    [InlineData(3, 3, 4, 2)]
+    [InlineData(-1, 1, 4, 0)]
+    [InlineData(-1, -1, 4, 3)]
+    public void ResolveCyclicRoomIndex_WrapsAcrossBothEnds(int currentIndex, int offset, int count, int expected)
+    {
+        Assert.Equal(expected, MainWindow.ResolveCyclicRoomIndex(currentIndex, offset, count));
+    }
+
+    [Fact]
+    public void ResolveCyclicRoomIndex_RejectsEmptyCollections()
+    {
+        Assert.Equal(-1, MainWindow.ResolveCyclicRoomIndex(0, 1, 0));
+    }
+
     [Fact]
     public void CurrentRoomVisual_IsHiddenWhenRoomsAreAlreadySelected()
     {

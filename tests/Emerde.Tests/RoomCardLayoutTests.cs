@@ -106,6 +106,20 @@ public sealed class RoomCardLayoutTests
         Assert.DoesNotContain(itemsPanel.Descendants(), element => element.Name.LocalName == "WrapPanel");
     }
 
+    [Theory]
+    [InlineData(100d, 300d, -20d, 80d, 80d)]
+    [InlineData(100d, 300d, 350d, 100d, 250d)]
+    [InlineData(100d, 300d, 50d, 100d, 100d)]
+    public void ScrollOffset_RevealsTheWholeSelectedCard(
+        double currentOffset,
+        double viewportHeight,
+        double itemTop,
+        double itemHeight,
+        double expected)
+    {
+        Assert.Equal(expected, MainWindow.CalculateScrollOffsetToReveal(currentOffset, viewportHeight, itemTop, itemHeight));
+    }
+
     private static string FindRepositoryFile(params string[] parts)
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);

@@ -52,6 +52,7 @@ public partial class MainWindow : FluentWindow
     public static readonly DependencyProperty RoomCardChipFontSizeProperty = DependencyProperty.Register(nameof(RoomCardChipFontSize), typeof(double), typeof(MainWindow), new PropertyMetadata(11d));
     public static readonly DependencyProperty RoomCardChipPaddingProperty = DependencyProperty.Register(nameof(RoomCardChipPadding), typeof(Thickness), typeof(MainWindow), new PropertyMetadata(new Thickness(4, 1, 4, 1)));
     public static readonly DependencyProperty RoomCardChipMinHeightProperty = DependencyProperty.Register(nameof(RoomCardChipMinHeight), typeof(double), typeof(MainWindow), new PropertyMetadata(20d));
+    public static readonly DependencyProperty IsPreviewSurfaceVisibleProperty = DependencyProperty.Register(nameof(IsPreviewSurfaceVisible), typeof(bool), typeof(MainWindow), new PropertyMetadata(false));
 
     public int RoomCardColumnCount
     {
@@ -167,6 +168,12 @@ public partial class MainWindow : FluentWindow
         set => SetValue(RoomCardChipMinHeightProperty, value);
     }
 
+    public bool IsPreviewSurfaceVisible
+    {
+        get => (bool)GetValue(IsPreviewSurfaceVisibleProperty);
+        set => SetValue(IsPreviewSurfaceVisibleProperty, value);
+    }
+
     private const int RoomCardNormalBaseColumns = 3;
     private const int RoomCardPreviewBaseColumns = 1;
     private const double HomeDetailPanelBaseMaxWidth = 360d;
@@ -264,6 +271,11 @@ public partial class MainWindow : FluentWindow
     private bool previousPreviewingState;
     private bool isStartupAboutNoticeQueued;
     private bool isStartupAboutNoticeShowing;
+    private int homePreviewLayoutAnimationGeneration;
+    private int homePreviewLayoutUpdateGeneration;
+    private int previewPresentationUpdateGeneration;
+    private bool isHomePreviewColumnAnimationActive;
+    private bool isPreviewClosingTransitionActive;
 
     public MainWindow()
     {
@@ -271,6 +283,7 @@ public partial class MainWindow : FluentWindow
         DataContext = ViewModel = new();
         WindowSizing.UseMainWindowAspectSize(this);
         InitializeComponent();
+        IsPreviewSurfaceVisible = ViewModel.IsPreviewing;
         previousPreviewingState = ViewModel.IsPreviewing;
         UpdateHomePreviewLayout();
         ViewModel.PropertyChanged += ViewModelPropertyChanged;
@@ -283,8 +296,19 @@ public partial class MainWindow : FluentWindow
             AppSessionLogger.Write($"perf MainWindow loaded in {stopwatch.ElapsedMilliseconds} ms");
             QueueStartupAboutNotice();
         };
-        IsVisibleChanged += (_, _) => QueueStartupAboutNotice();
-        StateChanged += (_, _) => QueueStartupAboutNotice();
+        IsVisibleChanged += (_, _) =>
+        {
+            UpdatePreviewPresentationState();
+            QueueStartupAboutNotice();
+        };
+        StateChanged += (_, _) =>
+        {
+            CloseActiveToolTips();
+            UpdatePreviewPresentationState();
+            QueueStartupAboutNotice();
+        };
+        Deactivated += (_, _) => CloseActiveToolTips();
+        SizeChanged += (_, _) => CloseActiveToolTips();
 
         if (Configurations.IsUseKeepAwake.Get())
         {
@@ -681,9 +705,7 @@ public partial class MainWindow : FluentWindow
             Key.Right or Key.D => 1,
             _ => 0,
         };
-        int nextIndex = currentIndex < 0
-            ? offset < 0 ? visibleRooms.Length - 1 : 0
-            : Math.Clamp(currentIndex + offset, 0, visibleRooms.Length - 1);
+        int nextIndex = ResolveCyclicRoomIndex(currentIndex, offset, visibleRooms.Length);
         RoomStatusReactive room = visibleRooms[nextIndex];
 
         ViewModel.SelectRoom(room, false, false);
@@ -691,6 +713,23 @@ public partial class MainWindow : FluentWindow
         RoomCardList.SelectedItem = room;
         RoomCardList.ScrollIntoView(room);
         FocusRoomCardList();
+    }
+
+    internal static int ResolveCyclicRoomIndex(int currentIndex, int offset, int count)
+    {
+        if (count <= 0)
+        {
+            return -1;
+        }
+
+        if (currentIndex < 0)
+        {
+            return offset < 0 ? count - 1 : 0;
+        }
+
+        int normalizedIndex = currentIndex % count;
+        int normalizedOffset = offset % count;
+        return (normalizedIndex + normalizedOffset + count) % count;
     }
 
     private RoomStatusReactive[] RoomStatusesViewItems()
@@ -884,9 +923,17 @@ public partial class MainWindow : FluentWindow
 
     private void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(MainViewModel.IsHomePageSelected))
+        if (e.PropertyName == nameof(MainViewModel.SelectedMainPageIndex))
         {
+            CloseActiveToolTips();
+            if (!ViewModel.IsHomePageSelected && isPreviewClosingTransitionActive)
+            {
+                homePreviewLayoutUpdateGeneration++;
+                InterruptHomePreviewColumnAnimation();
+                UpdateHomePreviewLayout();
+            }
             UpdatePreviewPresentationState();
+            FocusActivePage();
             return;
         }
 
@@ -895,43 +942,69 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
-        bool bringSelectedRoomIntoView = previousPreviewingState != ViewModel.IsPreviewing;
+        bool wasPreviewing = previousPreviewingState;
+        bool bringSelectedRoomIntoView = wasPreviewing != ViewModel.IsPreviewing;
         previousPreviewingState = ViewModel.IsPreviewing;
+        InterruptHomePreviewColumnAnimation();
         if (ViewModel.IsPreviewing)
         {
             isPreviewRoomCardBaseWidthCaptured = false;
+            isPreviewClosingTransitionActive = false;
+            IsPreviewSurfaceVisible = true;
+        }
+        else if (wasPreviewing)
+        {
+            isPreviewClosingTransitionActive = true;
+            IsPreviewSurfaceVisible = true;
         }
 
         UpdatePreviewPresentationState();
+        int layoutUpdateGeneration = ++homePreviewLayoutUpdateGeneration;
         Dispatcher.BeginInvoke(() =>
         {
+            if (homePreviewLayoutUpdateGeneration != layoutUpdateGeneration)
+            {
+                return;
+            }
+
             if (!ViewModel.IsPreviewing && IsPreviewFullScreenActive)
             {
                 ExitPreviewFullScreen();
             }
 
-            UpdateHomePreviewLayout();
-            UpdateLayout();
-            UpdateRoomCardMetrics(RoomCardList.ActualWidth);
-            if (bringSelectedRoomIntoView)
+            bool layoutWillRepositionSelection = ShouldAnimateHomePreviewColumns(true);
+            UpdateHomePreviewLayout(true);
+            if (!layoutWillRepositionSelection)
             {
-                BringSelectedRoomCardIntoView();
-            }
-            if (!ViewModel.IsPreviewing && ViewModel.IsHomePageSelected)
-            {
-                FocusRoomCardList();
+                QueueRoomCardMetricsRefresh();
+                if (bringSelectedRoomIntoView)
+                {
+                    BringSelectedRoomCardIntoView();
+                }
+                if (!ViewModel.IsPreviewing && ViewModel.IsHomePageSelected)
+                {
+                    FocusRoomCardList();
+                }
             }
         }, DispatcherPriority.Loaded);
     }
 
+    private void QueueRoomCardMetricsRefresh()
+    {
+        Dispatcher.BeginInvoke(() => UpdateRoomCardMetrics(RoomCardList.ActualWidth), DispatcherPriority.Render);
+    }
+
     private void BringSelectedRoomCardIntoView()
     {
-        RoomStatusReactive? selectedRoom = ViewModel.SelectedItem;
+        RoomStatusReactive? selectedRoom = ViewModel.IsPreviewing
+            ? ViewModel.PreviewingRoom ?? ViewModel.SelectedItem
+            : ViewModel.SelectedItem;
         if (selectedRoom == null)
         {
             return;
         }
 
+        RoomCardList.SelectedItem = selectedRoom;
         RoomCardList.ScrollIntoView(selectedRoom);
         Dispatcher.BeginInvoke(() =>
         {
@@ -939,27 +1012,82 @@ public partial class MainWindow : FluentWindow
             if (RoomCardList.ItemContainerGenerator.ContainerFromItem(selectedRoom) is FrameworkElement container)
             {
                 container.BringIntoView();
+                RoomCardList.UpdateLayout();
+                if (FindVisualChild<ScrollViewer>(RoomCardList, "RoomCardScrollViewer") is ScrollViewer scrollViewer)
+                {
+                    Point itemPosition = container.TransformToAncestor(scrollViewer).Transform(new Point(0d, 0d));
+                    double targetOffset = CalculateScrollOffsetToReveal(
+                        scrollViewer.VerticalOffset,
+                        scrollViewer.ViewportHeight,
+                        itemPosition.Y,
+                        container.ActualHeight);
+                    scrollViewer.ScrollToVerticalOffset(targetOffset);
+                }
             }
-        }, DispatcherPriority.Render);
+        }, DispatcherPriority.ContextIdle);
+    }
+
+    internal static double CalculateScrollOffsetToReveal(
+        double currentOffset,
+        double viewportHeight,
+        double itemTop,
+        double itemHeight)
+    {
+        if (itemTop < 0d)
+        {
+            return Math.Max(0d, currentOffset + itemTop);
+        }
+
+        double itemBottom = itemTop + itemHeight;
+        if (itemBottom > viewportHeight)
+        {
+            return Math.Max(0d, currentOffset + itemBottom - viewportHeight);
+        }
+
+        return Math.Max(0d, currentOffset);
     }
 
     private void UpdatePreviewPresentationState()
     {
-        bool isSuspended = ShouldSuspendPreviewPresentation(ViewModel.IsPreviewing);
-        HomePreviewPanel.SetVideoPresentationSuspended(isSuspended);
+        int updateGeneration = ++previewPresentationUpdateGeneration;
+        bool isSuspended = ShouldSuspendPreviewPresentation(
+            ViewModel.IsPreviewing,
+            isPreviewClosingTransitionActive,
+            ViewModel.IsHomePageSelected,
+            isPreviewFullScreen,
+            IsVisible,
+            WindowState == WindowState.Minimized);
+        HomePreviewPanel.SetVideoPresentationState(isSuspended, isPreviewClosingTransitionActive);
 
-        if (!isSuspended && (isPreviewFullScreen || ViewModel.IsHomePageSelected))
+        if (!isSuspended && ViewModel.IsPreviewing)
         {
-            _ = Dispatcher.BeginInvoke(HomePreviewPanel.RefreshVideoLayout, DispatcherPriority.Render);
+            _ = Dispatcher.BeginInvoke(() =>
+            {
+                if (previewPresentationUpdateGeneration == updateGeneration)
+                {
+                    HomePreviewPanel.RefreshVideoLayout();
+                }
+            }, DispatcherPriority.Render);
         }
     }
 
-    internal static bool ShouldSuspendPreviewPresentation(bool isPreviewing)
+    internal static bool ShouldSuspendPreviewPresentation(
+        bool isPreviewing,
+        bool isClosingTransitionActive,
+        bool isHomePageSelected,
+        bool isFullScreen,
+        bool isWindowVisible,
+        bool isWindowMinimized)
     {
-        return !isPreviewing;
+        if (!isWindowVisible || isWindowMinimized || (!isHomePageSelected && !isFullScreen))
+        {
+            return true;
+        }
+
+        return !isPreviewing && !isClosingTransitionActive;
     }
 
-    private void UpdateHomePreviewLayout()
+    private void UpdateHomePreviewLayout(bool animate = false)
     {
         if (isPreviewFullScreen)
         {
@@ -970,17 +1098,197 @@ public partial class MainWindow : FluentWindow
         if (ViewModel.IsPreviewing)
         {
             (double roomListWidth, double detailWidth) = CalculatePreviewPaneWidths(HomePreviewLayoutRoot.ActualWidth);
-            HomeRoomCardColumn.Width = new GridLength(roomListWidth);
-            HomePreviewColumn.Width = new GridLength(1, GridUnitType.Star);
-            HomeDetailColumn.Width = new GridLength(detailWidth);
-            RoomDetailPanel.Visibility = detailWidth > 0d ? Visibility.Visible : Visibility.Collapsed;
+            ApplyHomePreviewColumns(
+                new GridLength(roomListWidth),
+                new GridLength(1, GridUnitType.Star),
+                new GridLength(detailWidth),
+                detailWidth > 0d,
+                animate);
             return;
         }
 
-        HomeRoomCardColumn.Width = new GridLength(7, GridUnitType.Star);
-        HomePreviewColumn.Width = new GridLength(0);
-        HomeDetailColumn.Width = new GridLength(3, GridUnitType.Star);
+        ApplyHomePreviewColumns(
+            new GridLength(7, GridUnitType.Star),
+            new GridLength(0),
+            new GridLength(3, GridUnitType.Star),
+            true,
+            animate);
+    }
+
+    private void ApplyHomePreviewColumns(
+        GridLength roomListWidth,
+        GridLength previewWidth,
+        GridLength detailWidth,
+        bool showDetailPanel,
+        bool animate)
+    {
+        if (!ShouldAnimateHomePreviewColumns(animate))
+        {
+            homePreviewLayoutAnimationGeneration++;
+            isHomePreviewColumnAnimationActive = false;
+            ClearHomePreviewColumnAnimations();
+            HomeRoomCardColumn.Width = roomListWidth;
+            HomePreviewColumn.Width = previewWidth;
+            HomeDetailColumn.Width = detailWidth;
+            RoomDetailPanel.Visibility = showDetailPanel ? Visibility.Visible : Visibility.Collapsed;
+            CompletePreviewClosingTransition();
+            return;
+        }
+
+        int generation = ++homePreviewLayoutAnimationGeneration;
+        isHomePreviewColumnAnimationActive = true;
+        double totalWidth = Math.Max(1d, HomePreviewLayoutRoot.ActualWidth);
+        (double targetRoomListWidth, double targetPreviewWidth, double targetDetailWidth) = ResolveAnimatedHomePreviewWidths(
+            totalWidth,
+            roomListWidth,
+            previewWidth,
+            detailWidth,
+            HomeDetailColumn.MaxWidth);
+
         RoomDetailPanel.Visibility = Visibility.Visible;
+        AnimateHomePreviewColumn(HomeRoomCardColumn, HomeRoomCardColumn.ActualWidth, targetRoomListWidth);
+        AnimateHomePreviewColumn(HomePreviewColumn, HomePreviewColumn.ActualWidth, targetPreviewWidth);
+        System.Windows.Media.Animation.AnimationTimeline detailAnimation = CreateHomePreviewColumnAnimation(HomeDetailColumn.ActualWidth, targetDetailWidth);
+        detailAnimation.Completed += (_, _) =>
+        {
+            if (homePreviewLayoutAnimationGeneration != generation)
+            {
+                return;
+            }
+
+            isHomePreviewColumnAnimationActive = false;
+            HomeRoomCardColumn.Width = roomListWidth;
+            HomePreviewColumn.Width = previewWidth;
+            HomeDetailColumn.Width = detailWidth;
+            ClearHomePreviewColumnAnimations();
+            RoomDetailPanel.Visibility = showDetailPanel ? Visibility.Visible : Visibility.Collapsed;
+            CompletePreviewClosingTransition();
+            UpdateRoomCardMetrics(RoomCardList.ActualWidth);
+            BringSelectedRoomCardIntoView();
+            if (!ViewModel.IsPreviewing && ViewModel.IsHomePageSelected)
+            {
+                FocusRoomCardList();
+            }
+        };
+        HomeDetailColumn.BeginAnimation(ColumnDefinition.WidthProperty, detailAnimation);
+    }
+
+    private void CompletePreviewClosingTransition()
+    {
+        if (!isPreviewClosingTransitionActive || ViewModel.IsPreviewing)
+        {
+            return;
+        }
+
+        isPreviewClosingTransitionActive = false;
+        IsPreviewSurfaceVisible = false;
+        UpdatePreviewPresentationState();
+    }
+
+    private void InterruptHomePreviewColumnAnimation()
+    {
+        if (!isHomePreviewColumnAnimationActive)
+        {
+            return;
+        }
+
+        double roomListWidth = NormalizeAnimatedWidth(HomeRoomCardColumn.ActualWidth);
+        double previewWidth = NormalizeAnimatedWidth(HomePreviewColumn.ActualWidth);
+        double detailWidth = NormalizeAnimatedWidth(HomeDetailColumn.ActualWidth);
+        homePreviewLayoutAnimationGeneration++;
+        isHomePreviewColumnAnimationActive = false;
+        ClearHomePreviewColumnAnimations();
+        HomeRoomCardColumn.Width = new GridLength(roomListWidth);
+        HomePreviewColumn.Width = new GridLength(previewWidth);
+        HomeDetailColumn.Width = new GridLength(detailWidth);
+    }
+
+    private void ClearHomePreviewColumnAnimations()
+    {
+        HomeRoomCardColumn.BeginAnimation(ColumnDefinition.WidthProperty, null);
+        HomePreviewColumn.BeginAnimation(ColumnDefinition.WidthProperty, null);
+        HomeDetailColumn.BeginAnimation(ColumnDefinition.WidthProperty, null);
+    }
+
+    private bool ShouldAnimateHomePreviewColumns(bool animate)
+    {
+        return animate
+            && IsLoaded
+            && SystemParameters.ClientAreaAnimation
+            && ViewModel.IsHomePageSelected
+            && HomePageRoot.IsVisible
+            && HomePreviewLayoutRoot.ActualWidth > 0d
+            && !isPreviewFullScreen;
+    }
+
+    internal static (double RoomListWidth, double PreviewWidth, double DetailWidth) ResolveAnimatedHomePreviewWidths(
+        double totalWidth,
+        GridLength roomListWidth,
+        GridLength previewWidth,
+        GridLength detailWidth,
+        double detailMaxWidth = double.PositiveInfinity)
+    {
+        totalWidth = NormalizeAnimatedWidth(totalWidth);
+        detailMaxWidth = double.IsNaN(detailMaxWidth)
+            ? 0d
+            : NormalizeAnimatedWidth(detailMaxWidth);
+        bool isPreviewClosed = previewWidth.Value <= 0d;
+        if (isPreviewClosed)
+        {
+            double roomWeight = roomListWidth.IsStar ? NormalizeAnimatedWidth(roomListWidth.Value) : 0d;
+            double detailWeight = detailWidth.IsStar ? NormalizeAnimatedWidth(detailWidth.Value) : 0d;
+            double totalWeight = roomWeight + detailWeight;
+            double closedDetailPixels = totalWeight > 0d
+                ? totalWidth * detailWeight / totalWeight
+                : ResolveAnimatedHomePreviewColumnWidth(totalWidth, detailWidth);
+            closedDetailPixels = Math.Min(closedDetailPixels, detailMaxWidth);
+            return (Math.Max(0d, totalWidth - closedDetailPixels), 0d, closedDetailPixels);
+        }
+
+        double roomListPixels = ResolveAnimatedHomePreviewColumnWidth(totalWidth, roomListWidth);
+        double remainingWidth = Math.Max(0d, totalWidth - roomListPixels);
+        double detailPixels = Math.Min(
+            ResolveAnimatedHomePreviewColumnWidth(totalWidth, detailWidth),
+            Math.Min(detailMaxWidth, remainingWidth));
+        double previewPixels = Math.Max(0d, remainingWidth - detailPixels);
+        return (roomListPixels, previewPixels, detailPixels);
+    }
+
+    private static double ResolveAnimatedHomePreviewColumnWidth(double totalWidth, GridLength width)
+    {
+        if (width.IsAbsolute)
+        {
+            return Math.Min(totalWidth, NormalizeAnimatedWidth(width.Value));
+        }
+
+        if (width.IsStar)
+        {
+            return totalWidth;
+        }
+
+        return 0d;
+    }
+
+    private static double NormalizeAnimatedWidth(double value)
+    {
+        return double.IsFinite(value) ? Math.Max(0d, value) : value > 0d ? double.MaxValue : 0d;
+    }
+
+    private static void AnimateHomePreviewColumn(ColumnDefinition column, double from, double to)
+    {
+        column.BeginAnimation(ColumnDefinition.WidthProperty, CreateHomePreviewColumnAnimation(from, to));
+    }
+
+    private static System.Windows.Media.Animation.AnimationTimeline CreateHomePreviewColumnAnimation(double from, double to)
+    {
+        return new Emerde.Controls.GridLengthAnimation
+        {
+            From = NormalizeAnimatedWidth(from),
+            To = NormalizeAnimatedWidth(to),
+            Duration = TimeSpan.FromMilliseconds(260),
+            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut },
+            FillBehavior = System.Windows.Media.Animation.FillBehavior.HoldEnd,
+        };
     }
 
     internal static (double RoomListWidth, double DetailWidth) CalculatePreviewPaneWidths(double availableWidth)
@@ -1024,13 +1332,80 @@ public partial class MainWindow : FluentWindow
 
     private void HomePreviewLayoutRootSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (!ViewModel.IsPreviewing || isPreviewFullScreen)
+        if (isPreviewFullScreen || (!ViewModel.IsPreviewing && !isPreviewClosingTransitionActive))
         {
             return;
         }
 
-        UpdateHomePreviewLayout();
+        UpdateHomePreviewLayout(isHomePreviewColumnAnimationActive);
         UpdateRoomCardMetrics(RoomCardList.ActualWidth);
+    }
+
+    private void CloseActiveToolTips()
+    {
+        CloseActiveToolTips(this, []);
+    }
+
+    private static void CloseActiveToolTips(DependencyObject root, HashSet<DependencyObject> visited)
+    {
+        foreach (FrameworkElement owner in EnumerateToolTipOwners(root, visited))
+        {
+            if (owner.ToolTip is System.Windows.Controls.ToolTip toolTip)
+            {
+                toolTip.IsOpen = false;
+            }
+
+            if (!ToolTipService.GetIsEnabled(owner))
+            {
+                continue;
+            }
+
+            ToolTipService.SetIsEnabled(owner, false);
+            _ = owner.Dispatcher.BeginInvoke(
+                () => ToolTipService.SetIsEnabled(owner, true),
+                DispatcherPriority.Background);
+        }
+    }
+
+    private static IEnumerable<FrameworkElement> EnumerateToolTipOwners(DependencyObject root, HashSet<DependencyObject> visited)
+    {
+        if (!visited.Add(root))
+        {
+            yield break;
+        }
+
+        if (root is FrameworkElement { ToolTip: not null } element)
+        {
+            yield return element;
+        }
+
+        if (CanEnumerateVisualChildren(root))
+        {
+            int visualChildren = VisualTreeHelper.GetChildrenCount(root);
+            for (int index = 0; index < visualChildren; index++)
+            {
+                foreach (FrameworkElement child in EnumerateToolTipOwners(VisualTreeHelper.GetChild(root, index), visited))
+                {
+                    yield return child;
+                }
+            }
+        }
+
+        foreach (object logicalChild in LogicalTreeHelper.GetChildren(root))
+        {
+            if (logicalChild is DependencyObject dependencyObject)
+            {
+                foreach (FrameworkElement child in EnumerateToolTipOwners(dependencyObject, visited))
+                {
+                    yield return child;
+                }
+            }
+        }
+    }
+
+    internal static bool CanEnumerateVisualChildren(DependencyObject root)
+    {
+        return root is Visual or System.Windows.Media.Media3D.Visual3D;
     }
 
     private void RoomCardListLoaded(object sender, RoutedEventArgs e)
@@ -1311,6 +1686,12 @@ public partial class MainWindow : FluentWindow
             Activate();
             Focus();
             QueuePreviewFullScreenWindowRefresh();
+            AppSessionLogger.Event("info", "preview", "preview_full_screen_entered", "preview entered full screen", new
+            {
+                room = ViewModel.PreviewingRoom == null
+                    ? null
+                    : new { ViewModel.PreviewingRoom.RoomUrl, ViewModel.PreviewingRoom.NickName },
+            });
         }
         catch
         {
@@ -1341,6 +1722,12 @@ public partial class MainWindow : FluentWindow
         Activate();
         Focus();
         FocusRoomCardList();
+        AppSessionLogger.Event("info", "preview", "preview_full_screen_exited", "preview exited full screen", new
+        {
+            room = ViewModel.PreviewingRoom == null
+                ? null
+                : new { ViewModel.PreviewingRoom.RoomUrl, ViewModel.PreviewingRoom.NickName },
+        });
     }
 
     private void SavePreviewFullScreenLayout()
@@ -1390,6 +1777,9 @@ public partial class MainWindow : FluentWindow
 
     private void ApplyPreviewFullScreenColumns()
     {
+        homePreviewLayoutAnimationGeneration++;
+        isHomePreviewColumnAnimationActive = false;
+        ClearHomePreviewColumnAnimations();
         HomeRoomCardColumn.Width = new GridLength(0);
         HomePreviewColumn.Width = new GridLength(1, GridUnitType.Star);
         HomeDetailColumn.Width = new GridLength(0);

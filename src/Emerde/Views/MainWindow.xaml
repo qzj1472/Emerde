@@ -3,6 +3,7 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:b="http://schemas.github.com/computedbehaviors/2024/xaml"
                  xmlns:c="http://schemas.github.com/computedconverters/2024/xaml"
+                 xmlns:controls="clr-namespace:Emerde.Controls"
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                  xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
                  xmlns:local="clr-namespace:Emerde"
@@ -48,6 +49,8 @@
             <SolidColorBrush x:Key="RecordActiveForegroundBrush" Color="#C84450" />
 
             <Style x:Key="StatusTrayButtonStyle" TargetType="{x:Type Button}">
+                <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
+                <Setter Property="controls:MotionAssist.HoverScale" Value="1.01" />
                 <Setter Property="Width" Value="22" />
                 <Setter Property="Height" Value="28" />
                 <Setter Property="MinWidth" Value="22" />
@@ -104,6 +107,8 @@
             </Style>
 
             <Style x:Key="StatusTrayChipButtonStyle" TargetType="{x:Type Button}">
+                <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
+                <Setter Property="controls:MotionAssist.HoverScale" Value="1.008" />
                 <Setter Property="MinWidth" Value="0" />
                 <Setter Property="Height" Value="28" />
                 <Setter Property="Padding" Value="6,0" />
@@ -143,6 +148,8 @@
             </Style>
 
             <Style x:Key="StatusTrayCapacityButtonStyle" TargetType="{x:Type Button}">
+                <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
+                <Setter Property="controls:MotionAssist.HoverScale" Value="1.008" />
                 <Setter Property="MinWidth" Value="68" />
                 <Setter Property="Height" Value="24" />
                 <Setter Property="Padding" Value="4,0" />
@@ -183,6 +190,8 @@
             </Style>
 
             <Style x:Key="StatusTrayCapacityRefreshButtonStyle" TargetType="{x:Type Button}">
+                <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
+                <Setter Property="controls:MotionAssist.HoverScale" Value="1.01" />
                 <Setter Property="Width" Value="22" />
                 <Setter Property="Height" Value="24" />
                 <Setter Property="MinWidth" Value="22" />
@@ -222,6 +231,8 @@
             </Style>
 
             <Style x:Key="ShellNavButtonStyle" TargetType="{x:Type ToggleButton}">
+                <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
+                <Setter Property="controls:MotionAssist.HoverScale" Value="1.01" />
                 <Setter Property="Width" Value="64" />
                 <Setter Property="Height" Value="58" />
                 <Setter Property="Margin" Value="4,0,4,4" />
@@ -245,7 +256,12 @@
                                         VerticalAlignment="Center"
                                         Background="{DynamicResource SystemAccentColorPrimaryBrush}"
                                         CornerRadius="2"
-                                        Opacity="0" />
+                                        Opacity="0"
+                                        RenderTransformOrigin="0.5,0.5">
+                                    <Border.RenderTransform>
+                                        <ScaleTransform ScaleY="0.72" />
+                                    </Border.RenderTransform>
+                                </Border>
                                 <ContentPresenter HorizontalAlignment="Center"
                                                   VerticalAlignment="Center"
                                                   RecognizesAccessKey="True" />
@@ -258,6 +274,39 @@
                                     <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
                                     <Setter TargetName="Indicator" Property="Opacity" Value="1" />
                                     <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <Trigger.EnterActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="Indicator"
+                                                                 Storyboard.TargetProperty="Opacity"
+                                                                 From="0"
+                                                                 To="1"
+                                                                 Duration="0:0:0.18" />
+                                                <DoubleAnimation Storyboard.TargetName="Indicator"
+                                                                 Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                                 To="1"
+                                                                 Duration="0:0:0.22">
+                                                    <DoubleAnimation.EasingFunction>
+                                                        <CubicEase EasingMode="EaseOut" />
+                                                    </DoubleAnimation.EasingFunction>
+                                                </DoubleAnimation>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.EnterActions>
+                                    <Trigger.ExitActions>
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="Indicator"
+                                                                 Storyboard.TargetProperty="Opacity"
+                                                                 To="0"
+                                                                 Duration="0:0:0.14" />
+                                                <DoubleAnimation Storyboard.TargetName="Indicator"
+                                                                 Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                                 To="0.72"
+                                                                 Duration="0:0:0.16" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </Trigger.ExitActions>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -308,6 +357,9 @@
             <Style x:Key="SelectedContextMenuOptionStyle"
                    TargetType="{x:Type MenuItem}"
                    BasedOn="{StaticResource {x:Type MenuItem}}">
+                <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
+                <Setter Property="controls:MotionAssist.HoverScale" Value="1.006" />
+                <Setter Property="controls:MotionAssist.PressScale" Value="0.992" />
                 <Style.Triggers>
                     <Trigger Property="IsChecked" Value="True">
                         <Setter Property="FontWeight" Value="SemiBold" />
@@ -609,12 +661,18 @@
             </Style>
         </Grid.Resources>
 
-        <ui:Grid x:Name="MainContentRoot" Margin="10,42,10,10" ColumnDefinitions="74,12,*">
+        <ui:Grid x:Name="MainContentRoot"
+                 Margin="10,42,10,10"
+                 ColumnDefinitions="74,12,*"
+                 controls:MotionAssist.IsEntranceEnabled="True"
+                 controls:MotionAssist.EntranceOffsetY="8">
             <Border x:Name="ShellNavigationPanel"
                     Grid.Column="0"
                     Background="{DynamicResource EmerdeSurfaceBrush}"
                     BorderThickness="0"
-                    CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                    CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                    controls:MotionAssist.IsEntranceEnabled="True"
+                    controls:MotionAssist.EntranceOffsetY="6">
                 <Grid Margin="0,5,0,5">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -692,7 +750,11 @@
                     CornerRadius="{StaticResource Win11ControlCornerRadius}"
                     Padding="10,10,10,6">
             <Grid x:Name="ShellPageHost">
-                <ui:Grid x:Name="HomePageRoot" RowDefinitions="Auto,*,Auto">
+                <ui:Grid x:Name="HomePageRoot"
+                         RowDefinitions="Auto,*,Auto"
+                         controls:MotionAssist.IsEntranceEnabled="True"
+                         controls:MotionAssist.EntranceOffsetY="8"
+                         controls:MotionAssist.EntranceTrigger="{Binding IsHomePageSelected}">
                     <ui:Grid.Style>
                         <Style TargetType="{x:Type ui:Grid}">
                             <Setter Property="Visibility" Value="Collapsed" />
@@ -840,6 +902,9 @@
                             </ListBox.ItemsPanel>
                             <ListBox.ItemContainerStyle>
                                 <Style TargetType="{x:Type ListBoxItem}">
+                                    <Setter Property="controls:MotionAssist.IsEntranceEnabled" Value="True" />
+                                    <Setter Property="controls:MotionAssist.EntranceOffsetY" Value="7" />
+                                    <Setter Property="controls:MotionAssist.EntranceScale" Value="0.99" />
                                     <Setter Property="HorizontalContentAlignment" Value="Center" />
                                     <Setter Property="VerticalContentAlignment" Value="Center" />
                                     <Setter Property="Margin" Value="0" />
@@ -866,11 +931,14 @@
                                             Width="{Binding RoomCardWidth, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
                                             Height="{Binding RoomCardHeight, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
                                             Margin="{Binding RoomCardMargin, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                            Padding="{Binding RoomCardPadding, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                            Padding="0"
                                             Background="{DynamicResource EmerdeCardBrush}"
                                             BorderBrush="Transparent"
                                             BorderThickness="0"
                                             CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                            controls:MotionAssist.IsDataContextEntranceEnabled="True"
+                                            controls:MotionAssist.EntranceTrigger="{Binding DataContext.IsHomePageSelected, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                            controls:MotionAssist.IsPulseActive="{Binding IsRefreshFlashActive}"
                                             SnapsToDevicePixels="True"
                                             Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
                                             TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
@@ -932,7 +1000,19 @@
                                                 </MenuItem>
                                             </ContextMenu>
                                         </Border.ContextMenu>
-                                        <ui:Grid ClipToBounds="False" RowDefinitions="Auto,*,Auto">
+                                        <Grid ClipToBounds="False">
+                                            <Border x:Name="RoomCardSelectionLayer"
+                                                    Margin="0"
+                                                    Background="#2A4DA7B0"
+                                                    BorderBrush="#884DA7B0"
+                                                    BorderThickness="1"
+                                                    CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                                    IsHitTestVisible="False"
+                                                    Opacity="0" />
+                                            <Border x:Name="RoomCardContent"
+                                                    Padding="{Binding RoomCardPadding, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                    Background="Transparent">
+                                                <ui:Grid ClipToBounds="False" RowDefinitions="Auto,*,Auto">
                                             <Grid Grid.Row="0" ClipToBounds="False">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="{Binding RoomCardHeaderColumnWidth, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" />
@@ -1023,7 +1103,9 @@
                                                                TextTrimming="CharacterEllipsis" />
                                                 </Border>
                                             </ui:Grid>
-                                        </ui:Grid>
+                                                </ui:Grid>
+                                            </Border>
+                                        </Grid>
                                     </Border>
                                     <DataTemplate.Triggers>
                                         <MultiDataTrigger>
@@ -1032,26 +1114,54 @@
                                                 <Condition Binding="{Binding DataContext.IsRoomCardSelectionVisible, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="True" />
                                                 <Condition Binding="{Binding DataContext.HasSelectedRooms, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="False" />
                                             </MultiDataTrigger.Conditions>
-                                            <Setter TargetName="RoomCardShell" Property="Background" Value="#2A4DA7B0" />
-                                            <Setter TargetName="RoomCardShell" Property="BorderBrush" Value="#884DA7B0" />
+                                            <Setter TargetName="RoomCardSelectionLayer" Property="Background" Value="#2A4DA7B0" />
+                                            <Setter TargetName="RoomCardSelectionLayer" Property="BorderBrush" Value="#884DA7B0" />
+                                            <MultiDataTrigger.EnterActions>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation Storyboard.TargetName="RoomCardSelectionLayer"
+                                                                         Storyboard.TargetProperty="Opacity"
+                                                                         From="0"
+                                                                         To="1"
+                                                                         Duration="0:0:0.18" />
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </MultiDataTrigger.EnterActions>
+                                            <MultiDataTrigger.ExitActions>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation Storyboard.TargetName="RoomCardSelectionLayer"
+                                                                         Storyboard.TargetProperty="Opacity"
+                                                                         To="0"
+                                                                         Duration="0:0:0.14" />
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </MultiDataTrigger.ExitActions>
                                         </MultiDataTrigger>
                                         <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                            <Setter TargetName="RoomCardShell" Property="Background" Value="#344DA7B0" />
-                                            <Setter TargetName="RoomCardShell" Property="BorderBrush" Value="#CC4DA7B0" />
-                                            <Setter TargetName="RoomCardShell" Property="BorderThickness" Value="1" />
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding IsRefreshFlashActive}" Value="True">
+                                            <Setter TargetName="RoomCardSelectionLayer" Property="Background" Value="#344DA7B0" />
+                                            <Setter TargetName="RoomCardSelectionLayer" Property="BorderBrush" Value="#CC4DA7B0" />
                                             <DataTrigger.EnterActions>
                                                 <BeginStoryboard>
                                                     <Storyboard>
-                                                        <DoubleAnimation Storyboard.TargetName="RoomCardShell"
+                                                        <DoubleAnimation Storyboard.TargetName="RoomCardSelectionLayer"
                                                                          Storyboard.TargetProperty="Opacity"
-                                                                         From="0.55"
+                                                                         From="0"
                                                                          To="1"
-                                                                         Duration="0:0:0.34" />
+                                                                         Duration="0:0:0.18" />
                                                     </Storyboard>
                                                 </BeginStoryboard>
                                             </DataTrigger.EnterActions>
+                                            <DataTrigger.ExitActions>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation Storyboard.TargetName="RoomCardSelectionLayer"
+                                                                         Storyboard.TargetProperty="Opacity"
+                                                                         To="0"
+                                                                         Duration="0:0:0.14" />
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </DataTrigger.ExitActions>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding AvatarDisplaySource}" Value="">
                                             <Setter TargetName="RoomCardAvatarImage" Property="Visibility" Value="Collapsed" />
@@ -1102,8 +1212,10 @@
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Setter Property="IsHitTestVisible" Value="False" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsPreviewing}" Value="True">
+                                <DataTrigger Binding="{Binding IsPreviewSurfaceVisible, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
                                     <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsPreviewing}" Value="True">
                                     <Setter Property="IsHitTestVisible" Value="True" />
                                 </DataTrigger>
                             </Style.Triggers>
@@ -1172,32 +1284,8 @@
                                         ToolTip="刷新当前直播间（F）">
                                     <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                                  Glyph="{x:Static ui:FontSymbols.Sync}"
-                                                 RenderTransformOrigin="0.5,0.5">
-                                        <ui:FontIcon.RenderTransform>
-                                            <RotateTransform Angle="0" />
-                                        </ui:FontIcon.RenderTransform>
-                                        <ui:FontIcon.Style>
-                                            <Style TargetType="{x:Type ui:FontIcon}">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsRefreshingSelectedRoomInfo}" Value="True">
-                                                        <DataTrigger.EnterActions>
-                                                            <BeginStoryboard x:Name="SelectedRoomRefreshStoryboard">
-                                                                <Storyboard RepeatBehavior="Forever">
-                                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
-                                                                                     From="0"
-                                                                                     To="360"
-                                                                                     Duration="0:0:0.75" />
-                                                                </Storyboard>
-                                                            </BeginStoryboard>
-                                                        </DataTrigger.EnterActions>
-                                                        <DataTrigger.ExitActions>
-                                                            <StopStoryboard BeginStoryboardName="SelectedRoomRefreshStoryboard" />
-                                                        </DataTrigger.ExitActions>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </ui:FontIcon.Style>
-                                    </ui:FontIcon>
+                                                 RenderTransformOrigin="0.5,0.5"
+                                                 controls:MotionAssist.IsSpinActive="{Binding IsRefreshingSelectedRoomInfo}" />
                                 </Button>
                             </ui:Grid>
 
@@ -1403,10 +1491,8 @@
                                 </ui:FontIcon>
                                 <ui:FontIcon Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                              Glyph="{x:Static ui:FontSymbols.Sync}"
-                                             RenderTransformOrigin="0.5,0.5">
-                                    <ui:FontIcon.RenderTransform>
-                                        <RotateTransform Angle="0" />
-                                    </ui:FontIcon.RenderTransform>
+                                             RenderTransformOrigin="0.5,0.5"
+                                             controls:MotionAssist.IsSpinActive="{Binding IsNetworkCapacityTesting}">
                                     <ui:FontIcon.Style>
                                         <Style BasedOn="{StaticResource StatusTrayIconStyle}"
                                                TargetType="{x:Type ui:FontIcon}">
@@ -1414,19 +1500,6 @@
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsNetworkCapacityTesting}" Value="True">
                                                     <Setter Property="Visibility" Value="Visible" />
-                                                    <DataTrigger.EnterActions>
-                                                        <BeginStoryboard x:Name="NetworkCapacityTestingStoryboard">
-                                                            <Storyboard RepeatBehavior="Forever">
-                                                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
-                                                                                 From="0"
-                                                                                 To="360"
-                                                                                 Duration="0:0:0.75" />
-                                                            </Storyboard>
-                                                        </BeginStoryboard>
-                                                    </DataTrigger.EnterActions>
-                                                    <DataTrigger.ExitActions>
-                                                        <StopStoryboard BeginStoryboardName="NetworkCapacityTestingStoryboard" />
-                                                    </DataTrigger.ExitActions>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -1563,7 +1636,10 @@
             </ui:Grid>
                 </ui:Grid>
 
-                <views:ScreenRecordListWindow>
+                <views:ScreenRecordListWindow x:Name="VideoListPage"
+                                              controls:MotionAssist.IsEntranceEnabled="True"
+                                              controls:MotionAssist.EntranceOffsetY="8"
+                                              controls:MotionAssist.EntranceTrigger="{Binding DataContext.IsVideoListPageSelected, ElementName=ShellPageHost}">
                     <views:ScreenRecordListWindow.Style>
                         <Style TargetType="{x:Type views:ScreenRecordListWindow}">
                             <Setter Property="Visibility" Value="Collapsed" />
@@ -1576,7 +1652,10 @@
                     </views:ScreenRecordListWindow.Style>
                 </views:ScreenRecordListWindow>
 
-                <views:SettingsWindow>
+                <views:SettingsWindow x:Name="SettingsPage"
+                                      controls:MotionAssist.IsEntranceEnabled="True"
+                                      controls:MotionAssist.EntranceOffsetY="8"
+                                      controls:MotionAssist.EntranceTrigger="{Binding DataContext.IsSettingsPageSelected, ElementName=ShellPageHost}">
                     <views:SettingsWindow.Style>
                         <Style TargetType="{x:Type views:SettingsWindow}">
                             <Setter Property="Visibility" Value="Collapsed" />
@@ -1589,7 +1668,10 @@
                     </views:SettingsWindow.Style>
                 </views:SettingsWindow>
 
-                <views:AboutContentDialog>
+                <views:AboutContentDialog x:Name="AboutPage"
+                                          controls:MotionAssist.IsEntranceEnabled="True"
+                                          controls:MotionAssist.EntranceOffsetY="8"
+                                          controls:MotionAssist.EntranceTrigger="{Binding DataContext.IsAboutPageSelected, ElementName=ShellPageHost}">
                     <views:AboutContentDialog.Style>
                         <Style TargetType="{x:Type views:AboutContentDialog}">
                             <Setter Property="Visibility" Value="Collapsed" />
