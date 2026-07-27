@@ -48,7 +48,21 @@ public sealed partial class AddRoomContentDialog : ContentDialog
             {
                 RoomUrlTextBox.Focus();
                 Keyboard.Focus(RoomUrlTextBox);
+                UpdateRoomUrlInputBorder();
             }));
+    }
+
+    private void RoomUrlTextBoxFocusWithinChanged(object sender, System.Windows.DependencyPropertyChangedEventArgs e)
+    {
+        UpdateRoomUrlInputBorder();
+    }
+
+    private void UpdateRoomUrlInputBorder()
+    {
+        string brushKey = RoomUrlTextBox.IsKeyboardFocusWithin
+            ? "SystemAccentColorPrimaryBrush"
+            : "ControlStrokeColorDefaultBrush";
+        RoomUrlInputBorder.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, brushKey);
     }
 
     private async void OnPrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs e)

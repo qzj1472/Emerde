@@ -1,6 +1,7 @@
 ﻿<vio:ContentDialog x:Class="Emerde.Views.AddRoomContentDialog"
                    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:controls="clr-namespace:Emerde.Controls"
                    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                    xmlns:local="clr-namespace:Emerde.Views"
                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -16,16 +17,35 @@
                    PrimaryButtonText="{I18N ButtonOfAdd}"
                    Style="{StaticResource DefaultVioletaContentDialogStyle}"
                    mc:Ignorable="d">
-    <ui:Grid>
+    <ui:Grid controls:MotionAssist.IsEntranceEnabled="True"
+             controls:MotionAssist.EntranceOffsetY="8"
+             controls:MotionAssist.EntranceScale="0.98">
         <ui:StackPanel MinWidth="420" Spacing="10">
             <TextBlock Text="{I18N EnterRoomUrl}" />
-            <ui:TextBox x:Name="RoomUrlTextBox"
-                        PlaceholderText="https://live.douyin.com/xxx / https://live.bilibili.com/xxx"
-                        Text="{Binding Url, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-            <Border Padding="10,8"
+            <Grid>
+                <ui:TextBox x:Name="RoomUrlTextBox"
+                            BorderBrush="Transparent"
+                            BorderThickness="0"
+                            FocusVisualStyle="{x:Null}"
+                            IsKeyboardFocusWithinChanged="RoomUrlTextBoxFocusWithinChanged"
+                            PlaceholderText="https://live.douyin.com/xxx / https://live.bilibili.com/xxx"
+                            Text="{Binding Url, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                    <ui:TextBox.Resources>
+                        <SolidColorBrush x:Key="ControlStrokeColorDefaultBrush" Color="Transparent" />
+                        <SolidColorBrush x:Key="TextControlFocusedBorderBrush" Color="Transparent" />
+                    </ui:TextBox.Resources>
+                </ui:TextBox>
+                <Border x:Name="RoomUrlInputBorder"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource ControlCornerRadius}"
+                        IsHitTestVisible="False" />
+            </Grid>
+            <Border x:Name="RoomDetectionSummary"
+                    Padding="10,8"
                     Background="{DynamicResource ControlFillColorDefaultBrush}"
-                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                    BorderThickness="1"
+                    BorderBrush="Transparent"
+                    BorderThickness="0"
                     CornerRadius="{StaticResource Win11ControlCornerRadius}">
                 <Grid>
                     <Grid.ColumnDefinitions>
