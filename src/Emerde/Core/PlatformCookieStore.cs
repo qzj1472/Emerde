@@ -6,6 +6,8 @@ namespace Emerde.Core;
 internal static class PlatformCookieStore
 {
     private static readonly object SyncRoot = new();
+    private static string cachedEncryptedValue = string.Empty;
+    private static Dictionary<string, string> cachedCookies = new(StringComparer.OrdinalIgnoreCase);
 
     public static string GetCookie(string platformName, string? fallback = null)
     {
@@ -34,16 +36,27 @@ internal static class PlatformCookieStore
         {
             Dictionary<string, string> cookies = Load();
             string value = cookie?.Trim() ?? string.Empty;
+            bool changed;
             if (string.IsNullOrWhiteSpace(value))
             {
-                cookies.Remove(platformName);
+                changed = cookies.Remove(platformName);
             }
             else
             {
+                changed = !cookies.TryGetValue(platformName, out string? existing)
+                    || !string.Equals(existing, value, StringComparison.Ordinal);
                 cookies[platformName] = value;
             }
 
-            Configurations.PlatformCookies.Set(SecretProtector.Protect(JsonConvert.SerializeObject(cookies)));
+            if (!changed)
+            {
+                return;
+            }
+
+            string encrypted = SecretProtector.Protect(JsonConvert.SerializeObject(cookies));
+            Configurations.PlatformCookies.Set(encrypted);
+            cachedEncryptedValue = encrypted;
+            cachedCookies = new(cookies, StringComparer.OrdinalIgnoreCase);
             ConfigurationSaveScheduler.Request();
         }
     }
@@ -52,28 +65,38 @@ internal static class PlatformCookieStore
     {
         lock (SyncRoot)
         {
-            return Load();
+            return new Dictionary<string, string>(Load(), StringComparer.OrdinalIgnoreCase);
         }
     }
 
     private static Dictionary<string, string> Load()
     {
-        string raw = SecretProtector.Unprotect(Configurations.PlatformCookies.Get());
-        if (string.IsNullOrWhiteSpace(raw))
+        string encrypted = Configurations.PlatformCookies.Get() ?? string.Empty;
+        if (string.Equals(encrypted, cachedEncryptedValue, StringComparison.Ordinal))
         {
-            return new(StringComparer.OrdinalIgnoreCase);
+            return new(cachedCookies, StringComparer.OrdinalIgnoreCase);
         }
 
+        Dictionary<string, string> cookies = new(StringComparer.OrdinalIgnoreCase);
         try
         {
-            Dictionary<string, string>? result = JsonConvert.DeserializeObject<Dictionary<string, string>>(raw);
-            return result == null
-                ? new(StringComparer.OrdinalIgnoreCase)
-                : new(result, StringComparer.OrdinalIgnoreCase);
+            string raw = SecretProtector.Unprotect(encrypted);
+            if (!string.IsNullOrWhiteSpace(raw))
+            {
+                Dictionary<string, string>? result = JsonConvert.DeserializeObject<Dictionary<string, string>>(raw);
+                if (result != null)
+                {
+                    cookies = new(result, StringComparer.OrdinalIgnoreCase);
+                }
+            }
         }
-        catch
+        catch (Exception e)
         {
-            return new(StringComparer.OrdinalIgnoreCase);
+            AppSessionLogger.WriteException(e);
         }
+
+        cachedEncryptedValue = encrypted;
+        cachedCookies = cookies;
+        return new(cookies, StringComparer.OrdinalIgnoreCase);
     }
 }
