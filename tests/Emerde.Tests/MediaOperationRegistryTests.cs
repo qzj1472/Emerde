@@ -152,4 +152,21 @@ public sealed class MediaOperationRegistryTests
 
         Assert.Equal([true, false], states);
     }
+
+    [Fact]
+    public void ProtectedPathEnumerationFailure_DoesNotEscapeRegistryQueries()
+    {
+        static IEnumerable<string?> ThrowDuringEnumeration()
+        {
+            yield return null;
+            throw new InvalidOperationException("enumeration failed");
+        }
+
+        string path = Path.Combine(Path.GetTempPath(), "emerde-enumeration-failure.ts");
+        using IDisposable operation = MediaOperationRegistry.Register(MediaOperationKind.Recording, ThrowDuringEnumeration);
+
+        Assert.False(MediaOperationRegistry.IsPathProtected(path));
+        Assert.False(MediaOperationRegistry.IsPathProtectedBy(MediaOperationKind.Recording, path));
+        Assert.Equal(0, MediaOperationRegistry.Cancel(MediaOperationKind.Recording, path));
+    }
 }

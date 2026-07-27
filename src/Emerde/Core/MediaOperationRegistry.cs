@@ -53,17 +53,7 @@ internal static class MediaOperationRegistry
 
         foreach (OperationState operation in Operations.Values)
         {
-            IEnumerable<string?> patterns;
-            try
-            {
-                patterns = operation.ProtectedPaths() ?? [];
-            }
-            catch
-            {
-                continue;
-            }
-
-            foreach (string? pattern in patterns)
+            foreach (string pattern in GetPaths(operation))
             {
                 if (PathMatches(normalizedPath, pattern))
                 {
@@ -84,17 +74,7 @@ internal static class MediaOperationRegistry
 
         foreach (OperationState operation in Operations.Values.Where(operation => operation.Kind == kind))
         {
-            IEnumerable<string?> patterns;
-            try
-            {
-                patterns = operation.ProtectedPaths() ?? [];
-            }
-            catch
-            {
-                continue;
-            }
-
-            if (patterns.Any(pattern => PathMatches(normalizedPath, pattern)))
+            if (GetPaths(operation).Any(pattern => PathMatches(normalizedPath, pattern)))
             {
                 return true;
             }
@@ -215,7 +195,11 @@ internal static class MediaOperationRegistry
             .Replace("%03d", @"\d{3,}", StringComparison.Ordinal)
             .Replace(@"\*", ".*", StringComparison.Ordinal)
             .Replace(@"\?", ".", StringComparison.Ordinal);
-        return Regex.IsMatch(path, "^" + regexPattern + "$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        return Regex.IsMatch(
+            path,
+            "^" + regexPattern + "$",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking,
+            TimeSpan.FromMilliseconds(100));
     }
 
     private static int CancelWhere(Func<OperationState, bool> predicate)
@@ -255,17 +239,7 @@ internal static class MediaOperationRegistry
 
     private static bool OperationProtectsPath(OperationState operation, string normalizedPath)
     {
-        IEnumerable<string?> patterns;
-        try
-        {
-            patterns = operation.ProtectedPaths() ?? [];
-        }
-        catch
-        {
-            return false;
-        }
-
-        return patterns.Any(pattern => PathMatches(normalizedPath, pattern));
+        return GetPaths(operation).Any(pattern => PathMatches(normalizedPath, pattern));
     }
 
     private static bool TryNormalizePath(string path, out string normalizedPath)
