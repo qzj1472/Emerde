@@ -699,6 +699,9 @@
   <data name="RefreshTooFrequently" xml:space="preserve">
     <value>更新の間隔を 5 秒以上空けてください。</value>
   </data>
+  <data name="PreviewRefreshTooFrequently" xml:space="preserve">
+    <value>プレビューの更新頻度が高すぎます。{0} 秒待ってから再試行してください。</value>
+  </data>
   <data name="VideoListTitle" xml:space="preserve"><value>動画一覧</value></data>
   <data name="RefreshButton" xml:space="preserve"><value>更新</value></data>
   <data name="ImportFolder" xml:space="preserve"><value>インポート</value></data>

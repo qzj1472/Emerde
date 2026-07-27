@@ -696,6 +696,9 @@
   <data name="RefreshTooFrequently" xml:space="preserve">
     <value>刷新过于频繁，请等待 5 秒后再试。</value>
   </data>
+  <data name="PreviewRefreshTooFrequently" xml:space="preserve">
+    <value>预览刷新过于频繁，请等待 {0} 秒后再试。</value>
+  </data>
   <data name="VideoListTitle" xml:space="preserve"><value>视频列表</value></data>
   <data name="RefreshButton" xml:space="preserve"><value>刷新</value></data>
   <data name="ImportFolder" xml:space="preserve"><value>导入</value></data>

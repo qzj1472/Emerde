@@ -696,6 +696,9 @@
   <data name="RefreshTooFrequently" xml:space="preserve">
     <value>Please wait 5 seconds before refreshing again.</value>
   </data>
+  <data name="PreviewRefreshTooFrequently" xml:space="preserve">
+    <value>Preview refresh is too frequent. Please wait {0} seconds and try again.</value>
+  </data>
   <data name="VideoListTitle" xml:space="preserve"><value>Video list</value></data>
   <data name="RefreshButton" xml:space="preserve"><value>Refresh</value></data>
   <data name="ImportFolder" xml:space="preserve"><value>Import</value></data>
