@@ -57,4 +57,17 @@ public sealed class PeriodicWaitTests
         Assert.True(result);
         Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(1));
     }
+
+    [Fact]
+    public async Task Dispose_ReleasesActiveWaitAndRejectsFurtherUse()
+    {
+        PeriodicWait wait = new(TimeSpan.FromSeconds(5));
+        Assert.True(await wait.WaitForNextTickAsync(CancellationToken.None));
+        ValueTask<bool> pendingTick = wait.WaitForNextTickAsync(CancellationToken.None);
+
+        wait.Dispose();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await pendingTick);
+        Assert.Throws<ObjectDisposedException>(() => wait.Period = TimeSpan.FromSeconds(1));
+    }
 }

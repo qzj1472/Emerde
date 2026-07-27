@@ -2,12 +2,13 @@ using System.Diagnostics;
 
 namespace Emerde.Threading;
 
-public class PeriodicWait
+public sealed class PeriodicWait : IDisposable
 {
     private readonly object periodLock = new();
-    private CancellationTokenSource periodChanged = new();
+    private TaskCompletionSource periodChanged = CreateSignal();
     private TimeSpan period;
-    private bool initialized;
+    private int initialized;
+    private int disposed;
 
     public TimeSpan InitialDelay { get; set; }
 
@@ -22,9 +23,10 @@ public class PeriodicWait
         }
         set
         {
-            CancellationTokenSource previous;
+            TaskCompletionSource previous;
             lock (periodLock)
             {
+                ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
                 TimeSpan normalized = value <= TimeSpan.Zero ? TimeSpan.FromMilliseconds(1) : value;
                 if (period == normalized)
                 {
@@ -33,10 +35,9 @@ public class PeriodicWait
 
                 period = normalized;
                 previous = periodChanged;
-                periodChanged = new CancellationTokenSource();
+                periodChanged = CreateSignal();
             }
-            previous.Cancel();
-            previous.Dispose();
+            previous.TrySetResult();
         }
     }
 
@@ -48,23 +49,24 @@ public class PeriodicWait
 
     public async ValueTask<bool> WaitForNextTickAsync(CancellationToken cancellationToken)
     {
-        if (!initialized)
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
+        if (Interlocked.Exchange(ref initialized, 1) == 0)
         {
-            initialized = true;
             return InitialDelay <= TimeSpan.Zero
                 ? !cancellationToken.IsCancellationRequested
-                : await DelayAsync(InitialDelay, cancellationToken, default);
+                : await DelayAsync(InitialDelay, cancellationToken);
         }
 
         Stopwatch stopwatch = Stopwatch.StartNew();
         while (!cancellationToken.IsCancellationRequested)
         {
             TimeSpan currentPeriod;
-            CancellationToken changeToken;
+            Task changeTask;
             lock (periodLock)
             {
+                ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
                 currentPeriod = period;
-                changeToken = periodChanged.Token;
+                changeTask = periodChanged.Task;
             }
 
             TimeSpan remaining = currentPeriod - stopwatch.Elapsed;
@@ -73,26 +75,47 @@ public class PeriodicWait
                 return true;
             }
 
-            if (!await DelayAsync(remaining, cancellationToken, changeToken) && cancellationToken.IsCancellationRequested)
+            Task delayTask = Task.Delay(remaining, cancellationToken);
+            Task completed = await Task.WhenAny(delayTask, changeTask);
+            if (completed == delayTask)
             {
-                return false;
+                return !cancellationToken.IsCancellationRequested;
             }
         }
 
         return false;
     }
 
-    private static async ValueTask<bool> DelayAsync(TimeSpan delay, CancellationToken cancellationToken, CancellationToken changeToken)
+    public void Dispose()
     {
-        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, changeToken);
+        if (Interlocked.Exchange(ref disposed, 1) != 0)
+        {
+            return;
+        }
+
+        TaskCompletionSource signal;
+        lock (periodLock)
+        {
+            signal = periodChanged;
+        }
+        signal.TrySetResult();
+    }
+
+    private static async ValueTask<bool> DelayAsync(TimeSpan delay, CancellationToken cancellationToken)
+    {
         try
         {
-            await Task.Delay(delay, linked.Token);
+            await Task.Delay(delay, cancellationToken);
             return true;
         }
-        catch (OperationCanceledException) when (linked.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             return false;
         }
+    }
+
+    private static TaskCompletionSource CreateSignal()
+    {
+        return new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 }

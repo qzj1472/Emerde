@@ -156,6 +156,10 @@ internal static class GlobalMonitor
 
     public static void Start(CancellationTokenSource? tokenSource = null)
     {
+        CancellationTokenSource? previousSource;
+        Task? previousTask;
+        PeriodicWait previousPeriodicWait;
+        CancellationTokenSource activeSource;
         lock (MonitorLock)
         {
             if (TokenSource != null && !TokenSource.IsCancellationRequested && MonitorTask is { IsCompleted: false })
@@ -163,13 +167,16 @@ internal static class GlobalMonitor
                 return;
             }
 
-            CancellationTokenSource source = tokenSource ?? new CancellationTokenSource();
+            activeSource = tokenSource ?? new CancellationTokenSource();
             long generation = Interlocked.Increment(ref monitorGeneration);
             PeriodicWait periodicWait = new(GetRoutinePeriod(), TimeSpan.Zero);
-            TokenSource = source;
+            previousSource = TokenSource;
+            previousTask = MonitorTask;
+            previousPeriodicWait = RoutinePeriodicWait;
+            TokenSource = activeSource;
             RoutinePeriodicWait = periodicWait;
             MonitorTask = Task.Factory.StartNew(
-                () => StartAsync(source.Token, generation, periodicWait),
+                () => StartAsync(activeSource.Token, generation, periodicWait),
                 CancellationToken.None,
                 TaskCreationOptions.LongRunning,
                 TaskScheduler.Default
@@ -180,44 +187,59 @@ internal static class GlobalMonitor
                 routineMilliseconds = periodicWait.Period.TotalMilliseconds,
             });
         }
+
+        if (previousSource != null)
+        {
+            if (ReferenceEquals(previousSource, activeSource))
+            {
+                _ = DisposeMonitorTaskAsync(previousTask, previousPeriodicWait);
+            }
+            else
+            {
+                TryCancel(previousSource);
+                _ = DisposeMonitorSourceAsync(previousSource, previousTask, previousPeriodicWait);
+            }
+        }
+        else
+        {
+            previousPeriodicWait.Dispose();
+        }
     }
 
     public static void Stop()
     {
         CancellationTokenSource? source;
         Task? task;
+        PeriodicWait? periodicWait;
         lock (MonitorLock)
         {
             Interlocked.Increment(ref monitorGeneration);
             source = TokenSource;
             task = MonitorTask;
+            periodicWait = RoutinePeriodicWait;
+            RoutinePeriodicWait = new(GetRoutinePeriod(), TimeSpan.Zero);
             TokenSource = null;
             MonitorTask = null;
-            source?.Cancel();
             AppSessionLogger.Event("info", "monitor", "monitor_stopped", "global monitor stopped");
         }
 
+        TryCancel(source);
+
         if (source != null)
         {
-            _ = DisposeMonitorSourceAsync(source, task);
+            _ = DisposeMonitorSourceAsync(source, task, periodicWait);
+        }
+        else
+        {
+            periodicWait?.Dispose();
         }
     }
 
-    private static async Task DisposeMonitorSourceAsync(CancellationTokenSource source, Task? task)
+    private static async Task DisposeMonitorSourceAsync(CancellationTokenSource source, Task? task, PeriodicWait? periodicWait)
     {
         try
         {
-            if (task != null)
-            {
-                await task;
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception e)
-        {
-            AppSessionLogger.WriteException(e);
+            await DisposeMonitorTaskAsync(task, periodicWait);
         }
         finally
         {
@@ -406,10 +428,47 @@ internal static class GlobalMonitor
 
     private static async Task StartAsync(CancellationToken token, long generation, PeriodicWait periodicWait)
     {
-        PeriodicWait priorityPeriodicWait = new(GetRoutinePeriod(), TimeSpan.Zero);
+        using PeriodicWait priorityPeriodicWait = new(GetRoutinePeriod(), TimeSpan.Zero);
         await Task.WhenAll(
             StartScheduledChecksAsync(token, generation, periodicWait, recordingLaneOnly: false),
             StartScheduledChecksAsync(token, generation, priorityPeriodicWait, recordingLaneOnly: true));
+    }
+
+    private static async Task DisposeMonitorTaskAsync(Task? task, PeriodicWait? periodicWait)
+    {
+        try
+        {
+            if (task != null)
+            {
+                await task;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception e)
+        {
+            AppSessionLogger.WriteException(e);
+        }
+        finally
+        {
+            periodicWait?.Dispose();
+        }
+    }
+
+    private static void TryCancel(CancellationTokenSource? source)
+    {
+        try
+        {
+            source?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        catch (AggregateException e)
+        {
+            AppSessionLogger.WriteException(e);
+        }
     }
 
     private sealed record ActiveSpiderResultTask(
