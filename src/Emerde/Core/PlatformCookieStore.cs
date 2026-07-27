@@ -5,6 +5,8 @@ namespace Emerde.Core;
 
 internal static class PlatformCookieStore
 {
+    private static readonly object SyncRoot = new();
+
     public static string GetCookie(string platformName, string? fallback = null)
     {
         if (string.IsNullOrWhiteSpace(platformName))
@@ -12,10 +14,13 @@ internal static class PlatformCookieStore
             return fallback ?? string.Empty;
         }
 
-        Dictionary<string, string> cookies = Load();
-        return cookies.TryGetValue(platformName, out string? cookie) && !string.IsNullOrWhiteSpace(cookie)
-            ? cookie
-            : fallback ?? string.Empty;
+        lock (SyncRoot)
+        {
+            Dictionary<string, string> cookies = Load();
+            return cookies.TryGetValue(platformName, out string? cookie) && !string.IsNullOrWhiteSpace(cookie)
+                ? cookie
+                : fallback ?? string.Empty;
+        }
     }
 
     public static void SetCookie(string platformName, string? cookie)
@@ -25,24 +30,30 @@ internal static class PlatformCookieStore
             return;
         }
 
-        Dictionary<string, string> cookies = Load();
-        string value = cookie?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(value))
+        lock (SyncRoot)
         {
-            cookies.Remove(platformName);
-        }
-        else
-        {
-            cookies[platformName] = value;
-        }
+            Dictionary<string, string> cookies = Load();
+            string value = cookie?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                cookies.Remove(platformName);
+            }
+            else
+            {
+                cookies[platformName] = value;
+            }
 
-        Configurations.PlatformCookies.Set(SecretProtector.Protect(JsonConvert.SerializeObject(cookies)));
-        ConfigurationSaveScheduler.Request();
+            Configurations.PlatformCookies.Set(SecretProtector.Protect(JsonConvert.SerializeObject(cookies)));
+            ConfigurationSaveScheduler.Request();
+        }
     }
 
     public static IReadOnlyDictionary<string, string> GetAll()
     {
-        return Load();
+        lock (SyncRoot)
+        {
+            return Load();
+        }
     }
 
     private static Dictionary<string, string> Load()
