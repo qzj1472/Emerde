@@ -54,13 +54,16 @@ internal static class MediaWorker
             DateTime lastProgressAt = DateTime.MinValue;
             long lastProgressBytes = 0;
             long inputBytes = 0;
+            using CancellationTokenSource stopSource = new();
+            _ = StartControlInputReader(stopSource, Console.In);
             FfmpegInputOptions inputOptions = new(command.UserAgent, command.Headers, command.IsUseProxy, command.HttpProxy, true);
             FfmpegMediaRunResult result = FfmpegMediaEngine.RecordStream(
                 command.InputUrl,
                 command.OutputFileName,
                 command.Metadata ?? new VideoRecordingMetadata(),
                 inputOptions,
-                CancellationToken.None,
+                command.SegmentOptions,
+                stopSource.Token,
                 bytesRead =>
                 {
                     if (bytesRead > 0)
@@ -75,7 +78,7 @@ internal static class MediaWorker
                     }
 
                     lastProgressAt = now;
-                    lastProgressBytes = GetFileLength(command.OutputFileName, lastProgressBytes);
+                    lastProgressBytes = GetOutputLength(command.OutputFileName, lastProgressBytes);
                     Console.Out.WriteLine($"progress|{lastProgressBytes.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{inputBytes.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
                     Console.Out.Flush();
                 });
@@ -83,6 +86,12 @@ internal static class MediaWorker
             if (!string.IsNullOrWhiteSpace(result.ErrorOutput))
             {
                 Console.Error.WriteLine(result.ErrorOutput);
+            }
+
+            if (!result.HadMediaProgress)
+            {
+                DeleteIncompleteOutputs(command.OutputFileName);
+                return result.ExitCode == 0 ? 1 : result.ExitCode;
             }
 
             return result.ExitCode;
@@ -94,11 +103,44 @@ internal static class MediaWorker
         }
     }
 
+    internal static Thread StartControlInputReader(CancellationTokenSource stopSource, TextReader reader)
+    {
+        Thread thread = new(() => ReadControlInput(stopSource, reader))
+        {
+            IsBackground = true,
+            Name = "Emerde.MediaWorker.Control",
+        };
+        thread.Start();
+        return thread;
+    }
+
+    private static void ReadControlInput(CancellationTokenSource stopSource, TextReader reader)
+    {
+        try
+        {
+            while (!stopSource.IsCancellationRequested && reader.ReadLine() is { } command)
+            {
+                if (string.Equals(command.Trim(), "q", StringComparison.OrdinalIgnoreCase))
+                {
+                    stopSource.Cancel();
+                    return;
+                }
+            }
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        catch (IOException)
+        {
+        }
+    }
+
     public static string WriteCommand(
         string inputUrl,
         string outputFileName,
         VideoRecordingMetadata metadata,
-        FfmpegInputOptions inputOptions)
+        FfmpegInputOptions inputOptions,
+        FfmpegSegmentOptions? segmentOptions)
     {
         string path = Path.Combine(Path.GetTempPath(), $"emerde-media-worker-{Guid.NewGuid():N}.json");
         MediaWorkerCommand command = new()
@@ -110,21 +152,99 @@ internal static class MediaWorker
             Headers = inputOptions.Headers,
             IsUseProxy = inputOptions.IsUseProxy,
             HttpProxy = inputOptions.HttpProxy,
+            SegmentOptions = segmentOptions,
         };
         File.WriteAllText(path, JsonSerializer.Serialize(command, JsonOptions));
         return path;
     }
 
-    private static long GetFileLength(string path, long fallback)
+    internal static long GetOutputLength(string path, long fallback)
     {
         try
         {
+            if (path.Contains("%03d", StringComparison.Ordinal))
+            {
+                return GetSegmentOutputLength(path, fallback);
+            }
+
             FileInfo fileInfo = new(path);
             return fileInfo.Exists ? fileInfo.Length : fallback;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
             return fallback;
+        }
+    }
+
+    private static long GetSegmentOutputLength(string path, long fallback)
+    {
+        string? directory = Path.GetDirectoryName(path);
+        string pattern = Path.GetFileName(path);
+        int markerIndex = pattern.IndexOf("%03d", StringComparison.Ordinal);
+        if (string.IsNullOrWhiteSpace(directory) || markerIndex < 0 || !Directory.Exists(directory))
+        {
+            return fallback;
+        }
+
+        string prefix = pattern[..markerIndex];
+        string suffix = pattern[(markerIndex + 4)..];
+        string searchPattern = prefix + "*" + suffix;
+        long totalLength = 0;
+        bool found = false;
+        foreach (string candidate in Directory.EnumerateFiles(directory, searchPattern, SearchOption.TopDirectoryOnly))
+        {
+            string fileName = Path.GetFileName(candidate);
+            int numberLength = fileName.Length - prefix.Length - suffix.Length;
+            if (numberLength < 3
+                || !fileName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                || !fileName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
+                || !fileName.AsSpan(prefix.Length, numberLength).ToString().All(char.IsDigit))
+            {
+                continue;
+            }
+
+            totalLength += new FileInfo(candidate).Length;
+            found = true;
+        }
+
+        return found ? totalLength : fallback;
+    }
+
+    private static void DeleteIncompleteOutputs(string path)
+    {
+        try
+        {
+            if (!path.Contains("%03d", StringComparison.Ordinal))
+            {
+                File.Delete(path);
+                return;
+            }
+
+            string? directory = Path.GetDirectoryName(path);
+            string pattern = Path.GetFileName(path);
+            int markerIndex = pattern.IndexOf("%03d", StringComparison.Ordinal);
+            if (string.IsNullOrWhiteSpace(directory) || markerIndex < 0 || !Directory.Exists(directory))
+            {
+                return;
+            }
+
+            string prefix = pattern[..markerIndex];
+            string suffix = pattern[(markerIndex + 4)..];
+            foreach (string candidate in Directory.EnumerateFiles(directory, prefix + "*" + suffix, SearchOption.TopDirectoryOnly))
+            {
+                string fileName = Path.GetFileName(candidate);
+                int numberLength = fileName.Length - prefix.Length - suffix.Length;
+                if (numberLength >= 3
+                    && fileName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                    && fileName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
+                    && fileName.AsSpan(prefix.Length, numberLength).ToString().All(char.IsDigit))
+                {
+                    File.Delete(candidate);
+                }
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
         }
     }
 
@@ -155,4 +275,6 @@ internal sealed class MediaWorkerCommand
     public bool IsUseProxy { get; set; }
 
     public string HttpProxy { get; set; } = string.Empty;
+
+    public FfmpegSegmentOptions? SegmentOptions { get; set; }
 }

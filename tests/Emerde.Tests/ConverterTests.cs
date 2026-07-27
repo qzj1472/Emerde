@@ -6,67 +6,15 @@ namespace Emerde.Tests;
 public sealed class ConverterTests
 {
     [Theory]
-    [InlineData("record.ts")]
-    [InlineData("record.flv")]
-    public void BuildArguments_PreservesOriginalAudioAndAddsOptimizedAudio(string sourceFileName)
+    [InlineData("mkv", false, ".mkv")]
+    [InlineData(".MP4", false, ".mp4")]
+    [InlineData(" ts ", true, ".ts")]
+    [InlineData("flv", true, ".flv")]
+    [InlineData("avi", true, null)]
+    [InlineData("ts", false, null)]
+    public void NormalizeTargetFormat_AcceptsOnlySupportedContainers(string value, bool allowSourceContainers, string? expected)
     {
-        VideoRecordingMetadata metadata = new()
-        {
-            NickName = "Host",
-            RoomUrl = "https://example.test/room",
-            Platform = "Test",
-            Title = "Live",
-            RecordedAt = new DateTime(2026, 7, 12, 12, 0, 0),
-        };
-
-        IReadOnlyList<string> arguments = Converter.BuildArguments(sourceFileName, "record.mp4", metadata);
-        List<string> argumentList = arguments.ToList();
-        int inputIndex = argumentList.IndexOf("-i");
-
-        Assert.Contains("+genpts+discardcorrupt+sortdts", arguments);
-        Assert.True(argumentList.IndexOf("-fflags") < inputIndex);
-        Assert.Equal("ignore_err", argumentList[argumentList.IndexOf("-err_detect") + 1]);
-        Assert.True(argumentList.IndexOf("-err_detect") < inputIndex);
-        Assert.Contains("[0:a:0]volume=30dB,acompressor=threshold=-10dB:ratio=3,alimiter=limit=0.316227766:level=false[aopt]", arguments);
-        Assert.Contains("0:a:0?", arguments);
-        Assert.Contains("[aopt]", arguments);
-        Assert.Contains("title=原音频", arguments);
-        Assert.Contains("title=优化音频", arguments);
-        Assert.Contains("use_metadata_tags", arguments);
-        Assert.Equal("record.mp4", arguments[^1]);
-    }
-
-    [Fact]
-    public void BuildArguments_RejectsUnsupportedSourceFormat()
-    {
-        Assert.Empty(Converter.BuildArguments("record.mkv", "record.mp4", new VideoRecordingMetadata()));
-    }
-
-    [Fact]
-    public void BuildArguments_HandlesVideoWithoutAudio()
-    {
-        IReadOnlyList<string> arguments = Converter.BuildArguments("record.ts", "record.mp4", new VideoRecordingMetadata(), hasAudio: false);
-
-        Assert.DoesNotContain("-filter_complex", arguments);
-        Assert.DoesNotContain("[aopt]", arguments);
-        Assert.DoesNotContain("title=优化音频", arguments);
-        Assert.Contains("0:v?", arguments);
-        Assert.Equal("record.mp4", arguments[^1]);
-    }
-
-    [Fact]
-    public void BuildArguments_PreservesOriginalAudioWhenProbeIsUnknown()
-    {
-        IReadOnlyList<string> arguments = Converter.BuildArguments(
-            "record.ts",
-            "record.mp4",
-            new VideoRecordingMetadata(),
-            AudioStreamPresence.Unknown);
-
-        Assert.DoesNotContain("-filter_complex", arguments);
-        Assert.Contains("0:a?", arguments);
-        Assert.Contains("-c:a", arguments);
-        Assert.Contains("copy", arguments);
+        Assert.Equal(expected, Converter.NormalizeTargetFormat(value, allowSourceContainers));
     }
 
     [Fact]
@@ -90,36 +38,10 @@ public sealed class ConverterTests
     }
 
     [Fact]
-    public void BuildConcatArguments_UsesConcatInputAndSharedOutputMapping()
-    {
-        IReadOnlyList<string> arguments = Converter.BuildConcatArguments(
-            "recording.concat.txt",
-            "record.mkv",
-            new VideoRecordingMetadata(),
-            AudioStreamPresence.Unknown);
-
-        Assert.Contains("-f", arguments);
-        Assert.Contains("concat", arguments);
-        Assert.Contains("-safe", arguments);
-        Assert.Contains("+genpts+discardcorrupt+sortdts", arguments);
-        Assert.Contains("ignore_err", arguments);
-        Assert.Contains("0:a?", arguments);
-        Assert.Equal("record.mkv", arguments[^1]);
-    }
-
-    [Fact]
     public void ActiveConversionCount_IsIdleInitially()
     {
         Assert.False(Converter.HasActiveConversions);
         Assert.Equal(0, Converter.ActiveConversionCount);
-    }
-
-    [Fact]
-    public void ProbeAudioStream_ReturnsUnknownWhenFileCannotBeOpened()
-    {
-        string missingFile = Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.ts");
-
-        Assert.Equal(AudioStreamPresence.Unknown, Converter.ProbeAudioStream(missingFile));
     }
 
     [Fact]
@@ -154,6 +76,22 @@ public sealed class ConverterTests
         finally
         {
             Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RejectsUnsupportedTargetBeforeCreatingOutput()
+    {
+        string source = Path.Combine(Path.GetTempPath(), $"emerde-invalid-target-{Guid.NewGuid():N}.ts");
+        await File.WriteAllBytesAsync(source, [1, 2, 3, 4]);
+        try
+        {
+            Assert.False(await new Converter().ExecuteAsync(source, ".avi"));
+            Assert.False(File.Exists(Path.ChangeExtension(source, ".avi")));
+        }
+        finally
+        {
+            File.Delete(source);
         }
     }
 
@@ -196,6 +134,33 @@ public sealed class ConverterTests
 
             Assert.False(await new Converter().ExecuteSessionPartsAsync(sourcePattern, [firstSource, secondSource], ".flv"));
             Assert.False(File.Exists(Path.Combine(directory, "session.flv")));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteWithCompletionAsync_ReportsReservedTargetBeforeMediaWork()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-converter-reservation-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string source = Path.Combine(directory, "session.ts");
+        await File.WriteAllBytesAsync(source, [1, 2, 3, 4]);
+        string? reservedTarget = null;
+
+        try
+        {
+            bool converted = await new Converter().ExecuteWithCompletionAsync(
+                source,
+                ".mkv",
+                _ => { },
+                onTargetReserved: path => reservedTarget = path);
+
+            Assert.False(converted);
+            Assert.Equal(Path.Combine(directory, "session.mkv"), reservedTarget);
+            Assert.False(File.Exists(reservedTarget));
         }
         finally
         {

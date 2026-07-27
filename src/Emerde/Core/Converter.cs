@@ -1,16 +1,11 @@
-using CommunityToolkit.Mvvm.Messaging;
-using System.Diagnostics;
-using System.Text;
 using System.Text.RegularExpressions;
-using Emerde.Extensions;
-using Emerde.Models;
 
 namespace Emerde.Core;
 
 public sealed class Converter
 {
-    private const string OptimizedAudioFilter = "[0:a:0]volume=30dB,acompressor=threshold=-10dB:ratio=3,alimiter=limit=0.316227766:level=false[aopt]";
-    private const int ProcessOutputTailLimit = 8192;
+    private static readonly object TargetReservationLock = new();
+    private static readonly HashSet<string> ReservedTargetPaths = new(StringComparer.OrdinalIgnoreCase);
     public static int ActiveConversionCount => MediaOperationRegistry.Count(MediaOperationKind.Conversion);
 
     public static bool HasActiveConversions => ActiveConversionCount > 0;
@@ -25,13 +20,31 @@ public sealed class Converter
 
     public async Task<bool> ExecuteAsync(IReadOnlyList<string> sourceFileNames, string targetFormat, CancellationTokenSource? tokenSource = null)
     {
-        return await ExecuteCoreAsync(sourceFileNames, targetFormat, tokenSource, sessionSourcePattern: null, allowSameFormat: false);
+        return await ExecuteCoreAsync(sourceFileNames, targetFormat, tokenSource, sessionSourcePattern: null, allowSameFormat: false, null);
     }
 
-    internal async Task<bool> ExecuteSessionPartsAsync(string sourcePattern, IReadOnlyList<string> sourceFileNames, string targetFormat, CancellationTokenSource? tokenSource = null)
+    internal async Task<bool> ExecuteWithCompletionAsync(
+        string sourceFileName,
+        string targetFormat,
+        Action<string> onCompleted,
+        CancellationTokenSource? tokenSource = null,
+        Action<string>? onTargetReserved = null)
+    {
+        ArgumentNullException.ThrowIfNull(sourceFileName);
+        ArgumentNullException.ThrowIfNull(onCompleted);
+        return await ExecuteCoreAsync([sourceFileName], targetFormat, tokenSource, sessionSourcePattern: null, allowSameFormat: false, onCompleted, onTargetReserved);
+    }
+
+    internal async Task<bool> ExecuteSessionPartsAsync(
+        string sourcePattern,
+        IReadOnlyList<string> sourceFileNames,
+        string targetFormat,
+        CancellationTokenSource? tokenSource = null,
+        Action<string>? onCompleted = null,
+        Action<string>? onTargetReserved = null)
     {
         ArgumentNullException.ThrowIfNull(sourcePattern);
-        return await ExecuteCoreAsync(sourceFileNames, targetFormat, tokenSource, sourcePattern, allowSameFormat: true);
+        return await ExecuteCoreAsync(sourceFileNames, targetFormat, tokenSource, sourcePattern, allowSameFormat: true, onCompleted, onTargetReserved);
     }
 
     private async Task<bool> ExecuteCoreAsync(
@@ -39,10 +52,19 @@ public sealed class Converter
         string targetFormat,
         CancellationTokenSource? tokenSource,
         string? sessionSourcePattern,
-        bool allowSameFormat)
+        bool allowSameFormat,
+        Action<string>? onCompleted,
+        Action<string>? onTargetReserved = null)
     {
         ArgumentNullException.ThrowIfNull(sourceFileNames);
         ArgumentNullException.ThrowIfNull(targetFormat);
+
+        string? normalizedTargetFormat = NormalizeTargetFormat(targetFormat, allowSameFormat);
+        if (normalizedTargetFormat == null)
+        {
+            return false;
+        }
+        targetFormat = normalizedTargetFormat;
 
         if (!FfmpegMediaEngine.IsAvailable)
         {
@@ -56,6 +78,7 @@ public sealed class Converter
             .ToArray();
         if (sourceFileInfos.Length == 0
             || sourceFileInfos.Any(file => !file.Exists)
+            || sourceFileInfos.Any(file => !IsSupportedSourceFormat(file.Extension))
             || (!allowSameFormat && sourceFileInfos.Any(file => file.Extension.Equals(targetFormat, StringComparison.OrdinalIgnoreCase))))
         {
             return false;
@@ -68,23 +91,11 @@ public sealed class Converter
         {
             return false;
         }
-        string targetFileName = GetAvailableTargetPath(requestedTargetFileName);
+        string targetFileName = ReserveAvailableTargetPath(requestedTargetFileName);
         string temporaryTargetFileName = GetTemporaryTargetPath(targetFileName);
         VideoRecordingMetadata metadata = VideoRecordingMetadataStore.WithFileName(
             VideoRecordingMetadataStore.Load(sourceFileInfos[0]),
             Path.GetFileName(targetFileName));
-        AudioStreamPresence audioPresence = allowSameFormat
-            && sourceFileInfos.All(file => file.Extension.Equals(targetFormat, StringComparison.OrdinalIgnoreCase))
-                ? AudioStreamPresence.Unknown
-                : ProbeAudioStream(sourceFileInfos[0].FullName);
-        IReadOnlyList<string> arguments = sourceFileInfos.Length == 1
-            ? BuildArguments(sourceFileInfos[0].FullName, temporaryTargetFileName, metadata, audioPresence)
-            : BuildConcatArguments(string.Join("|", sourceFileInfos.Select(file => file.FullName)), temporaryTargetFileName, metadata, audioPresence);
-        if (arguments.Count == 0)
-        {
-            return false;
-        }
-
         using CancellationTokenSource operationCancellation = tokenSource == null
             ? new CancellationTokenSource()
             : CancellationTokenSource.CreateLinkedTokenSource(tokenSource.Token);
@@ -93,6 +104,8 @@ public sealed class Converter
             () => sourceFileInfos.Select(file => file.FullName).Concat([temporaryTargetFileName, targetFileName]),
             operationCancellation.Cancel);
         CancellationToken token = operationCancellation.Token;
+        bool targetCreated = false;
+        bool completionAcknowledged = false;
         AppSessionLogger.Event("info", "converter", "conversion_starting", "recording conversion is starting", new
         {
             sourceFileNames = sourceFileInfos.Select(file => file.FullName).ToArray(),
@@ -102,6 +115,7 @@ public sealed class Converter
 
         try
         {
+            onTargetReserved?.Invoke(targetFileName);
             FfmpegMediaRunResult result = await Task.Run(
                 () => FfmpegMediaEngine.RemuxFiles(sourceFileInfos.Select(file => file.FullName).ToArray(), temporaryTargetFileName, metadata, token),
                 token);
@@ -110,14 +124,19 @@ public sealed class Converter
                 throw new OperationCanceledException(token);
             }
 
-            bool succeeded = result.ExitCode == 0 && IsUsableOutput(temporaryTargetFileName);
+            bool succeeded = result.ExitCode == 0
+                && result.HadMediaProgress
+                && IsUsableOutput(temporaryTargetFileName);
             if (succeeded)
             {
                 File.Move(temporaryTargetFileName, targetFileName, false);
+                targetCreated = true;
                 if (!VideoRecordingMetadataStore.WriteCompletedMetadata(targetFileName, metadata))
                 {
                     AppSessionLogger.Event("warn", "converter", "conversion_metadata_fallback_failed", "converted video metadata could not be stored", new { targetFileName });
                 }
+                onCompleted?.Invoke(targetFileName);
+                completionAcknowledged = true;
             }
             AppSessionLogger.Event(succeeded ? "info" : "error", "converter", "conversion_finished", "recording conversion finished", new
             {
@@ -136,6 +155,11 @@ public sealed class Converter
         }
         catch (Exception e)
         {
+            if (targetCreated && !completionAcknowledged)
+            {
+                DeleteTemporaryOutput(targetFileName);
+                VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(targetFileName);
+            }
             AppSessionLogger.WriteException(e);
             AppSessionLogger.Event("error", "converter", "conversion_failed", e.Message, new { sourceFileNames, targetFileName });
             return false;
@@ -143,7 +167,32 @@ public sealed class Converter
         finally
         {
             DeleteTemporaryOutput(temporaryTargetFileName);
+            ReleaseTargetPath(targetFileName);
         }
+    }
+
+    internal static string? NormalizeTargetFormat(string targetFormat, bool allowSourceContainerFormats)
+    {
+        string normalized = targetFormat.Trim();
+        if (normalized.Length == 0)
+        {
+            return null;
+        }
+        if (normalized[0] != '.')
+        {
+            normalized = "." + normalized;
+        }
+        normalized = normalized.ToLowerInvariant();
+        return normalized is ".mp4" or ".mkv"
+            || allowSourceContainerFormats && normalized is ".ts" or ".flv"
+                ? normalized
+                : null;
+    }
+
+    private static bool IsSupportedSourceFormat(string extension)
+    {
+        return extension.Equals(".ts", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".flv", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static string BuildTargetPath(IReadOnlyList<FileInfo> sourceFileInfos, string targetFormat)
@@ -176,21 +225,48 @@ public sealed class Converter
 
     internal static string GetAvailableTargetPath(string requestedPath)
     {
-        if (!File.Exists(requestedPath))
+        lock (TargetReservationLock)
         {
-            return requestedPath;
+            return GetAvailableTargetPathCore(requestedPath);
         }
+    }
 
+    private static string GetAvailableTargetPathCore(string requestedPath)
+    {
+        string fullRequestedPath = Path.GetFullPath(requestedPath);
+        if (!File.Exists(fullRequestedPath) && !ReservedTargetPaths.Contains(fullRequestedPath))
+        {
+            return fullRequestedPath;
+        }
         string directory = Path.GetDirectoryName(requestedPath) ?? string.Empty;
         string stem = Path.GetFileNameWithoutExtension(requestedPath);
         string extension = Path.GetExtension(requestedPath);
         for (int index = 2; ; index++)
         {
             string candidate = Path.Combine(directory, $"{stem}_{index}{extension}");
-            if (!File.Exists(candidate))
+            string fullCandidate = Path.GetFullPath(candidate);
+            if (!File.Exists(fullCandidate) && !ReservedTargetPaths.Contains(fullCandidate))
             {
-                return candidate;
+                return fullCandidate;
             }
+        }
+    }
+
+    private static string ReserveAvailableTargetPath(string requestedPath)
+    {
+        lock (TargetReservationLock)
+        {
+            string targetPath = GetAvailableTargetPathCore(requestedPath);
+            ReservedTargetPaths.Add(targetPath);
+            return targetPath;
+        }
+    }
+
+    private static void ReleaseTargetPath(string targetPath)
+    {
+        lock (TargetReservationLock)
+        {
+            ReservedTargetPaths.Remove(targetPath);
         }
     }
 
@@ -214,23 +290,6 @@ public sealed class Converter
         }
     }
 
-    private static string CreateConcatList(IReadOnlyList<FileInfo> sourceFileInfos)
-    {
-        string directory = sourceFileInfos[0].DirectoryName ?? Path.GetTempPath();
-        string listPath = MediaFileCatalog.CreateTemporaryPath(Path.Combine(directory, "recording.concat.txt"), "concat");
-        using FileStream stream = new(listPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-        using StreamWriter writer = new(stream, new UTF8Encoding(false));
-        foreach (FileInfo file in sourceFileInfos)
-        {
-            writer.Write("file '");
-            writer.Write(file.FullName.Replace("'", "'\\''", StringComparison.Ordinal));
-            writer.WriteLine("'");
-        }
-        writer.Flush();
-        stream.Flush(flushToDisk: true);
-        return listPath;
-    }
-
     private static void DeleteTemporaryOutput(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -247,223 +306,4 @@ public sealed class Converter
         }
     }
 
-    internal static IReadOnlyList<string> BuildArguments(string sourceFileName, string targetFileName, VideoRecordingMetadata metadata, bool hasAudio = true)
-    {
-        return BuildArguments(sourceFileName, targetFileName, metadata, hasAudio ? AudioStreamPresence.Present : AudioStreamPresence.Absent);
-    }
-
-    internal static IReadOnlyList<string> BuildArguments(string sourceFileName, string targetFileName, VideoRecordingMetadata metadata, AudioStreamPresence audioPresence)
-    {
-        string sourceExtension = Path.GetExtension(sourceFileName);
-        if (!sourceExtension.Equals(".ts", StringComparison.OrdinalIgnoreCase)
-            && !sourceExtension.Equals(".flv", StringComparison.OrdinalIgnoreCase))
-        {
-            return [];
-        }
-
-        List<string> arguments = ["-n"];
-        arguments.AddRange(["-fflags", "+genpts+discardcorrupt+sortdts"]);
-        arguments.AddRange(["-err_detect", "ignore_err"]);
-
-        arguments.AddRange(["-i", sourceFileName]);
-        if (audioPresence == AudioStreamPresence.Present)
-        {
-            arguments.AddRange([
-                "-filter_complex", OptimizedAudioFilter,
-                "-map", "0:v?",
-                "-map", "0:a:0?",
-                "-map", "[aopt]",
-                "-map", "0:s?",
-                "-map_metadata", "0",
-                "-map_chapters", "0",
-                "-c:v", "copy",
-                "-c:a:0", "copy",
-                "-c:a:1", "aac",
-                "-c:s", "copy",
-                "-metadata:s:a:0", "title=原音频",
-                "-metadata:s:a:0", "handler_name=原音频",
-                "-metadata:s:a:1", "title=优化音频",
-                "-metadata:s:a:1", "handler_name=优化音频",
-            ]);
-        }
-        else if (audioPresence == AudioStreamPresence.Absent)
-        {
-            arguments.AddRange([
-                "-map", "0:v?",
-                "-map", "0:s?",
-                "-map_metadata", "0",
-                "-map_chapters", "0",
-                "-c:v", "copy",
-                "-c:s", "copy",
-            ]);
-        }
-        else
-        {
-            arguments.AddRange([
-                "-map", "0:v?",
-                "-map", "0:a?",
-                "-map", "0:s?",
-                "-map_metadata", "0",
-                "-map_chapters", "0",
-                "-c:v", "copy",
-                "-c:a", "copy",
-                "-c:s", "copy",
-            ]);
-        }
-        arguments.AddRange(VideoRecordingMetadataStore.BuildFfmpegMetadataArguments(metadata));
-        if (VideoRecordingMetadataStore.UsesMovMetadataTags(targetFileName))
-        {
-            arguments.AddRange(["-movflags", "use_metadata_tags"]);
-        }
-        arguments.Add(targetFileName);
-        return arguments;
-    }
-
-    internal static IReadOnlyList<string> BuildConcatArguments(string concatListPath, string targetFileName, VideoRecordingMetadata metadata, AudioStreamPresence audioPresence)
-    {
-        List<string> arguments = ["-n", "-fflags", "+genpts+discardcorrupt+sortdts", "-err_detect", "ignore_err", "-f", "concat", "-safe", "0", "-i", concatListPath];
-        AppendOutputMappingArguments(arguments, targetFileName, metadata, audioPresence);
-        return arguments;
-    }
-
-    private static void AppendOutputMappingArguments(List<string> arguments, string targetFileName, VideoRecordingMetadata metadata, AudioStreamPresence audioPresence)
-    {
-        if (audioPresence == AudioStreamPresence.Present)
-        {
-            arguments.AddRange([
-                "-filter_complex", OptimizedAudioFilter,
-                "-map", "0:v?",
-                "-map", "0:a:0?",
-                "-map", "[aopt]",
-                "-map", "0:s?",
-                "-map_metadata", "0",
-                "-map_chapters", "0",
-                "-c:v", "copy",
-                "-c:a:0", "copy",
-                "-c:a:1", "aac",
-                "-c:s", "copy",
-                "-metadata:s:a:0", "title=Original Audio",
-                "-metadata:s:a:0", "handler_name=Original Audio",
-                "-metadata:s:a:1", "title=Enhanced Audio",
-                "-metadata:s:a:1", "handler_name=Enhanced Audio",
-            ]);
-        }
-        else if (audioPresence == AudioStreamPresence.Absent)
-        {
-            arguments.AddRange([
-                "-map", "0:v?",
-                "-map", "0:s?",
-                "-map_metadata", "0",
-                "-map_chapters", "0",
-                "-c:v", "copy",
-                "-c:s", "copy",
-            ]);
-        }
-        else
-        {
-            arguments.AddRange([
-                "-map", "0:v?",
-                "-map", "0:a?",
-                "-map", "0:s?",
-                "-map_metadata", "0",
-                "-map_chapters", "0",
-                "-c:v", "copy",
-                "-c:a", "copy",
-                "-c:s", "copy",
-            ]);
-        }
-        arguments.AddRange(VideoRecordingMetadataStore.BuildFfmpegMetadataArguments(metadata));
-        if (VideoRecordingMetadataStore.UsesMovMetadataTags(targetFileName))
-        {
-            arguments.AddRange(["-movflags", "use_metadata_tags"]);
-        }
-
-        arguments.Add(targetFileName);
-    }
-
-    internal static AudioStreamPresence ProbeAudioStream(string sourceFileName)
-    {
-        if (FfmpegMediaEngine.TryProbe(sourceFileName, out FfmpegMediaProbeResult result, out _))
-        {
-            return result.HasAudio ? AudioStreamPresence.Present : AudioStreamPresence.Absent;
-        }
-
-        return AudioStreamPresence.Unknown;
-    }
-
-    private static void AppendOutputTail(StringBuilder output, string data)
-    {
-        output.AppendLine(data);
-        if (output.Length > ProcessOutputTailLimit)
-        {
-            output.Remove(0, output.Length - ProcessOutputTailLimit);
-        }
-    }
-
-    private static async Task ReadPipeAsync(StreamReader reader, Func<string, CancellationToken, Task> handler, CancellationToken token)
-    {
-        try
-        {
-            while (!token.IsCancellationRequested)
-            {
-                string? line = await reader.ReadLineAsync(token);
-                if (line == null)
-                {
-                    break;
-                }
-
-                await handler(line, token);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (ObjectDisposedException)
-        {
-        }
-    }
-
-    private static void KillProcessTree(Process process)
-    {
-        try
-        {
-            if (!process.HasExited)
-            {
-                process.Kill(entireProcessTree: true);
-                process.WaitForExit(3000);
-            }
-        }
-        catch (Exception e) when (e is InvalidOperationException or ArgumentException)
-        {
-        }
-    }
-
-    private static Task OnStandardErrorReceived(string data, CancellationToken token)
-    {
-        Debug.WriteLine(data);
-        WeakReferenceMessenger.Default.Send(new RecorderMessage
-        {
-            DataType = StandardData.StandardError,
-            Data = data,
-        });
-        return Task.CompletedTask;
-    }
-
-    private static Task OnStandardOutputReceived(string data, CancellationToken token)
-    {
-        Debug.WriteLine(data);
-        WeakReferenceMessenger.Default.Send(new RecorderMessage
-        {
-            DataType = StandardData.StandardOutput,
-            Data = data,
-        });
-        return Task.CompletedTask;
-    }
-}
-
-internal enum AudioStreamPresence
-{
-    Unknown,
-    Absent,
-    Present,
 }

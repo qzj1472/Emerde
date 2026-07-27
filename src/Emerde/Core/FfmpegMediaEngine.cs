@@ -11,13 +11,20 @@ internal sealed record FfmpegInputOptions(
     string HttpProxy,
     bool IsLive);
 
+internal sealed record FfmpegSegmentOptions(long Value, int Unit)
+{
+    public bool IsSizeBased => SegmentTimeUnitHelper.IsSizeUnit(Unit);
+}
+
 internal sealed record FfmpegMediaProbeResult(
     bool HasAudio,
     bool HasVideo,
     int Width,
     int Height,
     double DurationSeconds,
-    long Bitrate);
+    long Bitrate,
+    string StreamSignature,
+    VideoRecordingMetadata Metadata);
 
 internal sealed record FfmpegMediaRunResult(
     int ExitCode,
@@ -58,10 +65,13 @@ internal static unsafe class FfmpegMediaEngine
         string targetFileName,
         VideoRecordingMetadata metadata,
         FfmpegInputOptions options,
+        FfmpegSegmentOptions? segmentOptions,
         CancellationToken token,
         Action<long>? onProgress = null)
     {
-        return Remux([inputUrl], targetFileName, metadata, options, token, onProgress);
+        return segmentOptions == null
+            ? Remux([inputUrl], targetFileName, metadata, options, token, onProgress)
+            : SegmentStream(inputUrl, targetFileName, metadata, options, segmentOptions, token, onProgress);
     }
 
     public static FfmpegMediaRunResult SplitFile(
@@ -72,49 +82,81 @@ internal static unsafe class FfmpegMediaEngine
         CancellationToken token,
         Action<long>? onProgress = null)
     {
-        if (string.IsNullOrWhiteSpace(sourceFileName) || string.IsNullOrWhiteSpace(targetPattern) || segmentSeconds <= 0)
+        return SegmentStream(
+            sourceFileName,
+            targetPattern,
+            metadata,
+            new FfmpegInputOptions(string.Empty, string.Empty, false, string.Empty, false),
+            new FfmpegSegmentOptions(segmentSeconds, SegmentTimeUnitHelper.Seconds),
+            token,
+            onProgress);
+    }
+
+    private static FfmpegMediaRunResult SegmentStream(
+        string sourceFileName,
+        string targetPattern,
+        VideoRecordingMetadata metadata,
+        FfmpegInputOptions inputOptions,
+        FfmpegSegmentOptions segmentOptions,
+        CancellationToken token,
+        Action<long>? onProgress)
+    {
+        if (string.IsNullOrWhiteSpace(sourceFileName)
+            || string.IsNullOrWhiteSpace(targetPattern)
+            || !targetPattern.Contains("%03d", StringComparison.Ordinal)
+            || segmentOptions.Value <= 0)
         {
-            return new FfmpegMediaRunResult(1, false, false, "input, output, or segment duration is empty");
+            return new FfmpegMediaRunResult(1, false, false, "input, output pattern, or segment threshold is invalid");
         }
 
         AVFormatContext* inputContext = null;
         AVFormatContext* outputContext = null;
-        AVDictionary* inputOptions = null;
-        AVDictionary* writeOptions = null;
+        AVDictionary* options = null;
         AVPacket* packet = null;
+        GCHandle interruptHandle = default;
+        bool outputOpened = false;
         bool headerWritten = false;
         bool hadProgress = false;
 
         try
         {
             EnsureInitialized();
-            AddInputOptions(&inputOptions, new FfmpegInputOptions(string.Empty, string.Empty, false, string.Empty, false));
-            int openResult = ffmpeg.avformat_open_input(&inputContext, sourceFileName, null, &inputOptions);
+            ConfigureInterruptCallback(&inputContext, token, out interruptHandle);
+            AddInputOptions(&options, inputOptions);
+            int openResult = ffmpeg.avformat_open_input(&inputContext, sourceFileName, null, &options);
             if (openResult < 0)
             {
-                return new FfmpegMediaRunResult(openResult, false, false, ErrorToString(openResult));
+                return CreateNativeFailureResult(openResult, token, false);
             }
             ApplyInputRepairPolicy(inputContext);
 
             int streamInfoResult = ffmpeg.avformat_find_stream_info(inputContext, null);
             if (streamInfoResult < 0)
             {
-                return new FfmpegMediaRunResult(streamInfoResult, false, false, ErrorToString(streamInfoResult));
+                return CreateNativeFailureResult(streamInfoResult, token, false);
             }
 
-            ThrowIfError(ffmpeg.avformat_alloc_output_context2(&outputContext, null, "segment", targetPattern), "create segment output");
-            if (outputContext == null)
+            int referenceStreamIndex = GetSegmentReferenceStreamIndex(inputContext);
+            if (referenceStreamIndex < 0)
             {
-                return new FfmpegMediaRunResult(1, false, false, "segment output context could not be created");
+                return new FfmpegMediaRunResult(1, false, false, "input contains no supported audio or video streams");
             }
 
-            AddMetadata(outputContext, metadata);
-            int[] streamMap = CreateOutputStreams(inputContext, outputContext);
-            ffmpeg.av_dict_set(&writeOptions, "segment_time", segmentSeconds.ToString(CultureInfo.InvariantCulture), 0);
-            ffmpeg.av_dict_set(&writeOptions, "reset_timestamps", "1", 0);
-            ffmpeg.av_dict_set(&writeOptions, "segment_format", GetSegmentFormat(targetPattern), 0);
-            ThrowIfError(ffmpeg.avformat_write_header(outputContext, &writeOptions), "write segment header");
-            headerWritten = true;
+            int segmentIndex = 0;
+            int[] streamMap = OpenSegmentOutput(
+                inputContext,
+                BuildSegmentPath(targetPattern, segmentIndex),
+                metadata,
+                &outputContext,
+                out outputOpened,
+                out headerWritten);
+            long[] lastPacketEnds = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)outputContext->nb_streams).ToArray();
+            long[] nextInputDts = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)inputContext->nb_streams).ToArray();
+            SegmentClock segmentClock = new();
+            long segmentClockStartTimestamp = ffmpeg.AV_NOPTS_VALUE;
+            long segmentOutputTimestampBase = inputContext->start_time;
+            long segmentPayloadBytes = 0;
+            bool segmentHasPackets = false;
 
             packet = ffmpeg.av_packet_alloc();
             if (packet == null)
@@ -132,7 +174,7 @@ internal static unsafe class FfmpegMediaEngine
                         break;
                     }
 
-                    return new FfmpegMediaRunResult(readResult, false, hadProgress, ErrorToString(readResult));
+                    return CreateNativeFailureResult(readResult, token, hadProgress);
                 }
 
                 int inputStreamIndex = packet->stream_index;
@@ -142,11 +184,65 @@ internal static unsafe class FfmpegMediaEngine
                     continue;
                 }
 
-                int outputStreamIndex = streamMap[inputStreamIndex];
                 AVStream* inputStream = inputContext->streams[inputStreamIndex];
+                EnsurePacketDts(packet, inputStream, inputStreamIndex, nextInputDts, segmentOutputTimestampBase);
+                long packetSourceTimestamp = GetPacketTimestamp(packet, inputStream);
+                long packetClockTimestamp = inputStreamIndex == referenceStreamIndex
+                    ? segmentClock.Observe(packet, inputStream)
+                    : ffmpeg.AV_NOPTS_VALUE;
+                if (segmentOutputTimestampBase == ffmpeg.AV_NOPTS_VALUE && packetSourceTimestamp != ffmpeg.AV_NOPTS_VALUE)
+                {
+                    segmentOutputTimestampBase = AddSaturated(packetSourceTimestamp, segmentClock.CurrentCorrection);
+                }
+                if (segmentClockStartTimestamp == ffmpeg.AV_NOPTS_VALUE && packetClockTimestamp != ffmpeg.AV_NOPTS_VALUE)
+                {
+                    segmentClockStartTimestamp = packetClockTimestamp;
+                }
+
+                if (segmentHasPackets
+                    && ShouldRotateSegment(
+                        packet,
+                        inputContext,
+                        referenceStreamIndex,
+                        packetClockTimestamp,
+                        segmentClockStartTimestamp,
+                        segmentPayloadBytes,
+                        segmentOptions))
+                {
+                    int closeResult = CloseSegmentOutput(&outputContext, ref outputOpened, ref headerWritten);
+                    if (closeResult < 0)
+                    {
+                        ffmpeg.av_packet_unref(packet);
+                        return new FfmpegMediaRunResult(closeResult, false, hadProgress, ErrorToString(closeResult));
+                    }
+
+                    segmentIndex++;
+                    streamMap = OpenSegmentOutput(
+                        inputContext,
+                        BuildSegmentPath(targetPattern, segmentIndex),
+                        metadata,
+                        &outputContext,
+                        out outputOpened,
+                        out headerWritten);
+                    lastPacketEnds = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)outputContext->nb_streams).ToArray();
+                    segmentClockStartTimestamp = packetClockTimestamp;
+                    segmentOutputTimestampBase = packetSourceTimestamp == ffmpeg.AV_NOPTS_VALUE
+                        ? ffmpeg.AV_NOPTS_VALUE
+                        : AddSaturated(packetSourceTimestamp, segmentClock.CurrentCorrection);
+                    segmentPayloadBytes = 0;
+                    segmentHasPackets = false;
+                }
+
+                int outputStreamIndex = streamMap[inputStreamIndex];
                 AVStream* outputStream = outputContext->streams[outputStreamIndex];
                 int packetSize = Math.Max(0, packet->size);
+                NormalizeSegmentPacketTimestamps(
+                    packet,
+                    inputStream,
+                    segmentOutputTimestampBase,
+                    segmentClock.CurrentCorrection);
                 ffmpeg.av_packet_rescale_ts(packet, inputStream->time_base, outputStream->time_base);
+                NormalizePacketDts(packet, outputStreamIndex, lastPacketEnds);
                 packet->stream_index = outputStreamIndex;
                 packet->pos = -1;
 
@@ -154,9 +250,11 @@ internal static unsafe class FfmpegMediaEngine
                 ffmpeg.av_packet_unref(packet);
                 if (writeResult < 0)
                 {
-                    return new FfmpegMediaRunResult(writeResult, false, hadProgress, ErrorToString(writeResult));
+                    return CreateNativeFailureResult(writeResult, token, hadProgress);
                 }
 
+                segmentPayloadBytes += packetSize;
+                segmentHasPackets = true;
                 hadProgress = true;
                 onProgress?.Invoke(packetSize);
             }
@@ -166,18 +264,16 @@ internal static unsafe class FfmpegMediaEngine
                 return new FfmpegMediaRunResult(255, true, hadProgress, string.Empty);
             }
 
-            int trailerResult = ffmpeg.av_write_trailer(outputContext);
-            if (trailerResult < 0)
-            {
-                return new FfmpegMediaRunResult(trailerResult, false, hadProgress, ErrorToString(trailerResult));
-            }
-
-            headerWritten = false;
-            return new FfmpegMediaRunResult(0, false, hadProgress, string.Empty);
+            int finalResult = CloseSegmentOutput(&outputContext, ref outputOpened, ref headerWritten);
+            return finalResult < 0
+                ? new FfmpegMediaRunResult(finalResult, false, hadProgress, ErrorToString(finalResult))
+                : new FfmpegMediaRunResult(0, false, hadProgress, string.Empty);
         }
         catch (Exception e)
         {
-            return new FfmpegMediaRunResult(1, token.IsCancellationRequested, hadProgress, e.ToString());
+            return token.IsCancellationRequested
+                ? CreateCanceledResult(hadProgress)
+                : new FfmpegMediaRunResult(1, false, hadProgress, e.ToString());
         }
         finally
         {
@@ -187,10 +283,7 @@ internal static unsafe class FfmpegMediaEngine
                 ffmpeg.av_packet_free(&packetPointer);
             }
 
-            if (headerWritten && outputContext != null)
-            {
-                _ = ffmpeg.av_write_trailer(outputContext);
-            }
+            _ = CloseSegmentOutput(&outputContext, ref outputOpened, ref headerWritten);
 
             if (inputContext != null)
             {
@@ -198,26 +291,381 @@ internal static unsafe class FfmpegMediaEngine
                 ffmpeg.avformat_close_input(&context);
             }
 
-            if (outputContext != null)
+            if (options != null)
             {
-                ffmpeg.avformat_free_context(outputContext);
+                ffmpeg.av_dict_free(&options);
             }
 
-            if (inputOptions != null)
+            if (interruptHandle.IsAllocated)
             {
-                ffmpeg.av_dict_free(&inputOptions);
-            }
-
-            if (writeOptions != null)
-            {
-                ffmpeg.av_dict_free(&writeOptions);
+                interruptHandle.Free();
             }
         }
     }
 
+    private static int GetSegmentReferenceStreamIndex(AVFormatContext* inputContext)
+    {
+        int audioStreamIndex = -1;
+        for (int index = 0; index < inputContext->nb_streams; index++)
+        {
+            AVMediaType mediaType = inputContext->streams[index]->codecpar->codec_type;
+            if (mediaType == AVMediaType.AVMEDIA_TYPE_VIDEO
+                && (inputContext->streams[index]->disposition & ffmpeg.AV_DISPOSITION_ATTACHED_PIC) == 0)
+            {
+                return index;
+            }
+
+            if (mediaType == AVMediaType.AVMEDIA_TYPE_AUDIO && audioStreamIndex < 0)
+            {
+                audioStreamIndex = index;
+            }
+        }
+
+        return audioStreamIndex;
+    }
+
+    private static string BuildSegmentPath(string targetPattern, int segmentIndex)
+    {
+        return targetPattern.Replace(
+            "%03d",
+            segmentIndex.ToString("000", CultureInfo.InvariantCulture),
+            StringComparison.Ordinal);
+    }
+
+    private static int[] OpenSegmentOutput(
+        AVFormatContext* inputContext,
+        string targetFileName,
+        VideoRecordingMetadata metadata,
+        AVFormatContext** outputContext,
+        out bool outputOpened,
+        out bool headerWritten)
+    {
+        AVFormatContext* context = null;
+        outputOpened = false;
+        headerWritten = false;
+
+        try
+        {
+            ThrowIfError(ffmpeg.avformat_alloc_output_context2(&context, null, GetOutputFormatName(targetFileName), targetFileName), "create segment output");
+            if (context == null)
+            {
+                throw new InvalidOperationException("segment output context could not be created");
+            }
+
+            AddMetadata(context, metadata);
+            context->avoid_negative_ts = ffmpeg.AVFMT_AVOID_NEG_TS_MAKE_NON_NEGATIVE;
+            int[] streamMap = CreateOutputStreams(inputContext, context);
+            if (!streamMap.Any(index => index >= 0))
+            {
+                throw new InvalidOperationException("input contains no supported audio or video streams");
+            }
+
+            if ((context->oformat->flags & ffmpeg.AVFMT_NOFILE) == 0)
+            {
+                ThrowIfError(ffmpeg.avio_open(&context->pb, targetFileName, ffmpeg.AVIO_FLAG_WRITE), "open segment output");
+                outputOpened = true;
+            }
+
+            AVDictionary* writeOptions = null;
+            try
+            {
+                if (VideoRecordingMetadataStore.UsesMovMetadataTags(targetFileName))
+                {
+                    ffmpeg.av_dict_set(&writeOptions, "movflags", "use_metadata_tags", 0);
+                }
+
+                ThrowIfError(ffmpeg.avformat_write_header(context, &writeOptions), "write segment header");
+                headerWritten = true;
+            }
+            finally
+            {
+                if (writeOptions != null)
+                {
+                    ffmpeg.av_dict_free(&writeOptions);
+                }
+            }
+
+            *outputContext = context;
+            return streamMap;
+        }
+        catch
+        {
+            _ = CloseSegmentOutput(&context, ref outputOpened, ref headerWritten);
+            throw;
+        }
+    }
+
+    private static long GetPacketTimestamp(AVPacket* packet, AVStream* inputStream)
+    {
+        long timestamp = packet->dts != ffmpeg.AV_NOPTS_VALUE ? packet->dts : packet->pts;
+        return timestamp == ffmpeg.AV_NOPTS_VALUE
+            ? ffmpeg.AV_NOPTS_VALUE
+            : ffmpeg.av_rescale_q(
+                timestamp,
+                inputStream->time_base,
+                new AVRational { num = 1, den = ffmpeg.AV_TIME_BASE });
+    }
+
+    private static void EnsurePacketDts(
+        AVPacket* packet,
+        AVStream* inputStream,
+        int inputStreamIndex,
+        long[] nextInputDts,
+        long sourceTimestampBase)
+    {
+        if (packet->dts == ffmpeg.AV_NOPTS_VALUE)
+        {
+            long nextDts = nextInputDts[inputStreamIndex];
+            if (nextDts == ffmpeg.AV_NOPTS_VALUE
+                && inputStream->codecpar->codec_type == AVMediaType.AVMEDIA_TYPE_AUDIO
+                && packet->pts != ffmpeg.AV_NOPTS_VALUE)
+            {
+                nextDts = packet->pts;
+            }
+            if (nextDts == ffmpeg.AV_NOPTS_VALUE && sourceTimestampBase != ffmpeg.AV_NOPTS_VALUE)
+            {
+                nextDts = ffmpeg.av_rescale_q(
+                    sourceTimestampBase,
+                    new AVRational { num = 1, den = ffmpeg.AV_TIME_BASE },
+                    inputStream->time_base);
+            }
+            if (nextDts == ffmpeg.AV_NOPTS_VALUE)
+            {
+                nextDts = packet->pts;
+            }
+            packet->dts = nextDts;
+        }
+
+        if (packet->dts != ffmpeg.AV_NOPTS_VALUE)
+        {
+            long duration = GetPacketDuration(packet, inputStream);
+            nextInputDts[inputStreamIndex] = packet->dts > long.MaxValue - duration
+                ? long.MaxValue
+                : packet->dts + duration;
+        }
+    }
+
+    private static long GetPacketDuration(AVPacket* packet, AVStream* stream)
+    {
+        if (packet->duration > 0)
+        {
+            return packet->duration;
+        }
+
+        AVCodecParameters* parameters = stream->codecpar;
+        if (parameters->codec_type == AVMediaType.AVMEDIA_TYPE_VIDEO)
+        {
+            AVRational frameRate = stream->avg_frame_rate.num > 0 && stream->avg_frame_rate.den > 0
+                ? stream->avg_frame_rate
+                : stream->r_frame_rate;
+            if (frameRate.num > 0 && frameRate.den > 0)
+            {
+                return Math.Max(1, ffmpeg.av_rescale_q(
+                    1,
+                    new AVRational { num = frameRate.den, den = frameRate.num },
+                    stream->time_base));
+            }
+        }
+        else if (parameters->codec_type == AVMediaType.AVMEDIA_TYPE_AUDIO
+            && parameters->frame_size > 0
+            && parameters->sample_rate > 0)
+        {
+            return Math.Max(1, ffmpeg.av_rescale_q(
+                1,
+                new AVRational { num = parameters->frame_size, den = parameters->sample_rate },
+                stream->time_base));
+        }
+
+        return 1;
+    }
+
+    private sealed class SegmentClock
+    {
+        private long lastSourceTimestamp = ffmpeg.AV_NOPTS_VALUE;
+        private long firstSourceTimestamp = ffmpeg.AV_NOPTS_VALUE;
+        private long lastPacketDuration = 1;
+        private long monotonicTimestamp;
+
+        public long CurrentCorrection { get; private set; }
+
+        public long Observe(AVPacket* packet, AVStream* inputStream)
+        {
+            long sourceTimestamp = packet->dts != ffmpeg.AV_NOPTS_VALUE ? packet->dts : packet->pts;
+            if (sourceTimestamp == ffmpeg.AV_NOPTS_VALUE)
+            {
+                return lastSourceTimestamp == ffmpeg.AV_NOPTS_VALUE ? ffmpeg.AV_NOPTS_VALUE : monotonicTimestamp;
+            }
+
+            long sourceTimestampMicroseconds = ffmpeg.av_rescale_q(
+                sourceTimestamp,
+                inputStream->time_base,
+                new AVRational { num = 1, den = ffmpeg.AV_TIME_BASE });
+            long packetDuration = packet->duration > 0
+                ? Math.Max(1, ffmpeg.av_rescale_q(
+                    packet->duration,
+                    inputStream->time_base,
+                    new AVRational { num = 1, den = ffmpeg.AV_TIME_BASE }))
+                : lastPacketDuration;
+
+            if (lastSourceTimestamp == ffmpeg.AV_NOPTS_VALUE)
+            {
+                firstSourceTimestamp = sourceTimestampMicroseconds;
+                lastSourceTimestamp = sourceTimestampMicroseconds;
+                lastPacketDuration = packetDuration;
+                return monotonicTimestamp;
+            }
+
+            long delta = sourceTimestampMicroseconds - lastSourceTimestamp;
+            if (delta <= 0 || delta > 10L * ffmpeg.AV_TIME_BASE)
+            {
+                delta = lastPacketDuration;
+            }
+
+            monotonicTimestamp = monotonicTimestamp > long.MaxValue - delta
+                ? long.MaxValue
+                : monotonicTimestamp + delta;
+            long correctedTimestamp = AddSaturated(firstSourceTimestamp, monotonicTimestamp);
+            CurrentCorrection = SubtractSaturated(correctedTimestamp, sourceTimestampMicroseconds);
+            lastSourceTimestamp = sourceTimestampMicroseconds;
+            lastPacketDuration = packetDuration;
+            return monotonicTimestamp;
+        }
+    }
+
+    private static bool ShouldRotateSegment(
+        AVPacket* packet,
+        AVFormatContext* inputContext,
+        int referenceStreamIndex,
+        long packetTimestamp,
+        long segmentStartTimestamp,
+        long segmentPayloadBytes,
+        FfmpegSegmentOptions segmentOptions)
+    {
+        if (packet->stream_index != referenceStreamIndex)
+        {
+            return false;
+        }
+
+        AVMediaType referenceType = inputContext->streams[referenceStreamIndex]->codecpar->codec_type;
+        if (referenceType == AVMediaType.AVMEDIA_TYPE_VIDEO && (packet->flags & ffmpeg.AV_PKT_FLAG_KEY) == 0)
+        {
+            return false;
+        }
+
+        if (segmentOptions.IsSizeBased)
+        {
+            return segmentPayloadBytes >= segmentOptions.Value;
+        }
+
+        if (packetTimestamp == ffmpeg.AV_NOPTS_VALUE || segmentStartTimestamp == ffmpeg.AV_NOPTS_VALUE)
+        {
+            return false;
+        }
+
+        long multiplier = segmentOptions.Unit == SegmentTimeUnitHelper.Milliseconds
+            ? ffmpeg.AV_TIME_BASE / 1000
+            : ffmpeg.AV_TIME_BASE;
+        long threshold = segmentOptions.Value > long.MaxValue / multiplier
+            ? long.MaxValue
+            : segmentOptions.Value * multiplier;
+        return packetTimestamp - segmentStartTimestamp >= threshold;
+    }
+
+    private static void NormalizeSegmentPacketTimestamps(
+        AVPacket* packet,
+        AVStream* inputStream,
+        long segmentStartTimestamp,
+        long timestampCorrection)
+    {
+        if (segmentStartTimestamp == ffmpeg.AV_NOPTS_VALUE)
+        {
+            return;
+        }
+
+        long timestampOffset = ffmpeg.av_rescale_q(
+            segmentStartTimestamp,
+            new AVRational { num = 1, den = ffmpeg.AV_TIME_BASE },
+            inputStream->time_base);
+        long inputCorrection = ffmpeg.av_rescale_q(
+            timestampCorrection,
+            new AVRational { num = 1, den = ffmpeg.AV_TIME_BASE },
+            inputStream->time_base);
+        if (packet->pts != ffmpeg.AV_NOPTS_VALUE)
+        {
+            packet->pts = AddSaturated(packet->pts, inputCorrection) - timestampOffset;
+        }
+
+        if (packet->dts != ffmpeg.AV_NOPTS_VALUE)
+        {
+            packet->dts = AddSaturated(packet->dts, inputCorrection) - timestampOffset;
+        }
+    }
+
+    private static void NormalizePacketDts(
+        AVPacket* packet,
+        int outputStreamIndex,
+        long[] lastPacketEnds)
+    {
+        if (packet->dts == ffmpeg.AV_NOPTS_VALUE)
+        {
+            return;
+        }
+
+        long previousPacketEnd = lastPacketEnds[outputStreamIndex];
+        if (previousPacketEnd != ffmpeg.AV_NOPTS_VALUE && packet->dts < previousPacketEnd)
+        {
+            long shift = packet->dts - previousPacketEnd;
+            packet->dts -= shift;
+            if (packet->pts != ffmpeg.AV_NOPTS_VALUE)
+            {
+                packet->pts -= shift;
+            }
+        }
+
+        long duration = Math.Max(1, packet->duration);
+        lastPacketEnds[outputStreamIndex] = packet->dts > long.MaxValue - duration
+            ? long.MaxValue
+            : packet->dts + duration;
+    }
+
+    private static int CloseSegmentOutput(
+        AVFormatContext** outputContext,
+        ref bool outputOpened,
+        ref bool headerWritten)
+    {
+        AVFormatContext* context = *outputContext;
+        if (context == null)
+        {
+            outputOpened = false;
+            headerWritten = false;
+            return 0;
+        }
+
+        int trailerResult = 0;
+        if (headerWritten)
+        {
+            trailerResult = ffmpeg.av_write_trailer(context);
+            headerWritten = false;
+        }
+
+        if (outputOpened && context->pb != null)
+        {
+            int closeResult = ffmpeg.avio_closep(&context->pb);
+            if (trailerResult >= 0 && closeResult < 0)
+            {
+                trailerResult = closeResult;
+            }
+        }
+
+        outputOpened = false;
+        ffmpeg.avformat_free_context(context);
+        *outputContext = null;
+        return trailerResult;
+    }
+
     public static bool TryProbe(string sourceFileName, out FfmpegMediaProbeResult result, out string error)
     {
-        result = new FfmpegMediaProbeResult(false, false, 0, 0, 0, 0);
+        result = new FfmpegMediaProbeResult(false, false, 0, 0, 0, 0, string.Empty, new VideoRecordingMetadata());
         error = string.Empty;
         AVFormatContext* inputContext = null;
         AVDictionary* options = null;
@@ -245,6 +693,7 @@ internal static unsafe class FfmpegMediaEngine
             bool hasVideo = false;
             int width = 0;
             int height = 0;
+            List<string> streamSignatures = [];
             for (int index = 0; index < inputContext->nb_streams; index++)
             {
                 AVStream* stream = inputContext->streams[index];
@@ -252,11 +701,15 @@ internal static unsafe class FfmpegMediaEngine
                 if (parameters->codec_type == AVMediaType.AVMEDIA_TYPE_AUDIO)
                 {
                     hasAudio = true;
+                    streamSignatures.Add(BuildStreamSignature(stream));
                 }
                 else if (parameters->codec_type == AVMediaType.AVMEDIA_TYPE_VIDEO)
                 {
                     hasVideo = true;
-                    if (width <= 0 && height <= 0)
+                    streamSignatures.Add(BuildStreamSignature(stream));
+                    if (width <= 0
+                        && height <= 0
+                        && (stream->disposition & ffmpeg.AV_DISPOSITION_ATTACHED_PIC) == 0)
                     {
                         width = parameters->width;
                         height = parameters->height;
@@ -267,7 +720,24 @@ internal static unsafe class FfmpegMediaEngine
             double durationSeconds = inputContext->duration > 0
                 ? inputContext->duration / (double)ffmpeg.AV_TIME_BASE
                 : 0;
-            result = new FfmpegMediaProbeResult(hasAudio, hasVideo, width, height, durationSeconds, inputContext->bit_rate);
+            VideoRecordingMetadata metadata = VideoRecordingMetadataStore.FromTags(
+                ReadMetadataTags(inputContext->metadata),
+                Path.GetFileName(sourceFileName));
+            result = new FfmpegMediaProbeResult(
+                hasAudio,
+                hasVideo,
+                width,
+                height,
+                durationSeconds,
+                inputContext->bit_rate,
+                string.Join(";", streamSignatures.Order(StringComparer.Ordinal)),
+                metadata);
+            if (!hasAudio && !hasVideo)
+            {
+                error = "input contains no supported audio or video streams";
+                return false;
+            }
+
             return true;
         }
         catch (Exception e)
@@ -290,6 +760,65 @@ internal static unsafe class FfmpegMediaEngine
         }
     }
 
+    private static string BuildStreamSignature(AVStream* stream)
+    {
+        AVCodecParameters* parameters = stream->codecpar;
+        string channelLayout = string.Empty;
+        if (parameters->codec_type == AVMediaType.AVMEDIA_TYPE_AUDIO)
+        {
+            byte* layoutBuffer = stackalloc byte[128];
+            if (ffmpeg.av_channel_layout_describe(&parameters->ch_layout, layoutBuffer, 128) >= 0)
+            {
+                channelLayout = Marshal.PtrToStringAnsi((IntPtr)layoutBuffer) ?? string.Empty;
+            }
+        }
+
+        string extraDataHash = parameters->extradata_size > 0 && parameters->extradata != null
+            ? Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                new ReadOnlySpan<byte>(parameters->extradata, parameters->extradata_size)))
+            : string.Empty;
+        return string.Join(
+            "|",
+            (int)parameters->codec_type,
+            (int)parameters->codec_id,
+            parameters->format,
+            parameters->profile,
+            parameters->width,
+            parameters->height,
+            parameters->sample_rate,
+            parameters->ch_layout.nb_channels,
+            channelLayout,
+            (stream->disposition & ffmpeg.AV_DISPOSITION_ATTACHED_PIC) != 0,
+            ReadMetadataValue(stream->metadata, "language"),
+            ReadMetadataValue(stream->metadata, "title"),
+            extraDataHash);
+    }
+
+    private static string ReadMetadataValue(AVDictionary* metadata, string key)
+    {
+        AVDictionaryEntry* entry = ffmpeg.av_dict_get(metadata, key, null, 0);
+        return entry == null
+            ? string.Empty
+            : Marshal.PtrToStringUTF8((IntPtr)entry->value) ?? string.Empty;
+    }
+
+    private static Dictionary<string, string> ReadMetadataTags(AVDictionary* metadata)
+    {
+        Dictionary<string, string> tags = new(StringComparer.OrdinalIgnoreCase);
+        AVDictionaryEntry* entry = null;
+        while ((entry = ffmpeg.av_dict_get(metadata, string.Empty, entry, ffmpeg.AV_DICT_IGNORE_SUFFIX)) != null)
+        {
+            string key = Marshal.PtrToStringUTF8((IntPtr)entry->key) ?? string.Empty;
+            string value = Marshal.PtrToStringUTF8((IntPtr)entry->value) ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                tags[key] = value;
+            }
+        }
+
+        return tags;
+    }
+
     private static FfmpegMediaRunResult Remux(
         IReadOnlyList<string> sourceFileNames,
         string targetFileName,
@@ -307,20 +836,22 @@ internal static unsafe class FfmpegMediaEngine
         bool outputOpened = false;
         bool headerWritten = false;
         int[]? streamMap = null;
-        long[]? timestampOffsets = null;
-        long[]? lastDts = null;
+        string[]? streamSignatures = null;
+        long[]? lastPacketEnds = null;
+        long timelineOffset = 0;
         bool hadProgress = false;
 
         try
         {
             EnsureInitialized();
-            ThrowIfError(ffmpeg.avformat_alloc_output_context2(&outputContext, null, null, targetFileName), "create output");
+            ThrowIfError(ffmpeg.avformat_alloc_output_context2(&outputContext, null, GetOutputFormatName(targetFileName), targetFileName), "create output");
             if (outputContext == null)
             {
                 return new FfmpegMediaRunResult(1, false, false, "output context could not be created");
             }
 
             AddMetadata(outputContext, metadata);
+            outputContext->avoid_negative_ts = ffmpeg.AVFMT_AVOID_NEG_TS_MAKE_NON_NEGATIVE;
 
             for (int sourceIndex = 0; sourceIndex < sourceFileNames.Count; sourceIndex++)
             {
@@ -332,29 +863,35 @@ internal static unsafe class FfmpegMediaEngine
                 AVFormatContext* inputContext = null;
                 AVDictionary* options = null;
                 AVPacket* packet = null;
+                GCHandle interruptHandle = default;
 
                 try
                 {
                     FfmpegInputOptions effectiveOptions = inputOptions ?? new FfmpegInputOptions(string.Empty, string.Empty, false, string.Empty, false);
+                    ConfigureInterruptCallback(&inputContext, token, out interruptHandle);
                     AddInputOptions(&options, effectiveOptions);
                     int openResult = ffmpeg.avformat_open_input(&inputContext, sourceFileNames[sourceIndex], null, &options);
                     if (openResult < 0)
                     {
-                        return new FfmpegMediaRunResult(openResult, false, hadProgress, ErrorToString(openResult));
+                        return CreateNativeFailureResult(openResult, token, hadProgress);
                     }
                     ApplyInputRepairPolicy(inputContext);
 
                     int streamInfoResult = ffmpeg.avformat_find_stream_info(inputContext, null);
                     if (streamInfoResult < 0)
                     {
-                        return new FfmpegMediaRunResult(streamInfoResult, false, hadProgress, ErrorToString(streamInfoResult));
+                        return CreateNativeFailureResult(streamInfoResult, token, hadProgress);
                     }
 
                     if (sourceIndex == 0)
                     {
                         streamMap = CreateOutputStreams(inputContext, outputContext);
-                        timestampOffsets = new long[outputContext->nb_streams];
-                        lastDts = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)outputContext->nb_streams).ToArray();
+                        if (!streamMap.Any(index => index >= 0))
+                        {
+                            return new FfmpegMediaRunResult(1, false, false, "input contains no supported audio or video streams");
+                        }
+                        streamSignatures = CreateStreamSignatures(inputContext, streamMap, (int)outputContext->nb_streams);
+                        lastPacketEnds = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)outputContext->nb_streams).ToArray();
 
                         if ((outputContext->oformat->flags & ffmpeg.AVFMT_NOFILE) == 0)
                         {
@@ -381,12 +918,28 @@ internal static unsafe class FfmpegMediaEngine
                             }
                         }
                     }
-                    else if (streamMap == null || timestampOffsets == null || lastDts == null)
+                    else if (streamMap == null || streamSignatures == null || lastPacketEnds == null)
                     {
                         return new FfmpegMediaRunResult(1, false, hadProgress, "output stream map is missing");
                     }
+                    else
+                    {
+                        streamMap = CreateCompatibleStreamMap(inputContext, streamSignatures);
+                        if (!streamMap.Any(index => index >= 0))
+                        {
+                            return new FfmpegMediaRunResult(1, false, hadProgress, "input streams are incompatible with the first source");
+                        }
+                    }
 
-                    long[] sourceTimestampBases = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)outputContext->nb_streams).ToArray();
+                    long sourceTimestampBase = inputContext->start_time;
+                    long sourceDecodeEndTimestamp = timelineOffset;
+                    int referenceStreamIndex = GetSegmentReferenceStreamIndex(inputContext);
+                    if (referenceStreamIndex < 0)
+                    {
+                        return new FfmpegMediaRunResult(1, false, hadProgress, "input contains no supported audio or video streams");
+                    }
+                    bool sourceHadReferenceProgress = false;
+                    long[] nextInputDts = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)inputContext->nb_streams).ToArray();
                     packet = ffmpeg.av_packet_alloc();
                     if (packet == null)
                     {
@@ -403,7 +956,7 @@ internal static unsafe class FfmpegMediaEngine
                                 break;
                             }
 
-                            return new FfmpegMediaRunResult(readResult, false, hadProgress, ErrorToString(readResult));
+                            return CreateNativeFailureResult(readResult, token, hadProgress);
                         }
 
                         int inputStreamIndex = packet->stream_index;
@@ -416,36 +969,31 @@ internal static unsafe class FfmpegMediaEngine
                         int outputStreamIndex = streamMap[inputStreamIndex];
                         AVStream* inputStream = inputContext->streams[inputStreamIndex];
                         AVStream* outputStream = outputContext->streams[outputStreamIndex];
-                        NormalizePacketTimestamps(packet, outputStreamIndex, timestampOffsets, sourceTimestampBases);
                         int packetSize = Math.Max(0, packet->size);
 
+                        EnsurePacketDts(packet, inputStream, inputStreamIndex, nextInputDts, sourceTimestampBase);
+                        if (sourceTimestampBase == ffmpeg.AV_NOPTS_VALUE)
+                        {
+                            sourceTimestampBase = GetPacketTimestamp(packet, inputStream);
+                        }
+                        NormalizeSourcePacketTimestamps(packet, inputStream, sourceTimestampBase);
                         ffmpeg.av_packet_rescale_ts(packet, inputStream->time_base, outputStream->time_base);
+                        ApplyTimelineOffset(packet, outputStream, timelineOffset);
+                        NormalizePacketDts(packet, outputStreamIndex, lastPacketEnds);
                         packet->stream_index = outputStreamIndex;
                         packet->pos = -1;
-
-                        if (packet->dts != ffmpeg.AV_NOPTS_VALUE)
-                        {
-                            long previousDts = lastDts[outputStreamIndex];
-                            if (previousDts != ffmpeg.AV_NOPTS_VALUE && ShouldAdjustPacketTimestampGap(packet, outputStream, previousDts))
-                            {
-                                long shift = packet->dts - previousDts - Math.Max(1, packet->duration);
-                                packet->dts -= shift;
-                                if (packet->pts != ffmpeg.AV_NOPTS_VALUE)
-                                {
-                                    packet->pts -= shift;
-                                }
-                            }
-
-                            lastDts[outputStreamIndex] = packet->dts;
-                        }
+                        sourceDecodeEndTimestamp = Math.Max(
+                            sourceDecodeEndTimestamp,
+                            GetPacketDecodeEndTimestamp(packet, outputStream));
 
                         int writeResult = ffmpeg.av_interleaved_write_frame(outputContext, packet);
                         ffmpeg.av_packet_unref(packet);
                         if (writeResult < 0)
                         {
-                            return new FfmpegMediaRunResult(writeResult, false, hadProgress, ErrorToString(writeResult));
+                            return CreateNativeFailureResult(writeResult, token, hadProgress);
                         }
 
+                        sourceHadReferenceProgress |= inputStreamIndex == referenceStreamIndex;
                         hadProgress = true;
                         onProgress?.Invoke(packetSize);
                     }
@@ -455,7 +1003,12 @@ internal static unsafe class FfmpegMediaEngine
                         return new FfmpegMediaRunResult(255, true, hadProgress, string.Empty);
                     }
 
-                    UpdateTimestampOffsets(inputContext, streamMap, outputContext, timestampOffsets, lastDts);
+                    if (!sourceHadReferenceProgress)
+                    {
+                        return new FfmpegMediaRunResult(1, false, hadProgress, $"source {sourceIndex + 1} contains no readable media packets");
+                    }
+
+                    timelineOffset = Math.Max(timelineOffset, sourceDecodeEndTimestamp);
                 }
                 finally
                 {
@@ -475,32 +1028,37 @@ internal static unsafe class FfmpegMediaEngine
                     {
                         ffmpeg.av_dict_free(&options);
                     }
+
+                    if (interruptHandle.IsAllocated)
+                    {
+                        interruptHandle.Free();
+                    }
                 }
             }
 
-            if (headerWritten)
-            {
-                int trailerResult = ffmpeg.av_write_trailer(outputContext);
-                if (trailerResult < 0)
-                {
-                    return new FfmpegMediaRunResult(trailerResult, false, hadProgress, ErrorToString(trailerResult));
-                }
-            }
-
-            return new FfmpegMediaRunResult(0, false, hadProgress, string.Empty);
+            int closeResult = CloseSegmentOutput(&outputContext, ref outputOpened, ref headerWritten);
+            return closeResult < 0
+                ? CreateNativeFailureResult(closeResult, token, hadProgress)
+                : new FfmpegMediaRunResult(0, false, hadProgress, string.Empty);
         }
         catch (Exception e)
         {
-            return new FfmpegMediaRunResult(1, token.IsCancellationRequested, hadProgress, e.ToString());
+            return token.IsCancellationRequested
+                ? CreateCanceledResult(hadProgress)
+                : new FfmpegMediaRunResult(1, false, hadProgress, e.ToString());
         }
         finally
         {
             if (outputContext != null)
             {
+                if (headerWritten)
+                {
+                    _ = ffmpeg.av_write_trailer(outputContext);
+                }
+
                 if (outputOpened && outputContext->pb != null)
                 {
-                    AVIOContext* ioContext = outputContext->pb;
-                    ffmpeg.avio_closep(&ioContext);
+                    ffmpeg.avio_closep(&outputContext->pb);
                 }
 
                 ffmpeg.avformat_free_context(outputContext);
@@ -508,45 +1066,91 @@ internal static unsafe class FfmpegMediaEngine
         }
     }
 
-    private static void NormalizePacketTimestamps(
+    private static void NormalizeSourcePacketTimestamps(
         AVPacket* packet,
-        int outputStreamIndex,
-        long[] timestampOffsets,
-        long[] sourceTimestampBases)
+        AVStream* inputStream,
+        long sourceTimestampBase)
     {
-        if (sourceTimestampBases[outputStreamIndex] == ffmpeg.AV_NOPTS_VALUE)
-        {
-            sourceTimestampBases[outputStreamIndex] = packet->dts != ffmpeg.AV_NOPTS_VALUE
-                ? packet->dts
-                : packet->pts;
-        }
-
-        long timestampBase = sourceTimestampBases[outputStreamIndex];
-        if (timestampBase == ffmpeg.AV_NOPTS_VALUE)
+        if (sourceTimestampBase == ffmpeg.AV_NOPTS_VALUE)
         {
             return;
         }
 
+        long inputOffset = ffmpeg.av_rescale_q(
+            sourceTimestampBase,
+            new AVRational { num = 1, den = ffmpeg.AV_TIME_BASE },
+            inputStream->time_base);
         if (packet->pts != ffmpeg.AV_NOPTS_VALUE)
         {
-            packet->pts = packet->pts - timestampBase + timestampOffsets[outputStreamIndex];
+            packet->pts -= inputOffset;
         }
 
         if (packet->dts != ffmpeg.AV_NOPTS_VALUE)
         {
-            packet->dts = packet->dts - timestampBase + timestampOffsets[outputStreamIndex];
+            packet->dts -= inputOffset;
         }
     }
 
-    private static bool ShouldAdjustPacketTimestampGap(AVPacket* packet, AVStream* outputStream, long previousDts)
+    private static void ApplyTimelineOffset(AVPacket* packet, AVStream* outputStream, long timelineOffset)
     {
-        long duration = Math.Max(1, packet->duration);
-        long maximumForwardGap = ffmpeg.av_rescale_q(
-            10 * ffmpeg.AV_TIME_BASE,
+        long outputOffset = ffmpeg.av_rescale_q(
+            timelineOffset,
             new AVRational { num = 1, den = ffmpeg.AV_TIME_BASE },
             outputStream->time_base);
+        if (packet->pts != ffmpeg.AV_NOPTS_VALUE)
+        {
+            packet->pts += outputOffset;
+        }
 
-        return packet->dts <= previousDts || packet->dts - previousDts > Math.Max(maximumForwardGap, duration * 10);
+        if (packet->dts != ffmpeg.AV_NOPTS_VALUE)
+        {
+            packet->dts += outputOffset;
+        }
+    }
+
+    private static long GetPacketDecodeEndTimestamp(AVPacket* packet, AVStream* outputStream)
+    {
+        if (packet->dts == ffmpeg.AV_NOPTS_VALUE)
+        {
+            return 0;
+        }
+
+        long duration = Math.Max(1, packet->duration);
+        long endTimestamp = packet->dts > long.MaxValue - duration
+            ? long.MaxValue
+            : packet->dts + duration;
+        return ffmpeg.av_rescale_q(
+            endTimestamp,
+            outputStream->time_base,
+            new AVRational { num = 1, den = ffmpeg.AV_TIME_BASE });
+    }
+
+    private static long AddSaturated(long value, long offset)
+    {
+        if (offset > 0 && value > long.MaxValue - offset)
+        {
+            return long.MaxValue;
+        }
+        if (offset < 0 && value < long.MinValue - offset)
+        {
+            return long.MinValue;
+        }
+
+        return value + offset;
+    }
+
+    private static long SubtractSaturated(long value, long offset)
+    {
+        if (offset > 0 && value < long.MinValue + offset)
+        {
+            return long.MinValue;
+        }
+        if (offset < 0 && value > long.MaxValue + offset)
+        {
+            return long.MaxValue;
+        }
+
+        return value - offset;
     }
 
     private static int[] CreateOutputStreams(AVFormatContext* inputContext, AVFormatContext* outputContext)
@@ -570,44 +1174,74 @@ internal static unsafe class FfmpegMediaEngine
             ThrowIfError(ffmpeg.avcodec_parameters_copy(outputStream->codecpar, inputParameters), "copy stream parameters");
             outputStream->codecpar->codec_tag = 0;
             outputStream->time_base = inputStream->time_base;
+            outputStream->avg_frame_rate = inputStream->avg_frame_rate;
+            outputStream->r_frame_rate = inputStream->r_frame_rate;
+            outputStream->sample_aspect_ratio = inputStream->sample_aspect_ratio;
+            outputStream->disposition = inputStream->disposition;
+            outputStream->id = inputStream->id;
+            ThrowIfError(ffmpeg.av_dict_copy(&outputStream->metadata, inputStream->metadata, 0), "copy stream metadata");
             streamMap[index] = outputStream->index;
         }
 
         return streamMap;
     }
 
-    private static void UpdateTimestampOffsets(
+    private static string[] CreateStreamSignatures(
         AVFormatContext* inputContext,
         int[] streamMap,
-        AVFormatContext* outputContext,
-        long[] timestampOffsets,
-        long[] lastDts)
+        int outputStreamCount)
     {
-        for (int index = 0; index < streamMap.Length; index++)
+        string[] signatures = new string[outputStreamCount];
+        for (int inputIndex = 0; inputIndex < streamMap.Length; inputIndex++)
         {
-            int outputIndex = streamMap[index];
-            if (outputIndex < 0)
+            int outputIndex = streamMap[inputIndex];
+            if (outputIndex >= 0)
+            {
+                signatures[outputIndex] = BuildStreamSignature(inputContext->streams[inputIndex]);
+            }
+        }
+
+        return signatures;
+    }
+
+    private static int[] CreateCompatibleStreamMap(AVFormatContext* inputContext, IReadOnlyList<string> outputStreamSignatures)
+    {
+        int[] streamMap = Enumerable.Repeat(-1, (int)inputContext->nb_streams).ToArray();
+        bool[] matchedOutputs = new bool[outputStreamSignatures.Count];
+        int mediaStreamCount = 0;
+        for (int inputIndex = 0; inputIndex < inputContext->nb_streams; inputIndex++)
+        {
+            AVStream* inputStream = inputContext->streams[inputIndex];
+            AVCodecParameters* inputParameters = inputStream->codecpar;
+            if (inputParameters->codec_type is not AVMediaType.AVMEDIA_TYPE_AUDIO and not AVMediaType.AVMEDIA_TYPE_VIDEO)
             {
                 continue;
             }
+            mediaStreamCount++;
 
-            AVStream* inputStream = inputContext->streams[index];
-            AVStream* outputStream = outputContext->streams[outputIndex];
-            long increment = 0;
-            if (inputStream->duration > 0)
+            string inputSignature = BuildStreamSignature(inputStream);
+            for (int outputIndex = 0; outputIndex < outputStreamSignatures.Count; outputIndex++)
             {
-                increment = ffmpeg.av_rescale_q(inputStream->duration, inputStream->time_base, outputStream->time_base);
-            }
-            else if (lastDts[outputIndex] != ffmpeg.AV_NOPTS_VALUE)
-            {
-                increment = lastDts[outputIndex] + 1 - timestampOffsets[outputIndex];
-            }
+                if (matchedOutputs[outputIndex])
+                {
+                    continue;
+                }
 
-            if (increment > 0)
-            {
-                timestampOffsets[outputIndex] += increment;
+                if (!string.Equals(inputSignature, outputStreamSignatures[outputIndex], StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                streamMap[inputIndex] = outputIndex;
+                matchedOutputs[outputIndex] = true;
+                break;
             }
         }
+
+        int matchedStreamCount = streamMap.Count(index => index >= 0);
+        return mediaStreamCount == outputStreamSignatures.Count && matchedStreamCount == mediaStreamCount
+            ? streamMap
+            : Enumerable.Repeat(-1, streamMap.Length).ToArray();
     }
 
     private static void AddMetadata(AVFormatContext* outputContext, VideoRecordingMetadata metadata)
@@ -635,16 +1269,12 @@ internal static unsafe class FfmpegMediaEngine
         }
     }
 
-    private static string GetSegmentFormat(string targetPattern)
+    private static string? GetOutputFormatName(string targetFileName)
     {
-        return Path.GetExtension(targetPattern).ToLowerInvariant() switch
+        return Path.GetExtension(targetFileName).ToLowerInvariant() switch
         {
-            ".ts" => "mpegts",
-            ".mkv" => "matroska",
-            ".mp4" => "mp4",
-            ".flv" => "flv",
-            string extension when extension.Length > 1 => extension[1..],
-            _ => "mpegts",
+            ".m4v" => "mp4",
+            _ => null,
         };
     }
 
@@ -659,13 +1289,21 @@ internal static unsafe class FfmpegMediaEngine
     {
         ffmpeg.av_dict_set(options, "fflags", "+genpts+discardcorrupt+sortdts", 0);
         ffmpeg.av_dict_set(options, "err_detect", "ignore_err", 0);
+        ffmpeg.av_dict_set(options, "protocol_whitelist", "rtmp,crypto,file,http,https,tcp,tls,udp,rtp,httpproxy", 0);
+        ffmpeg.av_dict_set(options, "analyzeduration", "20000000", 0);
+        ffmpeg.av_dict_set(options, "probesize", "10000000", 0);
         ffmpeg.av_dict_set(options, "rw_timeout", inputOptions.IsLive ? "15000000" : "5000000", 0);
-        ffmpeg.av_dict_set(options, "reconnect", "1", 0);
-        ffmpeg.av_dict_set(options, "reconnect_streamed", "1", 0);
-        ffmpeg.av_dict_set(options, "reconnect_at_eof", "1", 0);
-        ffmpeg.av_dict_set(options, "reconnect_on_network_error", "1", 0);
-        ffmpeg.av_dict_set(options, "reconnect_delay_max", "8", 0);
-        ffmpeg.av_dict_set(options, "reconnect_delay_total_max", "90", 0);
+        if (inputOptions.IsLive)
+        {
+            ffmpeg.av_dict_set(options, "reconnect", "1", 0);
+            ffmpeg.av_dict_set(options, "reconnect_streamed", "1", 0);
+            ffmpeg.av_dict_set(options, "reconnect_at_eof", "1", 0);
+            ffmpeg.av_dict_set(options, "reconnect_on_network_error", "1", 0);
+            ffmpeg.av_dict_set(options, "reconnect_delay_max", "8", 0);
+            ffmpeg.av_dict_set(options, "reconnect_delay_total_max", "90", 0);
+            ffmpeg.av_dict_set(options, "reconnect_max_retries", "12", 0);
+            ffmpeg.av_dict_set(options, "reconnect_on_http_error", "4xx,5xx", 0);
+        }
         if (!string.IsNullOrWhiteSpace(inputOptions.UserAgent))
         {
             ffmpeg.av_dict_set(options, "user_agent", inputOptions.UserAgent, 0);
@@ -680,6 +1318,61 @@ internal static unsafe class FfmpegMediaEngine
         {
             ffmpeg.av_dict_set(options, "http_proxy", inputOptions.HttpProxy, 0);
         }
+    }
+
+    private static void ConfigureInterruptCallback(
+        AVFormatContext** inputContext,
+        CancellationToken token,
+        out GCHandle interruptHandle)
+    {
+        interruptHandle = default;
+        *inputContext = ffmpeg.avformat_alloc_context();
+        if (*inputContext == null)
+        {
+            throw new InvalidOperationException("input context could not be created");
+        }
+        if (!token.CanBeCanceled)
+        {
+            return;
+        }
+
+        InterruptState state = new(token);
+        interruptHandle = GCHandle.Alloc(state);
+        (*inputContext)->interrupt_callback.callback = state.Callback;
+        (*inputContext)->interrupt_callback.opaque = (void*)GCHandle.ToIntPtr(interruptHandle);
+    }
+
+    private static int InterruptCallback(void* opaque)
+    {
+        if (opaque == null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            return GCHandle.FromIntPtr((IntPtr)opaque).Target is InterruptState state
+                && state.Token.IsCancellationRequested
+                    ? 1
+                    : 0;
+        }
+        catch
+        {
+            return 1;
+        }
+    }
+
+    private sealed class InterruptState
+    {
+        public InterruptState(CancellationToken token)
+        {
+            Token = token;
+            Callback = InterruptCallback;
+        }
+
+        public CancellationToken Token { get; }
+
+        public AVIOInterruptCB_callback Callback { get; }
     }
 
     private static void ApplyInputRepairPolicy(AVFormatContext* inputContext)
@@ -725,6 +1418,18 @@ internal static unsafe class FfmpegMediaEngine
         {
             throw new InvalidOperationException($"{operation}: {ErrorToString(result)}");
         }
+    }
+
+    private static FfmpegMediaRunResult CreateNativeFailureResult(int result, CancellationToken token, bool hadProgress)
+    {
+        return token.IsCancellationRequested
+            ? CreateCanceledResult(hadProgress)
+            : new FfmpegMediaRunResult(result, false, hadProgress, ErrorToString(result));
+    }
+
+    private static FfmpegMediaRunResult CreateCanceledResult(bool hadProgress)
+    {
+        return new FfmpegMediaRunResult(255, true, hadProgress, string.Empty);
     }
 
     private static string ErrorToString(int error)
