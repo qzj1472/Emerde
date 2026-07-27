@@ -1,6 +1,7 @@
 <vio:ContentDialog x:Class="Emerde.Views.ExitConfirmationContentDialog"
                    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:controls="clr-namespace:Emerde.Controls"
                    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                    xmlns:vio="http://schemas.lepo.co/wpfui/2022/xaml/violeta"
@@ -15,7 +16,10 @@
                    mc:Ignorable="d">
     <Grid MinWidth="460"
           MaxWidth="560"
-          Margin="0,2,0,0">
+          Margin="0,2,0,0"
+          controls:MotionAssist.IsEntranceEnabled="True"
+          controls:MotionAssist.EntranceOffsetY="8"
+          controls:MotionAssist.EntranceScale="0.98">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />
