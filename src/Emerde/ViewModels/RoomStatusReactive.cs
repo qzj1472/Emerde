@@ -139,6 +139,8 @@ public partial class RoomStatusReactive : ReactiveObject
     [ObservableProperty]
     private bool isRefreshFlashActive;
 
+    private int refreshFlashGeneration;
+
     public string StreamStatusText => IsStreamCheckFailed ? "StreamStatusOfCheckFailed".Tr() : StreamStatus switch
     {
         StreamStatus.Initialized => "StreamStatusOfInitialized".Tr(),
@@ -228,10 +230,10 @@ public partial class RoomStatusReactive : ReactiveObject
         return $"{bytesPerSecond / 1024d:F0} KB/s";
     }
 
-    public string PreviewUrl => !string.IsNullOrWhiteSpace(RecordUrl)
-        ? RecordUrl
-        : !string.IsNullOrWhiteSpace(FlvUrl)
-            ? FlvUrl
+    public string PreviewUrl => !string.IsNullOrWhiteSpace(FlvUrl)
+        ? FlvUrl
+        : !string.IsNullOrWhiteSpace(RecordUrl)
+            ? RecordUrl
             : HlsUrl;
 
     public bool CanPreview => StreamStatus == StreamStatus.Streaming && !string.IsNullOrWhiteSpace(PreviewUrl);
@@ -349,11 +351,19 @@ public partial class RoomStatusReactive : ReactiveObject
 
     public async void FlashRefresh()
     {
+        int generation = Interlocked.Increment(ref refreshFlashGeneration);
         IsRefreshFlashActive = false;
         await Task.Delay(1);
+        if (generation != Volatile.Read(ref refreshFlashGeneration))
+        {
+            return;
+        }
         IsRefreshFlashActive = true;
         await Task.Delay(360);
-        IsRefreshFlashActive = false;
+        if (generation == Volatile.Read(ref refreshFlashGeneration))
+        {
+            IsRefreshFlashActive = false;
+        }
     }
 
     [RelayCommand]

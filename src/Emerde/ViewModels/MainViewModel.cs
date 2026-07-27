@@ -319,14 +319,20 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         _ => "LivePreviewIdle".Tr(),
     };
 
-    private static Room[] NormalizeStoredRooms(Room[] rooms)
+    private static Room[] NormalizeStoredRooms(Room[]? rooms)
     {
         List<Room> normalizedRooms = [];
         HashSet<string> seenUrls = new(StringComparer.OrdinalIgnoreCase);
-        bool changed = false;
+        bool changed = rooms == null;
 
-        foreach (Room room in rooms)
+        foreach (Room? room in rooms ?? [])
         {
+            if (room == null)
+            {
+                changed = true;
+                continue;
+            }
+
             string normalizedUrl = NormalizeRoomUrl(room.RoomUrl);
             if (string.IsNullOrWhiteSpace(normalizedUrl) || !seenUrls.Add(normalizedUrl))
             {
@@ -1122,6 +1128,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             {
                 LivePreviewStatus = LivePreviewStatus.Playing;
             }
+            previewTransitionGate.Release();
+            enteredGate = false;
             resolutionWasMissing = string.IsNullOrWhiteSpace(targetRoom.Resolution);
             stageStartedAt = Stopwatch.GetTimestamp();
             await ResolvePreviewResolutionAsync(targetRoom, cancellation.Token);
@@ -2216,9 +2224,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private async Task AddConfirmedRoomAsync(string nickName, string roomUrl, ISpiderResult? spiderResult)
     {
         RoomListHistoryState before = CaptureRoomListHistoryState();
-        List<Room> rooms = [.. Configurations.Rooms.Get()];
+        List<Room> rooms = [.. Configurations.Rooms.Get() ?? []];
 
-        rooms.RemoveAll(room => room.RoomUrl == roomUrl);
+        rooms.RemoveAll(room => string.Equals(room.RoomUrl, roomUrl, StringComparison.OrdinalIgnoreCase));
         rooms.Add(new Room()
         {
             NickName = nickName,
@@ -2444,6 +2452,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                     hasUpdated = true;
                 }
             }
+            catch (Exception e)
+            {
+                AppSessionLogger.WriteException(e);
+                GlobalMonitor.SetRoomStreamCheckFailed(room.RoomUrl, true);
+            }
             finally
             {
                 semaphore.Release();
@@ -2504,6 +2517,12 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             OnPropertyChanged(nameof(CanPreviewSelectedRoom));
             ClosePreviewIfCurrentRoomUnavailable();
             Toast.Success("SuccOp".Tr());
+        }
+        catch (Exception e)
+        {
+            AppSessionLogger.WriteException(e);
+            GlobalMonitor.SetRoomStreamCheckFailed(selectedRoom.RoomUrl, true);
+            Toast.Error("GetRoomInfoError".Tr());
         }
         finally
         {
