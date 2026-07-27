@@ -16,12 +16,39 @@ public sealed class LivePreviewFrameSource : IDisposable
     private int pitch;
     private int framePending;
     private int generation;
+    private int presentedGeneration;
+    private int presentationEpoch;
     private long lastFrameTimestamp;
+    private bool presentationEnabled = true;
     private bool disposed;
 
     public System.Windows.Media.Imaging.BitmapSource? Source => source;
 
+    internal int Generation => Volatile.Read(ref generation);
+
+    internal int PresentedGeneration => Volatile.Read(ref presentedGeneration);
+
+    internal bool HasPresentedFrame => PresentedGeneration > 0 && PresentedGeneration == Generation;
+
     public event EventHandler? SourceChanged;
+
+    internal event EventHandler? FirstFramePresented;
+
+    internal void SetPresentationEnabled(bool enabled)
+    {
+        bool wasEnabled = Volatile.Read(ref presentationEnabled);
+        if (wasEnabled == enabled)
+        {
+            return;
+        }
+
+        Interlocked.Increment(ref presentationEpoch);
+        if (enabled)
+        {
+            Volatile.Write(ref presentedGeneration, 0);
+        }
+        Volatile.Write(ref presentationEnabled, enabled);
+    }
 
     public LivePreviewFrameSource(MediaPlayer mediaPlayer)
     {
@@ -48,6 +75,7 @@ public sealed class LivePreviewFrameSource : IDisposable
 
         source = null;
         SourceChanged = null;
+        FirstFramePresented = null;
     }
 
     internal static (int Pitch, int BufferLength) CalculateBufferLayout(uint width, uint height)
@@ -148,6 +176,12 @@ public sealed class LivePreviewFrameSource : IDisposable
 
     private void UnlockVideo(nint opaque, nint picture, nint planes)
     {
+        int currentPresentationEpoch = Volatile.Read(ref presentationEpoch);
+        if (!Volatile.Read(ref presentationEnabled))
+        {
+            return;
+        }
+
         long timestamp = System.Diagnostics.Stopwatch.GetTimestamp();
         if (timestamp - Interlocked.Read(ref lastFrameTimestamp) < MinimumFrameInterval
             || Interlocked.CompareExchange(ref framePending, 1, 0) != 0)
@@ -178,7 +212,7 @@ public sealed class LivePreviewFrameSource : IDisposable
         try
         {
             _ = dispatcher.BeginInvoke(
-                () => PresentFrame(currentGeneration, pixels, currentPitch, currentHeight),
+                () => PresentFrame(currentGeneration, currentPresentationEpoch, pixels, currentPitch, currentHeight),
                 System.Windows.Threading.DispatcherPriority.Render);
         }
         catch
@@ -211,11 +245,18 @@ public sealed class LivePreviewFrameSource : IDisposable
         SourceChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void PresentFrame(int expectedGeneration, byte[] pixels, int currentPitch, int currentHeight)
+    private void PresentFrame(int expectedGeneration, int expectedPresentationEpoch, byte[] pixels, int currentPitch, int currentHeight)
     {
         try
         {
-            if (disposed || expectedGeneration != generation || source == null)
+            if (disposed
+                || !IsCurrentPresentation(
+                    expectedGeneration,
+                    generation,
+                    expectedPresentationEpoch,
+                    Volatile.Read(ref presentationEpoch),
+                    Volatile.Read(ref presentationEnabled))
+                || source == null)
             {
                 return;
             }
@@ -225,6 +266,11 @@ public sealed class LivePreviewFrameSource : IDisposable
                 pixels,
                 currentPitch,
                 0);
+            if (presentedGeneration != expectedGeneration)
+            {
+                presentedGeneration = expectedGeneration;
+                FirstFramePresented?.Invoke(this, EventArgs.Empty);
+            }
         }
         finally
         {
@@ -238,6 +284,18 @@ public sealed class LivePreviewFrameSource : IDisposable
         {
             Interlocked.Exchange(ref framePending, 0);
         }
+    }
+
+    internal static bool IsCurrentPresentation(
+        int expectedGeneration,
+        int currentGeneration,
+        int expectedPresentationEpoch,
+        int currentPresentationEpoch,
+        bool presentationEnabled)
+    {
+        return presentationEnabled
+            && expectedGeneration == currentGeneration
+            && expectedPresentationEpoch == currentPresentationEpoch;
     }
 
     private void ReleaseBuffer()
