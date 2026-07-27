@@ -1,9 +1,7 @@
 using System.Windows;
-using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
-using WpfMouseEventArgs = System.Windows.Input.MouseEventArgs;
 
 namespace Emerde.Controls;
 
@@ -291,21 +289,10 @@ public static class MotionAssist
 
         if ((bool)e.NewValue)
         {
-            element.MouseEnter += PressMouseEnter;
-            element.MouseLeave += PressMouseLeave;
-            element.PreviewMouseLeftButtonDown += PressMouseLeftButtonDown;
-            element.PreviewMouseLeftButtonUp += PressMouseLeftButtonUp;
-            element.LostMouseCapture += PressLostMouseCapture;
-            element.IsEnabledChanged += PressIsEnabledChanged;
+            ResetInteractionScale(element);
         }
         else
         {
-            element.MouseEnter -= PressMouseEnter;
-            element.MouseLeave -= PressMouseLeave;
-            element.PreviewMouseLeftButtonDown -= PressMouseLeftButtonDown;
-            element.PreviewMouseLeftButtonUp -= PressMouseLeftButtonUp;
-            element.LostMouseCapture -= PressLostMouseCapture;
-            element.IsEnabledChanged -= PressIsEnabledChanged;
             ResetInteractionScale(element);
         }
     }
@@ -339,7 +326,13 @@ public static class MotionAssist
     {
         if (d is FrameworkElement element && (bool)e.NewValue)
         {
-            element.Dispatcher.BeginInvoke(new Action(() => PlayPulse(element)));
+            element.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (GetIsPulseActive(element) && element.IsLoaded && element.IsVisible)
+                {
+                    PlayPulse(element);
+                }
+            }));
         }
     }
 
@@ -405,70 +398,6 @@ public static class MotionAssist
         }), DispatcherPriority.Render);
     }
 
-    private static void PressMouseEnter(object sender, WpfMouseEventArgs e)
-    {
-        if (sender is FrameworkElement element && element.IsEnabled)
-        {
-            AnimateInteractionScale(element, GetHoverScale(element), 150);
-        }
-    }
-
-    private static void PressMouseLeave(object sender, WpfMouseEventArgs e)
-    {
-        if (sender is FrameworkElement element)
-        {
-            AnimateInteractionScale(element, 1d, 180);
-        }
-    }
-
-    private static void PressMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is FrameworkElement element && element.IsEnabled)
-        {
-            AnimateInteractionScale(element, GetPressScale(element), 90);
-        }
-    }
-
-    private static void PressMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is FrameworkElement element && element.IsEnabled)
-        {
-            AnimateInteractionScale(element, element.IsMouseOver ? GetHoverScale(element) : 1d, 130);
-        }
-    }
-
-    private static void PressLostMouseCapture(object sender, WpfMouseEventArgs e)
-    {
-        if (sender is FrameworkElement element)
-        {
-            AnimateInteractionScale(element, element.IsEnabled && element.IsMouseOver ? GetHoverScale(element) : 1d, 130);
-        }
-    }
-
-    private static void PressIsEnabledChanged(object sender, DependencyPropertyChangedEventArgs e)
-    {
-        if (sender is FrameworkElement element && !element.IsEnabled)
-        {
-            ResetInteractionScale(element);
-        }
-    }
-
-    private static void AnimateInteractionScale(FrameworkElement element, double scale, int durationMs)
-    {
-        if (!ShouldAnimate())
-        {
-            ResetInteractionScale(element);
-            return;
-        }
-
-        MotionState state = EnsureState(element);
-        scale = Math.Clamp(scale, 0.9d, 1.05d);
-        IEasingFunction easing = new CubicEase { EasingMode = EasingMode.EaseOut };
-        DoubleAnimation animation = CreateAnimation(scale, durationMs, TimeSpan.Zero, easing);
-        state.InteractionScale.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
-        state.InteractionScale.BeginAnimation(ScaleTransform.ScaleYProperty, animation.Clone());
-    }
-
     private static MotionState EnsureState(FrameworkElement element)
     {
         if (element.GetValue(MotionStateProperty) is MotionState existing)
@@ -490,7 +419,7 @@ public static class MotionAssist
         group.Children.Add(state.EntranceTranslate);
 
         element.RenderTransform = group;
-        if (element.RenderTransformOrigin == default)
+        if (element.ReadLocalValue(FrameworkElement.RenderTransformOriginProperty) == DependencyProperty.UnsetValue)
         {
             element.RenderTransformOrigin = new System.Windows.Point(0.5d, 0.5d);
         }

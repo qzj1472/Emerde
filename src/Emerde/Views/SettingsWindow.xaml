@@ -145,7 +145,6 @@
                                             </DoubleAnimation>
                                             <DoubleAnimation Storyboard.TargetName="ExpandSite"
                                                              Storyboard.TargetProperty="(FrameworkElement.LayoutTransform).(ScaleTransform.ScaleY)"
-                                                             From="0"
                                                              To="1"
                                                              Duration="0:0:0.24">
                                                 <DoubleAnimation.EasingFunction>
@@ -154,12 +153,10 @@
                                             </DoubleAnimation>
                                             <DoubleAnimation Storyboard.TargetName="ExpandSite"
                                                              Storyboard.TargetProperty="Opacity"
-                                                             From="0"
                                                              To="1"
                                                              Duration="0:0:0.16" />
                                             <DoubleAnimation Storyboard.TargetName="ExpandSite"
                                                              Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
-                                                             From="-6"
                                                              To="0"
                                                              Duration="0:0:0.18">
                                                 <DoubleAnimation.EasingFunction>
@@ -182,7 +179,6 @@
                                             </DoubleAnimation>
                                             <DoubleAnimation Storyboard.TargetName="ExpandSite"
                                                              Storyboard.TargetProperty="(FrameworkElement.LayoutTransform).(ScaleTransform.ScaleY)"
-                                                             From="1"
                                                              To="0"
                                                              Duration="0:0:0.2">
                                                 <DoubleAnimation.EasingFunction>
@@ -191,12 +187,10 @@
                                             </DoubleAnimation>
                                             <DoubleAnimation Storyboard.TargetName="ExpandSite"
                                                              Storyboard.TargetProperty="Opacity"
-                                                             From="1"
                                                              To="0"
                                                              Duration="0:0:0.12" />
                                             <DoubleAnimation Storyboard.TargetName="ExpandSite"
                                                              Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
-                                                             From="0"
                                                              To="-6"
                                                              Duration="0:0:0.16">
                                                 <DoubleAnimation.EasingFunction>

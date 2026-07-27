@@ -201,9 +201,10 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
         }
 
         Stopwatch batchStopwatch = Stopwatch.StartNew();
-        const int batchSize = 1;
         int restored = 0;
-        while (restored < batchSize && deferredStartupSections.TryDequeue(out UIElement? section))
+        while (restored < 6
+            && batchStopwatch.ElapsedMilliseconds < 4
+            && deferredStartupSections.TryDequeue(out UIElement? section))
         {
             SettingsStackPanel.Children.Add(section);
             restored++;
