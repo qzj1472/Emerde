@@ -9,6 +9,9 @@ namespace Emerde.Views;
 [ObservableObject]
 public sealed partial class AddRoomContentDialog : ContentDialog
 {
+    private readonly CancellationTokenSource lifetimeCancellation = new();
+    private bool isSubmitting;
+
     [ObservableProperty]
     private string? url = null;
 
@@ -38,6 +41,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
         DataContext = this;
         InitializeComponent();
         Loaded += AddRoomContentDialogLoaded;
+        Unloaded += (_, _) => lifetimeCancellation.Cancel();
     }
 
     private void AddRoomContentDialogLoaded(object sender, System.Windows.RoutedEventArgs e)
@@ -68,6 +72,16 @@ public sealed partial class AddRoomContentDialog : ContentDialog
     private async void OnPrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs e)
     {
         var deferral = e.GetDeferral();
+        if (isSubmitting)
+        {
+            e.Cancel = true;
+            deferral.Complete();
+            return;
+        }
+
+        isSubmitting = true;
+        IsPrimaryButtonEnabled = false;
+        CancellationToken token = lifetimeCancellation.Token;
         try
         {
             if (string.IsNullOrWhiteSpace(Url))
@@ -81,6 +95,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
             using (LoadingWindow.ShowAsync())
             {
                 string? normalizedRoomUrl = await Task.Run(() => Spider.ParseUrl(inputUrl, allowNetwork: !IsForcedAdd));
+                token.ThrowIfCancellationRequested();
                 if (string.IsNullOrWhiteSpace(normalizedRoomUrl))
                 {
                     e.Cancel = true;
@@ -88,7 +103,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
                     return;
                 }
 
-                if (Configurations.Rooms.Get().Any(room => string.Equals(room.RoomUrl, normalizedRoomUrl, StringComparison.OrdinalIgnoreCase)))
+                if ((Configurations.Rooms.Get() ?? []).Any(room => string.Equals(room.RoomUrl, normalizedRoomUrl, StringComparison.OrdinalIgnoreCase)))
                 {
                     e.Cancel = true;
                     Toast.Warning("AddRoomErrorDuplicated".Tr(normalizedRoomUrl));
@@ -108,6 +123,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
                 {
                     string preferredQuality = RoomRecordingSettings.GetGlobal().PreferredStreamQuality;
                     ISpiderResult? spider = await GlobalMonitor.GetManualSpiderResultAsync(normalizedRoomUrl, preferredQuality);
+                    token.ThrowIfCancellationRequested();
                     string roomUrl = string.IsNullOrWhiteSpace(spider?.RoomUrl)
                         ? normalizedRoomUrl
                         : Spider.ParseUrl(spider.RoomUrl!) ?? spider.RoomUrl!;
@@ -127,7 +143,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
                         return;
                     }
 
-                    if (Configurations.Rooms.Get().Any(room => string.Equals(room.RoomUrl, roomUrl, StringComparison.OrdinalIgnoreCase)))
+                    if ((Configurations.Rooms.Get() ?? []).Any(room => string.Equals(room.RoomUrl, roomUrl, StringComparison.OrdinalIgnoreCase)))
                     {
                         e.Cancel = true;
                         Toast.Warning("AddRoomErrorDuplicated".Tr(GetConfirmedNickName(spider)));
@@ -141,15 +157,32 @@ public sealed partial class AddRoomContentDialog : ContentDialog
 
                     Toast.Success("AddRoomSucc".Tr(NickName));
                 }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    e.Cancel = true;
+                }
                 catch (Exception exception)
                 {
                     e.Cancel = true;
+                    AppSessionLogger.WriteException(exception);
                     Toast.Error(GetRoomInfoErrorMessage(Url, exception.Message));
                 }
             }
         }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            e.Cancel = true;
+        }
+        catch (Exception exception)
+        {
+            e.Cancel = true;
+            AppSessionLogger.WriteException(exception);
+            Toast.Error(GetRoomInfoErrorMessage(Url, exception.Message));
+        }
         finally
         {
+            isSubmitting = false;
+            IsPrimaryButtonEnabled = true;
             deferral.Complete();
         }
     }
