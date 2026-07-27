@@ -96,6 +96,33 @@ public sealed class MediaOperationRegistryTests
     }
 
     [Fact]
+    public void Cancel_WithoutCancellationCallbackReturnsZero()
+    {
+        using IDisposable operation = MediaOperationRegistry.Register(MediaOperationKind.Conversion, () => []);
+
+        int cancelled = MediaOperationRegistry.Cancel(MediaOperationKind.Conversion);
+
+        Assert.Equal(0, cancelled);
+    }
+
+    [Fact]
+    public void Cancel_RepeatedRequestInvokesCallbackOnce()
+    {
+        int cancellationCount = 0;
+        using IDisposable operation = MediaOperationRegistry.Register(
+            MediaOperationKind.Conversion,
+            () => [],
+            () => cancellationCount++);
+
+        int first = MediaOperationRegistry.Cancel(MediaOperationKind.Conversion);
+        int second = MediaOperationRegistry.Cancel(MediaOperationKind.Conversion);
+
+        Assert.Equal(1, first);
+        Assert.Equal(0, second);
+        Assert.Equal(1, cancellationCount);
+    }
+
+    [Fact]
     public async Task WaitForPathReleaseAsync_WaitsForMatchingPathOnly()
     {
         string directory = Path.Combine(Path.GetTempPath(), $"emerde-operation-{Guid.NewGuid():N}");

@@ -15,7 +15,13 @@ public partial class ChildProcessTracerPeriodicTimer(TimeSpan period) : IDisposa
     public PeriodicTimer PeriodicTimer { get; } = new PeriodicTimer(period);
     public CancellationTokenSource? TokenSource { get; protected set; } = null;
     public HashSet<int> TracedChildProcessIds { get; } = [];
-    public HashSet<string>? WhiteList { get; set; } = null;
+    private string[]? whiteList;
+
+    public IEnumerable<string>? WhiteList
+    {
+        get => Volatile.Read(ref whiteList)?.ToArray();
+        set => Volatile.Write(ref whiteList, value?.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+    }
     private readonly object syncRoot = new();
     private Task? workerTask = null;
     private bool ownsTokenSource;
@@ -121,13 +127,18 @@ public partial class ChildProcessTracerPeriodicTimer(TimeSpan period) : IDisposa
 
             lock (syncRoot)
             {
-                if (!TracedChildProcessIds.Add(childProcess.Id))
+                if (TracedChildProcessIds.Contains(childProcess.Id))
                 {
                     return true;
                 }
-            }
 
-            Tracer.AddChildProcess(childProcess.Handle);
+                if (!Tracer.TryAddChildProcess(childProcess.Handle))
+                {
+                    return false;
+                }
+
+                TracedChildProcessIds.Add(childProcess.Id);
+            }
             return true;
         }
         catch (Exception e) when (e is InvalidOperationException or ArgumentException or Win32Exception)
@@ -147,7 +158,10 @@ public partial class ChildProcessTracerPeriodicTimer(TimeSpan period) : IDisposa
             return false;
         }
 
-        return WhiteList == null || WhiteList.Count == 0 || WhiteList.Any(item => item.Equals(processName, StringComparison.OrdinalIgnoreCase));
+        string[]? allowedProcesses = Volatile.Read(ref whiteList);
+        return allowedProcesses == null
+            || allowedProcesses.Length == 0
+            || allowedProcesses.Contains(processName, StringComparer.OrdinalIgnoreCase);
     }
 
     public void Stop(bool killChildren = false)
@@ -305,12 +319,22 @@ public partial class ChildProcessTracer : IDisposable
     /// <exception cref="ArgumentNullException">Thrown when the process argument is null.</exception>
     public void AddChildProcess(nint hProcess)
     {
+        _ = TryAddChildProcess(hProcess);
+    }
+
+    public bool TryAddChildProcess(nint hProcess)
+    {
         if (hJob != null && !hJob.IsInvalid)
         {
             if (!Kernel32.AssignProcessToJobObject(hJob, hProcess))
             {
                 Debug.WriteLine($"Failed to assign process to job object. Error: {Marshal.GetLastWin32Error()}");
+                return false;
             }
+
+            return true;
         }
+
+        return false;
     }
 }

@@ -180,9 +180,7 @@ public partial class App : Application
         GlobalMonitor.Stop();
         GlobalMonitor.StopAllRecorders(deferPostProcessing: true);
         MediaOperationRegistry.CancelAll();
-        Task.WhenAll(
-            GlobalMonitor.WaitForRecordersAsync(TimeSpan.FromSeconds(1)),
-            MediaOperationRegistry.WaitForCompletionAsync(TimeSpan.FromSeconds(1))).GetAwaiter().GetResult();
+        MediaOperationRegistry.WaitForCompletionAsync(TimeSpan.FromSeconds(4)).GetAwaiter().GetResult();
         ChildProcessTracerPeriodicTimer.Default.Stop(killChildren: true);
         RuntimeResourceLogger.Stop();
         DouyinWebViewResolver.Shutdown();

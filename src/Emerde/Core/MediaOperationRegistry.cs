@@ -162,21 +162,32 @@ internal static class MediaOperationRegistry
         }
 
         Stopwatch stopwatch = Stopwatch.StartNew();
-        while (IsAnyPathProtectedBy(kind, normalizedPaths))
+        while (true)
         {
+            Task[] completions = Operations.Values
+                .Where(operation => operation.Kind == kind && normalizedPaths.Any(path => OperationProtectsPath(operation, path)))
+                .Select(operation => operation.Completion.Task)
+                .ToArray();
+            if (completions.Length == 0)
+            {
+                return true;
+            }
+
             TimeSpan remaining = timeout - stopwatch.Elapsed;
             if (remaining <= TimeSpan.Zero)
             {
                 return false;
             }
 
-            TimeSpan delay = remaining < TimeSpan.FromMilliseconds(100)
-                ? remaining
-                : TimeSpan.FromMilliseconds(100);
-            await Task.Delay(delay);
+            try
+            {
+                await Task.WhenAll(completions).WaitAsync(remaining);
+            }
+            catch (TimeoutException)
+            {
+                return false;
+            }
         }
-
-        return true;
     }
 
     internal static bool PathMatches(string path, string? pattern)
@@ -207,9 +218,14 @@ internal static class MediaOperationRegistry
         int cancelled = 0;
         foreach (OperationState operation in Operations.Values.Where(predicate))
         {
+            if (!operation.TryBeginCancel())
+            {
+                continue;
+            }
+
             try
             {
-                operation.Cancel?.Invoke();
+                operation.Cancel!();
                 cancelled++;
             }
             catch (Exception e)
@@ -219,22 +235,6 @@ internal static class MediaOperationRegistry
         }
 
         return cancelled;
-    }
-
-    private static bool IsAnyPathProtectedBy(MediaOperationKind kind, IReadOnlyList<string> normalizedPaths)
-    {
-        foreach (OperationState operation in Operations.Values.Where(operation => operation.Kind == kind))
-        {
-            foreach (string path in normalizedPaths)
-            {
-                if (OperationProtectsPath(operation, path))
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
     }
 
     private static bool OperationProtectsPath(OperationState operation, string normalizedPath)
@@ -292,7 +292,14 @@ internal static class MediaOperationRegistry
         Func<IEnumerable<string?>> ProtectedPaths,
         Action? Cancel)
     {
+        private int cancelRequested;
+
         public TaskCompletionSource Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool TryBeginCancel()
+        {
+            return Cancel != null && Interlocked.Exchange(ref cancelRequested, 1) == 0;
+        }
     }
 
     private sealed class Registration(Guid id, OperationState state) : IDisposable
