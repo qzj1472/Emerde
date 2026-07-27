@@ -61,7 +61,10 @@
                 Background="{DynamicResource EmerdeSurfaceBrush}"
                 ClipToBounds="True"
                 CornerRadius="{StaticResource Win11ControlCornerRadius}"
-                SizeChanged="LocalSettingsSurfaceSizeChanged">
+                SizeChanged="LocalSettingsSurfaceSizeChanged"
+                controls:MotionAssist.IsEntranceEnabled="True"
+                controls:MotionAssist.EntranceOffsetY="8"
+                controls:MotionAssist.EntranceScale="0.98">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />

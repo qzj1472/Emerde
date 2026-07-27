@@ -13,6 +13,8 @@ using Windows.System;
 using WindowsAPICodePack.Dialogs;
 using Wpf.Ui.Controls;
 using WpfPoint = System.Windows.Point;
+using VioletaContentDialogClosedEventArgs = Wpf.Ui.Violeta.Controls.ContentDialogClosedEventArgs;
+using VioletaContentDialogClosingEventArgs = Wpf.Ui.Violeta.Controls.ContentDialogClosingEventArgs;
 
 namespace Emerde.Views;
 
@@ -30,6 +32,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
     private long segmentRawValue;
     private int segmentRawUnit;
     private bool isUpdatingSegmentTime;
+    private ContentDialog? exitAnimationDialog;
 
     public sealed record UnitOption(int Value, string DisplayName);
 
@@ -349,6 +352,8 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
 
     public void ApplyDialogVisualSize(Wpf.Ui.Violeta.Controls.ContentDialog dialog, Window? owner = null)
     {
+        AttachExitAnimation(dialog);
+
         void ApplySize()
         {
             Window? reference = owner ?? Application.Current?.MainWindow;
@@ -391,6 +396,53 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
             _ = dialog.Dispatcher.BeginInvoke((Action)ApplySize, System.Windows.Threading.DispatcherPriority.Loaded);
         };
         dialog.Loaded += loadedHandler;
+    }
+
+    private void AttachExitAnimation(ContentDialog dialog)
+    {
+        if (ReferenceEquals(exitAnimationDialog, dialog))
+        {
+            return;
+        }
+
+        if (exitAnimationDialog != null)
+        {
+            exitAnimationDialog.Closing -= DialogClosing;
+            exitAnimationDialog.Closed -= DialogClosed;
+        }
+
+        exitAnimationDialog = dialog;
+        dialog.Closing += DialogClosing;
+        dialog.Closed += DialogClosed;
+    }
+
+    private async void DialogClosing(ContentDialog sender, VioletaContentDialogClosingEventArgs args)
+    {
+        if (args.Cancel)
+        {
+            return;
+        }
+
+        try
+        {
+            await MotionAssist.PlayContentDialogExitTransformAsync(LocalSettingsSurface);
+            if (args.Cancel)
+            {
+                MotionAssist.ResetExit(LocalSettingsSurface);
+            }
+        }
+        catch
+        {
+            MotionAssist.ResetExit(LocalSettingsSurface);
+        }
+    }
+
+    private void DialogClosed(ContentDialog sender, VioletaContentDialogClosedEventArgs args)
+    {
+        sender.Closing -= DialogClosing;
+        sender.Closed -= DialogClosed;
+        exitAnimationDialog = null;
+        MotionAssist.ResetExit(LocalSettingsSurface);
     }
 
     private void ExpandDialogVisualPath(Wpf.Ui.Violeta.Controls.ContentDialog dialog, double targetWidth, double targetHeight)
