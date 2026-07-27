@@ -192,9 +192,7 @@ internal static class AppSessionLogger
             ["threadId"] = Environment.CurrentManagedThreadId,
             ["data"] = dataNode,
         };
-        ContextCompactor.CompactPayload(payload, level, timestamp.Date);
-
-        return new LogLine(timestamp, level, JsonSerializer.Serialize(payload, JsonOptions));
+        return new LogLine(timestamp, level, payload);
     }
 
     private static void Enqueue(LogLine line)
@@ -241,11 +239,13 @@ internal static class AppSessionLogger
                     {
                         continue;
                     }
-                    writer?.WriteLine(line.Text);
+                    ContextCompactor.CompactPayload(line.Payload, line.Level, line.Timestamp.Date);
+                    string text = JsonSerializer.Serialize(line.Payload, JsonOptions);
+                    writer?.WriteLine(text);
 
                     if (ShouldWriteToErrorLog(line.Level))
                     {
-                        errorWriter?.WriteLine(line.Text);
+                        errorWriter?.WriteLine(text);
                     }
                 }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException or ObjectDisposedException)
@@ -343,6 +343,7 @@ internal static class AppSessionLogger
         CurrentFilePath = filePath;
         CurrentErrorFilePath = errorFilePath;
         currentLogDate = timestamp.Date;
+        ContextCompactor.Reset(timestamp.Date);
         disabledLogDate = DateTime.MinValue;
         lastFailureMessage = null;
         isAvailable = true;
@@ -360,7 +361,7 @@ internal static class AppSessionLogger
         object payload = new
         {
             type = "session",
-            schemaVersion = 3,
+            schemaVersion = 4,
             application = AppConfig.PackName,
             version = AppConfig.Version,
             startedAt = startedAt.ToString("yyyy-MM-dd HH:mm:ss.fff"),
@@ -464,18 +465,24 @@ internal static class AppSessionLogger
         return Math.Clamp(days, 1, 3650);
     }
 
-    private sealed record LogLine(DateTime Timestamp, string Level, string Text);
+    private sealed record LogLine(DateTime Timestamp, string Level, JsonObject Payload);
 }
 
 internal sealed class LogContextCompactor
 {
     private const int MaximumTextReferences = 2048;
+    private const int MaximumEventReferences = 1024;
+    private const int MaximumDataShapeReferences = 2048;
     private readonly object syncRoot = new();
     private readonly Dictionary<string, RoomReference> roomReferences = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, TextReference> textReferences = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, EventReference> eventReferences = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DataShapeReference> dataShapeReferences = new(StringComparer.Ordinal);
     private DateTime currentDate = DateTime.MinValue;
     private int nextRoomId;
     private int nextTextId;
+    private int nextEventId;
+    private int nextDataShapeId;
 
     public void Reset(DateTime logDate)
     {
@@ -514,11 +521,16 @@ internal sealed class LogContextCompactor
             }
 
             bool isErrorLevel = AppSessionLogger.ShouldWriteToErrorLog(level);
-            CompactRepeatedText(payload, "message", isErrorLevel);
+            CompactEvent(payload, isErrorLevel);
             if (payload["data"] is JsonNode data)
             {
                 CompactNode(data, isErrorLevel);
             }
+            else
+            {
+                payload.Remove("data");
+            }
+            CompactDataShape(payload, isErrorLevel);
         }
     }
 
@@ -527,8 +539,64 @@ internal sealed class LogContextCompactor
         currentDate = logDate;
         roomReferences.Clear();
         textReferences.Clear();
+        eventReferences.Clear();
+        dataShapeReferences.Clear();
         nextRoomId = 0;
         nextTextId = 0;
+        nextEventId = 0;
+        nextDataShapeId = 0;
+    }
+
+    private void CompactEvent(JsonObject payload, bool isErrorLevel)
+    {
+        if (!TryGetString(payload["level"], out string level)
+            || !TryGetString(payload["category"], out string category)
+            || !TryGetString(payload["action"], out string action))
+        {
+            CompactRepeatedText(payload, "message", isErrorLevel);
+            return;
+        }
+
+        _ = TryGetString(payload["message"], out string message);
+        string key = string.Join('\u001f', level, category, action, message);
+        if (!eventReferences.TryGetValue(key, out EventReference? reference))
+        {
+            if (eventReferences.Count >= MaximumEventReferences)
+            {
+                CompactRepeatedText(payload, "message", isErrorLevel);
+                return;
+            }
+
+            reference = new EventReference($"v{++nextEventId}", level, category, action, message);
+            eventReferences.Add(key, reference);
+        }
+
+        bool needsDefinition = !reference.DefinedInMain || isErrorLevel && !reference.DefinedInError;
+        reference.DefinedInMain = true;
+        if (isErrorLevel)
+        {
+            reference.DefinedInError = true;
+        }
+
+        payload.Remove("level");
+        payload.Remove("category");
+        payload.Remove("action");
+        payload.Remove("message");
+        payload["eventRef"] = reference.Id;
+        if (needsDefinition)
+        {
+            JsonObject context = new()
+            {
+                ["level"] = reference.Level,
+                ["category"] = reference.Category,
+                ["action"] = reference.Action,
+            };
+            if (!string.IsNullOrWhiteSpace(reference.Message))
+            {
+                context["message"] = reference.Message;
+            }
+            payload["eventContext"] = context;
+        }
     }
 
     private void CompactNode(JsonNode node, bool isErrorLevel)
@@ -548,6 +616,14 @@ internal sealed class LogContextCompactor
         if (node is not JsonObject jsonObject)
         {
             return;
+        }
+
+        foreach (string nullProperty in jsonObject
+            .Where(property => property.Value == null)
+            .Select(property => property.Key)
+            .ToArray())
+        {
+            jsonObject.Remove(nullProperty);
         }
 
         CompactRoom(jsonObject, isErrorLevel);
@@ -678,6 +754,70 @@ internal sealed class LogContextCompactor
     private sealed class TextReference(string id)
     {
         public string Id { get; } = id;
+        public bool DefinedInMain { get; set; }
+        public bool DefinedInError { get; set; }
+    }
+
+    private void CompactDataShape(JsonObject payload, bool isErrorLevel)
+    {
+        if (!TryGetString(payload["eventRef"], out string eventRef)
+            || payload["data"] is not JsonObject data
+            || data.Count == 0)
+        {
+            return;
+        }
+
+        string[] fields = data.Select(property => property.Key).ToArray();
+        string key = string.Join('\u001f', [eventRef, .. fields]);
+        if (!dataShapeReferences.TryGetValue(key, out DataShapeReference? reference))
+        {
+            if (dataShapeReferences.Count >= MaximumDataShapeReferences)
+            {
+                return;
+            }
+
+            reference = new DataShapeReference($"d{++nextDataShapeId}", fields);
+            dataShapeReferences.Add(key, reference);
+        }
+
+        bool needsDefinition = !reference.DefinedInMain || isErrorLevel && !reference.DefinedInError;
+        reference.DefinedInMain = true;
+        if (isErrorLevel)
+        {
+            reference.DefinedInError = true;
+        }
+
+        payload["dataRef"] = reference.Id;
+        if (needsDefinition)
+        {
+            return;
+        }
+
+        JsonArray values = [];
+        foreach (string field in reference.Fields)
+        {
+            JsonNode? value = data[field];
+            data.Remove(field);
+            values.Add(value);
+        }
+        payload["data"] = values;
+    }
+
+    private sealed class EventReference(string id, string level, string category, string action, string message)
+    {
+        public string Id { get; } = id;
+        public string Level { get; } = level;
+        public string Category { get; } = category;
+        public string Action { get; } = action;
+        public string Message { get; } = message;
+        public bool DefinedInMain { get; set; }
+        public bool DefinedInError { get; set; }
+    }
+
+    private sealed class DataShapeReference(string id, string[] fields)
+    {
+        public string Id { get; } = id;
+        public string[] Fields { get; } = fields;
         public bool DefinedInMain { get; set; }
         public bool DefinedInError { get; set; }
     }

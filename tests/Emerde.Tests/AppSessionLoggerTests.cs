@@ -61,7 +61,7 @@ public sealed class AppSessionLoggerTests
         JsonElement root = document.RootElement;
 
         Assert.Equal("session", root.GetProperty("type").GetString());
-        Assert.Equal(3, root.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal(4, root.GetProperty("schemaVersion").GetInt32());
         Assert.Equal("Emerde", root.GetProperty("application").GetString());
         Assert.Equal("2026-07-22 23:59:58.123", root.GetProperty("startedAt").GetString());
         Assert.Equal("2026-07-22", root.GetProperty("logDate").GetString());
@@ -138,6 +138,45 @@ public sealed class AppSessionLoggerTests
     }
 
     [Fact]
+    public void LogContextCompactor_ReusesNestedPreviewRoomReferences()
+    {
+        LogContextCompactor compactor = new();
+        DateTime date = new(2026, 7, 27);
+        JsonNode first = JsonSerializer.SerializeToNode(new
+        {
+            previousRoom = new
+            {
+                RoomUrl = "https://live.douyin.com/first",
+                NickName = "First",
+                PlatformName = "Douyin",
+            },
+            targetRoom = new
+            {
+                RoomUrl = "https://live.douyin.com/second",
+                NickName = "Second",
+                PlatformName = "Douyin",
+            },
+        })!;
+        JsonNode second = first.DeepClone();
+
+        JsonObject firstResult = Assert.IsType<JsonObject>(compactor.Compact(first, "info", date));
+        JsonObject secondResult = Assert.IsType<JsonObject>(compactor.Compact(second, "info", date));
+        JsonObject firstPrevious = Assert.IsType<JsonObject>(firstResult["previousRoom"]);
+        JsonObject firstTarget = Assert.IsType<JsonObject>(firstResult["targetRoom"]);
+        JsonObject secondPrevious = Assert.IsType<JsonObject>(secondResult["previousRoom"]);
+        JsonObject secondTarget = Assert.IsType<JsonObject>(secondResult["targetRoom"]);
+
+        Assert.Equal("r1", firstPrevious["roomRef"]!.GetValue<string>());
+        Assert.Equal("r2", firstTarget["roomRef"]!.GetValue<string>());
+        Assert.NotNull(firstPrevious["roomContext"]);
+        Assert.NotNull(firstTarget["roomContext"]);
+        Assert.Equal("r1", secondPrevious["roomRef"]!.GetValue<string>());
+        Assert.Equal("r2", secondTarget["roomRef"]!.GetValue<string>());
+        Assert.Null(secondPrevious["roomContext"]);
+        Assert.Null(secondTarget["roomContext"]);
+    }
+
+    [Fact]
     public void LogContextCompactor_ReusesPayloadMessageReferences()
     {
         LogContextCompactor compactor = new();
@@ -162,6 +201,115 @@ public sealed class AppSessionLoggerTests
         JsonObject secondData = Assert.IsType<JsonObject>(second["data"]);
         Assert.Equal("e2", secondData["resolverErrorRef"]!.GetValue<string>());
         Assert.Null(secondData["resolverError"]);
+    }
+
+    [Fact]
+    public void LogContextCompactor_ReusesEventIdentityWhileKeepingActionSearchable()
+    {
+        LogContextCompactor compactor = new();
+        DateTime date = new(2026, 7, 27);
+        JsonObject first = new()
+        {
+            ["level"] = "info",
+            ["category"] = "preview",
+            ["action"] = "preview_transition_requested",
+            ["message"] = "preview transition was requested",
+            ["data"] = new JsonObject { ["requestId"] = 1 },
+        };
+        JsonObject second = first.DeepClone().AsObject();
+        second["data"]!["requestId"] = 2;
+
+        compactor.CompactPayload(first, "info", date);
+        compactor.CompactPayload(second, "info", date);
+
+        Assert.Equal("v1", first["eventRef"]!.GetValue<string>());
+        Assert.Null(first["action"]);
+        JsonObject context = Assert.IsType<JsonObject>(first["eventContext"]);
+        Assert.Equal("info", context["level"]!.GetValue<string>());
+        Assert.Equal("preview", context["category"]!.GetValue<string>());
+        Assert.Equal("preview_transition_requested", context["action"]!.GetValue<string>());
+        Assert.Equal("preview transition was requested", context["message"]!.GetValue<string>());
+        Assert.Equal("v1", second["eventRef"]!.GetValue<string>());
+        Assert.Null(second["action"]);
+        Assert.Null(second["level"]);
+        Assert.Null(second["category"]);
+        Assert.Null(second["message"]);
+        Assert.Null(second["eventContext"]);
+    }
+
+    [Fact]
+    public void LogContextCompactor_RemovesEmptyTopLevelData()
+    {
+        LogContextCompactor compactor = new();
+        JsonObject payload = new()
+        {
+            ["level"] = "info",
+            ["category"] = "preview",
+            ["action"] = "preview_closed",
+            ["message"] = "preview closed",
+            ["data"] = null,
+        };
+
+        compactor.CompactPayload(payload, "info", new DateTime(2026, 7, 27));
+
+        Assert.False(payload.ContainsKey("data"));
+    }
+
+    [Fact]
+    public void LogContextCompactor_DefinesEventIdentityAgainForErrorLog()
+    {
+        LogContextCompactor compactor = new();
+        DateTime date = new(2026, 7, 27);
+        JsonObject first = new()
+        {
+            ["level"] = "error",
+            ["category"] = "preview",
+            ["action"] = "preview_transition_failed",
+            ["message"] = "playback failed",
+        };
+        JsonObject second = first.DeepClone().AsObject();
+
+        compactor.CompactPayload(first, "warn", date);
+        compactor.CompactPayload(second, "error", date);
+
+        Assert.NotNull(first["eventContext"]);
+        Assert.NotNull(second["eventContext"]);
+        Assert.Equal(first["eventRef"]!.GetValue<string>(), second["eventRef"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void LogContextCompactor_ReusesEventDataShapeAndRemovesNulls()
+    {
+        LogContextCompactor compactor = new();
+        DateTime date = new(2026, 7, 27);
+        JsonObject first = new()
+        {
+            ["level"] = "info",
+            ["category"] = "preview",
+            ["action"] = "preview_transition_summary",
+            ["message"] = "preview transition timing summary",
+            ["data"] = new JsonObject
+            {
+                ["requestId"] = 1,
+                ["outcome"] = "playing",
+                ["failureType"] = null,
+            },
+        };
+        JsonObject second = first.DeepClone().AsObject();
+        second["data"]!["requestId"] = 2;
+
+        compactor.CompactPayload(first, "info", date);
+        compactor.CompactPayload(second, "info", date);
+
+        Assert.Equal("d1", first["dataRef"]!.GetValue<string>());
+        JsonObject firstData = Assert.IsType<JsonObject>(first["data"]);
+        Assert.Equal(1, firstData["requestId"]!.GetValue<int>());
+        Assert.Equal("playing", firstData["outcome"]!.GetValue<string>());
+        Assert.Null(firstData["failureType"]);
+        Assert.Equal("d1", second["dataRef"]!.GetValue<string>());
+        JsonArray secondData = Assert.IsType<JsonArray>(second["data"]);
+        Assert.Equal(2, secondData[0]!.GetValue<int>());
+        Assert.Equal("playing", secondData[1]!.GetValue<string>());
     }
 
     [Fact]
