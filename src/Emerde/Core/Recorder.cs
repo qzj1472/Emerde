@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.Messaging;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
@@ -32,6 +33,8 @@ public sealed class Recorder
     private readonly object stateLock = new();
 
     private Task? recordingTask;
+
+    private bool ownsTokenSource;
 
     private int stopRequested;
 
@@ -127,6 +130,8 @@ public sealed class Recorder
             EndTime = DateTime.MinValue;
             RecordStatus = RecordStatus.Recording;
             TokenSource = tokenSource ?? new CancellationTokenSource();
+            ownsTokenSource = tokenSource == null;
+            CancellationToken recordingToken = TokenSource.Token;
             mediaOperationRegistration = MediaOperationRegistry.Register(
                 MediaOperationKind.Recording,
                 () => [FileName],
@@ -134,7 +139,7 @@ public sealed class Recorder
             try
             {
                 recordingTask = Task.Factory.StartNew(
-                    () => RunAsync(startInfo, TokenSource.Token),
+                    () => RunAsync(startInfo, recordingToken),
                     CancellationToken.None,
                     TaskCreationOptions.LongRunning,
                     TaskScheduler.Default
@@ -144,6 +149,13 @@ public sealed class Recorder
             {
                 mediaOperationRegistration.Dispose();
                 mediaOperationRegistration = null;
+                if (ownsTokenSource)
+                {
+                    TokenSource.Dispose();
+                }
+                TokenSource = null;
+                ownsTokenSource = false;
+                RecordStatus = RecordStatus.NotRecording;
                 throw;
             }
             return recordingTask;
@@ -520,6 +532,15 @@ public sealed class Recorder
                 sessionOutputReservation?.Dispose();
                 mediaOperationRegistration?.Dispose();
                 mediaOperationRegistration = null;
+                lock (stateLock)
+                {
+                    if (ownsTokenSource)
+                    {
+                        TokenSource?.Dispose();
+                    }
+                    TokenSource = null;
+                    ownsTokenSource = false;
+                }
             }
         }
     }
@@ -664,11 +685,12 @@ public sealed class Recorder
         int exitCode = 1;
         string commandPath = string.Empty;
         StringBuilder errorOutput = new();
+        Process? process = null;
 
         try
         {
             commandPath = MediaWorker.WriteCommand(Url ?? string.Empty, outputFileName, metadata, inputOptions);
-            using Process process = StartMediaWorkerProcess(commandPath);
+            process = StartMediaWorkerProcess(commandPath);
             MediaWorkerProcessId = process.Id;
             MediaWorkerProcessName = process.ProcessName;
             AppSessionLogger.Event("info", "recorder", "record_media_worker_started", "media worker process started", new
@@ -717,8 +739,18 @@ public sealed class Recorder
             wasCanceled = true;
             exitCode = 255;
         }
+        catch (Exception e)
+        {
+            AppendOutputTail(errorOutput, e.ToString());
+            exitCode = 1;
+        }
         finally
         {
+            if (process != null)
+            {
+                KillProcessTree(process);
+                process.Dispose();
+            }
             FlushMediaWorkerSpeedSummary(startInfo, outputFileName);
             if (!string.IsNullOrWhiteSpace(commandPath))
             {
@@ -790,7 +822,11 @@ public sealed class Recorder
         processStartInfo.ArgumentList.Add(MediaWorker.ModeArgument);
         processStartInfo.ArgumentList.Add(commandPath);
         Process process = new() { StartInfo = processStartInfo };
-        process.Start();
+        if (!process.Start())
+        {
+            process.Dispose();
+            throw new InvalidOperationException("media worker process did not start");
+        }
         return process;
     }
 
@@ -1079,7 +1115,7 @@ public sealed class Recorder
                 process.Kill(entireProcessTree: true);
             }
         }
-        catch (Exception e) when (e is InvalidOperationException or ArgumentException)
+        catch (Exception e) when (e is InvalidOperationException or ArgumentException or Win32Exception or NotSupportedException)
         {
         }
     }
