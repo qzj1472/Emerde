@@ -138,6 +138,15 @@
                            SnapsToDevicePixels="True"
                            Stretch="Fill"
                            Visibility="Collapsed" />
+                    <Image x:Name="PreviewRoomTransitionFrame"
+                           HorizontalAlignment="Stretch"
+                           VerticalAlignment="Stretch"
+                           IsHitTestVisible="False"
+                           Opacity="0"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           SnapsToDevicePixels="True"
+                           Stretch="Fill"
+                           Visibility="Collapsed" />
                     <Grid x:Name="PreviewOverlayRoot"
                           HorizontalAlignment="Stretch"
                           VerticalAlignment="Stretch"

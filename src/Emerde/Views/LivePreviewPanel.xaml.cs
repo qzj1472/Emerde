@@ -2,6 +2,8 @@ namespace Emerde.Views;
 
 public partial class LivePreviewPanel : System.Windows.Controls.UserControl
 {
+    private const int PreviewRoomTransitionDurationMilliseconds = 240;
+
     public static readonly System.Windows.DependencyProperty IsEmbeddedModeProperty = System.Windows.DependencyProperty.Register(
         nameof(IsEmbeddedMode),
         typeof(bool),
@@ -33,18 +35,31 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         Interval = TimeSpan.FromMilliseconds(Vanara.PInvoke.User32.GetDoubleClickTime()),
     };
 
+    private readonly System.Windows.Threading.DispatcherTimer previewRoomTransitionTimeoutTimer = new()
+    {
+        Interval = TimeSpan.FromSeconds(3),
+    };
+
     private int pendingVideoLayoutRefreshes;
     private bool isVideoLayoutRefreshRunning;
+    private CancellationTokenSource? videoLayoutRefreshCancellation;
     private System.Windows.Point? lastTrackedPointerPosition;
     private System.Windows.Window? attachedWindow;
     private ViewModels.MainViewModel? attachedViewModel;
     private bool isVideoPresentationSuspended;
+    private bool isPreviewClosingTransitionActive;
     private bool isFullScreen;
     private bool suppressNextPreviewPointerUp;
     private System.Windows.Thickness normalPanelPadding;
     private System.Windows.Thickness normalPanelBorderThickness;
     private System.Windows.CornerRadius normalPanelCornerRadius;
     private Core.LivePreviewFrameSource? attachedFrameSource;
+    private string? displayedPreviewRoomUrl;
+    private Core.LivePreviewFrameSource? previewRoomTransitionPreviousFrameSource;
+    private Core.LivePreviewFrameSource? previewRoomTransitionTargetFrameSource;
+    private int previewRoomTransitionAnimationGeneration;
+    private bool isPreviewRoomTransitionPending;
+    private bool hasPreviewRoomTransitionFrame;
 
     public bool IsEmbeddedMode
     {
@@ -112,6 +127,14 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             previewClickTimer.Stop();
             TogglePreviewPlayback();
         };
+        previewRoomTransitionTimeoutTimer.Tick += (_, _) =>
+        {
+            previewRoomTransitionTimeoutTimer.Stop();
+            if (isPreviewRoomTransitionPending)
+            {
+                BeginPreviewRoomTransitionFadeOut();
+            }
+        };
         Unloaded += (_, _) =>
         {
             pointerTrackingTimer.Stop();
@@ -119,8 +142,9 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             topFeedbackTimer.Stop();
             bottomFeedbackTimer.Stop();
             previewClickTimer.Stop();
+            previewRoomTransitionTimeoutTimer.Stop();
             suppressNextPreviewPointerUp = false;
-            pendingVideoLayoutRefreshes = 0;
+            CancelVideoLayoutRefresh();
             lastTrackedPointerPosition = null;
             HidePreviewControlsImmediately();
             DetachMediaPlayerEvents();
@@ -144,6 +168,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         attachedViewModel = viewModel;
         attachedMediaPlayer = mediaPlayer;
         attachedFrameSource = viewModel?.LivePreviewFrameSource;
+        displayedPreviewRoomUrl = viewModel?.PreviewingRoom?.RoomUrl;
         PreviewOverlayRoot.DataContext = attachedViewModel;
 
         if (attachedViewModel != null)
@@ -161,6 +186,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         if (attachedFrameSource != null)
         {
             attachedFrameSource.SourceChanged += OnFrameSourceChanged;
+            attachedFrameSource.FirstFramePresented += OnFirstFramePresented;
             PreviewVideoFrame.Source = attachedFrameSource.Source;
         }
 
@@ -175,8 +201,11 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         if (attachedFrameSource != null)
         {
             attachedFrameSource.SourceChanged -= OnFrameSourceChanged;
+            attachedFrameSource.FirstFramePresented -= OnFirstFramePresented;
             attachedFrameSource = null;
         }
+
+        displayedPreviewRoomUrl = null;
 
         if (attachedViewModel != null)
         {
@@ -204,8 +233,33 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         }, System.Windows.Threading.DispatcherPriority.Render);
     }
 
+    private void OnFirstFramePresented(object? sender, EventArgs e)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(() => OnFirstFramePresented(sender, e), System.Windows.Threading.DispatcherPriority.Render);
+            return;
+        }
+
+        if (!isPreviewRoomTransitionPending
+            || sender is not Core.LivePreviewFrameSource frameSource
+            || !ReferenceEquals(frameSource, previewRoomTransitionTargetFrameSource))
+        {
+            return;
+        }
+
+        hasPreviewRoomTransitionFrame = true;
+        CompletePreviewRoomTransitionIfReady();
+    }
+
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(ViewModels.MainViewModel.LivePreviewMediaPlayer)
+            || e.PropertyName == nameof(ViewModels.MainViewModel.LivePreviewFrameSource))
+        {
+            _ = Dispatcher.BeginInvoke(RefreshAttachedPlaybackSources, System.Windows.Threading.DispatcherPriority.Render);
+        }
+
         if (e.PropertyName == nameof(ViewModels.MainViewModel.IsPreviewing)
             || e.PropertyName == nameof(ViewModels.MainViewModel.IsPreviewTransitioning)
             || e.PropertyName == nameof(ViewModels.MainViewModel.LivePreviewStatus))
@@ -220,10 +274,69 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             }, System.Windows.Threading.DispatcherPriority.Render);
         }
 
+        if (e.PropertyName == nameof(ViewModels.MainViewModel.PreviewingRoom))
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                UpdatePreviewRoomTransition();
+            }
+            else
+            {
+                _ = Dispatcher.BeginInvoke(UpdatePreviewRoomTransition);
+            }
+        }
+
         if (e.PropertyName == nameof(ViewModels.MainViewModel.IsPreviewPaused))
         {
             _ = Dispatcher.BeginInvoke(UpdatePausedIndicator);
         }
+    }
+
+    private void RefreshAttachedPlaybackSources()
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        ViewModels.MainViewModel? viewModel = attachedViewModel;
+        if (viewModel == null)
+        {
+            AttachMediaPlayerEvents();
+            return;
+        }
+
+        LibVLCSharp.Shared.MediaPlayer mediaPlayer = viewModel.LivePreviewMediaPlayer;
+        Core.LivePreviewFrameSource frameSource = viewModel.LivePreviewFrameSource;
+        if (ReferenceEquals(attachedMediaPlayer, mediaPlayer)
+            && ReferenceEquals(attachedFrameSource, frameSource))
+        {
+            PreviewVideoFrame.Source = frameSource.Source;
+            UpdateVideoPresentationState();
+            return;
+        }
+
+        if (attachedFrameSource != null)
+        {
+            attachedFrameSource.SourceChanged -= OnFrameSourceChanged;
+            attachedFrameSource.FirstFramePresented -= OnFirstFramePresented;
+        }
+        if (attachedMediaPlayer != null)
+        {
+            attachedMediaPlayer.Vout -= OnMediaPlayerVout;
+            attachedMediaPlayer.Playing -= OnMediaPlayerPlaying;
+        }
+
+        attachedMediaPlayer = mediaPlayer;
+        attachedFrameSource = frameSource;
+        attachedMediaPlayer.Vout += OnMediaPlayerVout;
+        attachedMediaPlayer.Playing += OnMediaPlayerPlaying;
+        attachedFrameSource.SourceChanged += OnFrameSourceChanged;
+        attachedFrameSource.FirstFramePresented += OnFirstFramePresented;
+        AttachPreviewRoomTransitionTarget(attachedFrameSource);
+        PreviewVideoFrame.Source = attachedFrameSource.Source;
+        ScheduleVideoLayoutRefresh();
+        UpdateVideoPresentationState();
     }
 
     private void OnPreviewControlFeedbackRequested(object? sender, ViewModels.PreviewControlFeedbackEventArgs e)
@@ -354,19 +467,32 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         return pixelCount > 0 && totalLuminance / pixelCount >= 145d;
     }
 
-    public void SetVideoPresentationSuspended(bool isSuspended)
+    public void SetVideoPresentationState(bool isSuspended, bool isClosingTransitionActive)
     {
-        if (isVideoPresentationSuspended == isSuspended)
+        if (isVideoPresentationSuspended == isSuspended
+            && isPreviewClosingTransitionActive == isClosingTransitionActive)
         {
             return;
         }
 
         isVideoPresentationSuspended = isSuspended;
+        isPreviewClosingTransitionActive = isClosingTransitionActive;
         UpdateVideoPresentationState();
     }
 
     private void UpdateVideoPresentationState()
     {
+        if (isVideoPresentationSuspended)
+        {
+            ClearVideoPresentation();
+            return;
+        }
+
+        if (isPreviewClosingTransitionActive)
+        {
+            return;
+        }
+
         if (!CanPresentVideo())
         {
             ClearVideoPresentation();
@@ -381,7 +507,8 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
 
     private void ClearVideoPresentation()
     {
-        pendingVideoLayoutRefreshes = 0;
+        CancelPreviewRoomTransition();
+        CancelVideoLayoutRefresh();
         HidePreviewControlsImmediately();
         HideFeedback(TopFeedback, topFeedbackTimer);
         HideFeedback(BottomFeedback, bottomFeedbackTimer);
@@ -391,6 +518,141 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         PreviewOverlayRoot.Visibility = System.Windows.Visibility.Collapsed;
         VideoSurface.UpdateLayout();
         PreviewViewport.InvalidateVisual();
+    }
+
+    private void UpdatePreviewRoomTransition()
+    {
+        string? nextRoomUrl = attachedViewModel?.PreviewingRoom?.RoomUrl;
+        string? previousRoomUrl = displayedPreviewRoomUrl;
+        displayedPreviewRoomUrl = nextRoomUrl;
+
+        if (!ShouldAnimatePreviewRoomSwitch(previousRoomUrl, nextRoomUrl, attachedFrameSource?.Source != null))
+        {
+            CancelPreviewRoomTransition();
+            return;
+        }
+
+        System.Windows.Media.Imaging.BitmapSource? snapshot = CreatePreviewRoomSnapshot(attachedFrameSource?.Source);
+        if (snapshot == null || attachedFrameSource == null)
+        {
+            CancelPreviewRoomTransition();
+            return;
+        }
+
+        previewRoomTransitionAnimationGeneration++;
+        PreviewRoomTransitionFrame.BeginAnimation(OpacityProperty, null);
+        PreviewRoomTransitionFrame.Source = snapshot;
+        PreviewRoomTransitionFrame.Opacity = 1d;
+        PreviewRoomTransitionFrame.Visibility = System.Windows.Visibility.Collapsed;
+        previewRoomTransitionPreviousFrameSource = attachedFrameSource;
+        previewRoomTransitionTargetFrameSource = null;
+        hasPreviewRoomTransitionFrame = false;
+        isPreviewRoomTransitionPending = true;
+        previewRoomTransitionTimeoutTimer.Stop();
+    }
+
+    private void CompletePreviewRoomTransitionIfReady()
+    {
+        if (!isPreviewRoomTransitionPending
+            || !hasPreviewRoomTransitionFrame
+            || attachedViewModel is not { IsPreviewing: true })
+        {
+            return;
+        }
+
+        BeginPreviewRoomTransitionFadeOut();
+    }
+
+    private void AttachPreviewRoomTransitionTarget(Core.LivePreviewFrameSource frameSource)
+    {
+        if (!isPreviewRoomTransitionPending
+            || ReferenceEquals(frameSource, previewRoomTransitionPreviousFrameSource))
+        {
+            return;
+        }
+
+        previewRoomTransitionTargetFrameSource = frameSource;
+        PreviewRoomTransitionFrame.BeginAnimation(OpacityProperty, null);
+        PreviewRoomTransitionFrame.Opacity = 1d;
+        PreviewRoomTransitionFrame.Visibility = System.Windows.Visibility.Visible;
+        previewRoomTransitionTimeoutTimer.Stop();
+        previewRoomTransitionTimeoutTimer.Start();
+        if (frameSource.HasPresentedFrame)
+        {
+            hasPreviewRoomTransitionFrame = true;
+            CompletePreviewRoomTransitionIfReady();
+        }
+    }
+
+    private void BeginPreviewRoomTransitionFadeOut()
+    {
+        isPreviewRoomTransitionPending = false;
+        previewRoomTransitionTimeoutTimer.Stop();
+        int animationGeneration = ++previewRoomTransitionAnimationGeneration;
+        System.Windows.Media.Animation.DoubleAnimation animation = new(1d, 0d, TimeSpan.FromMilliseconds(PreviewRoomTransitionDurationMilliseconds))
+        {
+            EasingFunction = new System.Windows.Media.Animation.SineEase
+            {
+                EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut,
+            },
+            FillBehavior = System.Windows.Media.Animation.FillBehavior.Stop,
+        };
+        animation.Completed += (_, _) =>
+        {
+            if (previewRoomTransitionAnimationGeneration != animationGeneration)
+            {
+                return;
+            }
+
+            ClearPreviewRoomTransitionFrame();
+        };
+        PreviewRoomTransitionFrame.BeginAnimation(OpacityProperty, animation, System.Windows.Media.Animation.HandoffBehavior.SnapshotAndReplace);
+    }
+
+    private void CancelPreviewRoomTransition()
+    {
+        isPreviewRoomTransitionPending = false;
+        hasPreviewRoomTransitionFrame = false;
+        previewRoomTransitionPreviousFrameSource = null;
+        previewRoomTransitionTargetFrameSource = null;
+        previewRoomTransitionTimeoutTimer.Stop();
+        previewRoomTransitionAnimationGeneration++;
+        ClearPreviewRoomTransitionFrame();
+    }
+
+    private void ClearPreviewRoomTransitionFrame()
+    {
+        PreviewRoomTransitionFrame.BeginAnimation(OpacityProperty, null);
+        PreviewRoomTransitionFrame.Opacity = 0d;
+        PreviewRoomTransitionFrame.Visibility = System.Windows.Visibility.Collapsed;
+        PreviewRoomTransitionFrame.Source = null;
+    }
+
+    private static System.Windows.Media.Imaging.BitmapSource? CreatePreviewRoomSnapshot(System.Windows.Media.Imaging.BitmapSource? source)
+    {
+        if (source is not { PixelWidth: > 0, PixelHeight: > 0 })
+        {
+            return null;
+        }
+
+        try
+        {
+            System.Windows.Media.Imaging.WriteableBitmap snapshot = new(source);
+            snapshot.Freeze();
+            return snapshot;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    internal static bool ShouldAnimatePreviewRoomSwitch(string? previousRoomUrl, string? nextRoomUrl, bool hasCurrentFrame)
+    {
+        return hasCurrentFrame
+            && !string.IsNullOrWhiteSpace(previousRoomUrl)
+            && !string.IsNullOrWhiteSpace(nextRoomUrl)
+            && !string.Equals(previousRoomUrl, nextRoomUrl, StringComparison.OrdinalIgnoreCase);
     }
 
     private bool CanPresentVideo()
@@ -431,14 +693,20 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         }
 
         isVideoLayoutRefreshRunning = true;
-        _ = Dispatcher.BeginInvoke(RefreshVideoSurfaceSize, System.Windows.Threading.DispatcherPriority.Render);
+        CancellationTokenSource cancellation = new();
+        videoLayoutRefreshCancellation = cancellation;
+        _ = Dispatcher.BeginInvoke(
+            () => _ = RefreshVideoSurfaceSizeAsync(cancellation),
+            System.Windows.Threading.DispatcherPriority.Render);
     }
 
-    private async void RefreshVideoSurfaceSize()
+    private async Task RefreshVideoSurfaceSizeAsync(CancellationTokenSource cancellation)
     {
         try
         {
-            while (pendingVideoLayoutRefreshes > 0 && CanPresentVideo())
+            while (pendingVideoLayoutRefreshes > 0
+                   && !cancellation.IsCancellationRequested
+                   && CanPresentVideo())
             {
                 pendingVideoLayoutRefreshes--;
                 PreviewViewport.UpdateLayout();
@@ -446,13 +714,36 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
 
                 if (pendingVideoLayoutRefreshes > 0)
                 {
-                    await Task.Delay(250);
+                    await Task.Delay(250, cancellation.Token);
                 }
             }
         }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
         finally
         {
+            if (ReferenceEquals(videoLayoutRefreshCancellation, cancellation))
+            {
+                videoLayoutRefreshCancellation = null;
+            }
+            cancellation.Dispose();
             isVideoLayoutRefreshRunning = false;
+            if (pendingVideoLayoutRefreshes > 0 && CanPresentVideo())
+            {
+                ScheduleVideoLayoutRefresh();
+            }
+        }
+    }
+
+    private void CancelVideoLayoutRefresh()
+    {
+        pendingVideoLayoutRefreshes = 0;
+        videoLayoutRefreshCancellation?.Cancel();
+        if (!isVideoLayoutRefreshRunning)
+        {
+            videoLayoutRefreshCancellation?.Dispose();
+            videoLayoutRefreshCancellation = null;
         }
     }
 
