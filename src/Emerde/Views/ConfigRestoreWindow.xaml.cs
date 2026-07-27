@@ -1,3 +1,4 @@
+using Emerde.Controls;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
@@ -13,6 +14,8 @@ public sealed partial class ConfigRestoreWindow : Window, INotifyPropertyChanged
     private const double DialogWindowHorizontalMargin = 96d;
     private const double DialogWindowVerticalMargin = 96d;
     private string primaryButtonText = string.Empty;
+    private bool isCloseAnimating;
+    private bool isCloseComplete;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -22,6 +25,7 @@ public sealed partial class ConfigRestoreWindow : Window, INotifyPropertyChanged
         Owner = owner;
         RestoreContentHost.Content = content;
         ApplyDialogSize(owner);
+        Closing += WindowClosing;
     }
 
     public string PrimaryButtonText
@@ -54,14 +58,61 @@ public sealed partial class ConfigRestoreWindow : Window, INotifyPropertyChanged
         MaxHeight = Height;
     }
 
-    private void PrimaryButtonClick(object sender, RoutedEventArgs e)
+    internal Func<Task>? BackgroundExitAnimation { get; set; }
+
+    private async void PrimaryButtonClick(object sender, RoutedEventArgs e)
     {
-        DialogResult = true;
+        await RequestCloseAsync(true);
     }
 
-    private void CancelButtonClick(object sender, RoutedEventArgs e)
+    private async void CancelButtonClick(object sender, RoutedEventArgs e)
     {
-        DialogResult = false;
+        await RequestCloseAsync(false);
+    }
+
+    private async void WindowClosing(object? sender, CancelEventArgs e)
+    {
+        if (isCloseComplete)
+        {
+            return;
+        }
+
+        e.Cancel = true;
+        await RequestCloseAsync(null);
+    }
+
+    private async Task RequestCloseAsync(bool? result)
+    {
+        if (isCloseAnimating || isCloseComplete)
+        {
+            return;
+        }
+
+        isCloseAnimating = true;
+        DialogSurface.IsHitTestVisible = false;
+        try
+        {
+            Task backgroundExit = BackgroundExitAnimation?.Invoke() ?? Task.CompletedTask;
+            await Task.WhenAll(MotionAssist.PlayExitAsync(DialogSurface), backgroundExit);
+        }
+        catch
+        {
+            MotionAssist.ResetExit(DialogSurface);
+        }
+        finally
+        {
+            isCloseComplete = true;
+            isCloseAnimating = false;
+        }
+
+        if (result.HasValue)
+        {
+            DialogResult = result;
+        }
+        else
+        {
+            Close();
+        }
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

@@ -1,6 +1,7 @@
 <UserControl x:Class="Emerde.Views.ConfigRestoreContentDialog"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Emerde.Controls"
              xmlns:views="clr-namespace:Emerde.Views"
              AllowDrop="True"
              DragOver="ConfigRestoreDragOver"
@@ -9,6 +10,12 @@
              FocusVisualStyle="{x:Null}">
     <UserControl.Resources>
         <Style x:Key="RestoreOptionListBoxItemStyle" TargetType="{x:Type ListBoxItem}">
+            <Setter Property="controls:MotionAssist.IsEntranceEnabled" Value="True" />
+            <Setter Property="controls:MotionAssist.EntranceOffsetY" Value="6" />
+            <Setter Property="controls:MotionAssist.EntranceScale" Value="0.99" />
+            <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
+            <Setter Property="controls:MotionAssist.HoverScale" Value="1.004" />
+            <Setter Property="controls:MotionAssist.PressScale" Value="0.996" />
             <Setter Property="Margin" Value="0" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="Background" Value="Transparent" />
@@ -57,7 +64,10 @@
     </UserControl.Resources>
     <Grid x:Name="ContentRoot"
           HorizontalAlignment="Stretch"
-          VerticalAlignment="Stretch">
+          VerticalAlignment="Stretch"
+          controls:MotionAssist.IsEntranceEnabled="True"
+          controls:MotionAssist.EntranceOffsetY="8"
+          controls:MotionAssist.EntranceScale="0.98">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -102,12 +112,20 @@
                     <DataTemplate DataType="{x:Type views:ConfigRestoreOption}">
                         <Border x:Name="Card"
                                 Margin="0,0,18,8"
-                                Padding="12"
+                                Padding="0"
                                 Background="{DynamicResource EmerdeCardBrush}"
-                                BorderBrush="{DynamicResource ControlElevationBorderBrush}"
-                                BorderThickness="1"
+                                BorderBrush="Transparent"
+                                BorderThickness="0"
                                 CornerRadius="{StaticResource Win11ControlCornerRadius}">
                             <Grid>
+                                <Border x:Name="CardStrokeLayer"
+                                        BorderBrush="{DynamicResource ControlElevationBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                        IsHitTestVisible="False" />
+                                <Border Padding="13"
+                                        Background="Transparent">
+                                    <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
@@ -139,6 +157,8 @@
                                                Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                                Text="{Binding BadgeText}" />
                                 </Border>
+                                    </Grid>
+                                </Border>
                             </Grid>
                         </Border>
                         <DataTemplate.Triggers>
@@ -148,13 +168,13 @@
                             </DataTrigger>
                             <DataTrigger Binding="{Binding IsDefault}" Value="True">
                                 <Setter TargetName="Card" Property="Background" Value="#0CD97706" />
-                                <Setter TargetName="Card" Property="BorderBrush" Value="#33D97706" />
+                                <Setter TargetName="CardStrokeLayer" Property="BorderBrush" Value="#33D97706" />
                                 <Setter TargetName="Badge" Property="Background" Value="#14D97706" />
                                 <Setter TargetName="BadgeText" Property="Foreground" Value="#D97706" />
                             </DataTrigger>
                             <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="True">
                                 <Setter TargetName="Card" Property="Background" Value="#18337DFF" />
-                                <Setter TargetName="Card" Property="BorderBrush" Value="#60337DFF" />
+                                <Setter TargetName="CardStrokeLayer" Property="BorderBrush" Value="#60337DFF" />
                             </DataTrigger>
                         </DataTemplate.Triggers>
                     </DataTemplate>
