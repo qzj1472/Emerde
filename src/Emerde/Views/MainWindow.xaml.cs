@@ -343,7 +343,7 @@ public partial class MainWindow : FluentWindow
 
     private void MainWindowPreviewDragOver(object sender, System.Windows.DragEventArgs e)
     {
-        if (WindowSizing.HasOpenContentDialog)
+        if (IsModalDialogActive())
         {
             return;
         }
@@ -360,7 +360,7 @@ public partial class MainWindow : FluentWindow
 
     private async void MainWindowPreviewDrop(object sender, System.Windows.DragEventArgs e)
     {
-        if (WindowSizing.HasOpenContentDialog)
+        if (IsModalDialogActive())
         {
             return;
         }
@@ -463,6 +463,11 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
+        if (IsShortcutInputSuppressed(e.OriginalSource as DependencyObject))
+        {
+            return;
+        }
+
         if (TryHandleWindowShortcut(key, modifiers))
         {
             e.Handled = true;
@@ -473,11 +478,6 @@ public partial class MainWindow : FluentWindow
         {
             ViewModel.CancelRoomMultiSelect();
             e.Handled = true;
-            return;
-        }
-
-        if (IsShortcutInputSuppressed(e.OriginalSource as DependencyObject))
-        {
             return;
         }
 
@@ -783,6 +783,11 @@ public partial class MainWindow : FluentWindow
 
     private static DependencyObject? GetShortcutParent(DependencyObject source)
     {
+        if (source is ContentElement contentElement)
+        {
+            return System.Windows.ContentOperations.GetParent(contentElement)
+                ?? (contentElement as FrameworkContentElement)?.Parent;
+        }
         if (source is FrameworkElement element && element.Parent is DependencyObject frameworkParent)
         {
             return frameworkParent;
@@ -2494,7 +2499,14 @@ public partial class MainWindow : FluentWindow
 
     private static Rect GetElementBounds(FrameworkElement element, Visual relativeTo)
     {
-        return element.TransformToVisual(relativeTo).TransformBounds(new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+        try
+        {
+            return element.TransformToVisual(relativeTo).TransformBounds(new Rect(0, 0, element.ActualWidth, element.ActualHeight));
+        }
+        catch (InvalidOperationException)
+        {
+            return Rect.Empty;
+        }
     }
 
     private void FinishRoomCardDrag(bool commit)
@@ -2648,7 +2660,7 @@ public partial class MainWindow : FluentWindow
                 return parent;
             }
 
-            child = VisualTreeHelper.GetParent(child);
+            child = GetShortcutParent(child);
         }
 
         return null;
@@ -2656,6 +2668,10 @@ public partial class MainWindow : FluentWindow
 
     private static T? FindVisualChild<T>(DependencyObject parent, string name) where T : FrameworkElement
     {
+        if (parent is not Visual and not System.Windows.Media.Media3D.Visual3D)
+        {
+            return null;
+        }
         for (int index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
         {
             DependencyObject child = VisualTreeHelper.GetChild(parent, index);
@@ -2675,8 +2691,6 @@ public partial class MainWindow : FluentWindow
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        base.OnClosing(e);
-
         if (!TrayIconManager.GetInstance().IsShutdownTriggered)
         {
             e.Cancel = true;
@@ -2710,6 +2724,8 @@ public partial class MainWindow : FluentWindow
 
             ViewModel.Dispose();
         }
+
+        base.OnClosing(e);
     }
 
     private sealed class DragPreviewAdorner(UIElement adornedElement, Brush brush, Size size) : Adorner(adornedElement)
