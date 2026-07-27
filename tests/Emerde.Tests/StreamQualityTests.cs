@@ -155,12 +155,48 @@ public sealed class StreamQualityTests
             json,
             StreamQualityCatalog.Original);
 
-        Assert.Equal("https://example.test/landscape.m3u8?token=first&codec=h265", result.HlsUrl);
-        Assert.Equal("https://example.test/landscape.flv?token=first&codec=h265", result.FlvUrl);
-        Assert.Equal("https://example.test/landscape.m3u8?token=first&codec=h265", result.RecordUrl);
+        Assert.Equal("https://example.test/landscape.m3u8?token=first&codec=h264", result.HlsUrl);
+        Assert.Equal("https://example.test/landscape.flv?token=first&codec=h264", result.FlvUrl);
+        Assert.Equal("https://example.test/landscape.flv?token=first&codec=h264", result.RecordUrl);
         Assert.Equal("ORIGIN", result.Quality);
         Assert.Equal("1920x1080", result.Resolution);
         Assert.Equal("12 Mbps", result.Bitrate);
+    }
+
+    [Fact]
+    public void DouyinResolver_InvalidPullDataFallsBackToPrimaryOrigin()
+    {
+        string primaryStreamData = CreateDouyinStreamData(
+            "https://example.test/primary.flv",
+            "https://example.test/primary.m3u8",
+            "h264");
+        string json = $$$$$"""
+            {
+              "data": {
+                "data": [{
+                  "status": 2,
+                  "stream_url": {
+                    "live_core_sdk_data": {
+                      "pull_data": {
+                        "stream_data": {{{{{System.Text.Json.JsonSerializer.Serialize(primaryStreamData)}}}}}
+                      }
+                    },
+                    "pull_datas": {
+                      "guest": { "stream_data": "{\"data\":{\"origin\":{\"main\":{}}}}" }
+                    }
+                  }
+                }]
+              }
+            }
+            """;
+
+        StreamResolverResult result = StreamResolver.ExtractDouyinWebEnterData(
+            "https://live.douyin.com/123456",
+            json,
+            StreamQualityCatalog.Original);
+
+        Assert.Equal("https://example.test/primary.flv?codec=h264", result.RecordUrl);
+        Assert.Equal("https://example.test/primary.m3u8?codec=h264", result.HlsUrl);
     }
 
     [Fact]
@@ -528,11 +564,47 @@ public sealed class StreamQualityTests
               }
             }
             """;
+        const string desktopUnsupportedJson = """
+            {
+              "data": {
+                "data": [],
+                "room_status": 1,
+                "user": { "sec_uid": "sec-linkmic-user" },
+                "qrcode_url": "https://p3.douyinpic.com/aweme-qrcode/Jnlmwl7667202244013573894~c5_720x720.webp"
+              }
+            }
+            """;
+        const string reflowJson = """
+            {
+              "data": {
+                "room": {
+                  "id_str": "7667202004174949172",
+                  "owner": { "sec_uid": "sec-linkmic-user" }
+                }
+              }
+            }
+            """;
+        const string unrelatedLongNumberJson = """
+            {
+              "data": {
+                "data": [],
+                "user": { "sec_uid": "sec-linkmic-user" },
+                "qrcode_url": "https://p3.douyinpic.com/1234567890123456789/image.webp"
+              }
+            }
+            """;
 
         Assert.True(StreamResolver.TryExtractDouyinReflowIdentity(validJson, out string roomId, out string secUid));
         Assert.Equal("7350000000000000000", roomId);
         Assert.Equal("sec-user", secUid);
         Assert.False(StreamResolver.TryExtractDouyinReflowIdentity(missingRoomJson, out _, out _));
+        Assert.True(StreamResolver.TryExtractDouyinReflowIdentity(desktopUnsupportedJson, out string qrcodeRoomId, out string qrcodeSecUid));
+        Assert.Equal("7667202244013573894", qrcodeRoomId);
+        Assert.Equal("sec-linkmic-user", qrcodeSecUid);
+        Assert.True(StreamResolver.TryExtractDouyinReflowIdentity(reflowJson, out string reflowRoomId, out string reflowSecUid));
+        Assert.Equal("7667202004174949172", reflowRoomId);
+        Assert.Equal("sec-linkmic-user", reflowSecUid);
+        Assert.False(StreamResolver.TryExtractDouyinReflowIdentity(unrelatedLongNumberJson, out _, out _));
     }
 
     private static string CreateDouyinStreamData(

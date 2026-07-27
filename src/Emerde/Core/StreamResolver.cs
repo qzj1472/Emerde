@@ -600,16 +600,39 @@ internal static partial class StreamResolver
             RoomUrl = roomUrl,
             PlatformName = "Douyin",
         };
+        string? attemptedReflowRoomId = null;
+        string? attemptedReflowSecUid = null;
 
         foreach (DouyinResolveRoute route in routes)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (route == DouyinResolveRoute.AppReflow
+                && session.TryGetIdentity(out string routeRoomId, out string routeSecUid))
+            {
+                attemptedReflowRoomId = routeRoomId;
+                attemptedReflowSecUid = routeSecUid;
+            }
             StreamResolverResult? routeResult = ResolveDouyinRoute(roomUrl, preferredQuality, session, route, cancellationToken);
             result = MergeResults(roomUrl, result, routeResult);
             if (IsCompleteDouyinResult(result))
             {
                 break;
             }
+        }
+
+        if (!IsCompleteDouyinResult(result)
+            && session.TryGetIdentity(out string deferredRoomId, out string deferredSecUid)
+            && (!string.Equals(attemptedReflowRoomId, deferredRoomId, StringComparison.Ordinal)
+                || !string.Equals(attemptedReflowSecUid, deferredSecUid, StringComparison.Ordinal)))
+        {
+            StreamResolverResult? reflowResult = ResolveDouyinAppReflow(
+                roomUrl,
+                deferredRoomId,
+                deferredSecUid,
+                GetDouyinCookie(),
+                preferredQuality,
+                cancellationToken);
+            result = MergeResults(roomUrl, result, reflowResult);
         }
 
         int failureCount = IsCompleteDouyinResult(result) ? 0 : session.RegisterFailure();
@@ -871,11 +894,16 @@ internal static partial class StreamResolver
         try
         {
             JObject root = JObject.Parse(json);
-            JToken? room = root["data"]?["data"]?.FirstOrDefault();
-            JToken? user = root["data"]?["user"] ?? room?["owner"];
+            JToken? data = root["data"];
+            JToken? room = data?["data"]?.FirstOrDefault() ?? data?["room"];
+            JToken? user = data?["user"] ?? room?["owner"] ?? room?["user"];
+            Match qrcodeRoomIdMatch = DouyinQrCodeRoomIdRegex.Match(data?["qrcode_url"]?.ToString() ?? string.Empty);
             roomId = FirstNonEmpty(
                 CleanOptionalText(room?["id_str"]?.ToString()),
-                CleanOptionalText(room?["id"]?.ToString())) ?? string.Empty;
+                CleanOptionalText(room?["id"]?.ToString()),
+                CleanOptionalText(data?["enter_room_id"]?.ToString()),
+                CleanOptionalText(data?["enterRoomId"]?.ToString()),
+                qrcodeRoomIdMatch.Success ? qrcodeRoomIdMatch.Groups[1].Value : null) ?? string.Empty;
             secUid = FirstNonEmpty(
                 CleanOptionalText(user?["sec_uid"]?.ToString()),
                 CleanOptionalText(room?["owner"]?["sec_uid"]?.ToString())) ?? string.Empty;
@@ -1803,23 +1831,33 @@ internal static partial class StreamResolver
         JToken? liveCoreSdkData = GetJsonProperty(streamUrlObject, "live_core_sdk_data", "liveCoreSdkData");
         JToken? primaryPullData = GetJsonProperty(liveCoreSdkData, "pull_data", "pullData");
         JObject? primaryStreamData = ParseJsonObject(GetJsonProperty(primaryPullData, "stream_data", "streamData"));
-        List<JObject> streamDataCandidates = [];
+        List<JObject> declaredStreamDataCandidates = [];
+        bool hasUnrecognizedDeclaredStreamData = false;
         JToken? pullDatas = GetJsonProperty(streamUrlObject, "pull_datas", "pullDatas");
-        bool hasDeclaredPullData = false;
         if (pullDatas is JObject pullDataMap)
         {
-            hasDeclaredPullData = pullDataMap.Properties().Any();
-            streamDataCandidates.AddRange(pullDataMap.Properties()
-                .Select(property => ParseDouyinStreamData(property.Value))
-                .Where(candidate => candidate != null)
-                .Select(candidate => candidate!));
-        }
-        if (!hasDeclaredPullData && primaryStreamData != null)
-        {
-            streamDataCandidates.Add(primaryStreamData);
+            foreach (JProperty property in pullDataMap.Properties())
+            {
+                JObject? candidate = ParseDouyinStreamData(property.Value);
+                if (candidate?["data"]?["origin"]?["main"] is not JObject)
+                {
+                    hasUnrecognizedDeclaredStreamData = true;
+                    continue;
+                }
+
+                declaredStreamDataCandidates.Add(candidate);
+            }
         }
 
-        JObject? selectedStreamData = streamDataCandidates.FirstOrDefault(HasDouyinOriginStream);
+        JObject? selectedStreamData = declaredStreamDataCandidates.FirstOrDefault(HasDouyinOriginStream);
+        if (selectedStreamData == null
+            && !hasUnrecognizedDeclaredStreamData
+            && primaryStreamData != null
+            && HasDouyinOriginStream(primaryStreamData))
+        {
+            selectedStreamData = primaryStreamData;
+        }
+
         if (selectedStreamData?["data"]?["origin"]?["main"] is not JObject origin)
         {
             return default;
@@ -1829,8 +1867,8 @@ internal static partial class StreamResolver
         JObject? primarySdkParams = ParseJsonObject(primaryOrigin?["sdk_params"] ?? primaryOrigin?["sdkParams"]);
         JObject? selectedSdkParams = ParseJsonObject(origin["sdk_params"] ?? origin["sdkParams"]);
         string? codec = FirstNonEmpty(
-            CleanOptionalText(primarySdkParams?["VCodec"]?.ToString()),
-            CleanOptionalText(selectedSdkParams?["VCodec"]?.ToString()));
+            CleanOptionalText(selectedSdkParams?["VCodec"]?.ToString()),
+            CleanOptionalText(primarySdkParams?["VCodec"]?.ToString()));
         string? resolution = CleanOptionalText(selectedSdkParams?["resolution"]?.ToString());
         double bitrate = ParsePositiveDouble(selectedSdkParams?["vbitrate"] ?? selectedSdkParams?["v_bit_rate"]);
         if (bitrate <= 0)
@@ -2112,6 +2150,9 @@ internal static partial class StreamResolver
 
     [GeneratedRegex("\"(?:room_id|roomId)\"\\s*:\\s*(?:\"([^\"]+)\"|([0-9]+))")]
     private static partial Regex DouyinInternalRoomIdRegex { get; }
+
+    [GeneratedRegex("/(?:aweme-)?qrcode/[^/?#]*?([0-9]{18,20})(?=~)", RegexOptions.IgnoreCase)]
+    private static partial Regex DouyinQrCodeRoomIdRegex { get; }
 
     [GeneratedRegex("\"avatar_thumb\"\\s*:\\s*\\{[^\\{\\}]*\"url_list\"\\s*:\\s*\\[\"([^\"]+)\"", RegexOptions.IgnoreCase)]
     private static partial Regex AvatarThumbRegex { get; }
