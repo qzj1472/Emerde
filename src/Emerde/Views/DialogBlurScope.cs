@@ -61,6 +61,7 @@ internal sealed class DialogBlurScope : IDisposable
     private bool isDisposed;
     private bool isExitAnimating;
     private bool isExitComplete;
+    private Task? exitAnimationTask;
 
     public static bool HasActiveDialog => Volatile.Read(ref activeDialogCount) > 0;
 
@@ -166,11 +167,17 @@ internal sealed class DialogBlurScope : IDisposable
 
     internal async Task PlayExitAsync()
     {
-        if (!ShouldAnimate())
+        if (!ShouldAnimate() || isDisposed)
         {
             return;
         }
 
+        exitAnimationTask ??= PlayExitCoreAsync();
+        await exitAnimationTask;
+    }
+
+    private async Task PlayExitCoreAsync()
+    {
         List<Task> animations = [];
         IEasingFunction easing = new SineEase { EasingMode = EasingMode.EaseIn };
         if (activeBlurEffect != null)
@@ -233,6 +240,7 @@ internal sealed class DialogBlurScope : IDisposable
 
         if (blurTarget != null)
         {
+            activeBlurEffect?.BeginAnimation(BlurEffect.RadiusProperty, null);
             blurTarget.Effect = previousBlurEffect;
         }
 
@@ -327,8 +335,11 @@ internal sealed class DialogBlurScope : IDisposable
     {
         if (!ShouldAnimate())
         {
+            exitAnimationTask = null;
             return;
         }
+
+        exitAnimationTask = null;
 
         IEasingFunction easing = new SineEase { EasingMode = EasingMode.EaseOut };
         if (activeBlurEffect != null)

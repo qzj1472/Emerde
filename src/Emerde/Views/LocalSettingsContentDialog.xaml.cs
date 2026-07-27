@@ -423,9 +423,10 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
             return;
         }
 
+        var deferral = args.GetDeferral();
         try
         {
-            await MotionAssist.PlayContentDialogExitTransformAsync(LocalSettingsSurface);
+            await MotionAssist.PlayContentDialogExitTransformAsync(LocalSettingsSurface).WaitAsync(TimeSpan.FromSeconds(2));
             if (args.Cancel)
             {
                 MotionAssist.ResetExit(LocalSettingsSurface);
@@ -434,6 +435,10 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         catch
         {
             MotionAssist.ResetExit(LocalSettingsSurface);
+        }
+        finally
+        {
+            deferral.Complete();
         }
     }
 
