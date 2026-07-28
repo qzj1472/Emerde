@@ -248,6 +248,7 @@ public sealed class Recorder
             int attempt = 0;
             int offlineRefreshChecks = 0;
             int sessionPartIndex = 0;
+            bool hasTriedInputFallback = false;
             DateTime sessionTimestamp = DateTime.Now;
             string? sessionOutputPattern = null;
             string? sessionBaseFileName = null;
@@ -360,6 +361,36 @@ public sealed class Recorder
                     break;
                 }
 
+                string? fallbackUrl = SelectInputFallback(
+                    startInfo.PlatformName,
+                    Url,
+                    startInfo.HlsUrl,
+                    startInfo.FlvUrl,
+                    lastAttemptHadMediaProgress,
+                    hasTriedInputFallback);
+                if (!string.IsNullOrWhiteSpace(fallbackUrl))
+                {
+                    string failedUrl = Url;
+                    DeleteFailedOutputFiles(outputFileName, useSessionPartFiles ? null : MetadataPath);
+                    Url = fallbackUrl;
+                    startInfo.RecordUrl = fallbackUrl;
+                    hasTriedInputFallback = true;
+                    isHls = IsHlsUrl(Url, startInfo);
+                    if (!useSessionPartFiles)
+                    {
+                        useTransportStream = ShouldUseTransportStream(isHls, isToSegment, targetFormat);
+                    }
+                    AppSessionLogger.Event("warn", "recorder", "record_input_fallback", "recording switched to the fallback stream before media started", new
+                    {
+                        startInfo.RoomUrl,
+                        startInfo.NickName,
+                        startInfo.PlatformName,
+                        failedInputKind = IsHlsUrl(failedUrl, startInfo) ? "hls" : "flv",
+                        fallbackInputKind = isHls ? "hls" : "flv",
+                    });
+                    continue;
+                }
+
                 if (hasSessionOutput)
                 {
                     sessionPartIndex++;
@@ -398,6 +429,13 @@ public sealed class Recorder
 
                 if (isLiveAfterRefresh == true)
                 {
+                    if (hasTriedInputFallback
+                        && string.Equals(startInfo.PlatformName, "Bilibili", StringComparison.OrdinalIgnoreCase)
+                        && !string.IsNullOrWhiteSpace(startInfo.FlvUrl))
+                    {
+                        Url = startInfo.FlvUrl;
+                        startInfo.RecordUrl = startInfo.FlvUrl;
+                    }
                     headers = NormalizeHeaders(startInfo.Headers);
                     isHls = IsHlsUrl(Url!, startInfo);
                     if (!useSessionPartFiles)
@@ -1287,6 +1325,29 @@ public sealed class Recorder
         }
 
         return flvUrl ?? string.Empty;
+    }
+
+    internal static string? SelectInputFallback(
+        string? platformName,
+        string? currentUrl,
+        string? hlsUrl,
+        string? flvUrl,
+        bool hadMediaProgress,
+        bool alreadyTried)
+    {
+        if (alreadyTried
+            || hadMediaProgress
+            || !string.Equals(platformName, "Bilibili", StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(currentUrl)
+            || string.IsNullOrWhiteSpace(hlsUrl)
+            || string.IsNullOrWhiteSpace(flvUrl)
+            || !string.Equals(currentUrl, hlsUrl, StringComparison.Ordinal)
+            || string.Equals(currentUrl, flvUrl, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return flvUrl;
     }
 
     private async Task<bool?> TryRefreshInputAsync(RecorderStartInfo startInfo, CancellationToken token)
