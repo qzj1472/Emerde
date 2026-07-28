@@ -902,15 +902,6 @@ public sealed class LivePreviewTests
     }
 
     [Fact]
-    public void IsPreviewFullScreenNonClientMessage_SuppressesFramePainting()
-    {
-        Assert.True(MainWindow.IsPreviewFullScreenNonClientMessage(true, 0x0083));
-        Assert.True(MainWindow.IsPreviewFullScreenNonClientMessage(true, 0x0085));
-        Assert.False(MainWindow.IsPreviewFullScreenNonClientMessage(false, 0x0083));
-        Assert.False(MainWindow.IsPreviewFullScreenNonClientMessage(true, 0x0084));
-    }
-
-    [Fact]
     public void IsPreviewFullScreenBlockedSystemCommand_BlocksMoveAndResize()
     {
         Assert.True(MainWindow.IsPreviewFullScreenBlockedSystemCommand(true, 0x0112, new IntPtr(0xF000)));
@@ -920,33 +911,150 @@ public sealed class LivePreviewTests
     }
 
     [Fact]
-    public void BuildPreviewFullScreenWindowStyle_UsesBorderlessPopup()
+    public void PreviewFullScreenWindowPlacement_PreservesFluentWindowChrome()
     {
-        int style = (int)(User32.WindowStyles.WS_OVERLAPPEDWINDOW | User32.WindowStyles.WS_VISIBLE);
-        int fullScreenStyle = MainWindow.BuildPreviewFullScreenWindowStyle(style);
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
+        int applyStart = source.IndexOf("private void ApplyPreviewFullScreenWindowBounds()", StringComparison.Ordinal);
+        int restoreStart = source.IndexOf("private void RestorePreviewWindowPlacement()", applyStart, StringComparison.Ordinal);
+        int restoreEnd = source.IndexOf("private void CapturePreviewWindowFrameAttributes", restoreStart, StringComparison.Ordinal);
+        string applyMethod = source[applyStart..source.IndexOf("internal static System.Drawing.Rectangle ExpandPreviewFullScreenBounds", applyStart, StringComparison.Ordinal)];
+        string restoreMethod = source[restoreStart..restoreEnd];
 
-        Assert.True((fullScreenStyle & unchecked((int)User32.WindowStyles.WS_POPUP)) != 0);
-        Assert.True((fullScreenStyle & (int)User32.WindowStyles.WS_VISIBLE) != 0);
-        Assert.False((fullScreenStyle & (int)User32.WindowStyles.WS_CAPTION) != 0);
-        Assert.False((fullScreenStyle & (int)User32.WindowStyles.WS_THICKFRAME) != 0);
+        Assert.DoesNotContain("WindowStyle =", applyMethod, StringComparison.Ordinal);
+        Assert.DoesNotContain("WindowStyle =", restoreMethod, StringComparison.Ordinal);
+        Assert.DoesNotContain("ResizeMode =", applyMethod, StringComparison.Ordinal);
+        Assert.DoesNotContain("WindowBackdropType =", applyMethod, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetWindowLong", applyMethod, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetWindowLong", restoreMethod, StringComparison.Ordinal);
+        Assert.Contains("SetPreviewWindowFrameAttributes(handle, true);", applyMethod, StringComparison.Ordinal);
+        Assert.Contains("SetPreviewSystemTransitionsDisabled(true);", applyMethod, StringComparison.Ordinal);
+        Assert.Contains("if (isPreviewWindowFrameAttributesCaptured)", source, StringComparison.Ordinal);
+        Assert.Contains("BeginPreviewFullScreenTransform(true, transitionGeneration);", source, StringComparison.Ordinal);
+        Assert.Contains("BeginPreviewFullScreenTransform(false, transitionGeneration);", source, StringComparison.Ordinal);
+        Assert.Contains("QueuePreviewWindowFrameAttributesRestore();", source, StringComparison.Ordinal);
+        Assert.Contains("int borderColor = DwmColorNone;", source, StringComparison.Ordinal);
+        Assert.Contains("DWMWCP_DEFAULT", source, StringComparison.Ordinal);
+        Assert.Contains("RecalculatePreviewWindowFrame(handle);", source, StringComparison.Ordinal);
+        Assert.Contains("User32.SetWindowPosFlags.SWP_FRAMECHANGED", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("WmNcCalcSize", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("WmNcPaint", source, StringComparison.Ordinal);
+        int frameRecalculation = source.IndexOf("RecalculatePreviewWindowFrame(handle);", restoreStart, StringComparison.Ordinal);
+        int frameAttributeRestore = source.IndexOf("SetPreviewWindowFrameAttributes(handle, false);", frameRecalculation, StringComparison.Ordinal);
+        Assert.True(frameRecalculation < frameAttributeRestore);
     }
 
     [Fact]
-    public void BuildPreviewFullScreenWindowExStyle_RemovesEdgesAndTopmost()
+    public void CalculatePreviewFullScreenTransform_MapsFullPanelToSavedPreviewBounds()
     {
-        int exStyle = (int)(User32.WindowStylesEx.WS_EX_APPWINDOW
-            | User32.WindowStylesEx.WS_EX_TOPMOST
-            | User32.WindowStylesEx.WS_EX_CLIENTEDGE
-            | User32.WindowStylesEx.WS_EX_WINDOWEDGE
-            | User32.WindowStylesEx.WS_EX_STATICEDGE);
+        (double scaleX, double scaleY, double offsetX, double offsetY) = MainWindow.CalculatePreviewFullScreenTransform(
+            new System.Windows.Rect(320d, 180d, 960d, 540d),
+            new System.Windows.Size(1920d, 1080d));
 
-        int fullScreenExStyle = MainWindow.BuildPreviewFullScreenWindowExStyle(exStyle);
+        Assert.Equal(0.5d, scaleX);
+        Assert.Equal(0.5d, scaleY);
+        Assert.Equal(320d, offsetX);
+        Assert.Equal(180d, offsetY);
+    }
 
-        Assert.True((fullScreenExStyle & (int)User32.WindowStylesEx.WS_EX_APPWINDOW) != 0);
-        Assert.False((fullScreenExStyle & (int)User32.WindowStylesEx.WS_EX_TOPMOST) != 0);
-        Assert.False((fullScreenExStyle & (int)User32.WindowStylesEx.WS_EX_CLIENTEDGE) != 0);
-        Assert.False((fullScreenExStyle & (int)User32.WindowStylesEx.WS_EX_WINDOWEDGE) != 0);
-        Assert.False((fullScreenExStyle & (int)User32.WindowStylesEx.WS_EX_STATICEDGE) != 0);
+    [Theory]
+    [InlineData(0d, 1080d)]
+    [InlineData(1920d, 0d)]
+    [InlineData(double.NaN, 1080d)]
+    public void CalculatePreviewFullScreenTransform_InvalidPanelSizeUsesIdentity(double width, double height)
+    {
+        Assert.Equal(
+            (1d, 1d, 0d, 0d),
+            MainWindow.CalculatePreviewFullScreenTransform(
+                new System.Windows.Rect(10d, 20d, 300d, 200d),
+                new System.Windows.Size(width, height)));
+    }
+
+    [Fact]
+    public void LivePreviewCursorIdleScope_ChangesOnlyTargetElementAndRestoresUnsetValue()
+    {
+        RunOnStaThread(() =>
+        {
+            System.Windows.Controls.Border target = new();
+            System.Windows.Controls.Border sibling = new() { Cursor = System.Windows.Input.Cursors.Hand };
+            System.Windows.Input.Cursor? overrideCursor = System.Windows.Input.Mouse.OverrideCursor;
+
+            object localValue = LivePreviewPanel.HideCursorForElement(target);
+
+            Assert.Equal(System.Windows.DependencyProperty.UnsetValue, localValue);
+            Assert.Same(System.Windows.Input.Cursors.None, target.Cursor);
+            Assert.Same(System.Windows.Input.Cursors.Hand, sibling.Cursor);
+            Assert.Same(overrideCursor, System.Windows.Input.Mouse.OverrideCursor);
+
+            LivePreviewPanel.RestoreCursorForElement(target, localValue);
+
+            Assert.Equal(
+                System.Windows.DependencyProperty.UnsetValue,
+                target.ReadLocalValue(System.Windows.FrameworkElement.CursorProperty));
+            Assert.Same(System.Windows.Input.Cursors.Hand, sibling.Cursor);
+            Assert.Same(overrideCursor, System.Windows.Input.Mouse.OverrideCursor);
+        });
+    }
+
+    [Fact]
+    public void LivePreviewCursorIdleScope_RestoresExistingLocalCursor()
+    {
+        RunOnStaThread(() =>
+        {
+            System.Windows.Controls.Border target = new() { Cursor = System.Windows.Input.Cursors.Cross };
+
+            object localValue = LivePreviewPanel.HideCursorForElement(target);
+            LivePreviewPanel.RestoreCursorForElement(target, localValue);
+
+            Assert.Same(System.Windows.Input.Cursors.Cross, target.Cursor);
+            Assert.Same(
+                System.Windows.Input.Cursors.Cross,
+                target.ReadLocalValue(System.Windows.FrameworkElement.CursorProperty));
+        });
+    }
+
+    [Fact]
+    public void LivePreviewCursorIdleScope_DoesNotOverwriteLaterCursorChange()
+    {
+        RunOnStaThread(() =>
+        {
+            System.Windows.Controls.Border target = new() { Cursor = System.Windows.Input.Cursors.Cross };
+
+            object localValue = LivePreviewPanel.HideCursorForElement(target);
+            target.Cursor = System.Windows.Input.Cursors.Hand;
+            LivePreviewPanel.RestoreCursorForElement(target, localValue);
+
+            Assert.Same(System.Windows.Input.Cursors.Hand, target.Cursor);
+        });
+    }
+
+    [Theory]
+    [InlineData(4, 4, false, true, true)]
+    [InlineData(3, 4, false, true, false)]
+    [InlineData(4, 4, true, true, false)]
+    [InlineData(4, 4, false, false, false)]
+    public void ShouldRestorePreviewWindowFrameAttributes_RejectsStaleOrActiveFullScreenCallbacks(
+        int restoreGeneration,
+        int currentGeneration,
+        bool isFullScreen,
+        bool attributesCaptured,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            MainWindow.ShouldRestorePreviewWindowFrameAttributes(
+                restoreGeneration,
+                currentGeneration,
+                isFullScreen,
+                attributesCaptured));
+    }
+
+    [Fact]
+    public void MainWindowRoomDetails_DoesNotExposeRecordingEngine()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+
+        Assert.DoesNotContain("Text=\"录制引擎\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("SelectedItem.RecordingEngineText", xaml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1021,6 +1129,30 @@ public sealed class LivePreviewTests
         }
 
         throw new FileNotFoundException(string.Join(Path.DirectorySeparatorChar, parts));
+    }
+
+    private static void RunOnStaThread(Action action)
+    {
+        Exception? error = null;
+        Thread thread = new(() =>
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception exception)
+            {
+                error = exception;
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (error != null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error).Throw();
+        }
     }
 
 }
