@@ -1001,6 +1001,7 @@ public sealed class SpiderTests
         Assert.Equal("anchor", result.Nickname);
         Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
         Assert.Equal("https://example.test/live.flv", result.FlvUrl);
+        Assert.Equal(result.FlvUrl, result.RecordUrl);
     }
 
     [Fact]
@@ -1019,7 +1020,7 @@ public sealed class SpiderTests
     }
 
     [Fact]
-    public void BilibiliPlayInfo_UsesHighestAdvertisedQualityAndCompatibleCodec()
+    public void BilibiliPlayInfo_UsesRecordableFlvAndTracksHighestAdvertisedQuality()
     {
         BilibiliSpiderResult result = new()
         {
@@ -1062,7 +1063,7 @@ public sealed class SpiderTests
                           "format_name": "ts",
                           "codec": [{
                             "codec_name": "avc",
-                            "current_qn": 10000,
+                            "current_qn": 20000,
                             "accept_qn": [20000, 10000, 150],
                             "base_url": "/live.m3u8",
                             "url_info": [{ "host": "https://hls.example.test", "extra": "?token=hls" }]
@@ -1078,11 +1079,23 @@ public sealed class SpiderTests
 
         BilibiliPlayInfo playInfo = BilibiliSpider.ExtractPlayInfo(json, result);
 
-        Assert.Equal(10000, playInfo.CurrentQuality);
+        Assert.Equal(20000, playInfo.CurrentQuality);
         Assert.Equal(20000, playInfo.HighestAvailableQuality);
-        Assert.Equal("10000", result.Quality);
+        Assert.Equal("20000", result.Quality);
         Assert.Equal("https://cdn.example.test/live-avc.flv?token=avc", result.FlvUrl);
         Assert.Equal("https://hls.example.test/live.m3u8?token=hls", result.HlsUrl);
+        Assert.Equal(result.HlsUrl, result.RecordUrl);
+    }
+
+    [Fact]
+    public void BilibiliRecordCandidate_PrefersFlvAtEqualQuality()
+    {
+        BilibiliStreamCandidate flv = new("https://example.test/live.flv", "http_stream", "flv", "avc", 10000);
+        BilibiliStreamCandidate hls = new("https://example.test/live.m3u8", "http_hls", "ts", "avc", 10000);
+
+        BilibiliStreamCandidate? selected = BilibiliSpider.SelectRecordCandidate(flv, hls);
+
+        Assert.Same(flv, selected);
     }
 
     [Fact]

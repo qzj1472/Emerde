@@ -181,6 +181,46 @@ public sealed class RecorderTests
     }
 
     [Theory]
+    [InlineData("Bilibili", "https://example.test/live.m3u8", false, false, "https://example.test/live.flv")]
+    [InlineData("bilibili", "https://example.test/live.m3u8", false, false, "https://example.test/live.flv")]
+    [InlineData("Douyin", "https://example.test/live.m3u8", false, false, null)]
+    [InlineData("Bilibili", "https://example.test/live.m3u8", true, false, null)]
+    [InlineData("Bilibili", "https://example.test/live.m3u8", false, true, null)]
+    [InlineData("Bilibili", "https://example.test/live.flv", false, false, null)]
+    public void SelectInputFallback_UsesBilibiliFlvOnlyBeforePrimaryMediaProgress(
+        string platformName,
+        string currentUrl,
+        bool hadMediaProgress,
+        bool alreadyTried,
+        string? expected)
+    {
+        string? fallback = Recorder.SelectInputFallback(
+            platformName,
+            currentUrl,
+            "https://example.test/live.m3u8",
+            "https://example.test/live.flv",
+            hadMediaProgress,
+            alreadyTried);
+
+        Assert.Equal(expected, fallback);
+    }
+
+    [Fact]
+    public void InputFallback_RemovesFailedOutputBeforeAdvancingSessionPart()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "Recorder.cs"));
+        int fallbackStart = source.IndexOf("string? fallbackUrl = SelectInputFallback(", StringComparison.Ordinal);
+        int failedOutputDelete = source.IndexOf("DeleteFailedOutputFiles(outputFileName", fallbackStart, StringComparison.Ordinal);
+        int fallbackContinue = source.IndexOf("continue;", failedOutputDelete, StringComparison.Ordinal);
+        int sessionPartAdvance = source.IndexOf("sessionPartIndex++;", fallbackContinue, StringComparison.Ordinal);
+
+        Assert.True(fallbackStart >= 0);
+        Assert.True(failedOutputDelete > fallbackStart);
+        Assert.True(fallbackContinue > failedOutputDelete);
+        Assert.True(sessionPartAdvance > fallbackContinue);
+    }
+
+    [Theory]
     [InlineData(0, "record_000.ts")]
     [InlineData(1, "record_001.ts")]
     [InlineData(12, "record_012.ts")]
@@ -546,5 +586,21 @@ public sealed class RecorderTests
     public void IsMissingAudioError_RecognizesFfmpegFailures(string errorOutput)
     {
         Assert.True(Recorder.IsMissingAudioError(errorOutput));
+    }
+
+    private static string FindRepositoryFile(params string[] parts)
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory != null)
+        {
+            string path = Path.Combine([directory.FullName, .. parts]);
+            if (File.Exists(path))
+            {
+                return path;
+            }
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException(string.Join(Path.DirectorySeparatorChar, parts));
     }
 }
