@@ -181,6 +181,7 @@ public sealed class BilibiliSpider : ISpider, IQualitySelectableSpider
             else
             {
                 result.FlvUrl = url;
+                result.RecordUrl = url;
             }
             result.Quality = data?["current_qn"]?.ToString() ?? quality;
         }
@@ -262,7 +263,9 @@ public sealed class BilibiliSpider : ISpider, IQualitySelectableSpider
                 result.HlsUrl = hls.Url;
             }
 
-            int current = Math.Max(flv?.Quality ?? 0, hls?.Quality ?? 0);
+            BilibiliStreamCandidate? recordCandidate = SelectRecordCandidate(flv, hls);
+            result.RecordUrl = recordCandidate?.Url;
+            int current = recordCandidate?.Quality ?? 0;
             if (current > 0)
             {
                 result.Quality = current.ToString();
@@ -290,6 +293,23 @@ public sealed class BilibiliSpider : ISpider, IQualitySelectableSpider
             .OrderByDescending(candidate => candidate.Quality)
             .ThenBy(candidate => GetCodecPriority(candidate.CodecName))
             .FirstOrDefault();
+    }
+
+    internal static BilibiliStreamCandidate? SelectRecordCandidate(
+        BilibiliStreamCandidate? flv,
+        BilibiliStreamCandidate? hls)
+    {
+        if (flv == null)
+        {
+            return hls;
+        }
+
+        if (hls == null || flv.Quality >= hls.Quality)
+        {
+            return flv;
+        }
+
+        return hls;
     }
 
     private static int GetCodecPriority(string codecName)
@@ -412,6 +432,8 @@ public sealed class BilibiliSpiderResult : ISpiderResult
     public string? FlvUrl { get; set; }
 
     public string? HlsUrl { get; set; }
+
+    public string? RecordUrl { get; set; }
 
     public string? Quality { get; set; }
 
