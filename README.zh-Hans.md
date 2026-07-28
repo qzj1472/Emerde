@@ -160,7 +160,7 @@ Emerde 是 Windows-only WPF 应用。
 
 ## 许可证
 
-本项目基于 [MIT 许可证](LICENSE)。
+Emerde 整体以 [GNU 通用公共许可证第 3 版（仅限第 3 版）](LICENSE)（`GPL-3.0-only`）发布。源自原 MIT 项目的部分仍保留原 MIT 授权，原版权与许可证声明见 [LICENSES/MIT.txt](LICENSES/MIT.txt)。署名及依赖许可证说明见 [Third Party Notices](THIRD_PARTY_NOTICES.md)。
 
 ## 鸣谢
 
