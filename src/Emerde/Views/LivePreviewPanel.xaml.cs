@@ -60,6 +60,9 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     private int previewRoomTransitionAnimationGeneration;
     private bool isPreviewRoomTransitionPending;
     private bool hasPreviewRoomTransitionFrame;
+    private bool isPreviewCursorHidden;
+    private System.Windows.FrameworkElement? previewCursorScope;
+    private object? previewCursorLocalValue;
 
     public bool IsEmbeddedMode
     {
@@ -837,7 +840,8 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
 
     private void PreviewViewport_OnMouseActivity(object sender, System.Windows.Input.MouseEventArgs e)
     {
-        lastTrackedPointerPosition = System.Windows.Input.Mouse.GetPosition(VideoSurface);
+        System.Windows.FrameworkElement pointerScope = GetPreviewPointerScope();
+        lastTrackedPointerPosition = System.Windows.Input.Mouse.GetPosition(pointerScope);
         ShowPreviewControls();
     }
 
@@ -948,6 +952,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
 
     private void ShowPreviewControls()
     {
+        RestorePreviewCursor();
         if (!CanUsePreviewControls())
         {
             HidePreviewControlsImmediately();
@@ -976,12 +981,14 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         }
 
         SetPreviewControlsVisible(false);
+        HidePreviewCursor();
     }
 
     public void HidePreviewControlsImmediately()
     {
         controlsIdleTimer.Stop();
         SetPreviewControlsVisible(false);
+        RestorePreviewCursor();
     }
 
     private void SetPreviewControlsVisible(bool isVisible)
@@ -1042,10 +1049,12 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             return;
         }
 
-        System.Windows.Point pointerPosition = System.Windows.Input.Mouse.GetPosition(VideoSurface);
-        if (!IsPointerInsideVideoSurface(pointerPosition))
+        System.Windows.FrameworkElement pointerScope = GetPreviewPointerScope();
+        System.Windows.Point pointerPosition = System.Windows.Input.Mouse.GetPosition(pointerScope);
+        if (!IsPointerInsideElement(pointerScope, pointerPosition))
         {
             lastTrackedPointerPosition = null;
+            RestorePreviewCursor();
             return;
         }
 
@@ -1058,6 +1067,77 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         ShowPreviewControls();
     }
 
+    private System.Windows.FrameworkElement GetPreviewPointerScope()
+    {
+        return isFullScreen ? PanelChrome : VideoSurface;
+    }
+
+    private void HidePreviewCursor()
+    {
+        System.Windows.FrameworkElement pointerScope = GetPreviewPointerScope();
+        System.Windows.Point pointerPosition = System.Windows.Input.Mouse.GetPosition(pointerScope);
+        if (!IsPointerInsideElement(pointerScope, pointerPosition))
+        {
+            return;
+        }
+
+        if (isPreviewCursorHidden)
+        {
+            if (ReferenceEquals(previewCursorScope, pointerScope))
+            {
+                return;
+            }
+
+            RestorePreviewCursor();
+        }
+
+        previewCursorScope = pointerScope;
+        previewCursorLocalValue = HideCursorForElement(pointerScope);
+        isPreviewCursorHidden = true;
+    }
+
+    private void RestorePreviewCursor()
+    {
+        if (!isPreviewCursorHidden)
+        {
+            return;
+        }
+
+        if (previewCursorScope != null)
+        {
+            RestoreCursorForElement(previewCursorScope, previewCursorLocalValue);
+        }
+
+        previewCursorScope = null;
+        previewCursorLocalValue = null;
+        isPreviewCursorHidden = false;
+    }
+
+    internal static object HideCursorForElement(System.Windows.FrameworkElement element)
+    {
+        object localValue = element.ReadLocalValue(System.Windows.FrameworkElement.CursorProperty);
+        element.Cursor = System.Windows.Input.Cursors.None;
+        return localValue;
+    }
+
+    internal static void RestoreCursorForElement(System.Windows.FrameworkElement element, object? localValue)
+    {
+        if (!ReferenceEquals(
+                element.ReadLocalValue(System.Windows.FrameworkElement.CursorProperty),
+                System.Windows.Input.Cursors.None))
+        {
+            return;
+        }
+
+        if (localValue == null || localValue == System.Windows.DependencyProperty.UnsetValue)
+        {
+            element.ClearValue(System.Windows.FrameworkElement.CursorProperty);
+            return;
+        }
+
+        element.SetValue(System.Windows.FrameworkElement.CursorProperty, localValue);
+    }
+
     internal static bool HasPointerMoved(System.Windows.Point? previousPosition, System.Windows.Point currentPosition)
     {
         return previousPosition == null
@@ -1065,17 +1145,17 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             || Math.Abs(previousPosition.Value.Y - currentPosition.Y) >= 1d;
     }
 
-    private bool IsPointerInsideVideoSurface(System.Windows.Point position)
+    private static bool IsPointerInsideElement(System.Windows.FrameworkElement element, System.Windows.Point position)
     {
-        if (VideoSurface.ActualWidth <= 0d || VideoSurface.ActualHeight <= 0d)
+        if (element.ActualWidth <= 0d || element.ActualHeight <= 0d)
         {
             return false;
         }
 
         return position.X >= 0d
-            && position.X <= VideoSurface.ActualWidth
+            && position.X <= element.ActualWidth
             && position.Y >= 0d
-            && position.Y <= VideoSurface.ActualHeight;
+            && position.Y <= element.ActualHeight;
     }
 
     private void UpdateWindowSizeIcon()
@@ -1141,6 +1221,8 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     private void ApplyChromeState()
     {
         bool compact = isFullScreen;
+        lastTrackedPointerPosition = null;
+        RestorePreviewCursor();
 
         if (compact)
         {
