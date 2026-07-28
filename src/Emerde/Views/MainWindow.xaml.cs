@@ -199,9 +199,7 @@ public partial class MainWindow : FluentWindow
     private const double RoomCardScrollContentPadding = 6d;
     private const double RoomCardScrollBarReservedWidth = 17d;
     private const int WmGetMinMaxInfo = 0x0024;
-    private const int WmNcCalcSize = 0x0083;
     private const int WmNcHitTest = 0x0084;
-    private const int WmNcPaint = 0x0085;
     private const int WmSysCommand = 0x0112;
     private const int HtClient = 1;
     private const int SysCommandMask = 0xFFF0;
@@ -209,6 +207,7 @@ public partial class MainWindow : FluentWindow
     private const int ScMove = 0xF010;
     private const int DwmColorNone = unchecked((int)0xFFFFFFFE);
     private const int PreviewFullScreenOverscanPixels = 2;
+    private const int PreviewFullScreenTransitionMilliseconds = 210;
 
     private double normalRoomCardBaseWidth;
     private bool isNormalRoomCardBaseWidthCaptured;
@@ -248,26 +247,17 @@ public partial class MainWindow : FluentWindow
     private Visibility previewHomeStatusTrayVisibility;
     private Visibility previewShellTitleBarVisibility;
     private WindowState previewWindowState;
-    private WindowStyle previewWindowStyle;
-    private ResizeMode previewResizeMode;
-    private WindowBackdropType previewWindowBackdropType;
-    private Thickness previewWindowBorderThickness;
-    private Brush? previewWindowBorderBrush;
-    private bool previewTopmost;
-    private double previewMaxWidth;
-    private double previewMaxHeight;
     private double previewLeft;
     private double previewTop;
     private double previewWidth;
     private double previewHeight;
-    private int previewNativeWindowStyle;
-    private int previewNativeWindowExStyle;
-    private int previewDwmBorderColor;
-    private int previewDwmCornerPreference;
-    private bool isPreviewNativeWindowStyleCaptured;
-    private bool isPreviewDwmBorderColorCaptured;
-    private bool isPreviewDwmCornerPreferenceCaptured;
+    private Rect previewPanelScreenBounds;
+    private int previewDwmTransitionsForcedDisabled;
+    private bool isPreviewWindowFrameAttributesCaptured;
     private bool isPreviewFullScreen;
+    private bool isPreviewFullScreenTransitionActive;
+    private int previewFullScreenTransitionGeneration;
+    private int previewWindowFrameRestoreGeneration;
     private bool previousPreviewingState;
     private bool isStartupAboutNoticeQueued;
     private bool isStartupAboutNoticeShowing;
@@ -276,6 +266,8 @@ public partial class MainWindow : FluentWindow
     private int previewPresentationUpdateGeneration;
     private bool isHomePreviewColumnAnimationActive;
     private bool isPreviewClosingTransitionActive;
+    private readonly ScaleTransform previewFullScreenScaleTransform = new(1d, 1d);
+    private readonly TranslateTransform previewFullScreenTranslateTransform = new();
 
     public MainWindow()
     {
@@ -283,6 +275,15 @@ public partial class MainWindow : FluentWindow
         DataContext = ViewModel = new();
         WindowSizing.UseMainWindowAspectSize(this);
         InitializeComponent();
+        HomePreviewPanel.RenderTransformOrigin = new Point(0d, 0d);
+        HomePreviewPanel.RenderTransform = new TransformGroup
+        {
+            Children =
+            {
+                previewFullScreenScaleTransform,
+                previewFullScreenTranslateTransform,
+            },
+        };
         IsPreviewSurfaceVisible = ViewModel.IsPreviewing;
         previousPreviewingState = ViewModel.IsPreviewing;
         UpdateHomePreviewLayout();
@@ -382,12 +383,6 @@ public partial class MainWindow : FluentWindow
             return IntPtr.Zero;
         }
 
-        if (IsPreviewFullScreenNonClientMessage(isPreviewFullScreen, message))
-        {
-            handled = true;
-            return IntPtr.Zero;
-        }
-
         if (IsPreviewFullScreenClientHitTest(isPreviewFullScreen, message))
         {
             handled = true;
@@ -429,11 +424,6 @@ public partial class MainWindow : FluentWindow
             workArea.Height,
             workArea.Width,
             workArea.Height);
-    }
-
-    internal static bool IsPreviewFullScreenNonClientMessage(bool isFullScreen, int message)
-    {
-        return isFullScreen && (message == WmNcCalcSize || message == WmNcPaint);
     }
 
     internal static bool IsPreviewFullScreenClientHitTest(bool isFullScreen, int message)
@@ -974,7 +964,7 @@ public partial class MainWindow : FluentWindow
 
             if (!ViewModel.IsPreviewing && IsPreviewFullScreenActive)
             {
-                ExitPreviewFullScreen();
+                CompletePreviewFullScreenExit();
             }
 
             bool layoutWillRepositionSelection = ShouldAnimateHomePreviewColumns(true);
@@ -1650,9 +1640,14 @@ public partial class MainWindow : FluentWindow
 
     internal void TogglePreviewFullScreen()
     {
+        if (isPreviewFullScreenTransitionActive)
+        {
+            return;
+        }
+
         if (IsPreviewFullScreenActive)
         {
-            ExitPreviewFullScreen();
+            BeginPreviewFullScreenExit();
             return;
         }
 
@@ -1665,7 +1660,7 @@ public partial class MainWindow : FluentWindow
     {
         if (isPreviewFullScreen)
         {
-            ExitPreviewFullScreen();
+            CompletePreviewFullScreenExit();
         }
 
         HomePreviewPanel.HidePreviewControlsImmediately();
@@ -1673,13 +1668,17 @@ public partial class MainWindow : FluentWindow
 
     private void EnterPreviewFullScreen()
     {
-        if (!ViewModel.IsPreviewing || isPreviewFullScreen)
+        if (!ViewModel.IsPreviewing || isPreviewFullScreen || isPreviewFullScreenTransitionActive)
         {
             return;
         }
 
         SavePreviewFullScreenLayout();
         SavePreviewWindowPlacement();
+        SavePreviewPanelScreenBounds();
+        previewWindowFrameRestoreGeneration++;
+        int transitionGeneration = ++previewFullScreenTransitionGeneration;
+        isPreviewFullScreenTransitionActive = true;
 
         try
         {
@@ -1690,7 +1689,8 @@ public partial class MainWindow : FluentWindow
             ApplyPreviewFullScreenWindowBounds();
             Activate();
             Focus();
-            QueuePreviewFullScreenWindowRefresh();
+            UpdateLayout();
+            BeginPreviewFullScreenTransform(true, transitionGeneration);
             AppSessionLogger.Event("info", "preview", "preview_full_screen_entered", "preview entered full screen", new
             {
                 room = ViewModel.PreviewingRoom == null
@@ -1700,10 +1700,14 @@ public partial class MainWindow : FluentWindow
         }
         catch
         {
+            previewFullScreenTransitionGeneration++;
+            isPreviewFullScreenTransitionActive = false;
+            ResetPreviewFullScreenTransform();
             isPreviewFullScreen = false;
             HomePreviewPanel.IsFullScreen = false;
             RestorePreviewFullScreenLayout();
             RestorePreviewWindowPlacement();
+            RestorePreviewWindowFrameAttributes();
             ViewModel.IsPreviewDetached = false;
             throw;
         }
@@ -1711,12 +1715,33 @@ public partial class MainWindow : FluentWindow
 
     private void ExitPreviewFullScreen()
     {
-        if (!isPreviewFullScreen)
+        BeginPreviewFullScreenExit();
+    }
+
+    private void BeginPreviewFullScreenExit()
+    {
+        if (!isPreviewFullScreen || isPreviewFullScreenTransitionActive)
         {
             return;
         }
 
         HomePreviewPanel.HidePreviewControlsImmediately();
+        int transitionGeneration = ++previewFullScreenTransitionGeneration;
+        isPreviewFullScreenTransitionActive = true;
+        BeginPreviewFullScreenTransform(false, transitionGeneration);
+    }
+
+    private void CompletePreviewFullScreenExit()
+    {
+        if (!isPreviewFullScreen && !isPreviewFullScreenTransitionActive)
+        {
+            return;
+        }
+
+        previewFullScreenTransitionGeneration++;
+        isPreviewFullScreenTransitionActive = false;
+        ResetPreviewFullScreenTransform();
+        SetPreviewSystemTransitionsDisabled(true);
         isPreviewFullScreen = false;
         HomePreviewPanel.IsFullScreen = false;
         RestorePreviewFullScreenLayout();
@@ -1727,12 +1752,156 @@ public partial class MainWindow : FluentWindow
         Activate();
         Focus();
         FocusRoomCardList();
+        QueuePreviewWindowFrameAttributesRestore();
         AppSessionLogger.Event("info", "preview", "preview_full_screen_exited", "preview exited full screen", new
         {
             room = ViewModel.PreviewingRoom == null
                 ? null
                 : new { ViewModel.PreviewingRoom.RoomUrl, ViewModel.PreviewingRoom.NickName },
         });
+    }
+
+    private void SavePreviewPanelScreenBounds()
+    {
+        if (!HomePreviewPanel.IsLoaded || HomePreviewPanel.ActualWidth <= 0d || HomePreviewPanel.ActualHeight <= 0d)
+        {
+            previewPanelScreenBounds = Rect.Empty;
+            return;
+        }
+
+        Point topLeft = HomePreviewPanel.PointToScreen(new Point(0d, 0d));
+        Point bottomRight = HomePreviewPanel.PointToScreen(new Point(HomePreviewPanel.ActualWidth, HomePreviewPanel.ActualHeight));
+        previewPanelScreenBounds = new Rect(topLeft, bottomRight);
+    }
+
+    private void BeginPreviewFullScreenTransform(bool entering, int transitionGeneration)
+    {
+        if (!TryGetPreviewFullScreenTransform(out double scaleX, out double scaleY, out double offsetX, out double offsetY)
+            || !SystemParameters.ClientAreaAnimation)
+        {
+            CompletePreviewFullScreenTransform(entering, transitionGeneration);
+            return;
+        }
+
+        double fromScaleX = entering ? scaleX : 1d;
+        double fromScaleY = entering ? scaleY : 1d;
+        double fromOffsetX = entering ? offsetX : 0d;
+        double fromOffsetY = entering ? offsetY : 0d;
+        double toScaleX = entering ? 1d : scaleX;
+        double toScaleY = entering ? 1d : scaleY;
+        double toOffsetX = entering ? 0d : offsetX;
+        double toOffsetY = entering ? 0d : offsetY;
+        System.Windows.Media.Animation.EasingMode easingMode = entering
+            ? System.Windows.Media.Animation.EasingMode.EaseOut
+            : System.Windows.Media.Animation.EasingMode.EaseInOut;
+        System.Windows.Media.Animation.IEasingFunction easing = new System.Windows.Media.Animation.CubicEase { EasingMode = easingMode };
+
+        ResetPreviewFullScreenTransform();
+        previewFullScreenScaleTransform.ScaleX = fromScaleX;
+        previewFullScreenScaleTransform.ScaleY = fromScaleY;
+        previewFullScreenTranslateTransform.X = fromOffsetX;
+        previewFullScreenTranslateTransform.Y = fromOffsetY;
+
+        previewFullScreenScaleTransform.BeginAnimation(
+            ScaleTransform.ScaleXProperty,
+            CreatePreviewFullScreenAnimation(fromScaleX, toScaleX, easing));
+        previewFullScreenScaleTransform.BeginAnimation(
+            ScaleTransform.ScaleYProperty,
+            CreatePreviewFullScreenAnimation(fromScaleY, toScaleY, easing));
+        previewFullScreenTranslateTransform.BeginAnimation(
+            TranslateTransform.XProperty,
+            CreatePreviewFullScreenAnimation(fromOffsetX, toOffsetX, easing));
+        System.Windows.Media.Animation.DoubleAnimation completionAnimation = CreatePreviewFullScreenAnimation(fromOffsetY, toOffsetY, easing);
+        completionAnimation.Completed += (_, _) => CompletePreviewFullScreenTransform(entering, transitionGeneration);
+        previewFullScreenTranslateTransform.BeginAnimation(TranslateTransform.YProperty, completionAnimation);
+    }
+
+    private bool TryGetPreviewFullScreenTransform(out double scaleX, out double scaleY, out double offsetX, out double offsetY)
+    {
+        scaleX = 1d;
+        scaleY = 1d;
+        offsetX = 0d;
+        offsetY = 0d;
+
+        if (previewPanelScreenBounds.IsEmpty || HomePreviewPanel.ActualWidth <= 0d || HomePreviewPanel.ActualHeight <= 0d)
+        {
+            return false;
+        }
+
+        Point targetTopLeft = HomePreviewPanel.PointFromScreen(previewPanelScreenBounds.TopLeft);
+        Point targetBottomRight = HomePreviewPanel.PointFromScreen(previewPanelScreenBounds.BottomRight);
+        (scaleX, scaleY, offsetX, offsetY) = CalculatePreviewFullScreenTransform(
+            new Rect(targetTopLeft, targetBottomRight),
+            new Size(HomePreviewPanel.ActualWidth, HomePreviewPanel.ActualHeight));
+        return scaleX > 0d && scaleY > 0d;
+    }
+
+    internal static (double ScaleX, double ScaleY, double OffsetX, double OffsetY) CalculatePreviewFullScreenTransform(Rect targetBounds, Size fullScreenSize)
+    {
+        if (targetBounds.IsEmpty
+            || !double.IsFinite(targetBounds.X)
+            || !double.IsFinite(targetBounds.Y)
+            || !double.IsFinite(targetBounds.Width)
+            || !double.IsFinite(targetBounds.Height)
+            || !double.IsFinite(fullScreenSize.Width)
+            || !double.IsFinite(fullScreenSize.Height)
+            || targetBounds.Width <= 0d
+            || targetBounds.Height <= 0d
+            || fullScreenSize.Width <= 0d
+            || fullScreenSize.Height <= 0d)
+        {
+            return (1d, 1d, 0d, 0d);
+        }
+
+        return (
+            targetBounds.Width / fullScreenSize.Width,
+            targetBounds.Height / fullScreenSize.Height,
+            targetBounds.X,
+            targetBounds.Y);
+    }
+
+    private static System.Windows.Media.Animation.DoubleAnimation CreatePreviewFullScreenAnimation(
+        double from,
+        double to,
+        System.Windows.Media.Animation.IEasingFunction easing)
+    {
+        return new System.Windows.Media.Animation.DoubleAnimation(from, to, TimeSpan.FromMilliseconds(PreviewFullScreenTransitionMilliseconds))
+        {
+            EasingFunction = easing,
+            FillBehavior = System.Windows.Media.Animation.FillBehavior.HoldEnd,
+        };
+    }
+
+    private void CompletePreviewFullScreenTransform(bool entering, int transitionGeneration)
+    {
+        if (previewFullScreenTransitionGeneration != transitionGeneration)
+        {
+            return;
+        }
+
+        ResetPreviewFullScreenTransform();
+        isPreviewFullScreenTransitionActive = false;
+        if (!entering)
+        {
+            CompletePreviewFullScreenExit();
+            return;
+        }
+
+        RestorePreviewSystemTransitions();
+        HomePreviewPanel.RefreshVideoLayout();
+        HomePreviewPanel.InvalidateVisual();
+    }
+
+    private void ResetPreviewFullScreenTransform()
+    {
+        previewFullScreenScaleTransform.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        previewFullScreenScaleTransform.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        previewFullScreenTranslateTransform.BeginAnimation(TranslateTransform.XProperty, null);
+        previewFullScreenTranslateTransform.BeginAnimation(TranslateTransform.YProperty, null);
+        previewFullScreenScaleTransform.ScaleX = 1d;
+        previewFullScreenScaleTransform.ScaleY = 1d;
+        previewFullScreenTranslateTransform.X = 0d;
+        previewFullScreenTranslateTransform.Y = 0d;
     }
 
     private void SavePreviewFullScreenLayout()
@@ -1816,14 +1985,6 @@ public partial class MainWindow : FluentWindow
     private void SavePreviewWindowPlacement()
     {
         previewWindowState = WindowState;
-        previewWindowStyle = WindowStyle;
-        previewResizeMode = ResizeMode;
-        previewWindowBackdropType = WindowBackdropType;
-        previewWindowBorderThickness = BorderThickness;
-        previewWindowBorderBrush = BorderBrush;
-        previewTopmost = Topmost;
-        previewMaxWidth = MaxWidth;
-        previewMaxHeight = MaxHeight;
         Rect restoreBounds = WindowState == WindowState.Normal
             ? new Rect(Left, Top, Width, Height)
             : RestoreBounds;
@@ -1846,16 +2007,10 @@ public partial class MainWindow : FluentWindow
             screenBounds,
             System.Windows.Forms.Screen.AllScreens.Select(screen => screen.Bounds));
         DpiScale dpi = VisualTreeHelper.GetDpi(this);
+        CapturePreviewWindowFrameAttributes(handle);
+        SetPreviewSystemTransitionsDisabled(true);
         WindowState = WindowState.Normal;
-        ResizeMode = ResizeMode.NoResize;
-        WindowStyle = WindowStyle.None;
-        WindowBackdropType = WindowBackdropType.None;
-        BorderThickness = new Thickness(0);
-        BorderBrush = System.Windows.Media.Brushes.Transparent;
-        MaxWidth = double.PositiveInfinity;
-        MaxHeight = double.PositiveInfinity;
-        Topmost = false;
-        ApplyPreviewNativeFullScreenStyle(handle);
+        SetPreviewWindowFrameAttributes(handle, true);
         Left = bounds.Left / dpi.DpiScaleX;
         Top = bounds.Top / dpi.DpiScaleY;
         Width = bounds.Width / dpi.DpiScaleX;
@@ -1868,7 +2023,6 @@ public partial class MainWindow : FluentWindow
             bounds.Width,
             bounds.Height,
             User32.SetWindowPosFlags.SWP_SHOWWINDOW
-                | User32.SetWindowPosFlags.SWP_FRAMECHANGED
                 | User32.SetWindowPosFlags.SWP_NOOWNERZORDER);
     }
 
@@ -1925,35 +2079,10 @@ public partial class MainWindow : FluentWindow
         return firstStart < secondEnd && secondStart < firstEnd;
     }
 
-    private void QueuePreviewFullScreenWindowRefresh()
-    {
-        _ = Dispatcher.BeginInvoke(RefreshPreviewFullScreenWindow, DispatcherPriority.Render);
-    }
-
-    private void RefreshPreviewFullScreenWindow()
-    {
-        if (!isPreviewFullScreen)
-        {
-            return;
-        }
-
-        ApplyPreviewFullScreenWindowBounds();
-        HomePreviewPanel.RefreshVideoLayout();
-        HomePreviewPanel.InvalidateVisual();
-    }
-
     private void RestorePreviewWindowPlacement()
     {
         IntPtr handle = new WindowInteropHelper(this).Handle;
         WindowState = WindowState.Normal;
-        WindowStyle = previewWindowStyle;
-        ResizeMode = previewResizeMode;
-        WindowBackdropType = previewWindowBackdropType;
-        BorderThickness = previewWindowBorderThickness;
-        BorderBrush = previewWindowBorderBrush;
-        MaxWidth = previewMaxWidth;
-        MaxHeight = previewMaxHeight;
-        Topmost = previewTopmost;
         Left = previewLeft;
         Top = previewTop;
         Width = previewWidth;
@@ -1961,93 +2090,119 @@ public partial class MainWindow : FluentWindow
         WindowState = previewWindowState;
         if (handle != IntPtr.Zero)
         {
-            RestorePreviewNativeWindowStyle(handle);
-            _ = User32.SetWindowPos(
-                handle,
-                IntPtr.Zero,
-                0,
-                0,
-                0,
-                0,
-                User32.SetWindowPosFlags.SWP_NOMOVE
-                    | User32.SetWindowPosFlags.SWP_NOSIZE
-                    | User32.SetWindowPosFlags.SWP_NOZORDER
-                    | User32.SetWindowPosFlags.SWP_FRAMECHANGED);
+            SetPreviewWindowFrameAttributes(handle, false);
         }
     }
 
-    private void ApplyPreviewNativeFullScreenStyle(IntPtr handle)
+    private void CapturePreviewWindowFrameAttributes(IntPtr handle)
     {
-        SavePreviewNativeWindowStyle(handle);
-        _ = User32.SetWindowLong(handle, User32.WindowLongFlags.GWL_STYLE, BuildPreviewFullScreenWindowStyle(previewNativeWindowStyle));
-        _ = User32.SetWindowLong(handle, User32.WindowLongFlags.GWL_EXSTYLE, BuildPreviewFullScreenWindowExStyle(previewNativeWindowExStyle));
-        SetPreviewWindowFrameAttributes(handle, true);
-    }
-
-    private void SavePreviewNativeWindowStyle(IntPtr handle)
-    {
-        if (isPreviewNativeWindowStyleCaptured)
+        if (isPreviewWindowFrameAttributesCaptured)
         {
             return;
         }
 
-        previewNativeWindowStyle = User32.GetWindowLong(handle, User32.WindowLongFlags.GWL_STYLE);
-        previewNativeWindowExStyle = User32.GetWindowLong(handle, User32.WindowLongFlags.GWL_EXSTYLE);
-        isPreviewDwmBorderColorCaptured = Interop.DwmGetWindowAttribute(handle, Interop.DwmWindowAttribute.BorderColor, out previewDwmBorderColor, sizeof(int)) >= 0;
-        isPreviewDwmCornerPreferenceCaptured = Interop.DwmGetWindowAttribute(handle, Interop.DwmWindowAttribute.WindowCornerPreference, out previewDwmCornerPreference, sizeof(int)) >= 0;
-        isPreviewNativeWindowStyleCaptured = true;
+        if (Interop.DwmGetWindowAttribute(handle, Interop.DwmWindowAttribute.TransitionsForceDisabled, out previewDwmTransitionsForcedDisabled, sizeof(int)) < 0)
+        {
+            previewDwmTransitionsForcedDisabled = 0;
+        }
+        isPreviewWindowFrameAttributesCaptured = true;
     }
 
-    private void RestorePreviewNativeWindowStyle(IntPtr handle)
+    private void QueuePreviewWindowFrameAttributesRestore()
     {
-        if (!isPreviewNativeWindowStyleCaptured)
+        int restoreGeneration = ++previewWindowFrameRestoreGeneration;
+        _ = Dispatcher.BeginInvoke(
+            () => RestorePreviewWindowFrameAttributes(restoreGeneration),
+            DispatcherPriority.Render);
+    }
+
+    private void RestorePreviewWindowFrameAttributes(int restoreGeneration)
+    {
+        if (!ShouldRestorePreviewWindowFrameAttributes(
+                restoreGeneration,
+                previewWindowFrameRestoreGeneration,
+                isPreviewFullScreen,
+                isPreviewWindowFrameAttributesCaptured))
         {
             return;
         }
 
-        _ = User32.SetWindowLong(handle, User32.WindowLongFlags.GWL_STYLE, previewNativeWindowStyle);
-        _ = User32.SetWindowLong(handle, User32.WindowLongFlags.GWL_EXSTYLE, previewNativeWindowExStyle);
-        SetPreviewWindowFrameAttributes(handle, false);
-        isPreviewNativeWindowStyleCaptured = false;
-        isPreviewDwmBorderColorCaptured = false;
-        isPreviewDwmCornerPreferenceCaptured = false;
+        RestorePreviewWindowFrameAttributes();
+    }
+
+    private void RestorePreviewWindowFrameAttributes()
+    {
+        IntPtr handle = new WindowInteropHelper(this).Handle;
+        if (handle != IntPtr.Zero)
+        {
+            RecalculatePreviewWindowFrame(handle);
+            SetPreviewWindowFrameAttributes(handle, false);
+            RestorePreviewSystemTransitions();
+        }
+
+        isPreviewWindowFrameAttributesCaptured = false;
+    }
+
+    internal static bool ShouldRestorePreviewWindowFrameAttributes(
+        int restoreGeneration,
+        int currentGeneration,
+        bool isFullScreen,
+        bool attributesCaptured)
+    {
+        return restoreGeneration == currentGeneration
+            && !isFullScreen
+            && attributesCaptured;
     }
 
     private void SetPreviewWindowFrameAttributes(IntPtr handle, bool isFullScreen)
     {
-        int borderColor = isFullScreen ? DwmColorNone : previewDwmBorderColor;
+        int borderColor = DwmColorNone;
         int cornerPreference = isFullScreen
             ? (int)Interop.DwmWindowCornerPreference.DWMWCP_DONOTROUND
-            : previewDwmCornerPreference;
+            : (int)Interop.DwmWindowCornerPreference.DWMWCP_DEFAULT;
 
-        if (isFullScreen || isPreviewDwmBorderColorCaptured)
-        {
-            _ = Interop.DwmSetWindowAttribute(handle, Interop.DwmWindowAttribute.BorderColor, ref borderColor, sizeof(int));
-        }
-
-        if (isFullScreen || isPreviewDwmCornerPreferenceCaptured)
-        {
-            _ = Interop.DwmSetWindowAttribute(handle, Interop.DwmWindowAttribute.WindowCornerPreference, ref cornerPreference, sizeof(int));
-        }
+        _ = Interop.DwmSetWindowAttribute(handle, Interop.DwmWindowAttribute.BorderColor, ref borderColor, sizeof(int));
+        _ = Interop.DwmSetWindowAttribute(handle, Interop.DwmWindowAttribute.WindowCornerPreference, ref cornerPreference, sizeof(int));
     }
 
-    internal static int BuildPreviewFullScreenWindowStyle(int style)
+    private static void RecalculatePreviewWindowFrame(IntPtr handle)
     {
-        return unchecked((int)User32.WindowStyles.WS_POPUP)
-            | (int)User32.WindowStyles.WS_VISIBLE
-            | (int)User32.WindowStyles.WS_CLIPCHILDREN
-            | (int)User32.WindowStyles.WS_CLIPSIBLINGS;
+        _ = User32.SetWindowPos(
+            handle,
+            IntPtr.Zero,
+            0,
+            0,
+            0,
+            0,
+            User32.SetWindowPosFlags.SWP_NOMOVE
+                | User32.SetWindowPosFlags.SWP_NOSIZE
+                | User32.SetWindowPosFlags.SWP_NOZORDER
+                | User32.SetWindowPosFlags.SWP_NOACTIVATE
+                | User32.SetWindowPosFlags.SWP_FRAMECHANGED);
     }
 
-    internal static int BuildPreviewFullScreenWindowExStyle(int exStyle)
+    private void SetPreviewSystemTransitionsDisabled(bool disabled)
     {
-        const User32.WindowStylesEx removedStyles = User32.WindowStylesEx.WS_EX_TOPMOST
-            | User32.WindowStylesEx.WS_EX_DLGMODALFRAME
-            | User32.WindowStylesEx.WS_EX_CLIENTEDGE
-            | User32.WindowStylesEx.WS_EX_STATICEDGE
-            | User32.WindowStylesEx.WS_EX_WINDOWEDGE;
+        IntPtr handle = new WindowInteropHelper(this).Handle;
+        if (handle == IntPtr.Zero)
+        {
+            return;
+        }
 
-        return exStyle & unchecked(~(int)removedStyles);
+        int value = disabled ? 1 : 0;
+        _ = Interop.DwmSetWindowAttribute(handle, Interop.DwmWindowAttribute.TransitionsForceDisabled, ref value, sizeof(int));
+    }
+
+    private void RestorePreviewSystemTransitions()
+    {
+        IntPtr handle = new WindowInteropHelper(this).Handle;
+        if (handle == IntPtr.Zero || !isPreviewWindowFrameAttributesCaptured)
+        {
+            return;
+        }
+
+        int value = previewDwmTransitionsForcedDisabled;
+        _ = Interop.DwmSetWindowAttribute(handle, Interop.DwmWindowAttribute.TransitionsForceDisabled, ref value, sizeof(int));
     }
 
     private void QueuePreviewLayoutRefreshAfterFullScreen()
