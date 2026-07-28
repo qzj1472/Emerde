@@ -1289,7 +1289,7 @@
                                 </Button>
                             </ui:Grid>
 
-                            <ui:Grid ColumnDefinitions="74,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+                            <ui:Grid ColumnDefinitions="74,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                                 <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N Platform}" />
                                 <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.PlatformDisplayName}" />
 
@@ -1302,23 +1302,20 @@
                                 <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N RecordStatus}" />
                                 <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.RecordStatusText}" />
 
-                                <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="录制引擎" />
-                                <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.RecordingEngineText}" />
+                                <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="录制格式" />
+                                <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding StatusOfRecordFormat}" />
 
-                                <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="录制格式" />
-                                <TextBlock Grid.Row="5" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding StatusOfRecordFormat}" />
+                                <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="画质" />
+                                <TextBlock Grid.Row="5" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.QualityText}" />
 
-                                <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="画质" />
-                                <TextBlock Grid.Row="6" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.QualityText}" />
+                                <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="分辨率" />
+                                <TextBlock Grid.Row="6" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.ResolutionText}" />
 
-                                <TextBlock Grid.Row="7" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="分辨率" />
-                                <TextBlock Grid.Row="7" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.ResolutionText}" />
+                                <TextBlock Grid.Row="7" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="码率" />
+                                <TextBlock Grid.Row="7" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.BitrateText}" />
 
-                                <TextBlock Grid.Row="8" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="码率" />
-                                <TextBlock Grid.Row="8" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.BitrateText}" />
-
-                                <TextBlock Grid.Row="9" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="房间地址" />
-                                <ui:Grid Grid.Row="9" Grid.Column="1" Margin="0,0,0,6" ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Row="8" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="房间地址" />
+                                <ui:Grid Grid.Row="8" Grid.Column="1" Margin="0,0,0,6" ColumnDefinitions="*,Auto">
                                     <TextBlock Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.RoomUrl}" />
                                     <Button Grid.Column="1"
                                             Width="28"
@@ -1332,8 +1329,8 @@
                                     </Button>
                                 </ui:Grid>
 
-                                <TextBlock Grid.Row="10" Grid.Column="0" Margin="0,0,12,0" Style="{StaticResource DetailLabelStyle}" Text="直播流" />
-                                <ui:Grid Grid.Row="10" Grid.Column="1" ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Row="9" Grid.Column="0" Margin="0,0,12,0" Style="{StaticResource DetailLabelStyle}" Text="直播流" />
+                                <ui:Grid Grid.Row="9" Grid.Column="1" ColumnDefinitions="*,Auto">
                                     <TextBlock Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.LiveStreamText}" />
                                     <Button Grid.Column="1"
                                             Width="28"
