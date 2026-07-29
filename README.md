@@ -1,6 +1,6 @@
 [English](README.md) | [简体中文](README.zh-Hans.md)
 
-<img src="branding/logo.png" style="height: 128; width: auto;" />
+<img src="branding/logo.png" style="height: 128px; width: auto;" />
 
 # Emerde
 
