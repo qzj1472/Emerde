@@ -160,7 +160,7 @@ See the [Privacy Policy](PrivacyPolicy.md).
 
 ## License
 
-Emerde is distributed as a whole under the [GNU General Public License v3.0 only](LICENSE) (`GPL-3.0-only`). Portions derived from the original MIT-licensed project remain available under their original MIT terms. The original copyright and license notice is preserved in [LICENSES/MIT.txt](LICENSES/MIT.txt). See [Third Party Notices](THIRD_PARTY_NOTICES.md) for attribution and dependency licensing details.
+Emerde is distributed as a whole under the [GNU General Public License v3.0 only](LICENSE) (`GPL-3.0-only`). Portions derived from the original MIT-licensed project remain available under their original MIT terms. The original copyright and license notice is preserved in [licenses/MIT.txt](licenses/MIT.txt). See [Third Party Notices](THIRD_PARTY_NOTICES.md) for attribution and dependency licensing details.
 
 ## Thanks
 

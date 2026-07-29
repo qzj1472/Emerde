@@ -14,7 +14,7 @@ Portions of Emerde are derived from software originally distributed under the MI
 
 Copyright (c) 2024 ema
 
-Those original portions remain available under the MIT License. The original copyright and license notice is preserved in [LICENSES/MIT.txt](LICENSES/MIT.txt). The GPL-3.0-only terms apply to Emerde as a combined work and to project-specific modifications; they do not remove or replace the original MIT grant for the upstream portions.
+Those original portions remain available under the MIT License. The original copyright and license notice is preserved in [licenses/MIT.txt](licenses/MIT.txt). The GPL-3.0-only terms apply to Emerde as a combined work and to project-specific modifications; they do not remove or replace the original MIT grant for the upstream portions.
 
 ## DouyinLiveRecorder
 
