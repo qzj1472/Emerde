@@ -80,6 +80,11 @@ internal static class Notifier
 
     public static async Task<bool> SendEmailAsync(string smtpServer, int port, string userName, string password, string nickName, string roomUrl, CancellationToken token = default)
     {
+        if (!IsEmailConfigurationComplete(smtpServer, userName, password))
+        {
+            return false;
+        }
+
         try
         {
             using MailMessage mail = new();
@@ -108,6 +113,14 @@ internal static class Notifier
             AppSessionLogger.Event("error", "notification", "email_failed", ex.Message, new { smtpServer, port, userName });
         }
         return false;
+    }
+
+    internal static bool IsEmailConfigurationComplete(string? smtpServer, string? userName, string? password)
+    {
+        return !string.IsNullOrWhiteSpace(smtpServer)
+            && !string.IsNullOrWhiteSpace(userName)
+            && !string.IsNullOrWhiteSpace(password)
+            && MailAddress.TryCreate(userName, out _);
     }
 }
 

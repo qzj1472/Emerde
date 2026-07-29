@@ -13,4 +13,26 @@ internal static class MonitorTiming
     {
         return Math.Max(MinimumRoutineIntervalMilliseconds, milliseconds);
     }
+
+    public static int ConvertToMilliseconds(double value, int unitIndex)
+    {
+        if (!double.IsFinite(value) || value <= 0)
+        {
+            return MinimumRoutineIntervalMilliseconds;
+        }
+        double multiplier = unitIndex switch
+        {
+            3 => 3600000d,
+            2 => 60000d,
+            1 => 1000d,
+            0 => 1d,
+            _ => 1000d,
+        };
+        double milliseconds = Math.Round(value * multiplier, MidpointRounding.AwayFromZero);
+        if (!double.IsFinite(milliseconds) || milliseconds >= int.MaxValue)
+        {
+            return int.MaxValue;
+        }
+        return Math.Max(1, (int)milliseconds);
+    }
 }

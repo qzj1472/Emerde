@@ -58,9 +58,17 @@ internal static class GlobalMonitor
 
     private static readonly ConcurrentDictionary<string, long> InconclusiveLogTimestamps = new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly ConcurrentDictionary<string, byte> ScheduledRoomChecks = new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly SemaphoreSlim RoutineRoomCheckConcurrency = new(MaximumMonitorConcurrency, MaximumMonitorConcurrency);
+
+    private static readonly SemaphoreSlim RecordingRoomCheckConcurrency = new(MaximumRecordingConcurrency, MaximumRecordingConcurrency);
+
     private static readonly Dictionary<string, ActiveSpiderResultTask> ActiveSpiderResultTasks = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly object ActiveSpiderResultTasksSync = new();
+
+    private static int invalidEmailConfigurationLogged;
 
     public static PeriodicWait RoutinePeriodicWait = new(GetRoutinePeriod(), TimeSpan.Zero);
 
@@ -549,18 +557,43 @@ internal static class GlobalMonitor
             }
 
             var selectedRooms = dueRooms
+                .Where(item => force || !ScheduledRoomChecks.ContainsKey(item.Room.RoomUrl))
                 .OrderBy(item => GetRoomCheckPriority(item.RoomStatus.StreamStatus, item.RoomStatus.RecordStatus))
                 .ThenBy(item => item.DueAt)
                 .Take(GetRoutineBatchSize(dueRooms.Count, force, recordingLaneOnly == true))
                 .ToArray();
-            using SemaphoreSlim semaphore = new(GetMonitorConcurrency(selectedRooms.Length, recordingLaneOnly == true));
+            SemaphoreSlim semaphore = force
+                ? new SemaphoreSlim(GetMonitorConcurrency(selectedRooms.Length, recordingLaneOnly == true))
+                : recordingLaneOnly == true
+                    ? RecordingRoomCheckConcurrency
+                    : RoutineRoomCheckConcurrency;
             List<Task> tasks = new(selectedRooms.Length);
             foreach ((Room room, RoomStatus roomStatus, bool shouldNotify, bool shouldRecord, RoomRecordingOptions settings, _) in selectedRooms)
             {
-                tasks.Add(RunRoomCheckWithSemaphoreAsync(semaphore, room, roomStatus, shouldNotify, shouldRecord, settings, force, token));
+                if (!force && !ScheduledRoomChecks.TryAdd(room.RoomUrl, 1))
+                {
+                    continue;
+                }
+
+                Task task = RunRoomCheckWithSemaphoreAsync(semaphore, room, roomStatus, shouldNotify, shouldRecord, settings, force, token);
+                tasks.Add(force ? task : CompleteScheduledRoomCheckAsync(room.RoomUrl, task));
             }
 
-            await Task.WhenAll(tasks);
+            if (force)
+            {
+                try
+                {
+                    await Task.WhenAll(tasks);
+                }
+                finally
+                {
+                    semaphore.Dispose();
+                }
+            }
+            else
+            {
+                ObserveRoomCheckBatch(tasks);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -569,6 +602,30 @@ internal static class GlobalMonitor
         {
             Debug.WriteLine(e);
             AppSessionLogger.WriteException(e);
+        }
+    }
+
+    private static async Task CompleteScheduledRoomCheckAsync(string roomUrl, Task task)
+    {
+        try
+        {
+            await task;
+        }
+        finally
+        {
+            _ = ScheduledRoomChecks.TryRemove(roomUrl, out _);
+        }
+    }
+
+    private static void ObserveRoomCheckBatch(IEnumerable<Task> tasks)
+    {
+        foreach (Task task in tasks)
+        {
+            _ = task.ContinueWith(
+                completed => _ = completed.Exception,
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
         }
     }
 
@@ -1094,7 +1151,7 @@ internal static class GlobalMonitor
         }
 
         _ = createdTask.Task.ContinueWith(
-            _ => CompleteSpiderResultTask(roomUrl, createdTask),
+            completed => CompleteSpiderResultTask(roomUrl, createdTask, completed),
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
@@ -1120,8 +1177,12 @@ internal static class GlobalMonitor
         }
     }
 
-    private static void CompleteSpiderResultTask(string roomUrl, ActiveSpiderResultTask activeTask)
+    private static void CompleteSpiderResultTask(string roomUrl, ActiveSpiderResultTask activeTask, Task<ISpiderResult?> completedTask)
     {
+        if (completedTask.IsFaulted)
+        {
+            _ = completedTask.Exception;
+        }
         lock (ActiveSpiderResultTasksSync)
         {
             if (ActiveSpiderResultTasks.TryGetValue(roomUrl, out ActiveSpiderResultTask? current)
@@ -2144,7 +2205,15 @@ internal static class GlobalMonitor
             string userName = Configurations.ToNotifyWithEmailUserName.Get();
             string password = SecretProtector.Unprotect(Configurations.ToNotifyWithEmailPassword.Get());
 
-            _ = Notifier.SendEmailAsync(smtpServer, port, userName, password, room.NickName, room.RoomUrl, token);
+            if (Notifier.IsEmailConfigurationComplete(smtpServer, userName, password))
+            {
+                Interlocked.Exchange(ref invalidEmailConfigurationLogged, 0);
+                _ = Notifier.SendEmailAsync(smtpServer, port, userName, password, room.NickName, room.RoomUrl, token);
+            }
+            else if (Interlocked.Exchange(ref invalidEmailConfigurationLogged, 1) == 0)
+            {
+                AppSessionLogger.Event("warn", "notification", "email_configuration_incomplete", "email notification was skipped because its configuration is incomplete");
+            }
         }
 
         if (Configurations.IsToNotifyGotoRoomUrl.Get())

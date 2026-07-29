@@ -6,6 +6,18 @@ namespace Emerde.Tests;
 public sealed class GlobalMonitorTests
 {
     [Theory]
+    [InlineData(double.NaN, 1, MonitorTiming.MinimumRoutineIntervalMilliseconds)]
+    [InlineData(double.PositiveInfinity, 3, MonitorTiming.MinimumRoutineIntervalMilliseconds)]
+    [InlineData(2d, 0, 2)]
+    [InlineData(2d, 1, 2000)]
+    [InlineData(2d, 2, 120000)]
+    [InlineData(2d, 3, 7200000)]
+    public void MonitorTiming_ConvertsUnitsWithFiniteSaturation(double value, int unitIndex, int expected)
+    {
+        Assert.Equal(expected, MonitorTiming.ConvertToMilliseconds(value, unitIndex));
+    }
+
+    [Theory]
     [InlineData("Douyin", true)]
     [InlineData("Twitch", true)]
     [InlineData("twitch", true)]
@@ -295,6 +307,17 @@ public sealed class GlobalMonitorTests
     public void GetRoomCheckPriority_PrioritizesRecordingAndLiveRooms(StreamStatus streamStatus, RecordStatus recordStatus, int expected)
     {
         Assert.Equal(expected, GlobalMonitor.GetRoomCheckPriority(streamStatus, recordStatus));
+    }
+
+    [Theory]
+    [InlineData(null, null, null, false)]
+    [InlineData("smtp.example.com", "", "password", false)]
+    [InlineData("smtp.example.com", "not-an-address", "password", false)]
+    [InlineData("smtp.example.com", "user@example.com", "", false)]
+    [InlineData("smtp.example.com", "user@example.com", "password", true)]
+    public void EmailConfiguration_RequiresCompleteCredentials(string? server, string? address, string? password, bool expected)
+    {
+        Assert.Equal(expected, Notifier.IsEmailConfigurationComplete(server, address, password));
     }
 
     [Theory]
