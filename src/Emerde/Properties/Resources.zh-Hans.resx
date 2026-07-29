@@ -713,6 +713,9 @@
   <data name="TimeRangeLabel" xml:space="preserve"><value>时间</value></data>
   <data name="OpenVideo" xml:space="preserve"><value>打开视频</value></data>
   <data name="TranscodeVideo" xml:space="preserve"><value>转码</value></data>
+  <data name="TargetFormat" xml:space="preserve"><value>目标格式</value></data>
+  <data name="CreateOptimizedAudioTrack" xml:space="preserve"><value>创建优化音频轨道（推荐）</value></data>
+  <data name="OptimizedAudioTrackDescription" xml:space="preserve"><value>MP4 会保留原音轨，并额外创建经过增益、压缩和限幅处理的 AAC 音轨。</value></data>
   <data name="SplitButton" xml:space="preserve"><value>分割</value></data>
   <data name="SplitVideo" xml:space="preserve"><value>分割视频</value></data>
   <data name="SplitInterval" xml:space="preserve"><value>分割间隔</value></data>

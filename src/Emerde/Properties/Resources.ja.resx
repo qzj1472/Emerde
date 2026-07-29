@@ -716,6 +716,9 @@
   <data name="TimeRangeLabel" xml:space="preserve"><value>期間</value></data>
   <data name="OpenVideo" xml:space="preserve"><value>動画を開く</value></data>
   <data name="TranscodeVideo" xml:space="preserve"><value>変換</value></data>
+  <data name="TargetFormat" xml:space="preserve"><value>出力形式</value></data>
+  <data name="CreateOptimizedAudioTrack" xml:space="preserve"><value>最適化音声トラックを作成（推奨）</value></data>
+  <data name="OptimizedAudioTrackDescription" xml:space="preserve"><value>MP4 は元の音声を保持し、ゲイン、圧縮、リミット処理を行った AAC トラックを追加します。</value></data>
   <data name="SplitButton" xml:space="preserve"><value>分割</value></data>
   <data name="SplitVideo" xml:space="preserve"><value>動画を分割</value></data>
   <data name="SplitInterval" xml:space="preserve"><value>分割間隔</value></data>

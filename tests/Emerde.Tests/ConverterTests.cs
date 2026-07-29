@@ -17,6 +17,38 @@ public sealed class ConverterTests
         Assert.Equal(expected, Converter.NormalizeTargetFormat(value, allowSourceContainers));
     }
 
+    [Theory]
+    [InlineData("mp4", true)]
+    [InlineData(".MP4", true)]
+    [InlineData("mkv", false)]
+    [InlineData("ts", false)]
+    public void CreateDefaultOptions_OptimizesOnlyMp4(string targetFormat, bool expected)
+    {
+        Assert.Equal(expected, Converter.CreateDefaultOptions(targetFormat).OptimizeAudio);
+    }
+
+    [Theory]
+    [InlineData(3600d, 3598d, true)]
+    [InlineData(3600d, 3597.9d, false)]
+    [InlineData(3600d, 0d, false)]
+    [InlineData(0d, 0d, true)]
+    public void OutputDuration_UsesABoundedAbsoluteTolerance(double expected, double actual, bool accepted)
+    {
+        Assert.Equal(accepted, Converter.IsDurationWithinTolerance(expected, actual));
+    }
+
+    [Fact]
+    public void AudioDynamicsProcessor_PreservesLevelOrderingWithoutHardClippingNormalSamples()
+    {
+        double quiet = 0.01d * FfmpegMediaEngine.AudioDynamicsProcessor.CalculateLinearGain(0.01d);
+        double medium = 0.1d * FfmpegMediaEngine.AudioDynamicsProcessor.CalculateLinearGain(0.1d);
+        double loud = FfmpegMediaEngine.AudioDynamicsProcessor.CalculateLinearGain(1d);
+
+        Assert.True(quiet < medium);
+        Assert.True(medium < loud);
+        Assert.InRange(loud, 0d, Math.Pow(10d, -1d / 20d));
+    }
+
     [Fact]
     public void BuildTargetPath_RemovesSessionPartSuffixForMultipleSources()
     {
@@ -57,6 +89,8 @@ public sealed class ConverterTests
         Assert.True(File.Exists(Path.Combine(ffmpegDirectory, "avutil-59.dll")));
         Assert.False(File.Exists(Path.Combine(baseDirectory, "ffmpeg.exe")));
         Assert.False(File.Exists(Path.Combine(baseDirectory, "ffprobe.exe")));
+        Assert.True(FfmpegMediaEngine.HasAacEncoder);
+        Assert.True(FfmpegMediaEngine.HasRequiredRuntimeCapabilities);
     }
 
     [Fact]
@@ -167,4 +201,5 @@ public sealed class ConverterTests
             Directory.Delete(directory, recursive: true);
         }
     }
+
 }

@@ -8,6 +8,23 @@ namespace Emerde.Tests;
 
 public sealed class ScreenRecordListWindowTests
 {
+    [Theory]
+    [InlineData(0, true, ".mp4", true)]
+    [InlineData(0, false, ".mp4", false)]
+    [InlineData(1, true, ".mkv", false)]
+    public void CreateTranscodeOptions_MapsDialogSelection(int selectedIndex, bool optimizeAudio, string targetFormat, bool expectedOptimization)
+    {
+        ConverterOptions options = ScreenRecordListViewModel.CreateTranscodeOptions(selectedIndex, optimizeAudio);
+        Assert.Equal(targetFormat, options.TargetFormat);
+        Assert.Equal(expectedOptimization, options.OptimizeAudio);
+    }
+
+    [Fact]
+    public void CreateTranscodeOptions_RejectsMissingSelection()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => ScreenRecordListViewModel.CreateTranscodeOptions(-1, true));
+    }
+
     [Fact]
     public void IsIdle_AllowsUserTakeoverWhileListTranscodeIsRunning()
     {

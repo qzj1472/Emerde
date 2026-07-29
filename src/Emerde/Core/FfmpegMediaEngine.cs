@@ -19,6 +19,8 @@ internal sealed record FfmpegSegmentOptions(long Value, int Unit)
 internal sealed record FfmpegMediaProbeResult(
     bool HasAudio,
     bool HasVideo,
+    int AudioStreamCount,
+    int VideoStreamCount,
     int Width,
     int Height,
     double DurationSeconds,
@@ -32,7 +34,9 @@ internal sealed record FfmpegMediaRunResult(
     bool HadMediaProgress,
     string ErrorOutput);
 
-internal static unsafe class FfmpegMediaEngine
+internal readonly record struct FfmpegPacketProgress(int Bytes, bool IsVideo, bool IsAudio);
+
+internal static unsafe partial class FfmpegMediaEngine
 {
     private const int InputFormatFlags = ffmpeg.AVFMT_FLAG_GENPTS
         | ffmpeg.AVFMT_FLAG_DISCARD_CORRUPT
@@ -49,6 +53,44 @@ internal static unsafe class FfmpegMediaEngine
         && File.Exists(Path.Combine(LibraryDirectory, "avutil-59.dll"))
         && File.Exists(Path.Combine(LibraryDirectory, "swresample-5.dll"))
         && File.Exists(Path.Combine(LibraryDirectory, "libwinpthread-1.dll"));
+
+    public static bool HasAacEncoder
+    {
+        get
+        {
+            try
+            {
+                EnsureInitialized();
+                return ffmpeg.avcodec_find_encoder(AVCodecID.AV_CODEC_ID_AAC) != null;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    public static bool HasRequiredRuntimeCapabilities
+    {
+        get
+        {
+            try
+            {
+                EnsureInitialized();
+                string[] decoders = ["aac", "av1", "h264", "hevc", "mp3", "opus", "vorbis", "vp8", "vp9", "mjpeg"];
+                string[] demuxers = ["aac", "avi", "concat", "flv", "hls", "live_flv", "matroska", "mov", "mp3", "mpegts"];
+                string[] muxers = ["flv", "matroska", "mp4", "mpegts", "null", "segment"];
+                return decoders.All(name => ffmpeg.avcodec_find_decoder_by_name(name) != null)
+                    && demuxers.All(name => ffmpeg.av_find_input_format(name) != null)
+                    && muxers.All(name => ffmpeg.av_guess_format(name, null, null) != null)
+                    && HasAacEncoder;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
 
     public static FfmpegMediaRunResult RemuxFiles(
         IReadOnlyList<string> sourceFileNames,
@@ -67,11 +109,13 @@ internal static unsafe class FfmpegMediaEngine
         FfmpegInputOptions options,
         FfmpegSegmentOptions? segmentOptions,
         CancellationToken token,
-        Action<long>? onProgress = null)
+        Action<long>? onProgress = null,
+        Action<FfmpegPacketProgress>? onPacketProgress = null,
+        Action<bool, bool>? onStreamsDiscovered = null)
     {
         return segmentOptions == null
-            ? Remux([inputUrl], targetFileName, metadata, options, token, onProgress)
-            : SegmentStream(inputUrl, targetFileName, metadata, options, segmentOptions, token, onProgress);
+            ? Remux([inputUrl], targetFileName, metadata, options, token, onProgress, onPacketProgress, onStreamsDiscovered)
+            : SegmentStream(inputUrl, targetFileName, metadata, options, segmentOptions, token, onProgress, onPacketProgress, onStreamsDiscovered);
     }
 
     public static FfmpegMediaRunResult SplitFile(
@@ -89,7 +133,9 @@ internal static unsafe class FfmpegMediaEngine
             new FfmpegInputOptions(string.Empty, string.Empty, false, string.Empty, false),
             new FfmpegSegmentOptions(segmentSeconds, SegmentTimeUnitHelper.Seconds),
             token,
-            onProgress);
+            onProgress,
+            null,
+            null);
     }
 
     private static FfmpegMediaRunResult SegmentStream(
@@ -99,7 +145,9 @@ internal static unsafe class FfmpegMediaEngine
         FfmpegInputOptions inputOptions,
         FfmpegSegmentOptions segmentOptions,
         CancellationToken token,
-        Action<long>? onProgress)
+        Action<long>? onProgress,
+        Action<FfmpegPacketProgress>? onPacketProgress,
+        Action<bool, bool>? onStreamsDiscovered)
     {
         if (string.IsNullOrWhiteSpace(sourceFileName)
             || string.IsNullOrWhiteSpace(targetPattern)
@@ -141,6 +189,7 @@ internal static unsafe class FfmpegMediaEngine
             {
                 return new FfmpegMediaRunResult(1, false, false, "input contains no supported audio or video streams");
             }
+            NotifyStreamPresence(inputContext, onStreamsDiscovered);
 
             int segmentIndex = 0;
             int[] streamMap = OpenSegmentOutput(
@@ -185,6 +234,7 @@ internal static unsafe class FfmpegMediaEngine
                 }
 
                 AVStream* inputStream = inputContext->streams[inputStreamIndex];
+                AVMediaType mediaType = inputStream->codecpar->codec_type;
                 EnsurePacketDts(packet, inputStream, inputStreamIndex, nextInputDts, segmentOutputTimestampBase);
                 long packetSourceTimestamp = GetPacketTimestamp(packet, inputStream);
                 long packetClockTimestamp = inputStreamIndex == referenceStreamIndex
@@ -257,6 +307,10 @@ internal static unsafe class FfmpegMediaEngine
                 segmentHasPackets = true;
                 hadProgress = true;
                 onProgress?.Invoke(packetSize);
+                onPacketProgress?.Invoke(new FfmpegPacketProgress(
+                    packetSize,
+                    mediaType == AVMediaType.AVMEDIA_TYPE_VIDEO,
+                    mediaType == AVMediaType.AVMEDIA_TYPE_AUDIO));
             }
 
             if (token.IsCancellationRequested)
@@ -663,16 +717,22 @@ internal static unsafe class FfmpegMediaEngine
         return trailerResult;
     }
 
-    public static bool TryProbe(string sourceFileName, out FfmpegMediaProbeResult result, out string error)
+    public static bool TryProbe(
+        string sourceFileName,
+        out FfmpegMediaProbeResult result,
+        out string error,
+        CancellationToken token = default)
     {
-        result = new FfmpegMediaProbeResult(false, false, 0, 0, 0, 0, string.Empty, new VideoRecordingMetadata());
+        result = new FfmpegMediaProbeResult(false, false, 0, 0, 0, 0, 0, 0, string.Empty, new VideoRecordingMetadata());
         error = string.Empty;
         AVFormatContext* inputContext = null;
         AVDictionary* options = null;
+        GCHandle interruptHandle = default;
 
         try
         {
             EnsureInitialized();
+            ConfigureInterruptCallback(&inputContext, token, out interruptHandle);
             AddInputOptions(&options, new FfmpegInputOptions(string.Empty, string.Empty, false, string.Empty, false));
             int openResult = ffmpeg.avformat_open_input(&inputContext, sourceFileName, null, &options);
             if (openResult < 0)
@@ -691,6 +751,8 @@ internal static unsafe class FfmpegMediaEngine
 
             bool hasAudio = false;
             bool hasVideo = false;
+            int audioStreamCount = 0;
+            int videoStreamCount = 0;
             int width = 0;
             int height = 0;
             List<string> streamSignatures = [];
@@ -701,11 +763,13 @@ internal static unsafe class FfmpegMediaEngine
                 if (parameters->codec_type == AVMediaType.AVMEDIA_TYPE_AUDIO)
                 {
                     hasAudio = true;
+                    audioStreamCount++;
                     streamSignatures.Add(BuildStreamSignature(stream));
                 }
                 else if (parameters->codec_type == AVMediaType.AVMEDIA_TYPE_VIDEO)
                 {
                     hasVideo = true;
+                    videoStreamCount++;
                     streamSignatures.Add(BuildStreamSignature(stream));
                     if (width <= 0
                         && height <= 0
@@ -726,6 +790,8 @@ internal static unsafe class FfmpegMediaEngine
             result = new FfmpegMediaProbeResult(
                 hasAudio,
                 hasVideo,
+                audioStreamCount,
+                videoStreamCount,
                 width,
                 height,
                 durationSeconds,
@@ -756,6 +822,11 @@ internal static unsafe class FfmpegMediaEngine
             if (options != null)
             {
                 ffmpeg.av_dict_free(&options);
+            }
+
+            if (interruptHandle.IsAllocated)
+            {
+                interruptHandle.Free();
             }
         }
     }
@@ -825,7 +896,9 @@ internal static unsafe class FfmpegMediaEngine
         VideoRecordingMetadata metadata,
         FfmpegInputOptions? inputOptions,
         CancellationToken token,
-        Action<long>? onProgress)
+        Action<long>? onProgress,
+        Action<FfmpegPacketProgress>? onPacketProgress = null,
+        Action<bool, bool>? onStreamsDiscovered = null)
     {
         if (sourceFileNames.Count == 0 || string.IsNullOrWhiteSpace(targetFileName))
         {
@@ -890,6 +963,7 @@ internal static unsafe class FfmpegMediaEngine
                         {
                             return new FfmpegMediaRunResult(1, false, false, "input contains no supported audio or video streams");
                         }
+                        NotifyStreamPresence(inputContext, onStreamsDiscovered);
                         streamSignatures = CreateStreamSignatures(inputContext, streamMap, (int)outputContext->nb_streams);
                         lastPacketEnds = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)outputContext->nb_streams).ToArray();
 
@@ -969,6 +1043,7 @@ internal static unsafe class FfmpegMediaEngine
                         int outputStreamIndex = streamMap[inputStreamIndex];
                         AVStream* inputStream = inputContext->streams[inputStreamIndex];
                         AVStream* outputStream = outputContext->streams[outputStreamIndex];
+                        AVMediaType mediaType = inputStream->codecpar->codec_type;
                         int packetSize = Math.Max(0, packet->size);
 
                         EnsurePacketDts(packet, inputStream, inputStreamIndex, nextInputDts, sourceTimestampBase);
@@ -996,6 +1071,10 @@ internal static unsafe class FfmpegMediaEngine
                         sourceHadReferenceProgress |= inputStreamIndex == referenceStreamIndex;
                         hadProgress = true;
                         onProgress?.Invoke(packetSize);
+                        onPacketProgress?.Invoke(new FfmpegPacketProgress(
+                            packetSize,
+                            mediaType == AVMediaType.AVMEDIA_TYPE_VIDEO,
+                            mediaType == AVMediaType.AVMEDIA_TYPE_AUDIO));
                     }
 
                     if (token.IsCancellationRequested)
@@ -1151,6 +1230,23 @@ internal static unsafe class FfmpegMediaEngine
         }
 
         return value - offset;
+    }
+
+    private static void NotifyStreamPresence(AVFormatContext* inputContext, Action<bool, bool>? onStreamsDiscovered)
+    {
+        if (onStreamsDiscovered == null)
+        {
+            return;
+        }
+        bool hasVideo = false;
+        bool hasAudio = false;
+        for (int index = 0; index < inputContext->nb_streams; index++)
+        {
+            AVMediaType mediaType = inputContext->streams[index]->codecpar->codec_type;
+            hasVideo |= mediaType == AVMediaType.AVMEDIA_TYPE_VIDEO;
+            hasAudio |= mediaType == AVMediaType.AVMEDIA_TYPE_AUDIO;
+        }
+        onStreamsDiscovered(hasVideo, hasAudio);
     }
 
     private static int[] CreateOutputStreams(AVFormatContext* inputContext, AVFormatContext* outputContext)

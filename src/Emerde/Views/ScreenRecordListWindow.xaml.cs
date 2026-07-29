@@ -1705,6 +1705,16 @@ public partial class ScreenRecordListViewModel : ObservableObject
             return;
         }
 
+        ConverterOptions? options = await ShowTranscodeOptionsAsync();
+        if (options == null)
+        {
+            return;
+        }
+        if (!File.Exists(item.FullPath) || !item.CanTranscode || !CanModifyVideo(item) || IsOperating)
+        {
+            return;
+        }
+
         IsUserTranscoding = true;
         IsOperating = true;
         OperationProgressText = GetResourceText("TranscodingVideo", "Transcoding...");
@@ -1712,7 +1722,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
 
         try
         {
-            bool converted = await new Converter().ExecuteAsync(item.FullPath, ".mp4");
+            bool converted = await new Converter().ExecuteAsync(item.FullPath, options);
             if (converted)
             {
                 Toast.Success(GetResourceText("TranscodeComplete", "Transcoding complete"));
@@ -1736,6 +1746,78 @@ public partial class ScreenRecordListViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsIdle));
             }
         }
+    }
+
+    private static async Task<ConverterOptions?> ShowTranscodeOptionsAsync()
+    {
+        System.Windows.Controls.ComboBox formatSelector = new()
+        {
+            MinWidth = 240,
+            Items =
+            {
+                new ComboBoxItem { Content = "MP4" },
+                new ComboBoxItem { Content = "MKV" },
+            },
+            SelectedIndex = 0,
+        };
+        System.Windows.Controls.CheckBox optimizeAudio = new()
+        {
+            Content = GetResourceText("CreateOptimizedAudioTrack", "Create optimized audio track (recommended)"),
+            IsChecked = true,
+            Margin = new Thickness(0, 16, 0, 0),
+        };
+        TextBlock description = new()
+        {
+            Text = GetResourceText("OptimizedAudioTrackDescription", "MP4 keeps the original audio and adds an AAC track with gain, compression, and limiting."),
+            TextWrapping = TextWrapping.Wrap,
+            Opacity = 0.72,
+            Margin = new Thickness(0, 8, 0, 0),
+        };
+        formatSelector.SelectionChanged += (_, _) =>
+        {
+            bool isMp4 = formatSelector.SelectedIndex == 0;
+            optimizeAudio.IsEnabled = isMp4;
+            optimizeAudio.Visibility = isMp4 ? Visibility.Visible : Visibility.Collapsed;
+            description.Visibility = isMp4 ? Visibility.Visible : Visibility.Collapsed;
+        };
+        StackPanel content = new()
+        {
+            MinWidth = 360,
+            Children =
+            {
+                new TextBlock { Text = GetResourceText("TargetFormat", "Target format"), Margin = new Thickness(0, 0, 0, 8) },
+                formatSelector,
+                optimizeAudio,
+                description,
+            },
+        };
+        ContentDialog dialog = new()
+        {
+            Title = GetResourceText("TranscodeVideo", "Transcode"),
+            Content = content,
+            CloseButtonText = GetResourceText("ButtonOfCancel", "Cancel"),
+            PrimaryButtonText = GetResourceText("StartButton", "Start"),
+            DefaultButton = ContentDialogButton.Primary,
+            Style = Application.Current.TryFindResource("DefaultVioletaContentDialogStyle") as Style,
+        };
+        Window owner = Application.Current.MainWindow;
+        using DialogBlurScope blurScope = DialogBlurScope.ForDialog(owner, dialog);
+        ContentDialogResult result = await WindowSizing.ShowContentDialogAsync(dialog, owner);
+        if (result != ContentDialogResult.Primary)
+        {
+            return null;
+        }
+        return CreateTranscodeOptions(formatSelector.SelectedIndex, optimizeAudio.IsChecked == true);
+    }
+
+    internal static ConverterOptions CreateTranscodeOptions(int selectedIndex, bool optimizeAudio)
+    {
+        return selectedIndex switch
+        {
+            0 => new ConverterOptions(".mp4", optimizeAudio),
+            1 => new ConverterOptions(".mkv", false),
+            _ => throw new ArgumentOutOfRangeException(nameof(selectedIndex)),
+        };
     }
 
     [RelayCommand]

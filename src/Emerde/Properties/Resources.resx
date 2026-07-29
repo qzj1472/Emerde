@@ -713,6 +713,9 @@
   <data name="TimeRangeLabel" xml:space="preserve"><value>Time</value></data>
   <data name="OpenVideo" xml:space="preserve"><value>Open video</value></data>
   <data name="TranscodeVideo" xml:space="preserve"><value>Transcode</value></data>
+  <data name="TargetFormat" xml:space="preserve"><value>Target format</value></data>
+  <data name="CreateOptimizedAudioTrack" xml:space="preserve"><value>Create optimized audio track (recommended)</value></data>
+  <data name="OptimizedAudioTrackDescription" xml:space="preserve"><value>MP4 keeps the original audio and adds an AAC track with gain, compression, and limiting.</value></data>
   <data name="SplitButton" xml:space="preserve"><value>Split</value></data>
   <data name="SplitVideo" xml:space="preserve"><value>Split video</value></data>
   <data name="SplitInterval" xml:space="preserve"><value>Split interval</value></data>
