@@ -781,7 +781,7 @@
                             Command="{Binding ToggleMonitorCommand}"
                             Style="{StaticResource MonitorActionButtonStyle}"
                             Tag="{Binding StatusOfIsMonitorRunning}"
-                            ToolTip="开启/暂停全部监控（Ctrl+M）">
+                            ToolTip="开启/暂停全部监控（Ctrl+Shift+M）">
                         <Button.Content>
                             <ui:StackPanel Orientation="Horizontal" Spacing="8">
                                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
@@ -795,7 +795,7 @@
                             Command="{Binding ToggleStatusRecordCommand}"
                             Style="{StaticResource RecordActionButtonStyle}"
                             Tag="{Binding StatusOfIsToRecord}"
-                            ToolTip="开启/暂停全部录制（Ctrl+R）">
+                            ToolTip="开启/暂停全部录制（Ctrl+Shift+R）">
                         <Button.Content>
                             <ui:StackPanel Orientation="Horizontal" Spacing="8">
                                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
@@ -1393,7 +1393,7 @@
                                         Command="{Binding ToggleSelectedRoomMonitorCommand}"
                                         Style="{StaticResource MonitorActionButtonStyle}"
                                         Tag="{Binding SelectedItem.EffectiveIsToMonitor}"
-                                        ToolTip="开启/暂停当前直播间监控（M）">
+                                        ToolTip="开启/暂停当前直播间监控（Shift+M）">
                                     <ui:StackPanel Orientation="Horizontal" Spacing="6">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                                      Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
@@ -1410,7 +1410,7 @@
                                         Command="{Binding ToggleSelectedRoomRecordCommand}"
                                         Style="{StaticResource RecordActionButtonStyle}"
                                         Tag="{Binding SelectedItem.EffectiveIsToRecord}"
-                                        ToolTip="开启/暂停当前直播间录制（R）">
+                                        ToolTip="开启/暂停当前直播间录制（Shift+R）">
                                     <ui:StackPanel Orientation="Horizontal" Spacing="6">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                                      Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
@@ -1530,7 +1530,7 @@
                         <Button Command="{Binding ToggleMonitorCommand}"
                                 Style="{StaticResource MonitorStatusTrayButtonStyle}"
                                 Tag="{Binding StatusOfIsMonitorRunning}"
-                                ToolTip="开启/暂停全部监控（Ctrl+M）">
+                                ToolTip="开启/暂停全部监控（Ctrl+Shift+M）">
                             <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
                                          Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
                                          Glyph="{x:Static ui:FontSymbols.Radar}" />
@@ -1554,7 +1554,7 @@
                         <Button Command="{Binding ToggleStatusRecordCommand}"
                                 Style="{StaticResource RecordStatusTrayButtonStyle}"
                                 Tag="{Binding StatusOfIsToRecord}"
-                                ToolTip="开启/暂停全部录制（Ctrl+R）">
+                                ToolTip="开启/暂停全部录制（Ctrl+Shift+R）">
                             <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
                                          Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
                                          Glyph="{x:Static ui:FontSymbols.Video}" />

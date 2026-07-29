@@ -95,8 +95,8 @@ public class AboutContentDialogTests
         string[] labels = document.Descendants().Attributes("Text").Select(attribute => attribute.Value).ToArray();
 
         Assert.Contains("W/A/S/D", labels);
-        Assert.Contains("M", labels);
-        Assert.Contains("R", labels);
+        Assert.Contains("Shift+M", labels);
+        Assert.Contains("Shift+R", labels);
         Assert.Contains("Q", labels);
         Assert.Contains("E", labels);
         Assert.Contains("F", labels);
@@ -106,8 +106,10 @@ public class AboutContentDialogTests
         Assert.Contains("F5", labels);
         Assert.Contains("Ctrl+N", labels);
         Assert.Contains("Ctrl+T", labels);
-        Assert.Contains("Ctrl+M", labels);
-        Assert.Contains("Ctrl+R", labels);
+        Assert.Contains("Ctrl+Shift+M", labels);
+        Assert.Contains("Ctrl+Shift+R", labels);
+        Assert.DoesNotContain("Ctrl+M", labels);
+        Assert.DoesNotContain("Ctrl+R", labels);
         Assert.Contains("Ctrl+F", labels);
         Assert.Contains("Tab", labels);
         Assert.Contains("CapsLock", labels);

@@ -429,7 +429,7 @@
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="M" /></Border>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Shift+M" /></Border>
                                             <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="当前监控" />
                                         </Grid>
                                     </Border>
@@ -439,7 +439,7 @@
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="R" /></Border>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Shift+R" /></Border>
                                             <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="当前录制" />
                                         </Grid>
                                     </Border>
@@ -613,7 +613,7 @@
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+M" /></Border>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Shift+M" /></Border>
                                             <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="全部监控" />
                                         </Grid>
                                     </Border>
@@ -623,7 +623,7 @@
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+R" /></Border>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Shift+R" /></Border>
                                             <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="全部录制" />
                                         </Grid>
                                     </Border>

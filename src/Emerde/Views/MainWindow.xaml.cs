@@ -569,6 +569,20 @@ public partial class MainWindow : FluentWindow
 
     private bool TryHandleGlobalShortcut(Key key, ModifierKeys modifiers)
     {
+        if (IsAllRoomsToggleShortcut(key, modifiers))
+        {
+            if (key == Key.M)
+            {
+                ViewModel.ToggleMonitorCommand.Execute(null);
+            }
+            else
+            {
+                ViewModel.ToggleStatusRecordCommand.Execute(null);
+            }
+
+            return true;
+        }
+
         if (modifiers != ModifierKeys.Control)
         {
             return false;
@@ -581,12 +595,6 @@ public partial class MainWindow : FluentWindow
                 return true;
             case Key.T:
                 ViewModel.TestNetworkCapacityCommand.Execute(null);
-                return true;
-            case Key.M:
-                ViewModel.ToggleMonitorCommand.Execute(null);
-                return true;
-            case Key.R:
-                ViewModel.ToggleStatusRecordCommand.Execute(null);
                 return true;
             case Key.F:
                 ViewModel.RefreshRoomCardsCommand.Execute(null);
@@ -609,12 +617,6 @@ public partial class MainWindow : FluentWindow
             case Key.Delete:
                 ViewModel.RemoveRoomUrlCommand.Execute(null);
                 return true;
-            case Key.M:
-                ViewModel.ToggleSelectedRoomMonitorCommand.Execute(null);
-                return true;
-            case Key.R:
-                ViewModel.ToggleSelectedRoomRecordCommand.Execute(null);
-                return true;
             case Key.E:
                 ViewModel.GotoRoomUrlCommand.Execute(null);
                 return true;
@@ -633,8 +635,22 @@ public partial class MainWindow : FluentWindow
         }
     }
 
-    private bool TryHandleHomeShiftShortcut(Key key)
+    private bool TryHandleHomeShiftShortcut(Key key, ModifierKeys modifiers)
     {
+        if (IsCurrentRoomToggleShortcut(key, modifiers))
+        {
+            if (key == Key.M)
+            {
+                ViewModel.ToggleSelectedRoomMonitorCommand.Execute(null);
+            }
+            else
+            {
+                ViewModel.ToggleSelectedRoomRecordCommand.Execute(null);
+            }
+
+            return true;
+        }
+
         if (key != Key.C)
         {
             return false;
@@ -667,10 +683,20 @@ public partial class MainWindow : FluentWindow
         return modifiers switch
         {
             ModifierKeys.None => TryHandleHomeShortcut(key),
-            ModifierKeys.Shift => TryHandleHomeShiftShortcut(key),
+            ModifierKeys.Shift => TryHandleHomeShiftShortcut(key, modifiers),
             ModifierKeys.Control => TryHandleHomeControlShortcut(key),
             _ => false,
         };
+    }
+
+    internal static bool IsCurrentRoomToggleShortcut(Key key, ModifierKeys modifiers)
+    {
+        return modifiers == ModifierKeys.Shift && key is (Key.M or Key.R);
+    }
+
+    internal static bool IsAllRoomsToggleShortcut(Key key, ModifierKeys modifiers)
+    {
+        return modifiers == (ModifierKeys.Control | ModifierKeys.Shift) && key is (Key.M or Key.R);
     }
 
     internal static bool IsRoomCardKeyboardNavigationKey(Key key)
