@@ -52,12 +52,24 @@ public sealed class SettingsViewModelTests
     [InlineData("TS/FLV", 0, false)]
     [InlineData("TS/FLV -> MP4", 2, false)]
     [InlineData("TS/FLV", 1, false)]
+    [InlineData("TS/FLV -> MP4", -1, false)]
+    [InlineData("TS/FLV -> MKV", 3, false)]
     public void ShouldCancelConversionsOnRecordFormatChange_OnlyCancelsWhenSwitchingToRaw(
         string previousRecordFormat,
         int nextRecordFormatIndex,
         bool expected)
     {
         Assert.Equal(expected, SettingsViewModel.ShouldCancelConversionsOnRecordFormatChange(previousRecordFormat, nextRecordFormatIndex));
+    }
+
+    [Theory]
+    [InlineData(-1, false)]
+    [InlineData(0, true)]
+    [InlineData(2, true)]
+    [InlineData(3, false)]
+    public void RecordFormatIndex_AcceptsOnlyVisibleOptions(int value, bool expected)
+    {
+        Assert.Equal(expected, SettingsViewModel.IsRecordFormatIndexValid(value));
     }
 
     private static string FindRepositoryFile(params string[] parts)

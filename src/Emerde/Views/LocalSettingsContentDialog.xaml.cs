@@ -175,6 +175,18 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
     [ObservableProperty]
     private int recordFormatIndex;
 
+    private int lastValidRecordFormatIndex;
+
+    partial void OnRecordFormatIndexChanged(int value)
+    {
+        if (SettingsViewModel.IsRecordFormatIndexValid(value))
+        {
+            lastValidRecordFormatIndex = value;
+            return;
+        }
+        RecordFormatIndex = lastValidRecordFormatIndex;
+    }
+
     [ObservableProperty]
     private bool isRemoveTs;
 
@@ -700,14 +712,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
 
     private static int ConvertTimeUnitToMilliseconds(double value, int unitIndex)
     {
-        double multiplier = unitIndex switch
-        {
-            Hours => 3600000d,
-            Minutes => 60000d,
-            Seconds or _ => 1000d,
-        };
-
-        return (int)Math.Clamp(Math.Round(value * multiplier, MidpointRounding.AwayFromZero), 1, int.MaxValue);
+        return MonitorTiming.ConvertToMilliseconds(value, unitIndex);
     }
 
     private static double ConvertMillisecondsToTimeUnit(int milliseconds, int unitIndex)

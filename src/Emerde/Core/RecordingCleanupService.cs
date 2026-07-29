@@ -111,9 +111,10 @@ internal static class RecordingCleanupService
         {
             return;
         }
-        DateTime cutoff = DateTime.Now - DataRetentionUnitHelper.ToTimeSpan(
+        DateTime now = DateTime.Now;
+        DateTime cutoff = GetRetentionCutoff(now, DataRetentionUnitHelper.ToTimeSpan(
             Configurations.DataRetentionValue.Get(),
-            Configurations.DataRetentionUnit.Get());
+            Configurations.DataRetentionUnit.Get()));
         string[] pendingSourcePatterns = RecordingRecoveryService.GetPendingSourcePatterns();
 
         int deletedCount = 0;
@@ -154,6 +155,12 @@ internal static class RecordingCleanupService
         {
             AppSessionLogger.Write($"cleanup deleted {deletedCount} expired recording files");
         }
+    }
+
+    internal static DateTime GetRetentionCutoff(DateTime now, TimeSpan retention)
+    {
+        TimeSpan available = now - DateTime.MinValue;
+        return retention >= available ? DateTime.MinValue : now - retention;
     }
 
     private static IEnumerable<string> EnumerateFilesSafe(string root)

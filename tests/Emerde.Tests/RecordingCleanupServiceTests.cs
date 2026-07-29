@@ -62,6 +62,15 @@ public sealed class RecordingCleanupServiceTests
     }
 
     [Fact]
+    public void RetentionCutoff_SaturatesAtDateTimeMinimum()
+    {
+        DateTime now = new(2026, 7, 29);
+
+        Assert.Equal(DateTime.MinValue, RecordingCleanupService.GetRetentionCutoff(now, TimeSpan.FromDays(9999d * 365d)));
+        Assert.Equal(now.AddDays(-1), RecordingCleanupService.GetRetentionCutoff(now, TimeSpan.FromDays(1)));
+    }
+
+    [Fact]
     public async Task RunAsync_WhenDataRetentionDisabled_DoesNotDeleteExpiredMedia()
     {
         string oldSaveFolder = Configurations.SaveFolder.Get();

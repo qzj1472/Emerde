@@ -687,8 +687,32 @@ public partial class SettingsViewModel : ReactiveObject
         "TS/FLV" or _ => 0,
     };
 
+    private bool isRestoringRecordFormatIndex;
+
     partial void OnRecordFormatIndexChanged(int value)
     {
+        if (isRestoringRecordFormatIndex)
+        {
+            return;
+        }
+        if (!IsRecordFormatIndexValid(value))
+        {
+            isRestoringRecordFormatIndex = true;
+            try
+            {
+                RecordFormatIndex = Configurations.RecordFormat.Get() switch
+                {
+                    "TS/FLV -> MP4" => 1,
+                    "TS/FLV -> MKV" => 2,
+                    _ => 0,
+                };
+            }
+            finally
+            {
+                isRestoringRecordFormatIndex = false;
+            }
+            return;
+        }
         string previousRecordFormat = Configurations.RecordFormat.Get();
         string nextRecordFormat = GetRecordFormatByIndex(value);
         bool cancelConversions = ShouldCancelConversionsOnRecordFormatChange(previousRecordFormat, value);
@@ -736,8 +760,14 @@ public partial class SettingsViewModel : ReactiveObject
 
     internal static bool ShouldCancelConversionsOnRecordFormatChange(string? previousRecordFormat, int nextRecordFormatIndex)
     {
-        return !string.IsNullOrWhiteSpace(Recorder.GetTargetFormat(previousRecordFormat ?? string.Empty))
+        return IsRecordFormatIndexValid(nextRecordFormatIndex)
+            && !string.IsNullOrWhiteSpace(Recorder.GetTargetFormat(previousRecordFormat ?? string.Empty))
             && string.IsNullOrWhiteSpace(Recorder.GetTargetFormat(GetRecordFormatByIndex(nextRecordFormatIndex)));
+    }
+
+    internal static bool IsRecordFormatIndexValid(int value)
+    {
+        return value is >= 0 and <= 2;
     }
 
     private static string GetRecordFormatByIndex(int value)
@@ -1654,14 +1684,7 @@ public partial class SettingsViewModel : ReactiveObject
 
     private static int ConvertTimeUnitToMilliseconds(double value, int unitIndex)
     {
-        double multiplier = unitIndex switch
-        {
-            (int)TimeUnitIndexEnum.Hours => 3600000d,
-            (int)TimeUnitIndexEnum.Minutes => 60000d,
-            (int)TimeUnitIndexEnum.Seconds or _ => 1000d,
-        };
-
-        return (int)Math.Clamp(Math.Round(value * multiplier, MidpointRounding.AwayFromZero), 1, int.MaxValue);
+        return MonitorTiming.ConvertToMilliseconds(value, unitIndex);
     }
 
     private static double ConvertMillisecondsToTimeUnit(int milliseconds, int unitIndex)
