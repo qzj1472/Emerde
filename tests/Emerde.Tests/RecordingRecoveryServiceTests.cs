@@ -7,6 +7,12 @@ namespace Emerde.Tests;
 public sealed class RecordingRecoveryServiceTests
 {
     [Fact]
+    public async Task QueueProcessAsync_HandlesInvalidPathsWithoutFaulting()
+    {
+        await RecordingRecoveryService.QueueProcessAsync(["\0"]);
+    }
+
+    [Fact]
     public async Task ProcessAsync_IgnoresInvalidMarkerPath()
     {
         await RecordingRecoveryService.ProcessAsync("\0");
@@ -368,6 +374,46 @@ public sealed class RecordingRecoveryServiceTests
             File.Delete(path);
             File.Delete(path + ".invalid");
             File.Delete(path + ".invalid.reason.txt");
+        }
+    }
+
+    [Fact]
+    public void IsRecoverySourceAllowed_AcceptsExistingMediaFromPreviousSaveFolder()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-previous-save-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string source = Path.Combine(directory, "record.ts");
+        File.WriteAllBytes(source, [1]);
+        _ = VideoRecordingMetadataStore.WriteSidecar(
+            directory,
+            "record",
+            new VideoRecordingMetadata { RoomUrl = "https://live.example/room" });
+
+        try
+        {
+            Assert.True(RecordingRecoveryService.IsRecoverySourceAllowed(source, source, []));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void IsRecoverySourceAllowed_RejectsUnmarkedMediaOutsideConfiguredFolders()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-untrusted-save-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string source = Path.Combine(directory, "record.ts");
+        File.WriteAllBytes(source, [1]);
+
+        try
+        {
+            Assert.False(RecordingRecoveryService.IsRecoverySourceAllowed(source, source, []));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
         }
     }
 

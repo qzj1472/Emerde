@@ -13,7 +13,8 @@ internal static class RecordingRecoveryService
         WriteIndented = true,
     };
 
-    private static readonly ConcurrentDictionary<string, Lazy<Task>> ProcessingTasks = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, RecoveryProcessingTask> ProcessingTasks = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly SemaphoreSlim ProcessingConcurrency = new(2, 2);
     private static readonly SemaphoreSlim PendingOptionsUpdateGate = new(1, 1);
     private static readonly object StartupMaintenanceLock = new();
     private static readonly DateTime ProcessStartedAtUtc = Process.GetCurrentProcess().StartTime.ToUniversalTime();
@@ -201,22 +202,73 @@ internal static class RecordingRecoveryService
         await ProcessPendingAsync(GetPendingPaths());
     }
 
-    private static async Task ProcessPendingAsync(IEnumerable<string> paths)
+    private static async Task ProcessPendingAsync(IEnumerable<string> paths, CancellationToken token = default)
     {
-        using SemaphoreSlim concurrency = new(2, 2);
-        Task[] tasks = paths.Select(async path =>
+        Task[] tasks = paths.Select(path => ProcessAsync(path, token)).ToArray();
+        await Task.WhenAll(tasks);
+    }
+
+    internal static Task QueueProcessAsync(IEnumerable<string> paths)
+    {
+        string[] queuedPaths = paths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (queuedPaths.Length == 0)
         {
-            await concurrency.WaitAsync();
+            return Task.CompletedTask;
+        }
+
+        return Task.WhenAll(queuedPaths.Select(QueueSingleProcessAsync));
+    }
+
+    private static Task QueueSingleProcessAsync(string path)
+    {
+        PendingRecording? item = Load(path, out _, validateAllowedDirectory: false);
+        string[] protectedPatterns = item == null
+            ? []
+            : GetProtectedPaths(item)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        CancellationTokenSource cancellation = new();
+        IDisposable operation = MediaOperationRegistry.Register(
+            MediaOperationKind.Conversion,
+            () => protectedPatterns,
+            cancellation.Cancel);
+        return Task.Run(async () =>
+        {
+            using (cancellation)
+            using (operation)
             try
             {
-                await ProcessAsync(path);
+                await ProcessAsync(path, cancellation.Token);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception e)
+            {
+                AppSessionLogger.WriteException(e);
             }
             finally
             {
-                concurrency.Release();
+                RecordingCleanupService.QueueRun();
             }
-        }).ToArray();
-        await Task.WhenAll(tasks);
+        });
+    }
+
+    private static async Task ProcessCoreWithConcurrencyAsync(string path, CancellationToken token)
+    {
+        await ProcessingConcurrency.WaitAsync(token);
+        try
+        {
+            token.ThrowIfCancellationRequested();
+            await ProcessCoreAsync(path, token);
+        }
+        finally
+        {
+            ProcessingConcurrency.Release();
+        }
     }
 
     private static string[] GetPendingPaths()
@@ -239,6 +291,11 @@ internal static class RecordingRecoveryService
 
     public static async Task ProcessAsync(string path)
     {
+        await ProcessAsync(path, CancellationToken.None);
+    }
+
+    private static async Task ProcessAsync(string path, CancellationToken token)
+    {
         string lockKey;
         try
         {
@@ -249,13 +306,19 @@ internal static class RecordingRecoveryService
             AppSessionLogger.WriteException(e);
             return;
         }
-        Lazy<Task> processing = ProcessingTasks.GetOrAdd(
+        RecoveryProcessingTask processing = ProcessingTasks.GetOrAdd(
             lockKey,
-            _ => new Lazy<Task>(() => ProcessCoreAsync(path), LazyThreadSafetyMode.ExecutionAndPublication));
-        Task processingTask = processing.Value;
+            _ => new RecoveryProcessingTask(taskToken => ProcessCoreWithConcurrencyAsync(path, taskToken)));
+        using CancellationTokenRegistration registration = token.CanBeCanceled
+            ? token.Register(static state => ((CancellationTokenSource)state!).Cancel(), processing.Cancellation)
+            : default;
+        Task processingTask = processing.Task.Value;
         try
         {
             await processingTask;
+        }
+        catch (OperationCanceledException)
+        {
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -263,15 +326,16 @@ internal static class RecordingRecoveryService
         }
         finally
         {
-            if (ProcessingTasks.TryGetValue(lockKey, out Lazy<Task>? current) && ReferenceEquals(current, processing))
+            if (ProcessingTasks.TryGetValue(lockKey, out RecoveryProcessingTask? current) && ReferenceEquals(current, processing))
             {
                 _ = ProcessingTasks.TryRemove(lockKey, out _);
             }
         }
     }
 
-    private static async Task ProcessCoreAsync(string path)
+    private static async Task ProcessCoreAsync(string path, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         PendingRecording? item = Load(path, out string? invalidReason);
         if (item == null)
         {
@@ -291,6 +355,7 @@ internal static class RecordingRecoveryService
             return;
         }
 
+        using CancellationTokenSource operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
         bool completed = await ProcessSourcePatternAsync(
             item.SourcePattern,
             item.TargetFormat,
@@ -345,7 +410,8 @@ internal static class RecordingRecoveryService
                 {
                     throw new IOException("pending recording reserved intermediate state could not be saved");
                 }
-            });
+            },
+            operationCancellation);
         if (GetSourceFiles(item.SourcePattern).Length == 0)
         {
             DeleteMarker(path);
@@ -375,7 +441,8 @@ internal static class RecordingRecoveryService
         Action<string>? onIntermediateCompleted = null,
         Action<string>? onMergeTargetReserved = null,
         Action<string, string>? onSourceTargetReserved = null,
-        Action<string>? onIntermediateTargetReserved = null)
+        Action<string>? onIntermediateTargetReserved = null,
+        CancellationTokenSource? tokenSource = null)
     {
         string[] sources = GetSourceFiles(sourcePattern);
         if (sources.Length == 0)
@@ -393,14 +460,28 @@ internal static class RecordingRecoveryService
                     sourcePattern,
                     sources,
                     targetFormat,
+                    tokenSource,
                     onCompleted: onMergeCompleted,
                     onTargetReserved: onMergeTargetReserved))
                 {
-                    return false;
+                    if (targetIsSourceFormat)
+                    {
+                        return false;
+                    }
+                    return await ProcessSourcesIndividuallyAsync(
+                        sources,
+                        targetFormat,
+                        removeSource,
+                        completedSources,
+                        onSourceCompleted,
+                        onSourceTargetReserved,
+                        tokenSource);
                 }
 
+                CancellationToken token = tokenSource?.Token ?? CancellationToken.None;
                 foreach (string source in sources)
                 {
+                    token.ThrowIfCancellationRequested();
                     File.Delete(source);
                     VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(source);
                 }
@@ -418,6 +499,7 @@ internal static class RecordingRecoveryService
                     sourcePattern,
                     sources,
                     sourceFormat,
+                    tokenSource,
                     onCompleted: completedPath =>
                     {
                         createdIntermediate = completedPath;
@@ -426,7 +508,14 @@ internal static class RecordingRecoveryService
                     onTargetReserved: onIntermediateTargetReserved);
                 if (!merged || !IsUsableSource(createdIntermediate))
                 {
-                    return false;
+                    return await ProcessSourcesIndividuallyAsync(
+                        sources,
+                        targetFormat,
+                        removeSource,
+                        completedSources,
+                        onSourceCompleted,
+                        onSourceTargetReserved,
+                        tokenSource);
                 }
                 mergedSource = createdIntermediate!;
             }
@@ -435,21 +524,86 @@ internal static class RecordingRecoveryService
                 mergedSource,
                 targetFormat,
                 onMergeCompleted ?? (_ => { }),
+                tokenSource,
                 onTargetReserved: onMergeTargetReserved);
             if (completed)
             {
+                CancellationToken token = tokenSource?.Token ?? CancellationToken.None;
                 foreach (string source in sources)
                 {
+                    token.ThrowIfCancellationRequested();
                     File.Delete(source);
                     VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(source);
                 }
             }
-
-            return completed;
+            if (completed)
+            {
+                return true;
+            }
+            bool fallbackCompleted = await ProcessSourcesIndividuallyAsync(
+                sources,
+                targetFormat,
+                removeSource,
+                completedSources,
+                onSourceCompleted,
+                onSourceTargetReserved,
+                tokenSource);
+            if (fallbackCompleted && IsUsableSource(mergedSource))
+            {
+                (tokenSource?.Token ?? CancellationToken.None).ThrowIfCancellationRequested();
+                File.Delete(mergedSource);
+                VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(mergedSource);
+            }
+            return fallbackCompleted;
         }
 
+        return await ProcessSourcesIndividuallyAsync(
+            sources,
+            targetFormat,
+            removeSource,
+            completedSources,
+            onSourceCompleted,
+            onSourceTargetReserved,
+            tokenSource);
+    }
+
+    private sealed class RecoveryProcessingTask
+    {
+        public RecoveryProcessingTask(Func<CancellationToken, Task> taskFactory)
+        {
+            Cancellation = new CancellationTokenSource();
+            Task = new Lazy<Task>(
+                () => taskFactory(Cancellation.Token),
+                LazyThreadSafetyMode.ExecutionAndPublication);
+        }
+
+        public CancellationTokenSource Cancellation { get; }
+
+        public Lazy<Task> Task { get; }
+    }
+
+    private static async Task<bool> ProcessSourcesIndividuallyAsync(
+        IReadOnlyList<string> sources,
+        string targetFormat,
+        bool removeSource,
+        IReadOnlyDictionary<string, string>? completedSources,
+        Action<string, string>? onSourceCompleted,
+        Action<string, string>? onSourceTargetReserved,
+        CancellationTokenSource? tokenSource)
+    {
         foreach (string source in sources)
         {
+            CancellationToken token = tokenSource?.Token ?? CancellationToken.None;
+            token.ThrowIfCancellationRequested();
+            if (Path.GetExtension(source).Equals(targetFormat, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!FfmpegMediaEngine.TryProbe(source, out _, out _, token))
+                {
+                    token.ThrowIfCancellationRequested();
+                    return false;
+                }
+                continue;
+            }
             string? completedTarget = completedSources?
                 .FirstOrDefault(item => item.Key.Equals(source, StringComparison.OrdinalIgnoreCase))
                 .Value;
@@ -464,6 +618,7 @@ internal static class RecordingRecoveryService
                         onSourceCompleted?.Invoke(source, completedPath);
                         createdTarget = completedPath;
                     },
+                    tokenSource,
                     onTargetReserved: reservedPath => onSourceTargetReserved?.Invoke(source, reservedPath));
                 if (!converted || !IsUsableSource(createdTarget))
                 {
@@ -474,6 +629,7 @@ internal static class RecordingRecoveryService
 
             if (removeSource)
             {
+                token.ThrowIfCancellationRequested();
                 File.Delete(source);
                 VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(source);
             }
@@ -691,7 +847,7 @@ internal static class RecordingRecoveryService
         Task[] tasks = markerPaths
             .Select(Path.GetFullPath)
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(path => ProcessingTasks.TryGetValue(path, out Lazy<Task>? task) ? task.Value : null)
+            .Select(path => ProcessingTasks.TryGetValue(path, out RecoveryProcessingTask? task) ? task.Task.Value : null)
             .Where(task => task != null)
             .Select(task => task!)
             .ToArray();
@@ -855,11 +1011,18 @@ internal static class RecordingRecoveryService
             return null;
         }
 
-        return MediaFileCatalog.GetConfiguredSaveFolders()
-            .Concat(SaveFolderHelper.GetFallbackSaveFolders())
-            .Any(root => IsPathWithinRoot(sourcePath, root))
+        return IsRecoverySourceAllowed(
+            item.SourcePattern,
+            sourcePath,
+            MediaFileCatalog.GetConfiguredSaveFolders().Concat(SaveFolderHelper.GetFallbackSaveFolders()))
             ? null
             : "源文件不在当前配置的保存目录中";
+    }
+
+    internal static bool IsRecoverySourceAllowed(string sourcePattern, string sourcePath, IEnumerable<string> allowedRoots)
+    {
+        return allowedRoots.Any(root => IsPathWithinRoot(sourcePath, root))
+            || GetSourceFiles(sourcePattern).Any(path => VideoRecordingMetadataStore.HasValidMetadata(new FileInfo(path)));
     }
 
     internal static bool IsPathWithinRoot(string path, string root)

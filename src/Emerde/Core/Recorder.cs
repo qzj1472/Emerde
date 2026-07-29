@@ -17,6 +17,7 @@ public sealed class Recorder
     private const int ProcessOutputTailLimit = 8192;
     private static readonly TimeSpan ProgressStartupTimeout = TimeSpan.FromSeconds(15);
     internal static readonly TimeSpan ProgressStallTimeout = TimeSpan.FromSeconds(90);
+    internal static readonly TimeSpan VideoProgressStallTimeout = TimeSpan.FromSeconds(30);
     internal static readonly TimeSpan MediaSpeedSummaryInterval = TimeSpan.FromSeconds(30);
     private const string OptimizedAudioFilter = "[0:a:0]volume=30dB,acompressor=threshold=-10dB:ratio=3,alimiter=limit=0.316227766:level=false[aopt]";
 
@@ -166,6 +167,7 @@ public sealed class Recorder
     {
         RoomRecordingOptions recordingOptions = startInfo.Options;
         OutputReservation? sessionOutputReservation = null;
+        List<string> queuedPostProcessingPaths = [];
         try
         {
             if (!FfmpegMediaEngine.IsAvailable)
@@ -533,7 +535,7 @@ public sealed class Recorder
                 {
                     if (RecordingRecoveryService.UpdateOptions(pendingRecordingPath, postProcessingOptions) && processNow)
                     {
-                        await RecordingRecoveryService.ProcessAsync(pendingRecordingPath);
+                        queuedPostProcessingPaths.Add(pendingRecordingPath);
                     }
                 }
 
@@ -545,7 +547,7 @@ public sealed class Recorder
                         pendingRecordingPaths.Add(pendingPath);
                         if (processNow)
                         {
-                            await RecordingRecoveryService.ProcessAsync(pendingPath);
+                            queuedPostProcessingPaths.Add(pendingPath);
                         }
                     }
                 }
@@ -560,7 +562,7 @@ public sealed class Recorder
                         pendingRecordingPaths.Add(pendingPath);
                         if (processNow)
                         {
-                            await RecordingRecoveryService.ProcessAsync(pendingPath);
+                            queuedPostProcessingPaths.Add(pendingPath);
                         }
                     }
                 }
@@ -574,7 +576,10 @@ public sealed class Recorder
                         pendingCount = pendingRecordingPaths.Count,
                     });
                 }
-                RecordingCleanupService.QueueRun();
+                if (!processNow)
+                {
+                    RecordingCleanupService.QueueRun();
+                }
             }
             catch (Exception e)
             {
@@ -583,6 +588,20 @@ public sealed class Recorder
             finally
             {
                 sessionOutputReservation?.Dispose();
+                bool postProcessingQueued = false;
+                if (queuedPostProcessingPaths.Count > 0
+                    && Volatile.Read(ref deferPostProcessing) == 0)
+                {
+                    try
+                    {
+                        _ = RecordingRecoveryService.QueueProcessAsync(queuedPostProcessingPaths);
+                        postProcessingQueued = true;
+                    }
+                    catch (Exception e)
+                    {
+                        AppSessionLogger.WriteException(e);
+                    }
+                }
                 mediaOperationRegistration?.Dispose();
                 mediaOperationRegistration = null;
                 lock (stateLock)
@@ -593,6 +612,10 @@ public sealed class Recorder
                     }
                     TokenSource = null;
                     ownsTokenSource = false;
+                }
+                if (!postProcessingQueued)
+                {
+                    RecordingCleanupService.QueueRun();
                 }
             }
         }
@@ -766,6 +789,11 @@ public sealed class Recorder
             if (completedTask == stallTask && await stallTask)
             {
                 wasStalled = true;
+                RecorderStallReason stallReason = progressTracker.GetStallReason(
+                    DateTime.UtcNow,
+                    ProgressStartupTimeout,
+                    ProgressStallTimeout,
+                    VideoProgressStallTimeout);
                 AppSessionLogger.Event("warn", "recorder", "record_progress_stalled", "recording media progress stalled and worker will be restarted", new
                 {
                     startInfo.RoomUrl,
@@ -774,6 +802,7 @@ public sealed class Recorder
                     FileName,
                     outputFileName,
                     stalledSeconds = progressTracker.GetStalledDuration(DateTime.UtcNow).TotalSeconds,
+                    stallReason = stallReason.ToString().ToLowerInvariant(),
                 });
                 _ = WeakReferenceMessenger.Default.Send(new RoomRecordingStateChangedMessage(startInfo.RoomUrl));
                 KillProcessTree(process);
@@ -911,8 +940,10 @@ public sealed class Recorder
                 if (line.StartsWith("progress", StringComparison.Ordinal))
                 {
                     DateTime now = DateTime.UtcNow;
-                    if (UpdateMediaWorkerWriteSpeed(line, now, startInfo, outputFileName, out long progressBytes)
-                        && progressTracker.Observe($"out_time={progressBytes}", now))
+                    bool advanced = UpdateMediaWorkerWriteSpeed(line, now, startInfo, outputFileName, out long progressBytes);
+                    if (TryParseMediaWorkerPacketProgress(line, out long videoPackets, out long audioPackets, out bool hasVideoStream)
+                        ? progressTracker.Observe(progressBytes, videoPackets, audioPackets, hasVideoStream, now)
+                        : advanced && progressTracker.Observe($"out_time={progressBytes}", now))
                     {
                         ConfirmMediaProgress(startInfo);
                     }
@@ -983,6 +1014,33 @@ public sealed class Recorder
             ? long.MaxValue
             : outputBytes + inputBytes;
         return advanced;
+    }
+
+    internal static bool TryParseMediaWorkerPacketProgress(string line, out long videoPackets, out long audioPackets)
+    {
+        return TryParseMediaWorkerPacketProgress(line, out videoPackets, out audioPackets, out _);
+    }
+
+    internal static bool TryParseMediaWorkerPacketProgress(
+        string line,
+        out long videoPackets,
+        out long audioPackets,
+        out bool hasVideoStream)
+    {
+        videoPackets = 0;
+        audioPackets = 0;
+        hasVideoStream = false;
+        string[] parts = line.Split('|');
+        bool parsed = parts.Length >= 5
+            && long.TryParse(parts[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out videoPackets)
+            && videoPackets >= 0
+            && long.TryParse(parts[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out audioPackets)
+            && audioPackets >= 0;
+        if (parsed && parts.Length >= 6)
+        {
+            hasVideoStream = parts[5] == "1";
+        }
+        return parsed;
     }
 
     private void FlushMediaWorkerSpeedSummary(RecorderStartInfo startInfo, string outputFileName)
@@ -1261,7 +1319,11 @@ public sealed class Recorder
             while (!token.IsCancellationRequested)
             {
                 await Task.Delay(TimeSpan.FromSeconds(1), token);
-                if (progressTracker.IsStalled(DateTime.UtcNow, ProgressStartupTimeout, ProgressStallTimeout))
+                if (progressTracker.GetStallReason(
+                        DateTime.UtcNow,
+                        ProgressStartupTimeout,
+                        ProgressStallTimeout,
+                        VideoProgressStallTimeout) != RecorderStallReason.None)
                 {
                     return true;
                 }
@@ -1862,6 +1924,10 @@ internal sealed class RecorderProgressTracker(DateTime startedAt)
     private DateTime lastProgressAt = startedAt;
     private string lastMediaTime = string.Empty;
     private bool hasProgress;
+    private DateTime lastVideoProgressAt = startedAt;
+    private long lastVideoPackets;
+    private long lastAudioPackets;
+    private bool expectsVideo;
 
     public bool Observe(string line, DateTime observedAt)
     {
@@ -1891,11 +1957,68 @@ internal sealed class RecorderProgressTracker(DateTime startedAt)
         }
     }
 
-    public bool IsStalled(DateTime now, TimeSpan startupTimeout, TimeSpan stallTimeout)
+    public bool Observe(long progressMarker, long videoPackets, long audioPackets, DateTime observedAt)
+    {
+        return Observe(progressMarker, videoPackets, audioPackets, videoPackets > 0, observedAt);
+    }
+
+    public bool Observe(long progressMarker, long videoPackets, long audioPackets, bool hasVideoStream, DateTime observedAt)
     {
         lock (syncRoot)
         {
-            return now - lastProgressAt >= (hasProgress ? stallTimeout : startupTimeout);
+            expectsVideo |= hasVideoStream;
+            bool firstProgress = !hasProgress;
+            string mediaTime = progressMarker.ToString(CultureInfo.InvariantCulture);
+            bool videoAdvanced = videoPackets > lastVideoPackets;
+            bool audioAdvanced = audioPackets > lastAudioPackets;
+            if (!string.Equals(lastMediaTime, mediaTime, StringComparison.Ordinal) || videoAdvanced || audioAdvanced)
+            {
+                lastMediaTime = mediaTime;
+                lastProgressAt = observedAt;
+                hasProgress = true;
+            }
+
+            if (videoAdvanced)
+            {
+                lastVideoPackets = videoPackets;
+                lastVideoProgressAt = observedAt;
+            }
+            if (audioAdvanced)
+            {
+                lastAudioPackets = audioPackets;
+            }
+            return firstProgress && hasProgress;
+        }
+    }
+
+    public bool IsStalled(DateTime now, TimeSpan startupTimeout, TimeSpan stallTimeout)
+    {
+        return GetStallReason(now, startupTimeout, stallTimeout, stallTimeout) != RecorderStallReason.None;
+    }
+
+    public RecorderStallReason GetStallReason(
+        DateTime now,
+        TimeSpan startupTimeout,
+        TimeSpan stallTimeout,
+        TimeSpan videoStallTimeout)
+    {
+        lock (syncRoot)
+        {
+            if (!hasProgress)
+            {
+                return now - lastProgressAt >= startupTimeout
+                    ? RecorderStallReason.AllMedia
+                    : RecorderStallReason.None;
+            }
+            if (expectsVideo
+                && lastProgressAt > lastVideoProgressAt
+                && now - lastVideoProgressAt >= videoStallTimeout)
+            {
+                return RecorderStallReason.Video;
+            }
+            return now - lastProgressAt >= stallTimeout
+                ? RecorderStallReason.AllMedia
+                : RecorderStallReason.None;
         }
     }
 
@@ -1917,6 +2040,13 @@ internal sealed class RecorderProgressTracker(DateTime startedAt)
             }
         }
     }
+}
+
+internal enum RecorderStallReason
+{
+    None,
+    AllMedia,
+    Video,
 }
 
 public record RecorderStartInfo

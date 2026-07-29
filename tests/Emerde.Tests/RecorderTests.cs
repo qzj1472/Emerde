@@ -356,11 +356,13 @@ public sealed class RecorderTests
     public void MediaWorkerControlInput_RunsOnBackgroundThreadAndCancelsOnQuit()
     {
         using CancellationTokenSource stopSource = new();
-        using StringReader reader = new("q" + Environment.NewLine);
+        using BlockingTextReader reader = new("q");
 
         Thread thread = MediaWorker.StartControlInputReader(stopSource, reader);
 
+        Assert.True(reader.WaitUntilReading(TimeSpan.FromSeconds(1)));
         Assert.True(thread.IsBackground);
+        reader.Release();
         Assert.True(thread.Join(TimeSpan.FromSeconds(1)));
         Assert.True(stopSource.IsCancellationRequested);
     }
@@ -378,6 +380,17 @@ public sealed class RecorderTests
 
         Assert.Equal(1024, firstProgress);
         Assert.Equal(2048, secondProgress);
+    }
+
+    [Fact]
+    public void MediaWorkerProgress_ParsesPerTrackPacketCounters()
+    {
+        Assert.True(Recorder.TryParseMediaWorkerPacketProgress("progress|4096|8192|12|34", out long videoPackets, out long audioPackets));
+        Assert.Equal(12, videoPackets);
+        Assert.Equal(34, audioPackets);
+        Assert.True(Recorder.TryParseMediaWorkerPacketProgress("progress|4096|8192|0|34|1|1", out videoPackets, out audioPackets, out bool hasVideoStream));
+        Assert.True(hasVideoStream);
+        Assert.False(Recorder.TryParseMediaWorkerPacketProgress("progress|4096|8192", out _, out _));
     }
 
     [Fact]
@@ -540,6 +553,48 @@ public sealed class RecorderTests
     }
 
     [Fact]
+    public void RecorderProgressTracker_DetectsFrozenVideoWhileAudioContinues()
+    {
+        DateTime startedAt = new(2026, 7, 29, 10, 0, 0, DateTimeKind.Utc);
+        RecorderProgressTracker tracker = new(startedAt);
+
+        Assert.True(tracker.Observe(100, 1, 1, startedAt.AddSeconds(1)));
+        Assert.False(tracker.Observe(200, 1, 10, startedAt.AddSeconds(20)));
+        Assert.Equal(
+            RecorderStallReason.None,
+            tracker.GetStallReason(startedAt.AddSeconds(30), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(90), TimeSpan.FromSeconds(30)));
+        Assert.Equal(
+            RecorderStallReason.Video,
+            tracker.GetStallReason(startedAt.AddSeconds(31), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(90), TimeSpan.FromSeconds(30)));
+    }
+
+    [Fact]
+    public void RecorderProgressTracker_DoesNotRequireVideoForAudioOnlyInput()
+    {
+        DateTime startedAt = new(2026, 7, 29, 10, 0, 0, DateTimeKind.Utc);
+        RecorderProgressTracker tracker = new(startedAt);
+
+        Assert.True(tracker.Observe(100, 0, 1, startedAt.AddSeconds(1)));
+        Assert.False(tracker.Observe(200, 0, 10, startedAt.AddSeconds(40)));
+        Assert.Equal(
+            RecorderStallReason.None,
+            tracker.GetStallReason(startedAt.AddSeconds(70), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(90), TimeSpan.FromSeconds(30)));
+    }
+
+    [Fact]
+    public void RecorderProgressTracker_DetectsDeclaredVideoThatNeverProducesPackets()
+    {
+        DateTime startedAt = new(2026, 7, 29, 10, 0, 0, DateTimeKind.Utc);
+        RecorderProgressTracker tracker = new(startedAt);
+
+        Assert.True(tracker.Observe(100, 0, 1, true, startedAt.AddSeconds(1)));
+        Assert.False(tracker.Observe(200, 0, 10, true, startedAt.AddSeconds(20)));
+        Assert.Equal(
+            RecorderStallReason.Video,
+            tracker.GetStallReason(startedAt.AddSeconds(31), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(90), TimeSpan.FromSeconds(30)));
+    }
+
+    [Fact]
     public void MediaSpeedSummaryWindow_CompressesSamplesIntoIntervalSummary()
     {
         DateTime startedAt = new(2026, 7, 25, 20, 30, 0, DateTimeKind.Utc);
@@ -586,6 +641,40 @@ public sealed class RecorderTests
     public void IsMissingAudioError_RecognizesFfmpegFailures(string errorOutput)
     {
         Assert.True(Recorder.IsMissingAudioError(errorOutput));
+    }
+
+    private sealed class BlockingTextReader(string value) : TextReader
+    {
+        private readonly ManualResetEventSlim reading = new();
+        private readonly ManualResetEventSlim released = new();
+
+        public override string? ReadLine()
+        {
+            reading.Set();
+            released.Wait();
+            return value;
+        }
+
+        public bool WaitUntilReading(TimeSpan timeout)
+        {
+            return reading.Wait(timeout);
+        }
+
+        public void Release()
+        {
+            released.Set();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                released.Set();
+                reading.Dispose();
+                released.Dispose();
+            }
+            base.Dispose(disposing);
+        }
     }
 
     private static string FindRepositoryFile(params string[] parts)

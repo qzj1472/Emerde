@@ -54,6 +54,10 @@ internal static class MediaWorker
             DateTime lastProgressAt = DateTime.MinValue;
             long lastProgressBytes = 0;
             long inputBytes = 0;
+            long videoPackets = 0;
+            long audioPackets = 0;
+            bool hasVideoStream = false;
+            bool hasAudioStream = false;
             using CancellationTokenSource stopSource = new();
             _ = StartControlInputReader(stopSource, Console.In);
             FfmpegInputOptions inputOptions = new(command.UserAgent, command.Headers, command.IsUseProxy, command.HttpProxy, true);
@@ -79,8 +83,24 @@ internal static class MediaWorker
 
                     lastProgressAt = now;
                     lastProgressBytes = GetOutputLength(command.OutputFileName, lastProgressBytes);
-                    Console.Out.WriteLine($"progress|{lastProgressBytes.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{inputBytes.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+                    Console.Out.WriteLine($"progress|{lastProgressBytes.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{inputBytes.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{videoPackets.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{audioPackets.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{(hasVideoStream ? "1" : "0")}|{(hasAudioStream ? "1" : "0")}");
                     Console.Out.Flush();
+                },
+                packetProgress =>
+                {
+                    if (packetProgress.IsVideo)
+                    {
+                        videoPackets++;
+                    }
+                    if (packetProgress.IsAudio)
+                    {
+                        audioPackets++;
+                    }
+                },
+                (hasVideo, hasAudio) =>
+                {
+                    hasVideoStream = hasVideo;
+                    hasAudioStream = hasAudio;
                 });
 
             if (!string.IsNullOrWhiteSpace(result.ErrorOutput))
