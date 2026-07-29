@@ -47,6 +47,26 @@ public sealed class LivePreviewTests
 
         Assert.False(MainViewModel.ShouldRefreshPreviewStreamBeforePlayback(cached));
         Assert.True(MainViewModel.ShouldRefreshPreviewStreamBeforePlayback(missing));
+        Assert.True(MainViewModel.ShouldRefreshPreviewStreamBeforePlayback(cached, streamInvalidated: true));
+    }
+
+    [Theory]
+    [InlineData("https://live.example/room\u001fhttps://stream.example/live.flv", "https://live.example/room")]
+    [InlineData("https://live.example/room", "https://live.example/room")]
+    [InlineData("", "")]
+    public void PreviewTermination_ResolvesTheRoomFromTheActualSession(string sessionKey, string expected)
+    {
+        Assert.Equal(expected, MainViewModel.GetPreviewSessionRoomUrl(sessionKey));
+    }
+
+    [Theory]
+    [InlineData("https://live.example/a", "https://live.example/a", true, true)]
+    [InlineData("https://live.example/a", "https://live.example/b", true, false)]
+    [InlineData("https://live.example/a", "https://live.example/a", false, false)]
+    [InlineData("", "https://live.example/a", true, false)]
+    public void PreviewTermination_OnlyClosesItsOwnActiveRoom(string terminatedRoomUrl, string currentRoomUrl, bool isPreviewing, bool expected)
+    {
+        Assert.Equal(expected, MainViewModel.ShouldHandlePreviewTermination(terminatedRoomUrl, currentRoomUrl, isPreviewing));
     }
 
     [Fact]
@@ -239,6 +259,36 @@ public sealed class LivePreviewTests
         Assert.False(MainWindow.IsPreviewControlShortcut(true, System.Windows.Input.Key.V, System.Windows.Input.ModifierKeys.Control));
         Assert.False(MainWindow.IsPreviewControlShortcut(true, System.Windows.Input.Key.Enter, System.Windows.Input.ModifierKeys.Alt));
         Assert.False(MainWindow.IsPreviewControlShortcut(true, System.Windows.Input.Key.F, System.Windows.Input.ModifierKeys.None));
+    }
+
+    [Theory]
+    [InlineData(System.Windows.Input.Key.M)]
+    [InlineData(System.Windows.Input.Key.R)]
+    public void RoomToggleShortcuts_RequireTheirAssignedModifierCombinations(System.Windows.Input.Key key)
+    {
+        Assert.True(MainWindow.IsCurrentRoomToggleShortcut(key, System.Windows.Input.ModifierKeys.Shift));
+        Assert.False(MainWindow.IsCurrentRoomToggleShortcut(key, System.Windows.Input.ModifierKeys.None));
+        Assert.False(MainWindow.IsCurrentRoomToggleShortcut(key, System.Windows.Input.ModifierKeys.Control));
+        Assert.True(MainWindow.IsAllRoomsToggleShortcut(
+            key,
+            System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift));
+        Assert.False(MainWindow.IsAllRoomsToggleShortcut(key, System.Windows.Input.ModifierKeys.Control));
+        Assert.False(MainWindow.IsAllRoomsToggleShortcut(key, System.Windows.Input.ModifierKeys.Shift));
+    }
+
+    [Fact]
+    public void RoomToggleToolTips_MatchAssignedModifierCombinations()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+
+        Assert.Contains("当前直播间监控（Shift+M）", xaml, StringComparison.Ordinal);
+        Assert.Contains("当前直播间录制（Shift+R）", xaml, StringComparison.Ordinal);
+        Assert.Contains("全部监控（Ctrl+Shift+M）", xaml, StringComparison.Ordinal);
+        Assert.Contains("全部录制（Ctrl+Shift+R）", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("当前直播间监控（M）", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("当前直播间录制（R）", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("全部监控（Ctrl+M）", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("全部录制（Ctrl+R）", xaml, StringComparison.Ordinal);
     }
 
     [Theory]

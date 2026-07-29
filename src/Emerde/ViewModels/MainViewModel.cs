@@ -96,6 +96,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private readonly object manualRefreshCooldownLock = new();
     private readonly object previewRefreshCooldownLock = new();
     private readonly Dictionary<string, long> previewQualityRefreshTimestamps = new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly HashSet<string> stalePreviewStreamRooms = new(StringComparer.OrdinalIgnoreCase);
     private readonly Stack<RoomHistoryEntry> roomHistoryUndoStack = [];
     private readonly Stack<RoomHistoryEntry> roomHistoryRedoStack = [];
     private CancellationTokenSource? previewTransitionCancellation;
@@ -1039,6 +1041,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         bool completedCurrentTransition = false;
         bool streamRefreshRequired = false;
         bool resolutionWasMissing = false;
+        bool playbackAttempted = false;
         long? initialGateWaitMilliseconds = null;
         long? streamRefreshMilliseconds = null;
         long? playbackGateWaitMilliseconds = null;
@@ -1068,12 +1071,33 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
             previewTransitionGate.Release();
             enteredGate = false;
-            streamRefreshRequired = ShouldRefreshPreviewStreamBeforePlayback(targetRoom);
+            bool stalePreviewStream;
+            lock (previewTransitionSync)
+            {
+                stalePreviewStream = stalePreviewStreamRooms.Contains(targetRoom.RoomUrl);
+            }
+            streamRefreshRequired = ShouldRefreshPreviewStreamBeforePlayback(targetRoom, stalePreviewStream);
             if (streamRefreshRequired)
             {
                 stageStartedAt = Stopwatch.GetTimestamp();
-                await RefreshPreviewStreamQualityAsync(targetRoom, cancellation.Token);
+                bool refreshed = await RefreshPreviewStreamQualityAsync(targetRoom, cancellation.Token, stalePreviewStream);
                 streamRefreshMilliseconds = GetPreviewElapsedMilliseconds(stageStartedAt);
+                if (stalePreviewStream && !refreshed)
+                {
+                    stageStartedAt = Stopwatch.GetTimestamp();
+                    await previewTransitionGate.WaitAsync(cancellation.Token);
+                    playbackGateWaitMilliseconds = GetPreviewElapsedMilliseconds(stageStartedAt);
+                    enteredGate = true;
+                    cancellation.Token.ThrowIfCancellationRequested();
+                    stageStartedAt = Stopwatch.GetTimestamp();
+                    await livePreviewPlayer.StopAsync();
+                    playerStopMilliseconds = GetPreviewElapsedMilliseconds(stageStartedAt);
+                    ApplyPreviewClosedState();
+                    LivePreviewStatus = LivePreviewStatus.Unavailable;
+                    outcome = "stream_refresh_failed";
+                    Toast.Warning("LivePreviewUnavailable".Tr());
+                    return;
+                }
             }
             cancellation.Token.ThrowIfCancellationRequested();
 
@@ -1112,6 +1136,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             livePreviewPlayer.SetMuted(IsPreviewMuted);
             stageStartedAt = Stopwatch.GetTimestamp();
             string previewSessionKey = CreatePreviewSessionKey(targetRoom, previewUrl, proxyUrl);
+            playbackAttempted = true;
             playerSessionReused = await livePreviewPlayer.PlayAsync(
                 previewSessionKey,
                 previewUrl,
@@ -1123,6 +1148,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 allowStandbyReuse: true);
             playerAcceptMilliseconds = GetPreviewElapsedMilliseconds(stageStartedAt);
             cancellation.Token.ThrowIfCancellationRequested();
+            lock (previewTransitionSync)
+            {
+                _ = stalePreviewStreamRooms.Remove(targetRoom.RoomUrl);
+            }
             BindPendingPreviewFirstFrame(requestId, livePreviewPlayer.FrameSource);
             if (IsCurrentPreviewTransition(cancellation))
             {
@@ -1142,6 +1171,13 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
         catch (Exception e)
         {
+            if (playbackAttempted && targetRoom is { RoomUrl.Length: > 0 })
+            {
+                lock (previewTransitionSync)
+                {
+                    stalePreviewStreamRooms.Add(targetRoom.RoomUrl);
+                }
+            }
             Debug.WriteLine(e);
             outcome = "error";
             failureType = e.GetType().FullName;
@@ -1383,14 +1419,14 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         _ = RequestPreviewTransitionAsync(null, PreviewTransitionReason.RoomUnavailable);
     }
 
-    private void OnLivePreviewPlaybackFailed(object? sender, EventArgs e)
+    private void OnLivePreviewPlaybackFailed(object? sender, LivePreviewPlaybackTerminatedEventArgs e)
     {
-        HandleLivePreviewPlaybackTerminated(LivePreviewStatus.Error, "LivePreviewError", PreviewTransitionReason.PlaybackFailed);
+        HandleLivePreviewPlaybackTerminated(e.SessionKey, LivePreviewStatus.Error, "LivePreviewError", PreviewTransitionReason.PlaybackFailed);
     }
 
-    private void OnLivePreviewPlaybackEnded(object? sender, EventArgs e)
+    private void OnLivePreviewPlaybackEnded(object? sender, LivePreviewPlaybackTerminatedEventArgs e)
     {
-        HandleLivePreviewPlaybackTerminated(LivePreviewStatus.Unavailable, "LivePreviewUnavailable", PreviewTransitionReason.PlaybackEnded);
+        HandleLivePreviewPlaybackTerminated(e.SessionKey, LivePreviewStatus.Unavailable, "LivePreviewUnavailable", PreviewTransitionReason.PlaybackEnded);
     }
 
     private void OnLivePreviewFirstFramePresented(object? sender, EventArgs e)
@@ -1520,20 +1556,29 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         });
     }
 
-    private void HandleLivePreviewPlaybackTerminated(LivePreviewStatus status, string messageKey, PreviewTransitionReason reason)
+    private void HandleLivePreviewPlaybackTerminated(string sessionKey, LivePreviewStatus status, string messageKey, PreviewTransitionReason reason)
     {
+        string terminatedRoomUrl = GetPreviewSessionRoomUrl(sessionKey);
+        if (!string.IsNullOrWhiteSpace(terminatedRoomUrl))
+        {
+            lock (previewTransitionSync)
+            {
+                stalePreviewStreamRooms.Add(terminatedRoomUrl);
+            }
+        }
         AppSessionLogger.Event("info", "preview", "preview_playback_terminated", "preview playback terminated", new
         {
             reason = reason.ToString(),
             status = status.ToString(),
+            terminatedRoomUrl,
             playerState = GetPreviewPlayerState(),
             room = CreatePreviewRoomLogContext(PreviewingRoom),
         });
         ApplicationDispatcher.BeginInvoke(async () =>
         {
-            if (!IsPreviewing)
+            if (!ShouldHandlePreviewTermination(terminatedRoomUrl, PreviewingRoom?.RoomUrl, IsPreviewing))
             {
-                LogPreviewActionIgnored("playback_terminated", PreviewingRoom, "preview_already_closed");
+                LogPreviewActionIgnored("playback_terminated", PreviewingRoom, "preview_session_changed_or_closed");
                 return;
             }
 
@@ -1565,6 +1610,23 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         return ReferenceEquals(current, next) || string.Equals(current.RoomUrl, next.RoomUrl, StringComparison.OrdinalIgnoreCase);
     }
 
+    internal static string GetPreviewSessionRoomUrl(string? sessionKey)
+    {
+        if (string.IsNullOrWhiteSpace(sessionKey))
+        {
+            return string.Empty;
+        }
+        int separatorIndex = sessionKey.IndexOf('\u001f');
+        return separatorIndex < 0 ? sessionKey : sessionKey[..separatorIndex];
+    }
+
+    internal static bool ShouldHandlePreviewTermination(string? terminatedRoomUrl, string? currentRoomUrl, bool isPreviewing)
+    {
+        return isPreviewing
+            && !string.IsNullOrWhiteSpace(terminatedRoomUrl)
+            && string.Equals(terminatedRoomUrl, currentRoomUrl, StringComparison.OrdinalIgnoreCase);
+    }
+
     private async Task ResolvePreviewResolutionAsync(RoomStatusReactive targetRoom, CancellationToken cancellationToken)
     {
         if (!string.IsNullOrWhiteSpace(targetRoom.Resolution))
@@ -1589,18 +1651,18 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         targetRoom.FlashRefresh();
     }
 
-    private async Task RefreshPreviewStreamQualityAsync(RoomStatusReactive targetRoom, CancellationToken cancellationToken)
+    private async Task<bool> RefreshPreviewStreamQualityAsync(RoomStatusReactive targetRoom, CancellationToken cancellationToken, bool force = false)
     {
         string roomUrl = targetRoom.RoomUrl;
         if (string.IsNullOrWhiteSpace(roomUrl))
         {
-            return;
+            return false;
         }
 
         string preferredQuality = PreviewStreamQualityPreference;
-        if (!ShouldRefreshPreviewStreamQuality(targetRoom, preferredQuality))
+        if (!force && !ShouldRefreshPreviewStreamQuality(targetRoom, preferredQuality))
         {
-            return;
+            return false;
         }
 
         bool refreshed;
@@ -1628,18 +1690,19 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         catch (Exception e)
         {
             Debug.WriteLine(e);
-            return;
+            return false;
         }
 
         if (!refreshed)
         {
-            return;
+            return false;
         }
 
         OnPropertyChanged(nameof(CanPreviewSelectedRoom));
         OnPropertyChanged(nameof(PlatformSummaryText));
         OnPropertyChanged(nameof(PlatformFilterOptions));
         ClosePreviewIfCurrentRoomUnavailable();
+        return true;
     }
 
     private bool ShouldRefreshPreviewStreamQuality(RoomStatusReactive room, string preferredQuality)
@@ -1682,7 +1745,12 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     internal static bool ShouldRefreshPreviewStreamBeforePlayback(RoomStatusReactive room)
     {
-        return string.IsNullOrWhiteSpace(GetPreviewPlaybackUrl(room));
+        return ShouldRefreshPreviewStreamBeforePlayback(room, false);
+    }
+
+    internal static bool ShouldRefreshPreviewStreamBeforePlayback(RoomStatusReactive room, bool streamInvalidated)
+    {
+        return streamInvalidated || string.IsNullOrWhiteSpace(GetPreviewPlaybackUrl(room));
     }
 
     private bool IsPreviewQualityRefreshCoolingDown(string roomUrl)

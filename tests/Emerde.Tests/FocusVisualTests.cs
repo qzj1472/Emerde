@@ -27,7 +27,7 @@ public sealed class FocusVisualTests
             "private bool TryBeginManualRefresh()");
         AssertMethodDoesNotResetRoomView(
             source,
-            "private async Task RefreshPreviewStreamQualityAsync(",
+            "private async Task<bool> RefreshPreviewStreamQualityAsync(",
             "private bool ShouldRefreshPreviewStreamQuality(");
     }
 
@@ -45,9 +45,10 @@ public sealed class FocusVisualTests
     private static void AssertMethodDoesNotResetRoomView(string source, string methodSignature, string nextMethodSignature)
     {
         int methodStart = source.IndexOf(methodSignature, StringComparison.Ordinal);
+        Assert.True(methodStart >= 0);
         int methodEnd = source.IndexOf(nextMethodSignature, methodStart, StringComparison.Ordinal);
 
-        Assert.True(methodStart >= 0 && methodEnd > methodStart);
+        Assert.True(methodEnd > methodStart);
         string method = source[methodStart..methodEnd];
         Assert.DoesNotContain("RoomStatusesView.Refresh()", method);
     }

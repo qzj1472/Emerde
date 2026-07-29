@@ -2,6 +2,11 @@ using LibVLCSharp.Shared;
 
 namespace Emerde.Core;
 
+public sealed class LivePreviewPlaybackTerminatedEventArgs(string sessionKey) : EventArgs
+{
+    public string SessionKey { get; } = sessionKey;
+}
+
 public sealed class LivePreviewPlayer : IDisposable
 {
     internal static readonly TimeSpan PlaybackStartTimeout = TimeSpan.FromSeconds(3);
@@ -58,9 +63,9 @@ public sealed class LivePreviewPlayer : IDisposable
         }
     }
 
-    public event EventHandler? PlaybackFailed;
+    public event EventHandler<LivePreviewPlaybackTerminatedEventArgs>? PlaybackFailed;
 
-    public event EventHandler? PlaybackEnded;
+    public event EventHandler<LivePreviewPlaybackTerminatedEventArgs>? PlaybackEnded;
 
     public event EventHandler? FrameSourceChanged;
 
@@ -476,6 +481,10 @@ public sealed class LivePreviewPlayer : IDisposable
         _ = cleanup.ContinueWith(
             completed =>
             {
+                if (completed.Exception is AggregateException error)
+                {
+                    AppSessionLogger.WriteException(error.GetBaseException());
+                }
                 lock (syncRoot)
                 {
                     pendingSessionDisposals.Remove(completed);
@@ -504,7 +513,7 @@ public sealed class LivePreviewPlayer : IDisposable
         HandleSessionTermination(sender, PlaybackEnded);
     }
 
-    private void HandleSessionTermination(object? sender, EventHandler? activeHandler)
+    private void HandleSessionTermination(object? sender, EventHandler<LivePreviewPlaybackTerminatedEventArgs>? activeHandler)
     {
         if (sender is not PreviewSession session)
         {
@@ -529,7 +538,7 @@ public sealed class LivePreviewPlayer : IDisposable
 
         if (isCurrent)
         {
-            activeHandler?.Invoke(this, EventArgs.Empty);
+            activeHandler?.Invoke(this, new LivePreviewPlaybackTerminatedEventArgs(session.SessionKey));
         }
     }
 
@@ -859,6 +868,10 @@ public sealed class LivePreviewPlayer : IDisposable
             }
             catch (ObjectDisposedException)
             {
+            }
+            catch (Exception e)
+            {
+                AppSessionLogger.WriteException(e);
             }
         }
 
