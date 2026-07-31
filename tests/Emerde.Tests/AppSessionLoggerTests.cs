@@ -70,14 +70,18 @@ public sealed class AppSessionLoggerTests
             startedAt,
             new DateTime(2026, 7, 22),
             21460,
+            "session-identifier",
             filePath,
             errorFilePath);
         using JsonDocument document = JsonDocument.Parse(header);
         JsonElement root = document.RootElement;
 
         Assert.Equal("session", root.GetProperty("type").GetString());
-        Assert.Equal(4, root.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal(5, root.GetProperty("schemaVersion").GetInt32());
         Assert.Equal("Emerde", root.GetProperty("application").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("buildId").GetString()));
+        Assert.False(string.IsNullOrWhiteSpace(root.GetProperty("buildConfiguration").GetString()));
+        Assert.Equal("session-identifier", root.GetProperty("sessionId").GetString());
         Assert.Equal("2026-07-22 23:59:58.123", root.GetProperty("startedAt").GetString());
         Assert.Equal("2026-07-22", root.GetProperty("logDate").GetString());
         Assert.Equal(21460, root.GetProperty("processId").GetInt32());

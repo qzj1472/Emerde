@@ -19,7 +19,13 @@
         <RootNamespace>Emerde</RootNamespace>
         <StartupObject>Emerde.Program</StartupObject>
         <FFmpegRuntimeNativePath>$(MSBuildThisFileDirectory)..\..\tools\ffmpeg-minimal\win-x64</FFmpegRuntimeNativePath>
+        <BuildIdentifier Condition="'$(BuildIdentifier)' == ''">$([System.DateTime]::UtcNow.ToString('yyyyMMdd.HHmmss.fff'))-$([System.Guid]::NewGuid().ToString('N'))</BuildIdentifier>
     </PropertyGroup>
+
+    <ItemGroup>
+        <AssemblyMetadata Include="BuildIdentifier" Value="$(BuildIdentifier)" />
+        <AssemblyMetadata Include="BuildConfiguration" Value="$(Configuration)" />
+    </ItemGroup>
 
     <ItemGroup>
         <Compile Update="Properties\Resources.Designer.cs">

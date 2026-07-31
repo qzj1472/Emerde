@@ -28,6 +28,7 @@ internal static class AppSessionLogger
     private static CancellationTokenSource? workerCancellation;
     private static DateTime sessionStartedAt = DateTime.MinValue;
     private static int sessionProcessId;
+    private static string sessionId = string.Empty;
     private static DateTime currentLogDate = DateTime.MinValue;
     private static DateTime retryLogAfter = DateTime.MinValue;
     private static volatile bool isAvailable;
@@ -65,6 +66,7 @@ internal static class AppSessionLogger
             retryLogAfter = DateTime.MinValue;
             sessionStartedAt = DateTime.Now;
             sessionProcessId = Environment.ProcessId;
+            sessionId = Guid.NewGuid().ToString("N");
             ContextCompactor.Reset(sessionStartedAt.Date);
             string directory = AppPaths.LogsDirectory;
             if (!TryOpenWriters(directory, sessionStartedAt))
@@ -162,6 +164,7 @@ internal static class AppSessionLogger
             workerCancellation = null;
             sessionStartedAt = DateTime.MinValue;
             sessionProcessId = 0;
+            sessionId = string.Empty;
             currentLogDate = DateTime.MinValue;
             retryLogAfter = DateTime.MinValue;
             CurrentFilePath = null;
@@ -373,6 +376,7 @@ internal static class AppSessionLogger
                 sessionStartedAt == DateTime.MinValue ? timestamp : sessionStartedAt,
                 timestamp,
                 sessionProcessId == 0 ? Environment.ProcessId : sessionProcessId,
+                sessionId,
                 filePath,
                 errorFilePath);
             newWriter.WriteLine(sessionHeader);
@@ -404,15 +408,19 @@ internal static class AppSessionLogger
         DateTime startedAt,
         DateTime logDate,
         int processId,
+        string sessionIdentifier,
         string filePath,
         string errorFilePath)
     {
         object payload = new
         {
             type = "session",
-            schemaVersion = 4,
+            schemaVersion = 5,
             application = AppConfig.PackName,
             version = AppConfig.Version,
+            buildId = AppConfig.BuildId,
+            buildConfiguration = AppConfig.BuildConfiguration,
+            sessionId = sessionIdentifier,
             startedAt = startedAt.ToString("yyyy-MM-dd HH:mm:ss.fff"),
             logDate = logDate.ToString("yyyy-MM-dd"),
             processId,
