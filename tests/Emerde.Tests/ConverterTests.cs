@@ -18,11 +18,11 @@ public sealed class ConverterTests
     }
 
     [Theory]
-    [InlineData("mp4", true)]
-    [InlineData(".MP4", true)]
+    [InlineData("mp4", false)]
+    [InlineData(".MP4", false)]
     [InlineData("mkv", false)]
     [InlineData("ts", false)]
-    public void CreateDefaultOptions_OptimizesOnlyMp4(string targetFormat, bool expected)
+    public void CreateDefaultOptions_DisablesOptimizedAudioByDefault(string targetFormat, bool expected)
     {
         Assert.Equal(expected, Converter.CreateDefaultOptions(targetFormat).OptimizeAudio);
     }
@@ -30,11 +30,35 @@ public sealed class ConverterTests
     [Theory]
     [InlineData(3600d, 3598d, true)]
     [InlineData(3600d, 3597.9d, false)]
+    [InlineData(3600d, 3602d, true)]
+    [InlineData(3600d, 3602.1d, false)]
+    [InlineData(20000d, 20002d, true)]
+    [InlineData(20000d, 20002.1d, false)]
     [InlineData(3600d, 0d, false)]
     [InlineData(0d, 0d, true)]
-    public void OutputDuration_UsesABoundedAbsoluteTolerance(double expected, double actual, bool accepted)
+    public void OutputDuration_RejectsShortfallAndBoundsSurplus(double expected, double actual, bool accepted)
     {
         Assert.Equal(accepted, Converter.IsDurationWithinTolerance(expected, actual));
+    }
+
+    [Theory]
+    [InlineData(7200d, 7198.5d, 7198.5d)]
+    [InlineData(7200d, 0d, 7200d)]
+    [InlineData(-1d, -1d, 0d)]
+    public void ExpectedDuration_PrefersProcessedPacketTimeline(double probed, double processed, double expected)
+    {
+        Assert.Equal(expected, Converter.SelectExpectedDuration(probed, processed));
+    }
+
+    [Theory]
+    [InlineData(0, 1024, 0)]
+    [InlineData(512, 1024, 1024)]
+    [InlineData(1024, 1024, 1024)]
+    [InlineData(2048, 1024, 2048)]
+    [InlineData(512, 0, 512)]
+    public void OptimizedAudioFrame_PadsPartialFrames(int remaining, int frameSize, int expected)
+    {
+        Assert.Equal(expected, FfmpegMediaEngine.GetPaddedAudioFrameSampleCount(remaining, frameSize));
     }
 
     [Fact]

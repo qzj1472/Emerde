@@ -38,12 +38,14 @@ public sealed class RecordingRecoveryServiceTests
         string? markerPath = RecordingRecoveryService.Register(sourcePattern, new RoomRecordingOptions
         {
             RecordFormat = "TS/FLV -> MKV",
+            IsOptimizeAudio = true,
         }, roomUrl);
 
         Assert.NotNull(markerPath);
         try
         {
             Assert.Contains($"\"RoomUrl\": \"{roomUrl}\"", File.ReadAllText(markerPath!));
+            Assert.Contains("\"OptimizeAudio\": true", File.ReadAllText(markerPath!));
         }
         finally
         {
@@ -91,11 +93,13 @@ public sealed class RecordingRecoveryServiceTests
             {
                 RecordFormat = "TS/FLV -> MKV",
                 IsRemoveTs = true,
+                IsOptimizeAudio = true,
             }));
 
             string marker = File.ReadAllText(markerPath!);
             Assert.Contains("\"TargetFormat\": \".mkv\"", marker);
             Assert.Contains("\"RemoveSource\": true", marker);
+            Assert.Contains("\"OptimizeAudio\": true", marker);
 
             Assert.False(RecordingRecoveryService.UpdateOptions(markerPath!, new RoomRecordingOptions
             {
@@ -161,6 +165,7 @@ public sealed class RecordingRecoveryServiceTests
             JsonObject marker = JsonNode.Parse(File.ReadAllText(markerPath))!.AsObject();
             Assert.Equal(".mkv", marker["TargetFormat"]!.GetValue<string>());
             Assert.NotNull(marker["CompletedSources"]);
+            Assert.False(marker["OptimizeAudio"]!.GetValue<bool>());
         }
         finally
         {
@@ -374,6 +379,28 @@ public sealed class RecordingRecoveryServiceTests
             File.Delete(path);
             File.Delete(path + ".invalid");
             File.Delete(path + ".invalid.reason.txt");
+        }
+    }
+
+    [Fact]
+    public void RegisterSessionParts_StoresOptimizedAudioForCrashRecovery()
+    {
+        string sourcePattern = Path.Combine(Path.GetTempPath(), $"emerde-session-{Guid.NewGuid():N}_%03d.ts");
+        string? markerPath = RecordingRecoveryService.RegisterSessionParts(
+            sourcePattern,
+            ".mp4",
+            removeSource: false,
+            optimizeAudio: true);
+
+        Assert.NotNull(markerPath);
+        try
+        {
+            Assert.Contains("\"OptimizeAudio\": true", File.ReadAllText(markerPath!));
+        }
+        finally
+        {
+            File.Delete(markerPath);
+            File.Delete(markerPath + ".tmp");
         }
     }
 

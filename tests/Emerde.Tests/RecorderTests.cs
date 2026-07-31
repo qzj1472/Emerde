@@ -220,6 +220,22 @@ public sealed class RecorderTests
         Assert.True(sessionPartAdvance > fallbackContinue);
     }
 
+    [Fact]
+    public void InitialSessionRecoveryMarker_PreservesOptimizedAudioSelection()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "Recorder.cs"));
+        int initialRegistration = source.IndexOf(
+            "string? pendingRecordingPath = RecordingRecoveryService.RegisterSessionParts(",
+            StringComparison.Ordinal);
+        int optimizeAudioArgument = source.IndexOf(
+            "recordingOptions.IsOptimizeAudio);",
+            initialRegistration,
+            StringComparison.Ordinal);
+
+        Assert.True(initialRegistration >= 0);
+        Assert.True(optimizeAudioArgument > initialRegistration);
+    }
+
     [Theory]
     [InlineData(0, "record_000.ts")]
     [InlineData(1, "record_001.ts")]

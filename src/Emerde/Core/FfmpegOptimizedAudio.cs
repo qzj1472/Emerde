@@ -291,6 +291,10 @@ internal static unsafe partial class FfmpegMediaEngine
             {
                 return CreateCanceledResult(hadProgress);
             }
+            if (!IsFileInputFullyConsumed(inputContext, sourceFileName))
+            {
+                return new FfmpegMediaRunResult(1, false, hadProgress, "optimized audio source ended before the physical file end");
+            }
 
             ThrowIfError(ffmpeg.avcodec_send_packet(decoderContext, null), "flush audio decoder");
             DecodeAvailableAudioFrames(
@@ -850,9 +854,7 @@ internal static unsafe partial class FfmpegMediaEngine
         {
             return;
         }
-        int sampleCount = (encoderContext->codec->capabilities & ffmpeg.AV_CODEC_CAP_SMALL_LAST_FRAME) != 0
-            ? remaining
-            : Math.Max(remaining, encoderContext->frame_size);
+        int sampleCount = GetPaddedAudioFrameSampleCount(remaining, encoderContext->frame_size);
         EncodeAudioFifoFrame(
             encoderContext,
             outputContext,
@@ -862,6 +864,11 @@ internal static unsafe partial class FfmpegMediaEngine
             sampleCount,
             ref nextPts,
             ref hadProgress);
+    }
+
+    internal static int GetPaddedAudioFrameSampleCount(int remaining, int frameSize)
+    {
+        return remaining <= 0 ? 0 : Math.Max(remaining, frameSize);
     }
 
     private static void EncodeAudioFifoFrame(
@@ -942,6 +949,7 @@ internal static unsafe partial class FfmpegMediaEngine
         bool outputOpened = false;
         bool headerWritten = false;
         bool hadProgress = false;
+        long baseTimelineEnd = 0;
         GCHandle baseInterruptHandle = default;
         GCHandle audioInterruptHandle = default;
 
@@ -1035,6 +1043,7 @@ internal static unsafe partial class FfmpegMediaEngine
                     int outputIndex = baseStreamMap[inputIndex];
                     AVStream* inputStream = baseContext->streams[inputIndex];
                     AVStream* outputStream = outputContext->streams[outputIndex];
+                    baseTimelineEnd = Math.Max(baseTimelineEnd, GetPacketDecodeEndTimestamp(basePacket, inputStream));
                     ffmpeg.av_packet_rescale_ts(basePacket, inputStream->time_base, outputStream->time_base);
                     basePacket->stream_index = outputIndex;
                     basePacket->pos = -1;
@@ -1062,10 +1071,19 @@ internal static unsafe partial class FfmpegMediaEngine
             {
                 return CreateCanceledResult(hadProgress);
             }
+            if (!IsFileInputFullyConsumed(baseContext, baseVideoPath))
+            {
+                return new FfmpegMediaRunResult(1, false, hadProgress, "base video ended before the physical file end");
+            }
             int closeResult = CloseSegmentOutput(&outputContext, ref outputOpened, ref headerWritten);
             return closeResult < 0
                 ? CreateNativeFailureResult(closeResult, token, hadProgress)
-                : new FfmpegMediaRunResult(0, false, hadProgress, string.Empty);
+                : new FfmpegMediaRunResult(
+                    0,
+                    false,
+                    hadProgress,
+                    string.Empty,
+                    Math.Max(0d, baseTimelineEnd / (double)ffmpeg.AV_TIME_BASE));
         }
         catch (Exception e)
         {

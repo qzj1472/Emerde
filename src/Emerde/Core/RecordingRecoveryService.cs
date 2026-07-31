@@ -28,20 +28,20 @@ internal static class RecordingRecoveryService
             return null;
         }
 
-        return Register(sourcePattern, targetFormat, options.IsRemoveTs, mergeSessionParts: false, roomUrl);
+        return Register(sourcePattern, targetFormat, options.IsRemoveTs, options.IsOptimizeAudio, mergeSessionParts: false, roomUrl);
     }
 
-    internal static string? RegisterSessionParts(string sourcePattern, string targetFormat, bool removeSource, string roomUrl = "")
+    internal static string? RegisterSessionParts(string sourcePattern, string targetFormat, bool removeSource, string roomUrl = "", bool optimizeAudio = false)
     {
         if (string.IsNullOrWhiteSpace(sourcePattern) || string.IsNullOrWhiteSpace(targetFormat))
         {
             return null;
         }
 
-        return Register(sourcePattern, targetFormat, removeSource, mergeSessionParts: true, roomUrl);
+        return Register(sourcePattern, targetFormat, removeSource, optimizeAudio, mergeSessionParts: true, roomUrl);
     }
 
-    private static string? Register(string sourcePattern, string targetFormat, bool removeSource, bool mergeSessionParts, string roomUrl)
+    private static string? Register(string sourcePattern, string targetFormat, bool removeSource, bool optimizeAudio, bool mergeSessionParts, string roomUrl)
     {
         string? temporaryPath = null;
         try
@@ -54,6 +54,7 @@ internal static class RecordingRecoveryService
                 SourcePattern = sourcePattern,
                 TargetFormat = targetFormat,
                 RemoveSource = removeSource,
+                OptimizeAudio = optimizeAudio,
                 MergeSessionParts = mergeSessionParts,
                 RoomUrl = roomUrl ?? string.Empty,
             };
@@ -124,6 +125,7 @@ internal static class RecordingRecoveryService
         }
         item.TargetFormat = targetFormat;
         item.RemoveSource = options.IsRemoveTs;
+        item.OptimizeAudio = options.IsOptimizeAudio;
         return Save(path, item);
     }
 
@@ -411,7 +413,8 @@ internal static class RecordingRecoveryService
                     throw new IOException("pending recording reserved intermediate state could not be saved");
                 }
             },
-            operationCancellation);
+            operationCancellation,
+            item.OptimizeAudio);
         if (GetSourceFiles(item.SourcePattern).Length == 0)
         {
             DeleteMarker(path);
@@ -442,7 +445,8 @@ internal static class RecordingRecoveryService
         Action<string>? onMergeTargetReserved = null,
         Action<string, string>? onSourceTargetReserved = null,
         Action<string>? onIntermediateTargetReserved = null,
-        CancellationTokenSource? tokenSource = null)
+        CancellationTokenSource? tokenSource = null,
+        bool optimizeAudio = false)
     {
         string[] sources = GetSourceFiles(sourcePattern);
         if (sources.Length == 0)
@@ -459,7 +463,7 @@ internal static class RecordingRecoveryService
                 if (!await new Converter().ExecuteSessionPartsAsync(
                     sourcePattern,
                     sources,
-                    targetFormat,
+                    new ConverterOptions(targetFormat, optimizeAudio),
                     tokenSource,
                     onCompleted: onMergeCompleted,
                     onTargetReserved: onMergeTargetReserved))
@@ -475,7 +479,8 @@ internal static class RecordingRecoveryService
                         completedSources,
                         onSourceCompleted,
                         onSourceTargetReserved,
-                        tokenSource);
+                        tokenSource,
+                        optimizeAudio);
                 }
 
                 CancellationToken token = tokenSource?.Token ?? CancellationToken.None;
@@ -498,7 +503,7 @@ internal static class RecordingRecoveryService
                 bool merged = await new Converter().ExecuteSessionPartsAsync(
                     sourcePattern,
                     sources,
-                    sourceFormat,
+                    new ConverterOptions(sourceFormat, optimizeAudio),
                     tokenSource,
                     onCompleted: completedPath =>
                     {
@@ -515,14 +520,15 @@ internal static class RecordingRecoveryService
                         completedSources,
                         onSourceCompleted,
                         onSourceTargetReserved,
-                        tokenSource);
+                        tokenSource,
+                        optimizeAudio);
                 }
                 mergedSource = createdIntermediate!;
             }
 
             bool completed = await new Converter().ExecuteWithCompletionAsync(
                 mergedSource,
-                targetFormat,
+                new ConverterOptions(targetFormat, optimizeAudio),
                 onMergeCompleted ?? (_ => { }),
                 tokenSource,
                 onTargetReserved: onMergeTargetReserved);
@@ -547,7 +553,8 @@ internal static class RecordingRecoveryService
                 completedSources,
                 onSourceCompleted,
                 onSourceTargetReserved,
-                tokenSource);
+                tokenSource,
+                optimizeAudio);
             if (fallbackCompleted && IsUsableSource(mergedSource))
             {
                 (tokenSource?.Token ?? CancellationToken.None).ThrowIfCancellationRequested();
@@ -564,7 +571,8 @@ internal static class RecordingRecoveryService
             completedSources,
             onSourceCompleted,
             onSourceTargetReserved,
-            tokenSource);
+            tokenSource,
+            optimizeAudio);
     }
 
     private sealed class RecoveryProcessingTask
@@ -589,7 +597,8 @@ internal static class RecordingRecoveryService
         IReadOnlyDictionary<string, string>? completedSources,
         Action<string, string>? onSourceCompleted,
         Action<string, string>? onSourceTargetReserved,
-        CancellationTokenSource? tokenSource)
+        CancellationTokenSource? tokenSource,
+        bool optimizeAudio)
     {
         foreach (string source in sources)
         {
@@ -612,7 +621,7 @@ internal static class RecordingRecoveryService
                 string? createdTarget = null;
                 bool converted = await new Converter().ExecuteWithCompletionAsync(
                     source,
-                    targetFormat,
+                    new ConverterOptions(targetFormat, optimizeAudio),
                     completedPath =>
                     {
                         onSourceCompleted?.Invoke(source, completedPath);
@@ -1175,6 +1184,8 @@ internal static class RecordingRecoveryService
         public string TargetFormat { get; set; } = string.Empty;
 
         public bool RemoveSource { get; set; }
+
+        public bool OptimizeAudio { get; set; }
 
         public bool MergeSessionParts { get; set; }
 

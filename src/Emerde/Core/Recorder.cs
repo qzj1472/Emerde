@@ -264,7 +264,12 @@ public sealed class Recorder
                 sessionOutputPattern = sessionOutputReservation.OutputPattern;
                 sessionMetadata = BuildMetadata(sessionBaseFileName, sessionSourceExtension, startInfo, sessionTimestamp);
                 sessionMetadataPath = VideoRecordingMetadataStore.WriteSidecar(saveFolder, sessionBaseFileName, sessionMetadata);
-                string? pendingRecordingPath = RecordingRecoveryService.RegisterSessionParts(sessionOutputPattern, sessionTargetFormat, recordingOptions.IsRemoveTs, startInfo.RoomUrl);
+                string? pendingRecordingPath = RecordingRecoveryService.RegisterSessionParts(
+                    sessionOutputPattern,
+                    sessionTargetFormat,
+                    recordingOptions.IsRemoveTs,
+                    startInfo.RoomUrl,
+                    recordingOptions.IsOptimizeAudio);
                 if (!string.IsNullOrWhiteSpace(pendingRecordingPath))
                 {
                     pendingRecordingPaths.Add(pendingRecordingPath);
@@ -556,7 +561,12 @@ public sealed class Recorder
                 {
                     string latestTargetFormat = GetTargetFormat(postProcessingOptions.RecordFormat)
                         ?? Path.GetExtension(sourcePattern);
-                    string? pendingPath = RecordingRecoveryService.RegisterSessionParts(sourcePattern, latestTargetFormat, postProcessingOptions.IsRemoveTs, startInfo.RoomUrl);
+                    string? pendingPath = RecordingRecoveryService.RegisterSessionParts(
+                        sourcePattern,
+                        latestTargetFormat,
+                        postProcessingOptions.IsRemoveTs,
+                        startInfo.RoomUrl,
+                        postProcessingOptions.IsOptimizeAudio);
                     if (!string.IsNullOrWhiteSpace(pendingPath))
                     {
                         pendingRecordingPaths.Add(pendingPath);

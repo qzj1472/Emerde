@@ -45,7 +45,19 @@ public sealed class Converter
     {
         ArgumentNullException.ThrowIfNull(sourceFileName);
         ArgumentNullException.ThrowIfNull(onCompleted);
-        return await ExecuteCoreAsync([sourceFileName], CreateDefaultOptions(targetFormat), tokenSource, sessionSourcePattern: null, allowSameFormat: false, onCompleted, onTargetReserved);
+        return await ExecuteWithCompletionAsync(sourceFileName, CreateDefaultOptions(targetFormat), onCompleted, tokenSource, onTargetReserved);
+    }
+
+    internal async Task<bool> ExecuteWithCompletionAsync(
+        string sourceFileName,
+        ConverterOptions options,
+        Action<string> onCompleted,
+        CancellationTokenSource? tokenSource = null,
+        Action<string>? onTargetReserved = null)
+    {
+        ArgumentNullException.ThrowIfNull(sourceFileName);
+        ArgumentNullException.ThrowIfNull(onCompleted);
+        return await ExecuteCoreAsync([sourceFileName], options, tokenSource, sessionSourcePattern: null, allowSameFormat: false, onCompleted, onTargetReserved);
     }
 
     internal async Task<bool> ExecuteSessionPartsAsync(
@@ -57,7 +69,19 @@ public sealed class Converter
         Action<string>? onTargetReserved = null)
     {
         ArgumentNullException.ThrowIfNull(sourcePattern);
-        return await ExecuteCoreAsync(sourceFileNames, CreateDefaultOptions(targetFormat), tokenSource, sourcePattern, allowSameFormat: true, onCompleted, onTargetReserved);
+        return await ExecuteSessionPartsAsync(sourcePattern, sourceFileNames, CreateDefaultOptions(targetFormat), tokenSource, onCompleted, onTargetReserved);
+    }
+
+    internal async Task<bool> ExecuteSessionPartsAsync(
+        string sourcePattern,
+        IReadOnlyList<string> sourceFileNames,
+        ConverterOptions options,
+        CancellationTokenSource? tokenSource = null,
+        Action<string>? onCompleted = null,
+        Action<string>? onTargetReserved = null)
+    {
+        ArgumentNullException.ThrowIfNull(sourcePattern);
+        return await ExecuteCoreAsync(sourceFileNames, options, tokenSource, sourcePattern, allowSameFormat: true, onCompleted, onTargetReserved);
     }
 
     private async Task<bool> ExecuteCoreAsync(
@@ -130,7 +154,8 @@ public sealed class Converter
                 return false;
             }
             FfmpegMediaProbeResult[] sourceProbes = probeBatch.Probes;
-            optimizeAudio = optimizeAudio && sourceProbes.All(probe => probe.HasAudio);
+            bool optimizedAudioRequested = optimizeAudio;
+            optimizeAudio = optimizedAudioRequested && sourceProbes.All(probe => probe.HasAudio);
             string[] sourcePaths = sourceFileInfos.Select(file => file.FullName).ToArray();
             AppSessionLogger.Event("info", "converter", "conversion_starting", "recording conversion is starting", new
             {
@@ -138,7 +163,9 @@ public sealed class Converter
                 targetFileName,
                 activeConversions = ActiveConversionCount,
                 optimizeAudio,
+                optimizedAudioRequested,
             });
+            bool optimizedAudioFallback = false;
             FfmpegMediaRunResult result = await Task.Run(
                 () => optimizeAudio
                     ? FfmpegMediaEngine.RemuxFilesWithOptimizedAudio(sourcePaths, temporaryTargetFileName, metadata, token)
@@ -149,11 +176,29 @@ public sealed class Converter
                 throw new OperationCanceledException(token);
             }
 
-            bool succeeded = result.ExitCode == 0
-                && result.HadMediaProgress
-                && await Task.Run(
-                    () => IsUsableOutput(temporaryTargetFileName, sourceProbes, optimizeAudio, token),
+            (bool succeeded, string validationError) = await ValidateConversionAsync(result, temporaryTargetFileName, sourceProbes, optimizeAudio, token);
+            if (!succeeded && optimizeAudio)
+            {
+                AppSessionLogger.Event("warn", "converter", "optimized_audio_fallback", "optimized audio conversion failed and plain remux will be attempted", new
+                {
+                    sourceFileNames = sourcePaths,
+                    targetFileName,
+                    result.ExitCode,
+                    result.ErrorOutput,
+                    validationError,
+                });
+                DeleteTemporaryOutput(temporaryTargetFileName);
+                optimizedAudioFallback = true;
+                optimizeAudio = false;
+                result = await Task.Run(
+                    () => FfmpegMediaEngine.RemuxFiles(sourcePaths, temporaryTargetFileName, metadata, token),
                     token);
+                if (result.WasCanceled)
+                {
+                    throw new OperationCanceledException(token);
+                }
+                (succeeded, validationError) = await ValidateConversionAsync(result, temporaryTargetFileName, sourceProbes, optimizedAudioExpected: false, token: token);
+            }
             if (succeeded)
             {
                 File.Move(temporaryTargetFileName, targetFileName, false);
@@ -172,6 +217,10 @@ public sealed class Converter
                 result.ExitCode,
                 succeeded,
                 optimizeAudio,
+                optimizedAudioRequested,
+                optimizedAudioFallback,
+                result.ProcessedDurationSeconds,
+                validationError = succeeded ? string.Empty : validationError,
                 errorOutput = succeeded ? string.Empty : result.ErrorOutput,
             });
             return succeeded;
@@ -219,8 +268,34 @@ public sealed class Converter
 
     internal static ConverterOptions CreateDefaultOptions(string targetFormat)
     {
-        string? normalized = NormalizeTargetFormat(targetFormat, allowSourceContainerFormats: true);
-        return new ConverterOptions(targetFormat, normalized == ".mp4");
+        return new ConverterOptions(targetFormat, false);
+    }
+
+    private static async Task<(bool Succeeded, string ValidationError)> ValidateConversionAsync(
+        FfmpegMediaRunResult result,
+        string temporaryTargetFileName,
+        IReadOnlyList<FfmpegMediaProbeResult> sourceProbes,
+        bool optimizedAudioExpected,
+        CancellationToken token)
+    {
+        if (result.ExitCode != 0)
+        {
+            return (false, $"native_exit_code:{result.ExitCode}");
+        }
+        if (!result.HadMediaProgress)
+        {
+            return (false, "no_media_progress");
+        }
+
+        string validationError = await Task.Run(
+            () => GetOutputValidationError(
+                temporaryTargetFileName,
+                sourceProbes,
+                optimizedAudioExpected,
+                result.ProcessedDurationSeconds,
+                token),
+            token);
+        return (string.IsNullOrEmpty(validationError), validationError);
     }
 
     private static SourceProbeBatch ProbeSources(IReadOnlyList<FileInfo> sourceFileInfos, CancellationToken token)
@@ -334,31 +409,53 @@ public sealed class Converter
         bool optimizedAudioExpected,
         CancellationToken token = default)
     {
+        return string.IsNullOrEmpty(GetOutputValidationError(path, sourceProbes, optimizedAudioExpected, 0d, token));
+    }
+
+    private static string GetOutputValidationError(
+        string path,
+        IReadOnlyList<FfmpegMediaProbeResult> sourceProbes,
+        bool optimizedAudioExpected,
+        double processedDurationSeconds,
+        CancellationToken token)
+    {
         try
         {
             FileInfo file = new(path);
-            if (!file.Exists || file.Length <= 0
-                || !FfmpegMediaEngine.TryProbe(path, out FfmpegMediaProbeResult output, out _, token))
+            if (!file.Exists || file.Length <= 0)
             {
-                return false;
+                return "output_missing_or_empty";
+            }
+            if (!FfmpegMediaEngine.TryProbe(path, out FfmpegMediaProbeResult output, out string probeError, token))
+            {
+                return string.IsNullOrWhiteSpace(probeError) ? "output_probe_failed" : $"output_probe_failed:{probeError}";
             }
 
             int sourceAudioStreamCount = sourceProbes.Max(probe => probe.AudioStreamCount);
             bool sourceHasAudio = sourceAudioStreamCount > 0;
             bool sourceHasVideo = sourceProbes.Any(probe => probe.HasVideo);
-            if (sourceHasAudio && !output.HasAudio
-                || sourceHasVideo && !output.HasVideo
-                || optimizedAudioExpected && sourceHasAudio && output.AudioStreamCount < sourceAudioStreamCount + 1)
+            if (sourceHasAudio && !output.HasAudio)
             {
-                return false;
+                return "output_audio_missing";
+            }
+            if (sourceHasVideo && !output.HasVideo)
+            {
+                return "output_video_missing";
+            }
+            if (optimizedAudioExpected && sourceHasAudio && output.AudioStreamCount < sourceAudioStreamCount + 1)
+            {
+                return $"optimized_audio_track_missing:expected={sourceAudioStreamCount + 1},actual={output.AudioStreamCount}";
             }
 
-            double expectedDuration = sourceProbes.Sum(probe => Math.Max(0, probe.DurationSeconds));
-            return IsDurationWithinTolerance(expectedDuration, output.DurationSeconds);
+            double probedDuration = sourceProbes.Sum(probe => Math.Max(0, probe.DurationSeconds));
+            double expectedDuration = SelectExpectedDuration(probedDuration, processedDurationSeconds);
+            return IsDurationWithinTolerance(expectedDuration, output.DurationSeconds)
+                ? string.Empty
+                : $"duration_mismatch:expected={expectedDuration:F3},actual={output.DurationSeconds:F3},probed={probedDuration:F3},processed={processedDurationSeconds:F3}";
         }
-        catch
+        catch (Exception e)
         {
-            return false;
+            return $"output_validation_failed:{e.GetType().Name}:{e.Message}";
         }
     }
 
@@ -368,7 +465,16 @@ public sealed class Converter
         {
             return true;
         }
-        return actualDuration > 0 && Math.Abs(actualDuration - expectedDuration) <= 2d;
+        if (actualDuration <= 0)
+        {
+            return false;
+        }
+        return Math.Abs(actualDuration - expectedDuration) <= 2d;
+    }
+
+    internal static double SelectExpectedDuration(double probedDuration, double processedDuration)
+    {
+        return processedDuration > 0d ? processedDuration : Math.Max(0d, probedDuration);
     }
 
     private static void DeleteTemporaryOutput(string? path)

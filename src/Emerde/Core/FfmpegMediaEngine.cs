@@ -32,7 +32,8 @@ internal sealed record FfmpegMediaRunResult(
     int ExitCode,
     bool WasCanceled,
     bool HadMediaProgress,
-    string ErrorOutput);
+    string ErrorOutput,
+    double ProcessedDurationSeconds = 0d);
 
 internal readonly record struct FfmpegPacketProgress(int Bytes, bool IsVideo, bool IsAudio);
 
@@ -1086,6 +1087,10 @@ internal static unsafe partial class FfmpegMediaEngine
                     {
                         return new FfmpegMediaRunResult(1, false, hadProgress, $"source {sourceIndex + 1} contains no readable media packets");
                     }
+                    if (inputOptions == null && !IsFileInputFullyConsumed(inputContext, sourceFileNames[sourceIndex]))
+                    {
+                        return new FfmpegMediaRunResult(1, false, hadProgress, $"source {sourceIndex + 1} ended before the physical file end");
+                    }
 
                     timelineOffset = Math.Max(timelineOffset, sourceDecodeEndTimestamp);
                 }
@@ -1118,7 +1123,12 @@ internal static unsafe partial class FfmpegMediaEngine
             int closeResult = CloseSegmentOutput(&outputContext, ref outputOpened, ref headerWritten);
             return closeResult < 0
                 ? CreateNativeFailureResult(closeResult, token, hadProgress)
-                : new FfmpegMediaRunResult(0, false, hadProgress, string.Empty);
+                : new FfmpegMediaRunResult(
+                    0,
+                    false,
+                    hadProgress,
+                    string.Empty,
+                    Math.Max(0d, timelineOffset / (double)ffmpeg.AV_TIME_BASE));
         }
         catch (Exception e)
         {
@@ -1202,6 +1212,27 @@ internal static unsafe partial class FfmpegMediaEngine
             endTimestamp,
             outputStream->time_base,
             new AVRational { num = 1, den = ffmpeg.AV_TIME_BASE });
+    }
+
+    private static bool IsFileInputFullyConsumed(AVFormatContext* inputContext, string sourceFileName)
+    {
+        string extension = Path.GetExtension(sourceFileName);
+        if (!extension.Equals(".ts", StringComparison.OrdinalIgnoreCase)
+            && !extension.Equals(".flv", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        AVIOContext* input = inputContext->pb;
+        if (input == null || input->error < 0)
+        {
+            return false;
+        }
+        long inputSize = ffmpeg.avio_size(input);
+        if (inputSize <= 0)
+        {
+            return true;
+        }
+        return ffmpeg.avio_tell(input) >= inputSize;
     }
 
     private static long AddSaturated(long value, long offset)

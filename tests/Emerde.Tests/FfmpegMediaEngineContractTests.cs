@@ -25,13 +25,44 @@ public sealed class FfmpegMediaEngineContractTests
         string source = ReadSource();
         int remuxIndex = source.IndexOf("private static FfmpegMediaRunResult Remux(", StringComparison.Ordinal);
         int closeIndex = source.IndexOf("CloseSegmentOutput(&outputContext, ref outputOpened, ref headerWritten)", remuxIndex, StringComparison.Ordinal);
-        int successIndex = source.IndexOf("new FfmpegMediaRunResult(0, false, hadProgress, string.Empty)", closeIndex, StringComparison.Ordinal);
+        int successIndex = source.IndexOf("new FfmpegMediaRunResult(", closeIndex, StringComparison.Ordinal);
 
         Assert.True(remuxIndex >= 0);
         Assert.True(closeIndex > remuxIndex);
         Assert.True(successIndex > closeIndex);
         Assert.Contains("int closeResult = ffmpeg.avio_closep(&context->pb);", source);
         Assert.Contains("trailerResult = closeResult;", source);
+    }
+
+    [Fact]
+    public void Remux_ReportsProcessedPacketTimelineDuration()
+    {
+        string source = ReadSource();
+
+        Assert.Contains("double ProcessedDurationSeconds = 0d", source);
+        Assert.Contains("timelineOffset / (double)ffmpeg.AV_TIME_BASE", source);
+    }
+
+    [Fact]
+    public void OptimizedAudio_PadsPartialFifoFramesAndReportsBaseDuration()
+    {
+        string source = ReadOptimizedAudioSource();
+
+        Assert.Contains("GetPaddedAudioFrameSampleCount(remaining, encoderContext->frame_size)", source);
+        Assert.Contains("baseTimelineEnd = Math.Max(baseTimelineEnd, GetPacketDecodeEndTimestamp(basePacket, inputStream));", source);
+        Assert.Contains("baseTimelineEnd / (double)ffmpeg.AV_TIME_BASE", source);
+        Assert.Contains("IsFileInputFullyConsumed(inputContext, sourceFileName)", source);
+        Assert.Contains("IsFileInputFullyConsumed(baseContext, baseVideoPath)", source);
+    }
+
+    [Fact]
+    public void FileRemux_RequiresPhysicalInputEndBeforeSuccess()
+    {
+        string source = ReadSource();
+
+        Assert.Contains("IsFileInputFullyConsumed(inputContext, sourceFileNames[sourceIndex])", source);
+        Assert.Contains("input->error < 0", source);
+        Assert.Contains("ffmpeg.avio_tell(input) >= inputSize", source);
     }
 
     [Fact]
@@ -135,5 +166,22 @@ public sealed class FfmpegMediaEngineContractTests
         }
 
         throw new FileNotFoundException("FfmpegMediaEngine.cs");
+    }
+
+    private static string ReadOptimizedAudioSource()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory != null)
+        {
+            string candidate = Path.Combine(directory.FullName, "src", "Emerde", "Core", "FfmpegOptimizedAudio.cs");
+            if (File.Exists(candidate))
+            {
+                return File.ReadAllText(candidate);
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException("FfmpegOptimizedAudio.cs");
     }
 }
