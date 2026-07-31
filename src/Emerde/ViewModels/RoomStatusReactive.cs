@@ -155,6 +155,7 @@ public partial class RoomStatusReactive : ReactiveObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RecordStatusText))]
     [NotifyPropertyChangedFor(nameof(IsRecording))]
+    [NotifyPropertyChangedFor(nameof(IsRecordingOrStarting))]
     [NotifyPropertyChangedFor(nameof(RecordingEngineText))]
     private RecordStatus recordStatus = default;
 
@@ -172,6 +173,8 @@ public partial class RoomStatusReactive : ReactiveObject
     };
 
     public bool IsRecording => RecordStatus == RecordStatus.Recording && IsRecordingConfirmed;
+
+    public bool IsRecordingOrStarting => RecordStatus == RecordStatus.Recording;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RecordStatusText))]

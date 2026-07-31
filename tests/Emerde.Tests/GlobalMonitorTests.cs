@@ -646,6 +646,30 @@ public sealed class GlobalMonitorTests
         Assert.False(GlobalMonitor.IsRoomRecordStartPaused(roomUrl, now + TimeSpan.FromSeconds(31)));
     }
 
+    [Fact]
+    public void ResetRoomRecordSessionState_ClearsOverrideAndRetryPause()
+    {
+        string roomUrl = $"https://example.test/{Guid.NewGuid():N}";
+        bool oldIsToRecord = Configurations.IsToRecord.Get();
+
+        try
+        {
+            Configurations.IsToRecord.Set(false);
+            GlobalMonitor.SetTemporaryRoomRecord(roomUrl, true);
+            GlobalMonitor.SetRoomRecordStartPause(roomUrl, DateTime.Now + TimeSpan.FromMinutes(1));
+
+            GlobalMonitor.ResetRoomRecordSessionState(roomUrl);
+
+            Assert.False(GlobalMonitor.GetEffectiveRoomRecord(roomUrl, false, true));
+            Assert.False(GlobalMonitor.IsRoomRecordStartPaused(roomUrl, DateTime.Now));
+        }
+        finally
+        {
+            GlobalMonitor.ResetRoomRecordSessionState(roomUrl);
+            Configurations.IsToRecord.Set(oldIsToRecord);
+        }
+    }
+
     [Theory]
     [InlineData(true, "Douyin", StreamStatus.Streaming, true, true, true)]
     [InlineData(true, "Douyin", StreamStatus.Streaming, true, false, false)]

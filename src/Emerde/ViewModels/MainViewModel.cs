@@ -3959,9 +3959,28 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return;
         }
 
+        RecordStatus currentRecordStatus = SelectedItem.RecordStatus;
+        if (GlobalMonitor.RoomStatus.TryGetValue(SelectedItem.RoomUrl, out RoomStatus? runtimeStatus))
+        {
+            GlobalMonitor.SyncRecordStatus(runtimeStatus);
+            currentRecordStatus = runtimeStatus.RecordStatus;
+        }
+        bool enabled = ShouldEnableSelectedRoomRecord(currentRecordStatus);
+        if (enabled)
+        {
+            GlobalMonitor.ClearRoomRecordStartPause(SelectedItem.RoomUrl);
+        }
+        AppSessionLogger.Event("info", "business", "manual_room_record_state_changed", "manual room recording state changed", new
+        {
+            SelectedItem.RoomUrl,
+            SelectedItem.NickName,
+            currentRecordStatus,
+            enabled,
+            SelectedItem.IsFollowGlobalSettings,
+        });
+
         if (SelectedItem.IsFollowGlobalSettings)
         {
-            bool enabled = !GlobalMonitor.GetEffectiveRoomRecord(SelectedItem.RoomUrl, SelectedItem.IsToRecord, true);
             GlobalMonitor.SetTemporaryRoomRecord(SelectedItem.RoomUrl, enabled);
             SelectedItem.RefreshStatus();
 
@@ -3979,7 +3998,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return;
         }
 
-        SelectedItem.IsToRecord = !SelectedItem.IsToRecord;
+        SelectedItem.IsToRecord = enabled;
         SaveSelectedRoomSettings();
         SelectedItem.RefreshStatus();
 
@@ -4004,6 +4023,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
 
         RefreshRoomEffectiveStates();
+    }
+
+    internal static bool ShouldEnableSelectedRoomRecord(RecordStatus recordStatus)
+    {
+        return recordStatus != RecordStatus.Recording;
     }
 
     private void StopGlobalFollowRecorders()

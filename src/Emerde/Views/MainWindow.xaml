@@ -1409,7 +1409,7 @@
                                         HorizontalAlignment="Stretch"
                                         Command="{Binding ToggleSelectedRoomRecordCommand}"
                                         Style="{StaticResource RecordActionButtonStyle}"
-                                        Tag="{Binding SelectedItem.EffectiveIsToRecord}"
+                                        Tag="{Binding SelectedItem.IsRecordingOrStarting}"
                                         ToolTip="开启/暂停当前直播间录制（Shift+R）">
                                     <ui:StackPanel Orientation="Horizontal" Spacing="6">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"

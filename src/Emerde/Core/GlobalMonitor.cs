@@ -983,6 +983,11 @@ internal static class GlobalMonitor
 
         SyncRecordStatus(roomStatus);
         roomStatus.StreamStatus = nextStreamStatus;
+        if (resolvedLiveState == false && roomStatus.StreamStatus == StreamStatus.NotStreaming)
+        {
+            ResetRoomRecordSessionState(room.RoomUrl);
+            shouldRecord = GetEffectiveRoomRecord(room) && !IsRecordStartBlocked;
+        }
         bool isLiveStreaming = roomStatus.StreamStatus == StreamStatus.Streaming;
 
         if (prevStreamStatus != roomStatus.StreamStatus)
@@ -1590,6 +1595,11 @@ internal static class GlobalMonitor
         SyncRecordStatus(roomStatus);
         ResetOfflineConfirmation(roomUrl);
 
+        if (isLiveStreaming == false)
+        {
+            ResetRoomRecordSessionState(roomUrl);
+        }
+
         if (isLiveStreaming == false && roomStatus.RecordStatus == RecordStatus.Recording)
         {
             AppSessionLogger.Event("info", "business", "record_stop_requested", "record stop requested because manual refresh confirmed that live ended", new
@@ -1752,6 +1762,7 @@ internal static class GlobalMonitor
         roomStatus.Resolution = string.Empty;
         roomStatus.Bitrate = string.Empty;
         ResetLiveSessionMetadata(roomStatus);
+        ResetRoomRecordSessionState(room.RoomUrl);
         UpdateRoomCheckSchedule(room.RoomUrl, previous, roomStatus.StreamStatus, settings, DateTime.Now);
         AppSessionLogger.Event("info", "business", "recorder_offline_confirmed", "recorder confirmed that the live stream ended", new
         {
@@ -1865,6 +1876,20 @@ internal static class GlobalMonitor
     internal static void SetRoomRecordStartPause(string roomUrl, DateTime pausedUntil)
     {
         RoomRecordStartPausedUntil[roomUrl] = pausedUntil;
+    }
+
+    internal static void ClearRoomRecordStartPause(string roomUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(roomUrl))
+        {
+            _ = RoomRecordStartPausedUntil.TryRemove(roomUrl, out _);
+        }
+    }
+
+    internal static void ResetRoomRecordSessionState(string roomUrl)
+    {
+        ClearTemporaryRoomRecord(roomUrl);
+        ClearRoomRecordStartPause(roomUrl);
     }
 
     private static void PauseRoomRecordStart(string roomUrl, string nickName, string reason)

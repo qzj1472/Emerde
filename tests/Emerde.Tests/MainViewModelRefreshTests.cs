@@ -76,4 +76,14 @@ public sealed class MainViewModelRefreshTests
         Assert.False(target.IsRecordingConfirmed);
         Assert.Equal("RecordStatusOfStarting".Tr(), target.RecordStatusText);
     }
+
+    [Theory]
+    [InlineData(RecordStatus.Initialized, true)]
+    [InlineData(RecordStatus.Disabled, true)]
+    [InlineData(RecordStatus.NotRecording, true)]
+    [InlineData(RecordStatus.Recording, false)]
+    public void SelectedRoomRecordCommand_UsesRuntimeRecordingState(RecordStatus recordStatus, bool expected)
+    {
+        Assert.Equal(expected, MainViewModel.ShouldEnableSelectedRoomRecord(recordStatus));
+    }
 }

@@ -83,4 +83,18 @@ public sealed class RoomStatusReactiveTests
 
         Assert.Equal("-", room.RecordingEngineText);
     }
+
+    [Theory]
+    [InlineData(RecordStatus.Recording, true)]
+    [InlineData(RecordStatus.NotRecording, false)]
+    [InlineData(RecordStatus.Disabled, false)]
+    public void IsRecordingOrStarting_UsesRequestedRecordState(RecordStatus recordStatus, bool expected)
+    {
+        RoomStatusReactive room = new()
+        {
+            RecordStatus = recordStatus,
+        };
+
+        Assert.Equal(expected, room.IsRecordingOrStarting);
+    }
 }
