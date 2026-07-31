@@ -182,13 +182,22 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         if (SettingsViewModel.IsRecordFormatIndexValid(value))
         {
             lastValidRecordFormatIndex = value;
+            OnPropertyChanged(nameof(IsMp4RecordFormat));
+            OnPropertyChanged(nameof(IsTranscodedRecordFormat));
             return;
         }
         RecordFormatIndex = lastValidRecordFormatIndex;
     }
 
+    public bool IsMp4RecordFormat => RecordFormatIndex == 1;
+
+    public bool IsTranscodedRecordFormat => RecordFormatIndex is 1 or 2;
+
     [ObservableProperty]
     private bool isRemoveTs;
+
+    [ObservableProperty]
+    private bool isOptimizeAudio;
 
     [ObservableProperty]
     private bool isToSegment;
@@ -496,6 +505,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
                 _ => "TS/FLV",
             },
             IsRemoveTs = IsRemoveTs,
+            IsOptimizeAudio = IsOptimizeAudio,
             IsToSegment = IsToSegment,
             SegmentTime = Math.Max(1, segmentRawValue),
             SegmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(SegmentTimeUnitIndex),
@@ -525,6 +535,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
             _ => 0,
         };
         IsRemoveTs = settings.IsRemoveTs;
+        IsOptimizeAudio = settings.IsOptimizeAudio;
         IsToSegment = settings.IsToSegment;
 
         segmentRawValue = Math.Max(1, settings.SegmentTime);

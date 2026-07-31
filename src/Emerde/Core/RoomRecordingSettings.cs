@@ -8,6 +8,8 @@ public sealed record RoomRecordingOptions
 
     public bool IsRemoveTs { get; init; }
 
+    public bool IsOptimizeAudio { get; init; }
+
     public bool IsToSegment { get; init; }
 
     public long SegmentTime { get; init; } = 1800;
@@ -47,6 +49,7 @@ internal static class RoomRecordingSettings
             PreferredStreamQuality = StreamQualityCatalog.NormalizePreference(Configurations.PreferredStreamQuality.Get()),
             RecordFormat = NormalizeRecordFormat(Configurations.RecordFormat.Get()),
             IsRemoveTs = Configurations.IsRemoveTs.Get(),
+            IsOptimizeAudio = Configurations.IsOptimizeAudio.Get(),
             IsToSegment = Configurations.IsToSegment.Get(),
             SegmentTime = Math.Max(1, Configurations.SegmentTime.Get()),
             SegmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(Configurations.SegmentTimeUnit.Get()),
@@ -76,6 +79,7 @@ internal static class RoomRecordingSettings
             PreferredStreamQuality = StreamQualityCatalog.NormalizePreference(room.PreferredStreamQuality, global.PreferredStreamQuality),
             RecordFormat = NormalizeRecordFormat(room.RecordFormat, global.RecordFormat),
             IsRemoveTs = room.IsRemoveTs ?? global.IsRemoveTs,
+            IsOptimizeAudio = room.IsOptimizeAudio ?? global.IsOptimizeAudio,
             IsToSegment = room.IsToSegment ?? global.IsToSegment,
             SegmentTime = Math.Max(1, room.SegmentTime ?? global.SegmentTime),
             SegmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(room.SegmentTimeUnit ?? global.SegmentTimeUnit),
@@ -113,6 +117,7 @@ internal static class RoomRecordingSettings
         room.PreferredStreamQuality = StreamQualityCatalog.NormalizePreference(settings.PreferredStreamQuality);
         room.RecordFormat = NormalizeRecordFormat(settings.RecordFormat);
         room.IsRemoveTs = settings.IsRemoveTs;
+        room.IsOptimizeAudio = settings.IsOptimizeAudio;
         room.IsToSegment = settings.IsToSegment;
         room.SegmentTime = Math.Max(1, settings.SegmentTime);
         room.SegmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(settings.SegmentTimeUnit);

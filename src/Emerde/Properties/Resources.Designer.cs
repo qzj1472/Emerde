@@ -1736,6 +1736,14 @@ namespace Emerde.Properties {
             get { return ResourceManager.GetString("TranscodeVideo", resourceCulture); }
         }
 
+        public static string CreateOptimizedAudioTrack {
+            get { return ResourceManager.GetString("CreateOptimizedAudioTrack", resourceCulture); }
+        }
+
+        public static string OptimizedAudioTrackDescription {
+            get { return ResourceManager.GetString("OptimizedAudioTrackDescription", resourceCulture); }
+        }
+
         public static string TranscodingChip {
             get { return ResourceManager.GetString("TranscodingChip", resourceCulture); }
         }

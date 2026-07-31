@@ -426,6 +426,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             PreferredStreamQuality = room.PreferredStreamQuality,
             RecordFormat = room.RecordFormat,
             IsRemoveTs = room.IsRemoveTs,
+            IsOptimizeAudio = room.IsOptimizeAudio,
             IsToSegment = room.IsToSegment,
             SegmentTime = room.SegmentTime,
             SegmentTimeUnit = room.SegmentTimeUnit,

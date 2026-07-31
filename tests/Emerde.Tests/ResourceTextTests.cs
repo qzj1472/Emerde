@@ -1,5 +1,6 @@
 using Emerde.Properties;
 using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace Emerde.Tests;
 
@@ -202,5 +203,40 @@ public sealed class ResourceTextTests
         {
             Assert.NotNull(typeof(Resources).GetProperty(key));
         }
+    }
+
+    [Fact]
+    public void XamlI18nKeys_HaveStronglyTypedResourceProperties()
+    {
+        string sourceDirectory = FindRepositoryDirectory("src", "Emerde");
+        string[] missingKeys = Directory
+            .EnumerateFiles(sourceDirectory, "*.xaml", SearchOption.AllDirectories)
+            .SelectMany(path => Regex
+                .Matches(File.ReadAllText(path), @"\{I18N\s+([A-Za-z_][A-Za-z0-9_]*)")
+                .Cast<Match>()
+                .Select(match => match.Groups[1].Value))
+            .Distinct(StringComparer.Ordinal)
+            .Where(key => typeof(Resources).GetProperty(key) == null)
+            .OrderBy(key => key, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Empty(missingKeys);
+    }
+
+    private static string FindRepositoryDirectory(params string[] parts)
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory != null)
+        {
+            string candidate = Path.Combine([directory.FullName, .. parts]);
+            if (Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException(string.Join(Path.DirectorySeparatorChar, parts));
     }
 }

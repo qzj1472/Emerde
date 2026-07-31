@@ -388,7 +388,12 @@
                                         </Grid>
                                     </ui:CardExpander.Header>
                                     <ui:StackPanel Margin="42,0,28,0" Spacing="12">
-                                        <CheckBox Content="{I18N RecordFormatAutoRemove}" IsChecked="{Binding IsRemoveTs, Mode=TwoWay}" />
+                                        <CheckBox Content="{I18N CreateOptimizedAudioTrack}"
+                                                  IsChecked="{Binding IsOptimizeAudio, Mode=TwoWay}"
+                                                  Visibility="{Binding IsMp4RecordFormat, Converter={x:Static c:BoolToVisibilityConverter.Instance}}" />
+                                        <CheckBox Content="{I18N RecordFormatAutoRemove}"
+                                                  IsChecked="{Binding IsRemoveTs, Mode=TwoWay}"
+                                                  Visibility="{Binding IsTranscodedRecordFormat, Converter={x:Static c:BoolToVisibilityConverter.Instance}}" />
                                     </ui:StackPanel>
                                 </ui:CardExpander>
 

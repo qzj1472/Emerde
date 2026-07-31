@@ -16,6 +16,36 @@ public sealed class SettingsViewModelTests
         Assert.Equal("112", (string?)input.Attribute("Width"));
     }
 
+    [Fact]
+    public void RecordFormatOptions_UseFormatSpecificVisibility()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml"));
+        XElement optimizeAudio = document.Descendants()
+            .Single(element => element.Name.LocalName == "CheckBox"
+                && ((string?)element.Attribute("IsChecked"))?.Contains("IsOptimizeAudio", StringComparison.Ordinal) == true);
+        XElement removeSource = document.Descendants()
+            .Single(element => element.Name.LocalName == "CheckBox"
+                && ((string?)element.Attribute("IsChecked"))?.Contains("IsRemoveTs", StringComparison.Ordinal) == true);
+
+        Assert.Contains("IsMp4RecordFormat", (string?)optimizeAudio.Attribute("Visibility"));
+        Assert.Contains("IsTranscodedRecordFormat", (string?)removeSource.Attribute("Visibility"));
+    }
+
+    [Fact]
+    public void LocalRecordFormatOptions_UseFormatSpecificVisibility()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "LocalSettingsContentDialog.xaml"));
+        XElement optimizeAudio = document.Descendants()
+            .Single(element => element.Name.LocalName == "CheckBox"
+                && ((string?)element.Attribute("IsChecked"))?.Contains("IsOptimizeAudio", StringComparison.Ordinal) == true);
+        XElement removeSource = document.Descendants()
+            .Single(element => element.Name.LocalName == "CheckBox"
+                && ((string?)element.Attribute("IsChecked"))?.Contains("IsRemoveTs", StringComparison.Ordinal) == true);
+
+        Assert.Contains("IsMp4RecordFormat", (string?)optimizeAudio.Attribute("Visibility"));
+        Assert.Contains("IsTranscodedRecordFormat", (string?)removeSource.Attribute("Visibility"));
+    }
+
     [Theory]
     [InlineData("127.0.0.1:7890", "http://127.0.0.1:7890/")]
     [InlineData("localhost:8080", "http://localhost:8080/")]

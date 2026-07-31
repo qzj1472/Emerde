@@ -680,6 +680,8 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnRoutineScheduleEndMinuteChanged(int value) => SaveRoutineScheduleTime(RoutineScheduleEndHour, value, isStart: false);
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsMp4RecordFormat))]
+    [NotifyPropertyChangedFor(nameof(IsTranscodedRecordFormat))]
     private int recordFormatIndex = Configurations.RecordFormat.Get() switch
     {
         "TS/FLV -> MP4" => 1,
@@ -688,6 +690,10 @@ public partial class SettingsViewModel : ReactiveObject
     };
 
     private bool isRestoringRecordFormatIndex;
+
+    public bool IsMp4RecordFormat => RecordFormatIndex == 1;
+
+    public bool IsTranscodedRecordFormat => RecordFormatIndex is 1 or 2;
 
     partial void OnRecordFormatIndexChanged(int value)
     {
@@ -733,6 +739,7 @@ public partial class SettingsViewModel : ReactiveObject
             {
                 RecordFormat = nextRecordFormat,
                 IsRemoveTs = isRemoveTs,
+                IsOptimizeAudio = Configurations.IsOptimizeAudio.Get(),
             });
             AppSessionLogger.Event("info", "settings", "conversion_cancelled_by_raw_format", "active conversion was cancelled because recording format changed to raw", new
             {
@@ -786,6 +793,16 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsRemoveTsChanged(bool value)
     {
         Configurations.IsRemoveTs.Set(value);
+        ConfigurationSaveScheduler.Request();
+        NotifyRuntimeConfigurationChanged();
+    }
+
+    [ObservableProperty]
+    private bool isOptimizeAudio = Configurations.IsOptimizeAudio.Get();
+
+    partial void OnIsOptimizeAudioChanged(bool value)
+    {
+        Configurations.IsOptimizeAudio.Set(value);
         ConfigurationSaveScheduler.Request();
         NotifyRuntimeConfigurationChanged();
     }

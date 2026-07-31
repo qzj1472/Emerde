@@ -1763,7 +1763,7 @@ public partial class ScreenRecordListViewModel : ObservableObject
         System.Windows.Controls.CheckBox optimizeAudio = new()
         {
             Content = GetResourceText("CreateOptimizedAudioTrack", "Create optimized audio track (recommended)"),
-            IsChecked = true,
+            IsChecked = Configurations.IsOptimizeAudio.Get(),
             Margin = new Thickness(0, 16, 0, 0),
         };
         TextBlock description = new()
@@ -1807,7 +1807,17 @@ public partial class ScreenRecordListViewModel : ObservableObject
         {
             return null;
         }
-        return CreateTranscodeOptions(formatSelector.SelectedIndex, optimizeAudio.IsChecked == true);
+        ConverterOptions options = CreateTranscodeOptions(formatSelector.SelectedIndex, optimizeAudio.IsChecked == true);
+        if (options.TargetFormat == ".mp4")
+        {
+            Configurations.IsOptimizeAudio.Set(options.OptimizeAudio);
+            ConfigurationSaveScheduler.Request();
+            if (owner is MainWindow mainWindow)
+            {
+                mainWindow.SettingsPage.ViewModel.IsOptimizeAudio = options.OptimizeAudio;
+            }
+        }
+        return options;
     }
 
     internal static ConverterOptions CreateTranscodeOptions(int selectedIndex, bool optimizeAudio)
