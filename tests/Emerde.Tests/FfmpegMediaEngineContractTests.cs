@@ -5,6 +5,63 @@ namespace Emerde.Tests;
 public sealed class FfmpegMediaEngineContractTests
 {
     [Fact]
+    public void CrossStreamDecision_RestartsAfterPersistentMismatch()
+    {
+        FfmpegMediaEngine.CrossStreamDecisionTracker tracker = new(
+            0.5,
+            0.2,
+            TimeSpan.FromSeconds(5),
+            TimeSpan.FromSeconds(10));
+
+        Assert.Equal(FfmpegMediaEngine.CrossStreamDecision.Pending, tracker.Observe(TimeSpan.Zero, 0.7, false));
+        Assert.Equal(FfmpegMediaEngine.CrossStreamDecision.Pending, tracker.Observe(TimeSpan.FromSeconds(4.9), 0.7, false));
+        Assert.Equal(FfmpegMediaEngine.CrossStreamDecision.Restart, tracker.Observe(TimeSpan.FromSeconds(5), 0.7, false));
+    }
+
+    [Fact]
+    public void CrossStreamDecision_CancelsAfterStableRecovery()
+    {
+        FfmpegMediaEngine.CrossStreamDecisionTracker tracker = new(
+            0.5,
+            0.2,
+            TimeSpan.FromSeconds(5),
+            TimeSpan.FromSeconds(10));
+
+        Assert.Equal(FfmpegMediaEngine.CrossStreamDecision.Pending, tracker.Observe(TimeSpan.Zero, 0.1, false));
+        Assert.Equal(FfmpegMediaEngine.CrossStreamDecision.Pending, tracker.Observe(TimeSpan.FromSeconds(9.9), 0.1, false));
+        Assert.Equal(FfmpegMediaEngine.CrossStreamDecision.Cancel, tracker.Observe(TimeSpan.FromSeconds(10), 0.1, false));
+    }
+
+    [Fact]
+    public void CrossStreamDecision_DoesNotResetPersistentMismatchOnRepeatedSamples()
+    {
+        FfmpegMediaEngine.CrossStreamDecisionTracker tracker = new(
+            0.5,
+            0.2,
+            TimeSpan.FromSeconds(5),
+            TimeSpan.FromSeconds(10));
+
+        Assert.Equal(FfmpegMediaEngine.CrossStreamDecision.Pending, tracker.Observe(TimeSpan.Zero, 0.8, false));
+        Assert.Equal(FfmpegMediaEngine.CrossStreamDecision.Pending, tracker.Observe(TimeSpan.FromSeconds(2), 0.9, true));
+        Assert.Equal(FfmpegMediaEngine.CrossStreamDecision.Restart, tracker.Observe(TimeSpan.FromSeconds(5), 0.8, false));
+    }
+
+    [Fact]
+    public void CrossStreamDecision_RequiresContinuousFreshEvidenceAfterReset()
+    {
+        FfmpegMediaEngine.CrossStreamDecisionTracker tracker = new(
+            0.5,
+            0.2,
+            TimeSpan.FromSeconds(5),
+            TimeSpan.FromSeconds(10));
+
+        Assert.Equal(FfmpegMediaEngine.CrossStreamDecision.Pending, tracker.Observe(TimeSpan.Zero, 0.8, false));
+        tracker.Reset();
+        Assert.Equal(FfmpegMediaEngine.CrossStreamDecision.Pending, tracker.Observe(TimeSpan.FromSeconds(10), 0.8, false));
+        Assert.Equal(FfmpegMediaEngine.CrossStreamDecision.Restart, tracker.Observe(TimeSpan.FromSeconds(15), 0.8, false));
+    }
+
+    [Fact]
     public void Remux_PreservesSharedSourceTimelineBeforeApplyingSessionOffset()
     {
         string source = ReadSource();
@@ -248,6 +305,53 @@ public sealed class FfmpegMediaEngineContractTests
     }
 
     [Fact]
+    public void RecordingStartup_UsesVideoKeyframeWhenAudioIsAlreadyAvailable()
+    {
+        FfmpegMediaEngine.InitialMediaTimelineSynchronizer synchronizer = new(true);
+
+        synchronizer.ObserveAudioBeforeVideoKeyframe(900_000);
+        bool synchronized = synchronizer.BeginAtVideoKeyframe(1_000_000, 40_000, 1024);
+
+        Assert.True(synchronized);
+        Assert.False(synchronizer.IsBuffering);
+        Assert.Equal(1_000_000, synchronizer.SharedStartTimestamp);
+        Assert.Equal(0, synchronizer.VideoTimestampCorrection);
+    }
+
+    [Fact]
+    public void RecordingStartup_AlignsBufferedVideoWithAudioThatStartsLate()
+    {
+        FfmpegMediaEngine.InitialMediaTimelineSynchronizer synchronizer = new(true);
+
+        Assert.False(synchronizer.BeginAtVideoKeyframe(1_000_000, 40_000, 1024));
+        synchronizer.ObserveAudioBeforeVideoKeyframe(3_700_000);
+        Assert.True(synchronizer.BeginAtVideoKeyframe(4_000_000, 40_000, 1024));
+
+        Assert.False(synchronizer.IsBuffering);
+        Assert.Equal(4_000_000, synchronizer.SharedStartTimestamp);
+        Assert.Equal(0, synchronizer.VideoTimestampCorrection);
+        Assert.Equal(3_000_000, synchronizer.AlignmentGapMicroseconds);
+    }
+
+    [Fact]
+    public void RecordingStartup_ReleasesBoundedBufferWhenAudioPacketsAreMissing()
+    {
+        FfmpegMediaEngine.InitialMediaTimelineSynchronizer synchronizer = new(true);
+
+        Assert.False(synchronizer.BeginAtVideoKeyframe(0, 40_000, 1024));
+        Assert.True(synchronizer.ObserveBufferedPacket(
+            true,
+            false,
+            FfmpegMediaEngine.InitialMediaSyncMaximumDurationMicroseconds - 40_000,
+            40_000,
+            1024));
+
+        Assert.False(synchronizer.IsBuffering);
+        Assert.Equal(0, synchronizer.SharedStartTimestamp);
+        Assert.Equal(0, synchronizer.VideoTimestampCorrection);
+    }
+
+    [Fact]
     public void MediaTimelineRecovery_RecognizesAudioOnlyProgressAndRealignsAtKeyframe()
     {
         FfmpegMediaEngine.MediaTimelineRecovery recovery = new(
@@ -319,6 +423,47 @@ public sealed class FfmpegMediaEngineContractTests
         Assert.Equal(FfmpegTimelineEventKind.VideoRecovered, secondRecovery.EventKind);
         Assert.True(secondRecovery.VideoTimestampCorrection > firstRecovery.VideoTimestampCorrection);
         Assert.Equal(FfmpegTimelineEventKind.None, audioOnly.EventKind);
+    }
+
+    [Fact]
+    public void MediaTimelineRecovery_RecognizesVideoProgressWhileAudioIsStalled()
+    {
+        FfmpegMediaEngine.MediaTimelineRecovery recovery = new(
+            FfmpegMediaEngine.VideoTimelineStallThresholdMicroseconds,
+            detectAudioStalls: true);
+
+        _ = recovery.Observe(true, false, 0, 40_000, true);
+        _ = recovery.Observe(false, true, 0, 20_000, false);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult stalled = recovery.Observe(
+            true,
+            false,
+            3_000_000,
+            40_000,
+            false);
+
+        Assert.Equal(FfmpegTimelineEventKind.AudioStalled, stalled.EventKind);
+        Assert.Equal(3_020_000, stalled.GapMicroseconds);
+    }
+
+    [Fact]
+    public void MediaTimelineRecovery_DoesNotTreatInitialAlignmentAsAudioStall()
+    {
+        FfmpegMediaEngine.MediaTimelineRecovery recovery = new(
+            FfmpegMediaEngine.VideoTimelineStallThresholdMicroseconds,
+            detectAudioStalls: true,
+            initialVideoTimestampCorrection: 2_700_000);
+
+        _ = recovery.Observe(true, false, 1_000_000, 40_000, true);
+        _ = recovery.Observe(true, false, 3_600_000, 40_000, false);
+        _ = recovery.Observe(false, true, 3_700_000, 20_000, false);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult continued = recovery.Observe(
+            true,
+            false,
+            3_640_000,
+            40_000,
+            false);
+
+        Assert.Equal(FfmpegTimelineEventKind.None, continued.EventKind);
     }
 
     [Fact]

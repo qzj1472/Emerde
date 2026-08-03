@@ -236,6 +236,23 @@ public sealed class RecorderTests
         Assert.True(optimizeAudioArgument > initialRegistration);
     }
 
+    [Fact]
+    public void CrossStreamVerification_UsesRecordingLifetimeInsteadOfWorkerLifetime()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "Recorder.cs"));
+        int readerCall = source.IndexOf("Task outputTask = ReadMediaWorkerOutputAsync(", StringComparison.Ordinal);
+        int readTokenArgument = source.IndexOf("processCancellation.Token,", readerCall, StringComparison.Ordinal);
+        int recordingTokenArgument = source.IndexOf("token);", readTokenArgument, StringComparison.Ordinal);
+        int errorReaderCall = source.IndexOf("Task errorTask = ReadMediaWorkerErrorAsync(", readerCall, StringComparison.Ordinal);
+        int verificationStart = source.IndexOf("StartCrossStreamVerification(startInfo, verificationToken);", StringComparison.Ordinal);
+
+        Assert.True(readerCall >= 0);
+        Assert.True(readTokenArgument > readerCall);
+        Assert.True(recordingTokenArgument > readTokenArgument);
+        Assert.True(errorReaderCall > recordingTokenArgument);
+        Assert.True(verificationStart >= 0);
+    }
+
     [Theory]
     [InlineData(0, "record_000.ts")]
     [InlineData(1, "record_001.ts")]
@@ -411,8 +428,10 @@ public sealed class RecorderTests
 
     [Theory]
     [InlineData("timeline|s|3000000|75|420", 1, 3_000_000, 75, 420)]
-    [InlineData("timeline|r|2960000|76|421", 2, 2_960_000, 76, 421)]
-    public void MediaWorkerTimelineEvent_ParsesVideoStallDiagnostics(
+    [InlineData("timeline|a|3020000|150|210", 2, 3_020_000, 150, 210)]
+    [InlineData("timeline|r|2960000|76|421", 3, 2_960_000, 76, 421)]
+    [InlineData("timeline|i|2700000|0|0", 4, 2_700_000, 0, 0)]
+    public void MediaWorkerTimelineEvent_ParsesTrackStallDiagnostics(
         string line,
         int expectedEvent,
         long expectedGap,
@@ -481,6 +500,39 @@ public sealed class RecorderTests
         {
             File.Delete(commandPath);
         }
+    }
+
+    [Fact]
+    public void MediaWorkerCommand_PreservesCrossStreamInputsAndBoundedDuration()
+    {
+        string commandPath = MediaWorker.WriteCrossStreamCommand(
+            "https://example.test/selected.flv",
+            "https://example.test/reference.flv",
+            new FfmpegInputOptions("EmerdeTest", "Referer: https://live.douyin.com/", false, string.Empty, true),
+            TimeSpan.FromMinutes(2));
+
+        try
+        {
+            using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(commandPath));
+
+            Assert.Equal("https://example.test/selected.flv", document.RootElement.GetProperty("InputUrl").GetString());
+            Assert.Equal("https://example.test/reference.flv", document.RootElement.GetProperty("ReferenceInputUrl").GetString());
+            Assert.Equal(30, document.RootElement.GetProperty("AnalysisDurationSeconds").GetInt32());
+        }
+        finally
+        {
+            File.Delete(commandPath);
+        }
+    }
+
+    [Fact]
+    public void CrossStreamHeaders_RemoveAccountCookiesAndPreservePlaybackHeaders()
+    {
+        string headers = Recorder.RemoveCookieHeaders("Cookie: session=user\r\nReferer: https://live.douyin.com/\r\nOrigin: https://live.douyin.com\r\n");
+
+        Assert.DoesNotContain("Cookie:", headers, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Referer: https://live.douyin.com/", headers);
+        Assert.Contains("Origin: https://live.douyin.com", headers);
     }
 
     [Fact]

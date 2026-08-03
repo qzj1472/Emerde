@@ -185,6 +185,12 @@ public interface ISpiderResult
         set { }
     }
 
+    public string? ReferenceUrl
+    {
+        get => null;
+        set { }
+    }
+
     public string? Title
     {
         get => null;

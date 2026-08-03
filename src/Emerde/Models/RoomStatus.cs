@@ -32,6 +32,8 @@ public sealed class RoomStatus
 
     public string RecordUrl { get; set; } = string.Empty;
 
+    internal string ReferenceUrl { get; set; } = string.Empty;
+
     internal long? FixedMetadataRefreshTimestamp { get; set; }
 
     internal bool IsLiveSessionMetadataInitialized { get; set; }

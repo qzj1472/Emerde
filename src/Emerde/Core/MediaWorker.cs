@@ -62,6 +62,18 @@ internal static class MediaWorker
             using CancellationTokenSource stopSource = new();
             _ = StartControlInputReader(stopSource, Console.In);
             FfmpegInputOptions inputOptions = new(command.UserAgent, command.Headers, command.IsUseProxy, command.HttpProxy, true);
+            if (!string.IsNullOrWhiteSpace(command.ReferenceInputUrl))
+            {
+                FfmpegCrossStreamAnalysisResult analysis = FfmpegMediaEngine.CompareLiveStreamsAsync(
+                    command.InputUrl,
+                    command.ReferenceInputUrl,
+                    inputOptions,
+                    TimeSpan.FromSeconds(Math.Clamp(command.AnalysisDurationSeconds, 1, 30)),
+                    stopSource.Token).GetAwaiter().GetResult();
+                Console.Out.WriteLine($"cross|{JsonSerializer.Serialize(analysis, JsonOptions)}");
+                Console.Out.Flush();
+                return 0;
+            }
             FfmpegMediaRunResult result = FfmpegMediaEngine.RecordStream(
                 command.InputUrl,
                 command.OutputFileName,
@@ -99,7 +111,13 @@ internal static class MediaWorker
                     }
                     if (packetProgress.TimelineEvent != FfmpegTimelineEventKind.None)
                     {
-                        string eventCode = packetProgress.TimelineEvent == FfmpegTimelineEventKind.VideoStalled ? "s" : "r";
+                        string eventCode = packetProgress.TimelineEvent switch
+                        {
+                            FfmpegTimelineEventKind.VideoStalled => "s",
+                            FfmpegTimelineEventKind.AudioStalled => "a",
+                            FfmpegTimelineEventKind.InitialAligned => "i",
+                            _ => "r",
+                        };
                         Console.Out.WriteLine($"timeline|{eventCode}|{packetProgress.TimelineGapMicroseconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{videoPackets.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{audioPackets.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
                         Console.Out.Flush();
                     }
@@ -190,6 +208,27 @@ internal static class MediaWorker
             IsUseProxy = inputOptions.IsUseProxy,
             HttpProxy = inputOptions.HttpProxy,
             SegmentOptions = segmentOptions,
+        };
+        File.WriteAllText(path, JsonSerializer.Serialize(command, JsonOptions));
+        return path;
+    }
+
+    public static string WriteCrossStreamCommand(
+        string inputUrl,
+        string referenceInputUrl,
+        FfmpegInputOptions inputOptions,
+        TimeSpan maximumDuration)
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"emerde-media-worker-{Guid.NewGuid():N}.json");
+        MediaWorkerCommand command = new()
+        {
+            InputUrl = inputUrl,
+            ReferenceInputUrl = referenceInputUrl,
+            UserAgent = inputOptions.UserAgent,
+            Headers = inputOptions.Headers,
+            IsUseProxy = inputOptions.IsUseProxy,
+            HttpProxy = inputOptions.HttpProxy,
+            AnalysisDurationSeconds = Math.Clamp((int)Math.Ceiling(maximumDuration.TotalSeconds), 1, 30),
         };
         File.WriteAllText(path, JsonSerializer.Serialize(command, JsonOptions));
         return path;
@@ -300,6 +339,10 @@ internal static class MediaWorker
 internal sealed class MediaWorkerCommand
 {
     public string InputUrl { get; set; } = string.Empty;
+
+    public string ReferenceInputUrl { get; set; } = string.Empty;
+
+    public int AnalysisDurationSeconds { get; set; } = 30;
 
     public string OutputFileName { get; set; } = string.Empty;
 

@@ -1009,6 +1009,7 @@ internal static class GlobalMonitor
             headers,
             resolvedLiveState,
             hasFreshStream);
+        ApplyReferenceStream(roomStatus, spiderResult.ReferenceUrl, resolvedLiveState, hasFreshStream);
 
         SyncRecordStatus(roomStatus);
         roomStatus.StreamStatus = nextStreamStatus;
@@ -1524,6 +1525,7 @@ internal static class GlobalMonitor
             FlvUrl = roomStatus.FlvUrl,
             HlsUrl = roomStatus.HlsUrl,
             RecordUrl = roomStatus.RecordUrl,
+            ReferenceUrl = roomStatus.ReferenceUrl,
             Title = roomStatus.LiveTitle,
             Quality = roomStatus.Quality,
             Uid = roomStatus.Uid,
@@ -1763,6 +1765,7 @@ internal static class GlobalMonitor
                 {
                     IsLiveStreaming = result.IsLiveStreaming,
                     RecordUrl = result.RecordUrl ?? string.Empty,
+                    ReferenceUrl = result.ReferenceUrl ?? string.Empty,
                     HlsUrl = result.HlsUrl ?? string.Empty,
                     FlvUrl = result.FlvUrl ?? string.Empty,
                     Headers = SpiderResultMetadata.GetHeaders(result) ?? string.Empty,
@@ -1796,6 +1799,7 @@ internal static class GlobalMonitor
             result.Headers,
             result.IsLiveStreaming,
             hasFreshStream);
+        ApplyReferenceStream(roomStatus, result.ReferenceUrl, result.IsLiveStreaming, hasFreshStream);
         ApplyLiveSessionMetadata(roomStatus, result.Title, roomStatus.Quality, result.Resolution);
         if (!string.IsNullOrWhiteSpace(result.Bitrate))
         {
@@ -1894,6 +1898,7 @@ internal static class GlobalMonitor
             FlvUrl = roomStatus.FlvUrl,
             HlsUrl = roomStatus.HlsUrl,
             RecordUrl = roomStatus.RecordUrl,
+            ReferenceUrl = roomStatus.ReferenceUrl,
             Headers = roomStatus.Headers,
             Title = roomStatus.LiveTitle,
             Bitrate = roomStatus.Bitrate,
@@ -2097,6 +2102,24 @@ internal static class GlobalMonitor
             return;
         }
 
+    }
+
+    internal static void ApplyReferenceStream(
+        RoomStatus roomStatus,
+        string? referenceUrl,
+        bool? resolvedLiveState,
+        bool hasFreshStream)
+    {
+        if (resolvedLiveState == false)
+        {
+            roomStatus.ReferenceUrl = string.Empty;
+            return;
+        }
+
+        if (hasFreshStream)
+        {
+            roomStatus.ReferenceUrl = referenceUrl ?? string.Empty;
+        }
     }
 
     private static void StopRecordingBecauseDisabled(Room room, RoomStatus roomStatus)

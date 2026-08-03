@@ -288,6 +288,7 @@ internal static partial class StreamResolver
             merged.FlvUrl = FirstNonEmpty(merged.FlvUrl, result.FlvUrl);
             merged.HlsUrl = FirstNonEmpty(merged.HlsUrl, result.HlsUrl);
             merged.RecordUrl = FirstNonEmpty(merged.RecordUrl, result.RecordUrl);
+            merged.ReferenceUrl = FirstNonEmpty(merged.ReferenceUrl, result.ReferenceUrl);
             merged.Title = FirstNonEmpty(merged.Title, SpiderResultMetadata.GetTitle(result));
             merged.Quality = FirstNonEmpty(merged.Quality, SpiderResultMetadata.GetQuality(result));
             merged.Uid = FirstNonEmpty(merged.Uid, result.Uid);
@@ -302,6 +303,7 @@ internal static partial class StreamResolver
             merged.FlvUrl = null;
             merged.HlsUrl = null;
             merged.RecordUrl = null;
+            merged.ReferenceUrl = null;
             merged.Quality = null;
             merged.Resolution = null;
             merged.Bitrate = null;
@@ -403,6 +405,19 @@ internal static partial class StreamResolver
             result.FlvUrl = originStream.HasStream ? originStream.FlvUrl : flv.Url;
             result.RecordUrl = SelectDouyinRecordUrl(result.FlvUrl, result.HlsUrl);
             result.Quality = originStream.HasStream ? "ORIGIN" : FirstNonEmpty(hls.Quality, flv.Quality);
+            StreamCandidate referenceHls = SelectLowerQualityStream(
+                streamUrl?["hls_pull_url_map"],
+                result.HlsUrl,
+                originStream.HasStream ? "ORIGIN" : hls.Quality);
+            StreamCandidate referenceFlv = SelectLowerQualityStream(
+                streamUrl?["flv_pull_url"],
+                result.FlvUrl,
+                originStream.HasStream ? "ORIGIN" : flv.Quality);
+            result.ReferenceUrl = SelectDouyinRecordUrl(referenceFlv.Url, referenceHls.Url);
+            if (string.Equals(result.ReferenceUrl, result.RecordUrl, StringComparison.Ordinal))
+            {
+                result.ReferenceUrl = null;
+            }
             result.Resolution = FirstNonEmpty(
                 originStream.Resolution,
                 StreamMetadataParser.GetResolution(result.FlvUrl, result.HlsUrl));
@@ -415,6 +430,7 @@ internal static partial class StreamResolver
                 result.HlsUrl = null;
                 result.FlvUrl = null;
                 result.RecordUrl = null;
+                result.ReferenceUrl = null;
                 result.Quality = null;
                 result.Resolution = null;
                 result.Bitrate = null;
@@ -1906,6 +1922,91 @@ internal static partial class StreamResolver
             : new StreamCandidate(first.Value, first.Key);
     }
 
+    private static StreamCandidate SelectLowerQualityStream(JToken? map, string? selectedUrl, string? selectedQuality)
+    {
+        if (map is not JObject obj)
+        {
+            return default;
+        }
+
+        int selectedRank = GetDouyinQualityRank(selectedQuality);
+        (int selectedHeight, double selectedBitrate) = StreamMetadataParser.GetQualityMetrics(selectedUrl);
+        StreamCandidate[] candidates = obj.Properties()
+            .Select(property => new StreamCandidate(
+                CleanOptionalUrl(property.Value.ToString()),
+                property.Name))
+            .Where(candidate => !string.IsNullOrWhiteSpace(candidate.Url)
+                && !string.Equals(candidate.Url, selectedUrl, StringComparison.Ordinal))
+            .ToArray();
+        if (selectedHeight > 0 || selectedBitrate > 0)
+        {
+            StreamCandidate measured = candidates
+                .Select(candidate =>
+                {
+                    (int height, double bitrate) = StreamMetadataParser.GetQualityMetrics(candidate.Url);
+                    return new { Candidate = candidate, Height = height, Bitrate = bitrate };
+                })
+                .Where(candidate => candidate.Height > 0 || candidate.Bitrate > 0)
+                .Where(candidate => IsMeasuredLowerQuality(
+                    selectedHeight,
+                    selectedBitrate,
+                    candidate.Height,
+                    candidate.Bitrate))
+                .OrderByDescending(candidate => candidate.Height)
+                .ThenByDescending(candidate => candidate.Bitrate)
+                .Select(candidate => candidate.Candidate)
+                .FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(measured.Url))
+            {
+                return measured;
+            }
+        }
+
+        if (selectedRank < 0)
+        {
+            return default;
+        }
+
+        return candidates
+            .Where(candidate => GetDouyinQualityRank(candidate.Quality) > selectedRank)
+            .OrderBy(candidate => GetDouyinQualityRank(candidate.Quality))
+            .FirstOrDefault();
+    }
+
+    internal static bool IsMeasuredLowerQuality(
+        int selectedHeight,
+        double selectedBitrate,
+        int candidateHeight,
+        double candidateBitrate)
+    {
+        if (selectedHeight > 0 && candidateHeight > 0)
+        {
+            return candidateHeight < selectedHeight
+                || candidateHeight == selectedHeight
+                && selectedBitrate > 0
+                && candidateBitrate > 0
+                && candidateBitrate < selectedBitrate;
+        }
+
+        return selectedBitrate > 0
+            && candidateBitrate > 0
+            && candidateBitrate < selectedBitrate;
+    }
+
+    private static int GetDouyinQualityRank(string? quality)
+    {
+        return quality?.Trim().ToUpperInvariant() switch
+        {
+            "ORIGIN" => 0,
+            "FULL_HD1" => 1,
+            "FULL_HD" => 2,
+            "HD1" or "HD" => 3,
+            "SD1" => 4,
+            "SD2" or "SD" => 5,
+            _ => -1,
+        };
+    }
+
     private static DouyinOriginStream SelectDouyinOriginStream(JToken? streamUrl, string? preferredQuality)
     {
         if (StreamQualityCatalog.NormalizePreference(preferredQuality) != StreamQualityCatalog.Original)
@@ -2392,6 +2493,8 @@ internal sealed class StreamResolverResult : ISpiderResult, IStreamMetadataResul
     public string? HlsUrl { get; set; }
 
     public string? RecordUrl { get; set; }
+
+    public string? ReferenceUrl { get; set; }
 
     public string? Title { get; set; }
 

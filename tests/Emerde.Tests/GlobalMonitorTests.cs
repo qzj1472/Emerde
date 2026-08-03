@@ -720,6 +720,7 @@ public sealed class GlobalMonitorTests
             FlvUrl = "https://cdn.example/live.flv",
             Headers = "User-Agent: test",
             LiveTitle = "live",
+            ReferenceUrl = "https://cdn.example/reference.flv",
         };
 
         StreamResolverResult result = GlobalMonitor.CreatePreservedStreamResult(room, status);
@@ -729,6 +730,22 @@ public sealed class GlobalMonitorTests
         Assert.Equal(status.FlvUrl, result.FlvUrl);
         Assert.Equal(status.Headers, result.Headers);
         Assert.Equal(status.LiveTitle, result.Title);
+        Assert.Equal(status.ReferenceUrl, result.ReferenceUrl);
+    }
+
+    [Fact]
+    public void ApplyReferenceStream_ClearsOfflineAndUpdatesOnlyWithFreshStream()
+    {
+        RoomStatus status = new() { ReferenceUrl = "https://example.test/old.flv" };
+
+        GlobalMonitor.ApplyReferenceStream(status, "https://example.test/ignored.flv", null, false);
+        Assert.Equal("https://example.test/old.flv", status.ReferenceUrl);
+
+        GlobalMonitor.ApplyReferenceStream(status, "https://example.test/new.flv", true, true);
+        Assert.Equal("https://example.test/new.flv", status.ReferenceUrl);
+
+        GlobalMonitor.ApplyReferenceStream(status, null, false, false);
+        Assert.Empty(status.ReferenceUrl);
     }
 
     [Theory]

@@ -4,6 +4,25 @@ namespace Emerde.Tests;
 
 public sealed class StreamQualityTests
 {
+    [Theory]
+    [InlineData(0, 6_000_000, 1080, 0, false)]
+    [InlineData(1080, 6_000_000, 1080, 0, false)]
+    [InlineData(1080, 6_000_000, 720, 0, true)]
+    [InlineData(0, 6_000_000, 0, 3_000_000, true)]
+    public void LowerQualitySelection_RequiresComparableMeasuredMetadata(
+        int selectedHeight,
+        double selectedBitrate,
+        int candidateHeight,
+        double candidateBitrate,
+        bool expected)
+    {
+        Assert.Equal(expected, StreamResolver.IsMeasuredLowerQuality(
+            selectedHeight,
+            selectedBitrate,
+            candidateHeight,
+            candidateBitrate));
+    }
+
     [Fact]
     public void DouyinResolver_SelectsRequestedQualityStream()
     {
@@ -37,6 +56,7 @@ public sealed class StreamQualityTests
         Assert.Equal("https://example.test/high.m3u8", result.HlsUrl);
         Assert.Equal("https://example.test/high.flv", result.FlvUrl);
         Assert.Equal("HD1", result.Quality);
+        Assert.Null(result.ReferenceUrl);
         Assert.Equal("高清", StreamQualityCatalog.GetDisplayName("Douyin", result.Quality, null));
     }
 
@@ -71,6 +91,7 @@ public sealed class StreamQualityTests
         Assert.Contains("full.m3u8", result.HlsUrl);
         Assert.Contains("full.flv", result.FlvUrl);
         Assert.Equal("FULL_HD1", result.Quality);
+        Assert.Contains("origin.flv", result.ReferenceUrl);
         Assert.Equal("1920x1080", SpiderResultMetadata.GetResolution(result));
         Assert.Equal("6 Mbps", SpiderResultMetadata.GetBitrate(result));
     }
