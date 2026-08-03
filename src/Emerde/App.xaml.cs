@@ -8,6 +8,7 @@ using System.Windows.Threading;
 using Emerde.Core;
 using Emerde.Extensions;
 using Emerde.Threading;
+using Emerde.Plugins;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Violeta.Appearance;
 using Wpf.Ui.Violeta.Controls;
@@ -181,6 +182,15 @@ public partial class App : Application
         GlobalMonitor.StopAllRecorders(deferPostProcessing: true);
         MediaOperationRegistry.CancelAll();
         MediaOperationRegistry.WaitForCompletionAsync(TimeSpan.FromSeconds(4)).GetAwaiter().GetResult();
+        try
+        {
+            using CancellationTokenSource extensionShutdown = new(TimeSpan.FromSeconds(10));
+            ExtensionService.Default.ShutdownAsync(extensionShutdown.Token).GetAwaiter().GetResult();
+        }
+        catch (Exception extensionException)
+        {
+            AppSessionLogger.WriteException(extensionException);
+        }
         ChildProcessTracerPeriodicTimer.Default.Stop(killChildren: true);
         RuntimeResourceLogger.Stop();
         DouyinWebViewResolver.Shutdown();

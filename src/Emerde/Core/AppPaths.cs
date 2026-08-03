@@ -27,6 +27,12 @@ internal static class AppPaths
 
     public static string DouyinWebViewDataDirectory => Path.Combine(CacheDirectory, "douyin_webview2");
 
+    public static string PlatformLoginWebViewDataDirectory => Path.Combine(CacheDirectory, "platform_login_webview2");
+
+    public static string ExtensionsDirectory => Path.Combine(ConfigDirectory, "extensions");
+
+    public static string ExtensionStateFilePath => Path.Combine(ExtensionsDirectory, "extensions-state.json");
+
     public static string[] GetConfigFiles()
     {
         string directory = ActiveConfigDirectory;
