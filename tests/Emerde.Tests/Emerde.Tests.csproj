@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Emerde\Emerde.csproj" />
+    <ProjectReference Include="..\..\extensions\Emerde.DouyinPublisher\Emerde.DouyinPublisher.csproj" />
   </ItemGroup>
 
 </Project>

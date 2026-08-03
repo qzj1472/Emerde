@@ -178,6 +178,8 @@
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center"
                                 Orientation="Horizontal">
+                        <StackPanel x:Name="VideoListExtensionToolbarHost"
+                                    Orientation="Horizontal" />
                         <Button Command="{Binding RefreshCommand}"
                                 Margin="0,0,8,0"
                                 IsEnabled="{Binding IsIdle}"
@@ -397,6 +399,7 @@
                                 CornerRadius="{StaticResource Win11ControlCornerRadius}"
                                 controls:MotionAssist.IsDataContextEntranceEnabled="True"
                                 controls:MotionAssist.EntranceTrigger="{Binding DataContext.IsVideoListPageSelected, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
+                                ContextMenuOpening="VideoCardContextMenuOpening"
                                 Loaded="VideoCardLoaded">
                             <Border.ContextMenu>
                                 <ContextMenu DataContext="{Binding PlacementTarget, RelativeSource={RelativeSource Self}}">

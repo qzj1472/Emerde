@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows10.0.26100.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>Emerde.DouyinPublisher.Extension</AssemblyName>
+    <RootNamespace>Emerde.DouyinPublisher</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Emerde\Emerde.csproj" Private="false" />
+  </ItemGroup>
+  <Target Name="BuildExtensionPackage" AfterTargets="Build">
+    <PropertyGroup>
+      <ExtensionPackageDirectory>$(IntermediateOutputPath)extension-package</ExtensionPackageDirectory>
+      <ExtensionPackageOutputDirectory Condition="'$(ExtensionPackageOutputDirectory)' == ''">$(MSBuildThisFileDirectory)..\..\..\扩展\抖音自动投稿</ExtensionPackageOutputDirectory>
+      <ExtensionPackagePath>$(ExtensionPackageOutputDirectory)\Emerde.DouyinPublisher.emerde-extension</ExtensionPackagePath>
+    </PropertyGroup>
+    <RemoveDir Directories="$(ExtensionPackageDirectory)" />
+    <MakeDir Directories="$(ExtensionPackageDirectory);$(ExtensionPackageOutputDirectory)" />
+    <Copy SourceFiles="$(TargetPath);$(TargetDir)$(AssemblyName).deps.json;$(ProjectDir)package\extension.json" DestinationFolder="$(ExtensionPackageDirectory)" />
+    <ZipDirectory SourceDirectory="$(ExtensionPackageDirectory)" DestinationFile="$(ExtensionPackagePath)" Overwrite="true" />
+  </Target>
+</Project>
