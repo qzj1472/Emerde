@@ -6,6 +6,20 @@ namespace Emerde.Tests;
 public sealed class ConverterTests
 {
     [Theory]
+    [InlineData(100, 100, true)]
+    [InlineData(102, 100, true)]
+    [InlineData(102.001, 100, false)]
+    [InlineData(0, 100, true)]
+    [InlineData(100, 0, true)]
+    public void TrackTimelineValidation_RejectsAudioPastVideo(
+        double audioEndSeconds,
+        double videoEndSeconds,
+        bool expected)
+    {
+        Assert.Equal(expected, Converter.IsTrackTimelineWithinTolerance(audioEndSeconds, videoEndSeconds));
+    }
+
+    [Theory]
     [InlineData("mkv", false, ".mkv")]
     [InlineData(".MP4", false, ".mp4")]
     [InlineData(" ts ", true, ".ts")]
@@ -98,6 +112,101 @@ public sealed class ConverterTests
     {
         Assert.False(Converter.HasActiveConversions);
         Assert.Equal(0, Converter.ActiveConversionCount);
+    }
+
+    [Theory]
+    [InlineData(false, 4, 2)]
+    [InlineData(true, 2, 1)]
+    public void ConversionConcurrency_UsesRecordingAwareLimits(
+        bool hasActiveRecorders,
+        int expectedTotal,
+        int expectedOptimizedAudio)
+    {
+        ConversionConcurrencyProfile profile = ConversionWorkScheduler.GetProfile(hasActiveRecorders);
+
+        Assert.Equal(expectedTotal, profile.TotalLimit);
+        Assert.Equal(expectedOptimizedAudio, profile.OptimizedAudioLimit);
+    }
+
+    [Fact]
+    public async Task ConversionConcurrency_AllowsFourIdleJobs()
+    {
+        List<IDisposable> leases = [];
+        try
+        {
+            for (int index = 0; index < 4; index++)
+            {
+                leases.Add(await ConversionWorkScheduler.EnterAsync(false, CancellationToken.None));
+            }
+
+            Task<IDisposable> queued = ConversionWorkScheduler.EnterAsync(false, CancellationToken.None);
+            await Task.Delay(50);
+            Assert.False(queued.IsCompleted);
+
+            leases[0].Dispose();
+            leases.RemoveAt(0);
+            leases.Add(await queued.WaitAsync(TimeSpan.FromSeconds(2)));
+        }
+        finally
+        {
+            foreach (IDisposable lease in leases)
+            {
+                lease.Dispose();
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ConversionConcurrency_LimitsIdleOptimizedAudioJobsToTwo()
+    {
+        List<IDisposable> leases = [];
+        try
+        {
+            leases.Add(await ConversionWorkScheduler.EnterAsync(true, CancellationToken.None));
+            leases.Add(await ConversionWorkScheduler.EnterAsync(true, CancellationToken.None));
+
+            Task<IDisposable> queued = ConversionWorkScheduler.EnterAsync(true, CancellationToken.None);
+            await Task.Delay(50);
+            Assert.False(queued.IsCompleted);
+
+            leases[0].Dispose();
+            leases.RemoveAt(0);
+            leases.Add(await queued.WaitAsync(TimeSpan.FromSeconds(2)));
+        }
+        finally
+        {
+            foreach (IDisposable lease in leases)
+            {
+                lease.Dispose();
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ConversionConcurrency_LimitsNewJobsWhileRecording()
+    {
+        using IDisposable recording = MediaOperationRegistry.Register(MediaOperationKind.Recording, () => []);
+        List<IDisposable> leases = [];
+        try
+        {
+            leases.Add(await ConversionWorkScheduler.EnterAsync(false, CancellationToken.None));
+            leases.Add(await ConversionWorkScheduler.EnterAsync(false, CancellationToken.None));
+
+            Task<IDisposable> queued = ConversionWorkScheduler.EnterAsync(false, CancellationToken.None);
+            await Task.Delay(50);
+            Assert.False(queued.IsCompleted);
+
+            leases[0].Dispose();
+            leases.RemoveAt(0);
+            leases.Add(await queued.WaitAsync(TimeSpan.FromSeconds(2)));
+        }
+        finally
+        {
+            foreach (IDisposable lease in leases)
+            {
+                lease.Dispose();
+            }
+        }
     }
 
     [Fact]

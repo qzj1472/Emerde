@@ -1,4 +1,5 @@
 using FFmpeg.AutoGen;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace Emerde.Core;
@@ -14,37 +15,164 @@ internal static unsafe partial class FfmpegMediaEngine
         IReadOnlyList<string> sourceFileNames,
         string targetFileName,
         VideoRecordingMetadata metadata,
-        CancellationToken token)
+        CancellationToken token,
+        bool parallelizePreparation = false)
     {
         string baseVideoPath = BuildOptimizedAudioTemporaryPath(targetFileName, "base", ".mp4");
         string optimizedAudioPath = BuildOptimizedAudioTemporaryPath(targetFileName, "audio", ".m4a");
+        Stopwatch totalTimer = Stopwatch.StartNew();
+        long audioMilliseconds = 0;
+        long baseMilliseconds = 0;
+        long muxMilliseconds = 0;
+        bool preparationWasParallel = parallelizePreparation && sourceFileNames.Count > 1;
+        FfmpegMediaRunResult? finalResult = null;
         try
         {
-            FfmpegMediaRunResult audioResult = EncodeOptimizedAudio(sourceFileNames, optimizedAudioPath, token);
-            if (audioResult.ExitCode != 0 || audioResult.WasCanceled || !audioResult.HadMediaProgress)
+            FfmpegMediaRunResult audioResult;
+            if (preparationWasParallel)
             {
-                return audioResult;
+                OptimizedAudioPreparationResult preparation = RunParallelPreparation(
+                    sourceFileNames,
+                    baseVideoPath,
+                    optimizedAudioPath,
+                    metadata,
+                    token);
+                audioResult = preparation.AudioResult;
+                audioMilliseconds = preparation.AudioMilliseconds;
+                baseMilliseconds = preparation.BaseMilliseconds;
+                if (preparation.Failure != null)
+                {
+                    return finalResult = preparation.Failure;
+                }
+            }
+            else
+            {
+                (audioResult, audioMilliseconds) = RunMeasured(
+                    () => EncodeOptimizedAudio(sourceFileNames, optimizedAudioPath, token));
+                if (!IsSuccessfulPreparation(audioResult))
+                {
+                    return finalResult = audioResult;
+                }
             }
 
-            if (sourceFileNames.Count == 1)
+            if (!preparationWasParallel)
             {
-                return MuxAdditionalAudio(sourceFileNames[0], optimizedAudioPath, targetFileName, metadata, token);
+                if (sourceFileNames.Count > 1)
+                {
+                    (FfmpegMediaRunResult baseResult, long elapsedMilliseconds) = RunMeasured(
+                        () => RemuxFiles(sourceFileNames, baseVideoPath, metadata, token));
+                    baseMilliseconds = elapsedMilliseconds;
+                    if (!IsSuccessfulPreparation(baseResult))
+                    {
+                        return finalResult = baseResult;
+                    }
+                }
             }
 
-            FfmpegMediaRunResult baseResult = RemuxFiles(sourceFileNames, baseVideoPath, metadata, token);
-            if (baseResult.ExitCode != 0 || baseResult.WasCanceled || !baseResult.HadMediaProgress)
-            {
-                return baseResult;
-            }
-
-            return MuxAdditionalAudio(baseVideoPath, optimizedAudioPath, targetFileName, metadata, token);
+            string muxBasePath = sourceFileNames.Count == 1 ? sourceFileNames[0] : baseVideoPath;
+            (finalResult, muxMilliseconds) = RunMeasured(
+                () => MuxAdditionalAudio(muxBasePath, optimizedAudioPath, targetFileName, metadata, token));
+            return finalResult;
         }
         finally
         {
+            totalTimer.Stop();
             DeleteOptimizedAudioTemporaryFile(baseVideoPath);
             DeleteOptimizedAudioTemporaryFile(optimizedAudioPath);
+            AppSessionLogger.Event("info", "converter", "optimized_audio_timing", "optimized audio conversion stages completed", new
+            {
+                sourceCount = sourceFileNames.Count,
+                preparationWasParallel,
+                audioMilliseconds,
+                baseMilliseconds,
+                muxMilliseconds,
+                totalMilliseconds = totalTimer.ElapsedMilliseconds,
+                exitCode = finalResult?.ExitCode,
+                wasCanceled = finalResult?.WasCanceled,
+                succeeded = finalResult != null && IsSuccessfulPreparation(finalResult),
+            });
         }
     }
+
+    private static OptimizedAudioPreparationResult RunParallelPreparation(
+        IReadOnlyList<string> sourceFileNames,
+        string baseVideoPath,
+        string optimizedAudioPath,
+        VideoRecordingMetadata metadata,
+        CancellationToken token)
+    {
+        using CancellationTokenSource preparationCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
+        Task<(FfmpegMediaRunResult Result, long ElapsedMilliseconds)> audioTask = Task.Run(
+            () => RunMeasured(() => EncodeOptimizedAudio(sourceFileNames, optimizedAudioPath, preparationCancellation.Token)));
+        Task<(FfmpegMediaRunResult Result, long ElapsedMilliseconds)> baseTask = Task.Run(
+            () => RunMeasured(() => RemuxFiles(sourceFileNames, baseVideoPath, metadata, preparationCancellation.Token)));
+        try
+        {
+            Task<(FfmpegMediaRunResult Result, long ElapsedMilliseconds)> firstTask = Task.WhenAny(audioTask, baseTask).GetAwaiter().GetResult();
+            (FfmpegMediaRunResult Result, long ElapsedMilliseconds) first = firstTask.GetAwaiter().GetResult();
+            FfmpegMediaRunResult? firstFailure = IsSuccessfulPreparation(first.Result) ? null : first.Result;
+            if (firstFailure != null)
+            {
+                preparationCancellation.Cancel();
+            }
+
+            (FfmpegMediaRunResult AudioResult, long AudioMilliseconds) audio = audioTask.GetAwaiter().GetResult();
+            (FfmpegMediaRunResult BaseResult, long BaseMilliseconds) baseVideo = baseTask.GetAwaiter().GetResult();
+            FfmpegMediaRunResult? failure = firstFailure
+                ?? (IsSuccessfulPreparation(audio.AudioResult) ? null : audio.AudioResult)
+                ?? (IsSuccessfulPreparation(baseVideo.BaseResult) ? null : baseVideo.BaseResult);
+            return new OptimizedAudioPreparationResult(
+                audio.AudioResult,
+                baseVideo.BaseResult,
+                audio.AudioMilliseconds,
+                baseVideo.BaseMilliseconds,
+                failure);
+        }
+        catch (Exception e)
+        {
+            preparationCancellation.Cancel();
+            try
+            {
+                Task.WaitAll([audioTask, baseTask]);
+            }
+            catch
+            {
+            }
+            return new OptimizedAudioPreparationResult(
+                new FfmpegMediaRunResult(1, token.IsCancellationRequested, false, e.ToString()),
+                new FfmpegMediaRunResult(1, token.IsCancellationRequested, false, e.ToString()),
+                GetElapsedMilliseconds(audioTask),
+                GetElapsedMilliseconds(baseTask),
+                new FfmpegMediaRunResult(1, token.IsCancellationRequested, false, e.ToString()));
+        }
+    }
+
+    private static long GetElapsedMilliseconds(
+        Task<(FfmpegMediaRunResult Result, long ElapsedMilliseconds)> task)
+    {
+        return task.Status == TaskStatus.RanToCompletion ? task.Result.ElapsedMilliseconds : 0;
+    }
+
+    private static (FfmpegMediaRunResult Result, long ElapsedMilliseconds) RunMeasured(
+        Func<FfmpegMediaRunResult> operation)
+    {
+        Stopwatch timer = Stopwatch.StartNew();
+        FfmpegMediaRunResult result = operation();
+        timer.Stop();
+        return (result, timer.ElapsedMilliseconds);
+    }
+
+    private static bool IsSuccessfulPreparation(FfmpegMediaRunResult result)
+    {
+        return result.ExitCode == 0 && !result.WasCanceled && result.HadMediaProgress;
+    }
+
+    private sealed record OptimizedAudioPreparationResult(
+        FfmpegMediaRunResult AudioResult,
+        FfmpegMediaRunResult BaseResult,
+        long AudioMilliseconds,
+        long BaseMilliseconds,
+        FfmpegMediaRunResult? Failure);
 
     private static FfmpegMediaRunResult EncodeOptimizedAudio(
         IReadOnlyList<string> sourceFileNames,
@@ -249,6 +377,10 @@ internal static unsafe partial class FfmpegMediaEngine
             long sourceOutputStartPts = nextPts + ffmpeg.av_audio_fifo_size(audioFifo);
             long sourceTimestampBaseUs = inputContext->start_time;
             long sourceDurationUs = 0;
+            long[] lastPacketEnds = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)inputContext->nb_streams).ToArray();
+            int referenceStreamIndex = GetSegmentReferenceStreamIndex(inputContext);
+            SegmentClock sourceClock = new();
+            bool awaitingVideoKeyframe = false;
 
             while (!token.IsCancellationRequested)
             {
@@ -262,6 +394,35 @@ internal static unsafe partial class FfmpegMediaEngine
                     break;
                 }
 
+                int packetStreamIndex = inputPacket->stream_index;
+                if (packetStreamIndex >= 0 && packetStreamIndex < inputContext->nb_streams)
+                {
+                    AVStream* packetStream = inputContext->streams[packetStreamIndex];
+                    AVMediaType mediaType = packetStream->codecpar->codec_type;
+                    if (mediaType is AVMediaType.AVMEDIA_TYPE_AUDIO or AVMediaType.AVMEDIA_TYPE_VIDEO)
+                    {
+                        if (packetStreamIndex == referenceStreamIndex)
+                        {
+                            _ = sourceClock.Observe(inputPacket, packetStream);
+                            if (mediaType == AVMediaType.AVMEDIA_TYPE_VIDEO
+                                && sourceClock.LastObservationWasDiscontinuity)
+                            {
+                                awaitingVideoKeyframe = true;
+                            }
+                        }
+                        if (ShouldDiscardPacket(
+                            inputPacket,
+                            mediaType,
+                            packetStreamIndex == referenceStreamIndex,
+                            ref awaitingVideoKeyframe))
+                        {
+                            ffmpeg.av_packet_unref(inputPacket);
+                            continue;
+                        }
+                        ApplyPacketTimestampCorrection(inputPacket, packetStream, sourceClock.CurrentCorrection);
+                        NormalizePacketDts(inputPacket, packetStream, packetStreamIndex, lastPacketEnds);
+                    }
+                }
                 UpdateSourceTimeline(inputContext, inputPacket, ref sourceTimestampBaseUs, ref sourceDurationUs);
 
                 if (inputPacket->stream_index == audioStreamIndex)
@@ -1024,10 +1185,11 @@ internal static unsafe partial class FfmpegMediaEngine
 
             long sourceTimestampBase = baseContext->start_time;
             long[] nextInputDts = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)baseContext->nb_streams).ToArray();
+            long[] lastBasePacketEnds = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)baseContext->nb_streams).ToArray();
             bool hasBasePacket = ReadNextMappedPacket(baseContext, basePacket, baseStreamMap, -1);
             if (hasBasePacket)
             {
-                PrepareSourcePacket(baseContext, basePacket, nextInputDts, ref sourceTimestampBase);
+                PrepareSourcePacket(baseContext, basePacket, nextInputDts, lastBasePacketEnds, ref sourceTimestampBase);
             }
             bool hasAudioPacket = ReadNextMappedPacket(audioContext, audioPacket, null, audioStreamIndex);
             while ((hasBasePacket || hasAudioPacket) && !token.IsCancellationRequested)
@@ -1052,7 +1214,7 @@ internal static unsafe partial class FfmpegMediaEngine
                     hasBasePacket = ReadNextMappedPacket(baseContext, basePacket, baseStreamMap, -1);
                     if (hasBasePacket)
                     {
-                        PrepareSourcePacket(baseContext, basePacket, nextInputDts, ref sourceTimestampBase);
+                        PrepareSourcePacket(baseContext, basePacket, nextInputDts, lastBasePacketEnds, ref sourceTimestampBase);
                     }
                 }
                 else
@@ -1155,6 +1317,7 @@ internal static unsafe partial class FfmpegMediaEngine
         AVFormatContext* inputContext,
         AVPacket* packet,
         long[] nextInputDts,
+        long[] lastPacketEnds,
         ref long sourceTimestampBase)
     {
         int inputStreamIndex = packet->stream_index;
@@ -1165,6 +1328,7 @@ internal static unsafe partial class FfmpegMediaEngine
             sourceTimestampBase = GetPacketTimestamp(packet, inputStream);
         }
         NormalizeSourcePacketTimestamps(packet, inputStream, sourceTimestampBase);
+        NormalizePacketDts(packet, inputStream, inputStreamIndex, lastPacketEnds);
     }
 
     private static string BuildOptimizedAudioTemporaryPath(string targetFileName, string role, string extension)

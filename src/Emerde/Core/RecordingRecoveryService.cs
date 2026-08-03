@@ -1,8 +1,11 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Emerde.Extensions;
+using Emerde.Plugins;
 
 namespace Emerde.Core;
 
@@ -14,7 +17,6 @@ internal static class RecordingRecoveryService
     };
 
     private static readonly ConcurrentDictionary<string, RecoveryProcessingTask> ProcessingTasks = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly SemaphoreSlim ProcessingConcurrency = new(2, 2);
     private static readonly SemaphoreSlim PendingOptionsUpdateGate = new(1, 1);
     private static readonly object StartupMaintenanceLock = new();
     private static readonly DateTime ProcessStartedAtUtc = Process.GetCurrentProcess().StartTime.ToUniversalTime();
@@ -259,20 +261,6 @@ internal static class RecordingRecoveryService
         });
     }
 
-    private static async Task ProcessCoreWithConcurrencyAsync(string path, CancellationToken token)
-    {
-        await ProcessingConcurrency.WaitAsync(token);
-        try
-        {
-            token.ThrowIfCancellationRequested();
-            await ProcessCoreAsync(path, token);
-        }
-        finally
-        {
-            ProcessingConcurrency.Release();
-        }
-    }
-
     private static string[] GetPendingPaths()
     {
         if (!Directory.Exists(AppPaths.PendingRecordingsDirectory))
@@ -310,7 +298,7 @@ internal static class RecordingRecoveryService
         }
         RecoveryProcessingTask processing = ProcessingTasks.GetOrAdd(
             lockKey,
-            _ => new RecoveryProcessingTask(taskToken => ProcessCoreWithConcurrencyAsync(path, taskToken)));
+            _ => new RecoveryProcessingTask(taskToken => ProcessCoreAsync(path, taskToken)));
         using CancellationTokenRegistration registration = token.CanBeCanceled
             ? token.Register(static state => ((CancellationTokenSource)state!).Cancel(), processing.Cancellation)
             : default;
@@ -348,10 +336,14 @@ internal static class RecordingRecoveryService
             return;
         }
 
+        string[] sourceFiles = GetSourceFiles(item.SourcePattern);
+        VideoRecordingMetadata sourceMetadata = LoadFirstMetadata(sourceFiles);
+
         if (IsUsableSource(item.CompletedTargetPath))
         {
             if (!item.MergeSessionParts || DeleteSources(item.SourcePattern))
             {
+                await PublishFinalizedMediaAsync(path, item, sourceFiles, sourceMetadata, token);
                 DeleteMarker(path);
             }
             return;
@@ -415,16 +407,120 @@ internal static class RecordingRecoveryService
             },
             operationCancellation,
             item.OptimizeAudio);
-        if (GetSourceFiles(item.SourcePattern).Length == 0)
+        if (completed)
         {
+            await PublishFinalizedMediaAsync(path, item, sourceFiles, sourceMetadata, token);
             DeleteMarker(path);
             return;
         }
 
-        if (completed)
+        if (GetSourceFiles(item.SourcePattern).Length == 0)
         {
             DeleteMarker(path);
         }
+    }
+
+    private static async Task PublishFinalizedMediaAsync(
+        string markerPath,
+        PendingRecording item,
+        IReadOnlyCollection<string> sourceFiles,
+        VideoRecordingMetadata sourceMetadata,
+        CancellationToken cancellationToken)
+    {
+        ExtensionMediaFinalizedEvent[] events = CreateMediaFinalizedEvents(
+            markerPath,
+            item.SourcePattern,
+            item.TargetFormat,
+            item.RoomUrl,
+            item.MergeSessionParts,
+            item.CompletedTargetPath,
+            item.CompletedSources,
+            sourceFiles,
+            sourceMetadata,
+            DateTimeOffset.UtcNow);
+        foreach (ExtensionMediaFinalizedEvent payload in events)
+        {
+            await ExtensionHostRuntime.PublishAsync(ExtensionEventNames.MediaFinalized, payload, cancellationToken);
+        }
+    }
+
+    internal static ExtensionMediaFinalizedEvent[] CreateMediaFinalizedEvents(
+        string markerPath,
+        string sourcePattern,
+        string targetFormat,
+        string roomUrl,
+        bool mergeSessionParts,
+        string? completedTargetPath,
+        IReadOnlyDictionary<string, string>? completedSources,
+        IEnumerable<string> sourceFiles,
+        VideoRecordingMetadata? sourceMetadata,
+        DateTimeOffset finalizedAt)
+    {
+        string[] originals = sourceFiles
+            .Where(IsUsableSource)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        List<string> finalPaths = [];
+        if (IsUsableSource(completedTargetPath))
+        {
+            finalPaths.Add(completedTargetPath!);
+        }
+        if (completedSources != null)
+        {
+            finalPaths.AddRange(completedSources.Values.Where(IsUsableSource));
+        }
+        finalPaths.AddRange(originals.Where(path => Path.GetExtension(path).Equals(targetFormat, StringComparison.OrdinalIgnoreCase)));
+
+        string recordingId = Path.GetFileNameWithoutExtension(markerPath);
+        string sourceExtension = Path.GetExtension(sourcePattern);
+        return finalPaths
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(finalPath =>
+            {
+                string fullPath = Path.GetFullPath(finalPath);
+                FileInfo file = new(fullPath);
+                VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Merge(
+                    VideoRecordingMetadataStore.Load(file),
+                    sourceMetadata);
+                string effectiveRoomUrl = string.IsNullOrWhiteSpace(roomUrl) ? metadata.RoomUrl : roomUrl;
+                bool wasMerged = mergeSessionParts
+                    && !string.IsNullOrWhiteSpace(completedTargetPath)
+                    && fullPath.Equals(Path.GetFullPath(completedTargetPath), StringComparison.OrdinalIgnoreCase);
+                return new ExtensionMediaFinalizedEvent(
+                    CreateFinalizedEventId(recordingId, fullPath),
+                    recordingId,
+                    effectiveRoomUrl,
+                    metadata.NickName,
+                    metadata.Platform,
+                    metadata.Title,
+                    fullPath,
+                    file.Length,
+                    Path.GetExtension(fullPath).TrimStart('.').ToLowerInvariant(),
+                    metadata.RecordedAt,
+                    finalizedAt,
+                    !sourceExtension.Equals(Path.GetExtension(fullPath), StringComparison.OrdinalIgnoreCase),
+                    wasMerged);
+            })
+            .ToArray();
+    }
+
+    private static VideoRecordingMetadata LoadFirstMetadata(IEnumerable<string> sourceFiles)
+    {
+        foreach (string sourceFile in sourceFiles)
+        {
+            VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(new FileInfo(sourceFile));
+            if (VideoRecordingMetadataStore.HasAnyMetadata(metadata))
+            {
+                return metadata;
+            }
+        }
+        return new VideoRecordingMetadata();
+    }
+
+    private static string CreateFinalizedEventId(string recordingId, string finalPath)
+    {
+        byte[] digest = SHA256.HashData(Encoding.UTF8.GetBytes(finalPath.ToUpperInvariant()));
+        return $"{recordingId}:{Convert.ToHexString(digest.AsSpan(0, 12)).ToLowerInvariant()}";
     }
 
     internal static Task<bool> ProcessSourcePatternAsync(string sourcePattern, string targetFormat, bool removeSource)

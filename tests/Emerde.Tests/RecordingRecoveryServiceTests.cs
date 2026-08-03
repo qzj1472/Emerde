@@ -1,4 +1,5 @@
 using Emerde.Core;
+using Emerde.Plugins;
 using System.Text.Json.Nodes;
 
 namespace Emerde.Tests;
@@ -6,6 +7,68 @@ namespace Emerde.Tests;
 [Collection("MediaOperationRegistry")]
 public sealed class RecordingRecoveryServiceTests
 {
+    [Fact]
+    public void CreateMediaFinalizedEvents_UsesFinalFileAndStableIdentity()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"Emerde.Finalized.{Guid.NewGuid():N}");
+        string markerPath = Path.Combine(root, "recording-id.json");
+        string sourcePath = Path.Combine(root, "recording.ts");
+        string targetPath = Path.Combine(root, "recording.mp4");
+        Directory.CreateDirectory(root);
+        File.WriteAllBytes(targetPath, [1, 2, 3, 4]);
+        try
+        {
+            VideoRecordingMetadata sourceMetadata = new()
+            {
+                NickName = "主播",
+                RoomUrl = "https://live.douyin.com/123",
+                Platform = "Douyin",
+                Title = "直播标题",
+                RecordedAt = new DateTime(2026, 8, 2, 1, 2, 3),
+            };
+
+            ExtensionMediaFinalizedEvent first = Assert.Single(RecordingRecoveryService.CreateMediaFinalizedEvents(
+                markerPath,
+                sourcePath,
+                ".mp4",
+                string.Empty,
+                false,
+                string.Empty,
+                new Dictionary<string, string> { [sourcePath] = targetPath },
+                [sourcePath],
+                sourceMetadata,
+                DateTimeOffset.UtcNow));
+            ExtensionMediaFinalizedEvent second = Assert.Single(RecordingRecoveryService.CreateMediaFinalizedEvents(
+                markerPath,
+                sourcePath,
+                ".mp4",
+                string.Empty,
+                false,
+                string.Empty,
+                new Dictionary<string, string> { [sourcePath] = targetPath },
+                [sourcePath],
+                sourceMetadata,
+                DateTimeOffset.UtcNow.AddMinutes(1)));
+
+            Assert.Equal(first.EventId, second.EventId);
+            Assert.Equal("recording-id", first.RecordingId);
+            Assert.Equal(Path.GetFullPath(targetPath), first.FilePath);
+            Assert.Equal(4, first.FileSize);
+            Assert.Equal("mp4", first.Container);
+            Assert.Equal(sourceMetadata.RoomUrl, first.RoomUrl);
+            Assert.Equal(sourceMetadata.NickName, first.NickName);
+            Assert.Equal(sourceMetadata.Platform, first.PlatformName);
+            Assert.Equal(sourceMetadata.Title, first.Title);
+            Assert.Equal(sourceMetadata.RecordedAt, first.RecordedAt);
+            Assert.True(first.WasTranscoded);
+            Assert.False(first.WasMerged);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     [Fact]
     public async Task QueueProcessAsync_HandlesInvalidPathsWithoutFaulting()
     {

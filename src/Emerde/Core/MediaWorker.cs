@@ -5,6 +5,7 @@ namespace Emerde.Core;
 internal static class MediaWorker
 {
     public const string ModeArgument = "--emerde-media-worker";
+    internal const int TimelineRestartExitCode = 74;
     private const string LegacyExecutablePattern = "*-EmerdeWorker-*.exe";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -96,6 +97,12 @@ internal static class MediaWorker
                     {
                         audioPackets++;
                     }
+                    if (packetProgress.TimelineEvent != FfmpegTimelineEventKind.None)
+                    {
+                        string eventCode = packetProgress.TimelineEvent == FfmpegTimelineEventKind.VideoStalled ? "s" : "r";
+                        Console.Out.WriteLine($"timeline|{eventCode}|{packetProgress.TimelineGapMicroseconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{videoPackets.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{audioPackets.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+                        Console.Out.Flush();
+                    }
                 },
                 (hasVideo, hasAudio) =>
                 {
@@ -111,16 +118,26 @@ internal static class MediaWorker
             if (!result.HadMediaProgress)
             {
                 DeleteIncompleteOutputs(command.OutputFileName);
-                return result.ExitCode == 0 ? 1 : result.ExitCode;
+                return GetProcessExitCode(result);
             }
 
-            return result.ExitCode;
+            return GetProcessExitCode(result);
         }
         catch (Exception e)
         {
             Console.Error.WriteLine(e);
             return 1;
         }
+    }
+
+    internal static int GetProcessExitCode(FfmpegMediaRunResult result)
+    {
+        if (result.RequiresInputRestart)
+        {
+            return TimelineRestartExitCode;
+        }
+
+        return result.ExitCode == 0 && !result.HadMediaProgress ? 1 : result.ExitCode;
     }
 
     internal static Thread StartControlInputReader(CancellationTokenSource stopSource, TextReader reader)

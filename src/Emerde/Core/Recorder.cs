@@ -17,7 +17,7 @@ public sealed class Recorder
     private const int ProcessOutputTailLimit = 8192;
     private static readonly TimeSpan ProgressStartupTimeout = TimeSpan.FromSeconds(15);
     internal static readonly TimeSpan ProgressStallTimeout = TimeSpan.FromSeconds(90);
-    internal static readonly TimeSpan VideoProgressStallTimeout = TimeSpan.FromSeconds(30);
+    internal static readonly TimeSpan VideoProgressStallTimeout = TimeSpan.FromSeconds(5);
     internal static readonly TimeSpan MediaSpeedSummaryInterval = TimeSpan.FromSeconds(30);
     private const string OptimizedAudioFilter = "[0:a:0]volume=30dB,acompressor=threshold=-10dB:ratio=3,alimiter=limit=0.316227766:level=false[aopt]";
 
@@ -811,7 +811,7 @@ public sealed class Recorder
                     workerProcessId = process.Id,
                     FileName,
                     outputFileName,
-                    stalledSeconds = progressTracker.GetStalledDuration(DateTime.UtcNow).TotalSeconds,
+                    stalledSeconds = progressTracker.GetStalledDuration(DateTime.UtcNow, stallReason).TotalSeconds,
                     stallReason = stallReason.ToString().ToLowerInvariant(),
                 });
                 _ = WeakReferenceMessenger.Default.Send(new RoomRecordingStateChangedMessage(startInfo.RoomUrl));
@@ -830,6 +830,7 @@ public sealed class Recorder
             await exitTask;
             processCancellation.Cancel();
             await Task.WhenAll(outputTask, errorTask);
+            wasStalled |= process.ExitCode == MediaWorker.TimelineRestartExitCode;
             exitCode = wasStalled ? 1 : process.ExitCode;
         }
         catch (OperationCanceledException)
@@ -947,6 +948,33 @@ public sealed class Recorder
         {
             while (!token.IsCancellationRequested && await reader.ReadLineAsync(token) is { } line)
             {
+                if (TryParseMediaWorkerTimelineEvent(
+                    line,
+                    out FfmpegTimelineEventKind timelineEvent,
+                    out long gapMicroseconds,
+                    out long timelineVideoPackets,
+                    out long timelineAudioPackets))
+                {
+                    bool stalled = timelineEvent == FfmpegTimelineEventKind.VideoStalled;
+                    AppSessionLogger.Event(
+                        stalled ? "warn" : "info",
+                        "recorder",
+                        stalled ? "record_video_timeline_stalled" : "record_video_timeline_recovered",
+                        stalled
+                            ? "audio continued while video packets stopped"
+                            : "video timeline resumed on a keyframe and was aligned with audio",
+                        new
+                        {
+                            startInfo.RoomUrl,
+                            startInfo.NickName,
+                            FileName,
+                            outputFileName,
+                            gapSeconds = gapMicroseconds / 1_000_000d,
+                            videoPackets = timelineVideoPackets,
+                            audioPackets = timelineAudioPackets,
+                        });
+                    continue;
+                }
                 if (line.StartsWith("progress", StringComparison.Ordinal))
                 {
                     DateTime now = DateTime.UtcNow;
@@ -1051,6 +1079,39 @@ public sealed class Recorder
             hasVideoStream = parts[5] == "1";
         }
         return parsed;
+    }
+
+    internal static bool TryParseMediaWorkerTimelineEvent(
+        string line,
+        out FfmpegTimelineEventKind timelineEvent,
+        out long gapMicroseconds,
+        out long videoPackets,
+        out long audioPackets)
+    {
+        timelineEvent = FfmpegTimelineEventKind.None;
+        gapMicroseconds = 0;
+        videoPackets = 0;
+        audioPackets = 0;
+        string[] parts = line.Split('|');
+        if (parts.Length != 5
+            || !string.Equals(parts[0], "timeline", StringComparison.Ordinal)
+            || !long.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out gapMicroseconds)
+            || gapMicroseconds < 0
+            || !long.TryParse(parts[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out videoPackets)
+            || videoPackets < 0
+            || !long.TryParse(parts[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out audioPackets)
+            || audioPackets < 0)
+        {
+            return false;
+        }
+
+        timelineEvent = parts[1] switch
+        {
+            "s" => FfmpegTimelineEventKind.VideoStalled,
+            "r" => FfmpegTimelineEventKind.VideoRecovered,
+            _ => FfmpegTimelineEventKind.None,
+        };
+        return timelineEvent != FfmpegTimelineEventKind.None;
     }
 
     private void FlushMediaWorkerSpeedSummary(RecorderStartInfo startInfo, string outputFileName)
@@ -1935,6 +1996,7 @@ internal sealed class RecorderProgressTracker(DateTime startedAt)
     private string lastMediaTime = string.Empty;
     private bool hasProgress;
     private DateTime lastVideoProgressAt = startedAt;
+    private DateTime lastAudioProgressAt = startedAt;
     private long lastVideoPackets;
     private long lastAudioPackets;
     private bool expectsVideo;
@@ -1996,6 +2058,7 @@ internal sealed class RecorderProgressTracker(DateTime startedAt)
             if (audioAdvanced)
             {
                 lastAudioPackets = audioPackets;
+                lastAudioProgressAt = observedAt;
             }
             return firstProgress && hasProgress;
         }
@@ -2021,7 +2084,7 @@ internal sealed class RecorderProgressTracker(DateTime startedAt)
                     : RecorderStallReason.None;
             }
             if (expectsVideo
-                && lastProgressAt > lastVideoProgressAt
+                && lastAudioProgressAt > lastVideoProgressAt
                 && now - lastVideoProgressAt >= videoStallTimeout)
             {
                 return RecorderStallReason.Video;
@@ -2032,11 +2095,14 @@ internal sealed class RecorderProgressTracker(DateTime startedAt)
         }
     }
 
-    public TimeSpan GetStalledDuration(DateTime now)
+    public TimeSpan GetStalledDuration(DateTime now, RecorderStallReason reason)
     {
         lock (syncRoot)
         {
-            return now > lastProgressAt ? now - lastProgressAt : TimeSpan.Zero;
+            DateTime stalledSince = reason == RecorderStallReason.Video
+                ? lastVideoProgressAt
+                : lastProgressAt;
+            return now > stalledSince ? now - stalledSince : TimeSpan.Zero;
         }
     }
 

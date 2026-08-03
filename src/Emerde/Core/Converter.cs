@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 namespace Emerde.Core;
@@ -147,6 +148,20 @@ public sealed class Converter
         try
         {
             onTargetReserved?.Invoke(targetFileName);
+            Stopwatch queueWait = Stopwatch.StartNew();
+            using IDisposable conversionSlot = await ConversionWorkScheduler.EnterAsync(optimizeAudio, token);
+            queueWait.Stop();
+            if (queueWait.ElapsedMilliseconds > 250)
+            {
+                AppSessionLogger.Event("info", "converter", "conversion_queue_released", "recording conversion left the work queue", new
+                {
+                    sourceFileNames,
+                    targetFileName,
+                    optimizeAudio,
+                    hasActiveRecorders = GlobalMonitor.HasActiveRecorders,
+                    waitMilliseconds = queueWait.ElapsedMilliseconds,
+                });
+            }
             SourceProbeBatch probeBatch = await Task.Run(() => ProbeSources(sourceFileInfos, token), token);
             if (!probeBatch.Success)
             {
@@ -168,7 +183,12 @@ public sealed class Converter
             bool optimizedAudioFallback = false;
             FfmpegMediaRunResult result = await Task.Run(
                 () => optimizeAudio
-                    ? FfmpegMediaEngine.RemuxFilesWithOptimizedAudio(sourcePaths, temporaryTargetFileName, metadata, token)
+                    ? FfmpegMediaEngine.RemuxFilesWithOptimizedAudio(
+                        sourcePaths,
+                        temporaryTargetFileName,
+                        metadata,
+                        token,
+                        parallelizePreparation: sourcePaths.Length > 1 && !GlobalMonitor.HasActiveRecorders)
                     : FfmpegMediaEngine.RemuxFiles(sourcePaths, temporaryTargetFileName, metadata, token),
                 token);
             if (result.WasCanceled)
@@ -446,6 +466,10 @@ public sealed class Converter
             {
                 return $"optimized_audio_track_missing:expected={sourceAudioStreamCount + 1},actual={output.AudioStreamCount}";
             }
+            if (!IsTrackTimelineWithinTolerance(output.AudioEndSeconds, output.VideoEndSeconds))
+            {
+                return $"output_audio_exceeds_video:audio={output.AudioEndSeconds:F3},video={output.VideoEndSeconds:F3}";
+            }
 
             double probedDuration = sourceProbes.Sum(probe => Math.Max(0, probe.DurationSeconds));
             double expectedDuration = SelectExpectedDuration(probedDuration, processedDurationSeconds);
@@ -475,6 +499,13 @@ public sealed class Converter
     internal static double SelectExpectedDuration(double probedDuration, double processedDuration)
     {
         return processedDuration > 0d ? processedDuration : Math.Max(0d, probedDuration);
+    }
+
+    internal static bool IsTrackTimelineWithinTolerance(double audioEndSeconds, double videoEndSeconds)
+    {
+        return audioEndSeconds <= 0d
+            || videoEndSeconds <= 0d
+            || audioEndSeconds - videoEndSeconds <= 2d;
     }
 
     private static void DeleteTemporaryOutput(string? path)

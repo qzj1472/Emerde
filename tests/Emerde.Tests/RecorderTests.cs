@@ -409,6 +409,56 @@ public sealed class RecorderTests
         Assert.False(Recorder.TryParseMediaWorkerPacketProgress("progress|4096|8192", out _, out _));
     }
 
+    [Theory]
+    [InlineData("timeline|s|3000000|75|420", 1, 3_000_000, 75, 420)]
+    [InlineData("timeline|r|2960000|76|421", 2, 2_960_000, 76, 421)]
+    public void MediaWorkerTimelineEvent_ParsesVideoStallDiagnostics(
+        string line,
+        int expectedEvent,
+        long expectedGap,
+        long expectedVideoPackets,
+        long expectedAudioPackets)
+    {
+        Assert.True(Recorder.TryParseMediaWorkerTimelineEvent(
+            line,
+            out FfmpegTimelineEventKind timelineEvent,
+            out long gapMicroseconds,
+            out long videoPackets,
+            out long audioPackets));
+        Assert.Equal((FfmpegTimelineEventKind)expectedEvent, timelineEvent);
+        Assert.Equal(expectedGap, gapMicroseconds);
+        Assert.Equal(expectedVideoPackets, videoPackets);
+        Assert.Equal(expectedAudioPackets, audioPackets);
+    }
+
+    [Theory]
+    [InlineData("timeline|x|3000000|75|420")]
+    [InlineData("timeline|s|-1|75|420")]
+    [InlineData("timeline|s|3000000|75")]
+    public void MediaWorkerTimelineEvent_RejectsInvalidDiagnostics(string line)
+    {
+        Assert.False(Recorder.TryParseMediaWorkerTimelineEvent(line, out _, out _, out _, out _));
+    }
+
+    [Fact]
+    public void MediaWorker_MapsTimelineRestartToDedicatedExitCode()
+    {
+        FfmpegMediaRunResult result = new(1, false, true, "timeline stalled", RequiresInputRestart: true);
+
+        Assert.Equal(MediaWorker.TimelineRestartExitCode, MediaWorker.GetProcessExitCode(result));
+    }
+
+    [Theory]
+    [InlineData(0, false, 1)]
+    [InlineData(0, true, 0)]
+    [InlineData(7, false, 7)]
+    public void MediaWorker_PreservesOrdinaryExitCodes(int exitCode, bool hadProgress, int expected)
+    {
+        FfmpegMediaRunResult result = new(exitCode, false, hadProgress, string.Empty);
+
+        Assert.Equal(expected, MediaWorker.GetProcessExitCode(result));
+    }
+
     [Fact]
     public void MediaWorkerCommand_PreservesSegmentConfiguration()
     {
@@ -582,6 +632,38 @@ public sealed class RecorderTests
         Assert.Equal(
             RecorderStallReason.Video,
             tracker.GetStallReason(startedAt.AddSeconds(31), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(90), TimeSpan.FromSeconds(30)));
+        Assert.Equal(
+            TimeSpan.FromSeconds(30),
+            tracker.GetStalledDuration(startedAt.AddSeconds(31), RecorderStallReason.Video));
+    }
+
+    [Fact]
+    public void RecorderProgressTracker_RestartsAudioOnlyProgressAfterFiveSeconds()
+    {
+        DateTime startedAt = new(2026, 8, 2, 5, 0, 0, DateTimeKind.Utc);
+        RecorderProgressTracker tracker = new(startedAt);
+
+        Assert.True(tracker.Observe(100, 1, 1, true, startedAt.AddSeconds(1)));
+        Assert.False(tracker.Observe(200, 1, 8, true, startedAt.AddSeconds(5)));
+        Assert.Equal(
+            RecorderStallReason.None,
+            tracker.GetStallReason(startedAt.AddSeconds(5.9), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(90), Recorder.VideoProgressStallTimeout));
+        Assert.Equal(
+            RecorderStallReason.Video,
+            tracker.GetStallReason(startedAt.AddSeconds(6), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(90), Recorder.VideoProgressStallTimeout));
+    }
+
+    [Fact]
+    public void RecorderProgressTracker_DoesNotTreatByteProgressAsContinuingAudio()
+    {
+        DateTime startedAt = new(2026, 8, 2, 5, 10, 0, DateTimeKind.Utc);
+        RecorderProgressTracker tracker = new(startedAt);
+
+        Assert.True(tracker.Observe(100, 1, 0, true, startedAt.AddSeconds(1)));
+        Assert.False(tracker.Observe(200, 1, 0, true, startedAt.AddSeconds(5)));
+        Assert.Equal(
+            RecorderStallReason.None,
+            tracker.GetStallReason(startedAt.AddSeconds(10), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(90), Recorder.VideoProgressStallTimeout));
     }
 
     [Fact]
