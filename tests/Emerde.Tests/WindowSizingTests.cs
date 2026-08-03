@@ -6,6 +6,25 @@ namespace Emerde.Tests;
 public sealed class WindowSizingTests
 {
     [Theory]
+    [InlineData(12.49d, 12d)]
+    [InlineData(12.5d, 13d)]
+    [InlineData(12.51d, 13d)]
+    [InlineData(-12.5d, -13d)]
+    public void RoundLayoutValue_UsesVisualMidpointRounding(double value, double expected)
+    {
+        Assert.Equal(expected, WindowSizing.RoundLayoutValue(value));
+    }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)]
+    public void RoundLayoutValue_PreservesNonFiniteValues(double value)
+    {
+        Assert.Equal(value, WindowSizing.RoundLayoutValue(value));
+    }
+
+    [Theory]
     [InlineData(1d, 0.70d)]
     [InlineData(1.25d, 0.775d)]
     [InlineData(1.5d, 0.85d)]

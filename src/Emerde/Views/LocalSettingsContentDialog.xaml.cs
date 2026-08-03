@@ -484,8 +484,8 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
             return false;
         }
 
-        targetWidth = Math.Max(1d, Math.Floor(ownerWidth * DialogWidthRatio));
-        targetHeight = Math.Max(1d, Math.Floor(ownerHeight * heightRatio));
+        targetWidth = Math.Max(1d, WindowSizing.RoundLayoutValue(ownerWidth * DialogWidthRatio));
+        targetHeight = Math.Max(1d, WindowSizing.RoundLayoutValue(ownerHeight * heightRatio));
         return true;
     }
 

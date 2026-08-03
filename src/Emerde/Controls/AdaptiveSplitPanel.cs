@@ -1,4 +1,5 @@
 using System.Windows;
+using Emerde.Core;
 using WpfPanel = System.Windows.Controls.Panel;
 using WpfSize = System.Windows.Size;
 
@@ -132,10 +133,10 @@ public sealed class AdaptiveSplitPanel : WpfPanel
         {
             double equalGap = (width - childrenWidth) / 2;
             return new AdaptiveSplitLayout(
-            new Rect(0, 0, arrangedFirstSize.Width, arrangedFirstSize.Height),
-            new Rect(firstSize.Width + equalGap, 0, arrangedSecondSize.Width, arrangedSecondSize.Height),
-            new Rect(Math.Max(0, width - arrangedThirdSize.Width), 0, arrangedThirdSize.Width, arrangedThirdSize.Height),
-                Math.Max(firstSize.Height, Math.Max(secondSize.Height, thirdSize.Height)),
+                CreateRoundedRect(0, 0, arrangedFirstSize.Width, arrangedFirstSize.Height),
+                CreateRoundedRect(firstSize.Width + equalGap, 0, arrangedSecondSize.Width, arrangedSecondSize.Height),
+                CreateRoundedRect(Math.Max(0, width - arrangedThirdSize.Width), 0, arrangedThirdSize.Width, arrangedThirdSize.Height),
+                WindowSizing.RoundLayoutValue(Math.Max(firstSize.Height, Math.Max(secondSize.Height, thirdSize.Height))),
                 1);
         }
 
@@ -145,20 +146,29 @@ public sealed class AdaptiveSplitPanel : WpfPanel
         {
             double secondRowHeight = Math.Max(secondSize.Height, thirdSize.Height);
             return new AdaptiveSplitLayout(
-                new Rect(0, 0, arrangedFirstSize.Width, arrangedFirstSize.Height),
-                new Rect(0, secondRowY, arrangedSecondSize.Width, arrangedSecondSize.Height),
-                new Rect(Math.Max(0, width - arrangedThirdSize.Width), secondRowY, arrangedThirdSize.Width, arrangedThirdSize.Height),
-                secondRowY + secondRowHeight,
+                CreateRoundedRect(0, 0, arrangedFirstSize.Width, arrangedFirstSize.Height),
+                CreateRoundedRect(0, secondRowY, arrangedSecondSize.Width, arrangedSecondSize.Height),
+                CreateRoundedRect(Math.Max(0, width - arrangedThirdSize.Width), secondRowY, arrangedThirdSize.Width, arrangedThirdSize.Height),
+                WindowSizing.RoundLayoutValue(secondRowY + secondRowHeight),
                 2);
         }
 
         double thirdRowY = secondRowY + secondSize.Height + verticalGap;
         return new AdaptiveSplitLayout(
-            new Rect(0, 0, arrangedFirstSize.Width, arrangedFirstSize.Height),
-            new Rect(0, secondRowY, arrangedSecondSize.Width, arrangedSecondSize.Height),
-            new Rect(Math.Max(0, width - arrangedThirdSize.Width), thirdRowY, arrangedThirdSize.Width, arrangedThirdSize.Height),
-            thirdRowY + thirdSize.Height,
+            CreateRoundedRect(0, 0, arrangedFirstSize.Width, arrangedFirstSize.Height),
+            CreateRoundedRect(0, secondRowY, arrangedSecondSize.Width, arrangedSecondSize.Height),
+            CreateRoundedRect(Math.Max(0, width - arrangedThirdSize.Width), thirdRowY, arrangedThirdSize.Width, arrangedThirdSize.Height),
+            WindowSizing.RoundLayoutValue(thirdRowY + thirdSize.Height),
             3);
+    }
+
+    private static Rect CreateRoundedRect(double x, double y, double width, double height)
+    {
+        double left = WindowSizing.RoundLayoutValue(x);
+        double top = WindowSizing.RoundLayoutValue(y);
+        double right = WindowSizing.RoundLayoutValue(x + width);
+        double bottom = WindowSizing.RoundLayoutValue(y + height);
+        return new Rect(left, top, Math.Max(0d, right - left), Math.Max(0d, bottom - top));
     }
 }
 

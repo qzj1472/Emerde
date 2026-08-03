@@ -12,7 +12,9 @@
                    DefaultButton="Primary"
                    FontSize="14"
                    PrimaryButtonText="是"
+                   SnapsToDevicePixels="True"
                    Style="{StaticResource DefaultVioletaContentDialogStyle}"
+                   UseLayoutRounding="True"
                    mc:Ignorable="d">
     <Grid MinWidth="460"
           MaxWidth="560"

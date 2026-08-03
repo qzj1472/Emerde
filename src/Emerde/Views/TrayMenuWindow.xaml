@@ -8,7 +8,9 @@
         Background="Transparent"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
+        SnapsToDevicePixels="True"
         Topmost="True"
+        UseLayoutRounding="True"
         WindowStyle="None">
     <Window.Resources>
         <Style x:Key="TrayMenuItemStyle"

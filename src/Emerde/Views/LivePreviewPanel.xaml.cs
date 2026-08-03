@@ -433,8 +433,8 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             System.Windows.DpiScale dpi = System.Windows.Media.VisualTreeHelper.GetDpi(VideoSurface);
             int sampleWidth = Math.Max(24, (int)Math.Ceiling(48d * dpi.DpiScaleX));
             int sampleHeight = Math.Max(24, (int)Math.Ceiling(48d * dpi.DpiScaleY));
-            int sampleX = (int)Math.Round(center.X - sampleWidth / 2d);
-            int sampleY = (int)Math.Round(center.Y - sampleHeight / 2d);
+            int sampleX = (int)Math.Round(center.X - sampleWidth / 2d, MidpointRounding.AwayFromZero);
+            int sampleY = (int)Math.Round(center.Y - sampleHeight / 2d, MidpointRounding.AwayFromZero);
             using System.Drawing.Bitmap sample = new(sampleWidth, sampleHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
             using System.Drawing.Graphics graphics = System.Drawing.Graphics.FromImage(sample);
             graphics.CopyFromScreen(

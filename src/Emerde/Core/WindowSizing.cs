@@ -18,6 +18,13 @@ internal static class WindowSizing
 
     public static bool HasOpenContentDialog => openContentDialogCount > 0;
 
+    internal static double RoundLayoutValue(double value)
+    {
+        return double.IsFinite(value)
+            ? Math.Round(value, MidpointRounding.AwayFromZero)
+            : value;
+    }
+
     public static void UseRelativeScreenSize(Window window, double baseWidth, double baseHeight)
     {
         window.SourceInitialized += (_, _) => ApplyScreenRelative(window, baseWidth, baseHeight);
@@ -89,8 +96,8 @@ internal static class WindowSizing
         }
 
         double margin = Math.Min(referenceWidth, referenceHeight) * DialogMarginShortSideRatio;
-        double maxWidth = Math.Max(320d, Math.Floor(referenceWidth - margin * 2d));
-        double maxHeight = Math.Max(240d, Math.Floor(referenceHeight - margin * 2d));
+        double maxWidth = Math.Max(320d, RoundLayoutValue(referenceWidth - margin * 2d));
+        double maxHeight = Math.Max(240d, RoundLayoutValue(referenceHeight - margin * 2d));
 
         dialog.MaxWidth = maxWidth;
         dialog.MaxHeight = maxHeight;
@@ -155,8 +162,8 @@ internal static class WindowSizing
         }
 
         double userScale = GetUserDisplayScale();
-        double width = Math.Max(1d, Math.Floor(baseWidth * scale * userScale));
-        double height = Math.Max(1d, Math.Floor(baseHeight * scale * userScale));
+        double width = Math.Max(1d, RoundLayoutValue(baseWidth * scale * userScale));
+        double height = Math.Max(1d, RoundLayoutValue(baseHeight * scale * userScale));
         window.Width = width;
         window.Height = height;
         window.Left = screen.WorkingArea.Left / dpi.DpiScaleX + (screen.WorkingArea.Width / dpi.DpiScaleX - width) / 2d;
@@ -168,14 +175,14 @@ internal static class WindowSizing
         System.Windows.Forms.Screen screen = GetTargetScreen(window);
         DpiScale dpi = VisualTreeHelper.GetDpi(window);
         double widthRatio = CalculateMainWindowWidthRatio(dpi.DpiScaleX);
-        double width = Math.Max(1d, Math.Floor(screen.WorkingArea.Width * widthRatio / dpi.DpiScaleX));
-        double height = Math.Max(1d, Math.Floor(width / MainWindowAspectRatio));
+        double width = Math.Max(1d, RoundLayoutValue(screen.WorkingArea.Width * widthRatio / dpi.DpiScaleX));
+        double height = Math.Max(1d, RoundLayoutValue(width / MainWindowAspectRatio));
         double maxHeight = Math.Max(1d, screen.WorkingArea.Height / dpi.DpiScaleY);
 
         if (height > maxHeight)
         {
-            height = Math.Floor(maxHeight);
-            width = Math.Floor(height * MainWindowAspectRatio);
+            height = RoundLayoutValue(maxHeight);
+            width = RoundLayoutValue(height * MainWindowAspectRatio);
         }
 
         window.Width = width;
@@ -208,8 +215,8 @@ internal static class WindowSizing
         double referenceWidth = GetReferenceWidth(reference, screen, dpi);
         double referenceHeight = GetReferenceHeight(reference, screen, dpi);
         double userScale = GetUserDisplayScale();
-        double width = Math.Max(1d, Math.Floor(referenceWidth * baseWidth / MainBaseWidth * userScale));
-        double height = Math.Max(1d, Math.Floor(referenceHeight * baseHeight / MainBaseHeight * userScale));
+        double width = Math.Max(1d, RoundLayoutValue(referenceWidth * baseWidth / MainBaseWidth * userScale));
+        double height = Math.Max(1d, RoundLayoutValue(referenceHeight * baseHeight / MainBaseHeight * userScale));
         double maxWidth = Math.Max(1d, screen.WorkingArea.Width * ScreenRatio / dpi.DpiScaleX);
         double maxHeight = Math.Max(1d, screen.WorkingArea.Height * ScreenRatio / dpi.DpiScaleY);
         double scale = Math.Min(1d, Math.Min(maxWidth / width, maxHeight / height));
@@ -219,8 +226,8 @@ internal static class WindowSizing
             return;
         }
 
-        width = Math.Max(1d, Math.Floor(width * scale));
-        height = Math.Max(1d, Math.Floor(height * scale));
+        width = Math.Max(1d, RoundLayoutValue(width * scale));
+        height = Math.Max(1d, RoundLayoutValue(height * scale));
         window.Width = width;
         window.Height = height;
         CenterWindow(window, reference, screen, dpi, width, height);

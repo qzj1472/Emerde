@@ -10,6 +10,8 @@
         ResizeMode="NoResize"
         ShowInTaskbar="False"
         SizeToContent="Manual"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True"
         WindowStartupLocation="CenterOwner"
         WindowStyle="None">
     <Window.Resources>

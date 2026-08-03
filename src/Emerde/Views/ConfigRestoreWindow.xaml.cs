@@ -1,4 +1,5 @@
 using Emerde.Controls;
+using Emerde.Core;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
@@ -47,8 +48,8 @@ public sealed partial class ConfigRestoreWindow : Window, INotifyPropertyChanged
     {
         double ownerWidth = owner?.ActualWidth > 1d ? owner.ActualWidth : owner?.Width ?? SystemParameters.WorkArea.Width;
         double ownerHeight = owner?.ActualHeight > 1d ? owner.ActualHeight : owner?.Height ?? SystemParameters.WorkArea.Height;
-        double availableWidth = Math.Max(320d, ownerWidth - DialogWindowHorizontalMargin);
-        double availableHeight = Math.Max(320d, ownerHeight - DialogWindowVerticalMargin);
+        double availableWidth = Math.Max(320d, WindowSizing.RoundLayoutValue(ownerWidth - DialogWindowHorizontalMargin));
+        double availableHeight = Math.Max(320d, WindowSizing.RoundLayoutValue(ownerHeight - DialogWindowVerticalMargin));
 
         Width = Math.Min(DialogBaseWidth, availableWidth);
         Height = Math.Min(DialogBaseHeight, availableHeight);

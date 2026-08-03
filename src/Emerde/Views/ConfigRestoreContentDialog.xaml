@@ -9,7 +9,9 @@
              Loaded="ConfigRestoreContentLoaded"
              SizeChanged="ConfigRestoreContentSizeChanged"
              Focusable="False"
-             FocusVisualStyle="{x:Null}">
+             FocusVisualStyle="{x:Null}"
+             SnapsToDevicePixels="True"
+             UseLayoutRounding="True">
     <UserControl.Resources>
         <Style x:Key="RestoreOptionListBoxItemStyle" TargetType="{x:Type ListBoxItem}">
             <Setter Property="controls:MotionAssist.IsEntranceEnabled" Value="True" />

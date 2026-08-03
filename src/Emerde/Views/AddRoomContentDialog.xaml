@@ -15,7 +15,9 @@
                    FontSize="14"
                    PrimaryButtonClick="OnPrimaryButtonClick"
                    PrimaryButtonText="{I18N ButtonOfAdd}"
+                   SnapsToDevicePixels="True"
                    Style="{StaticResource DefaultVioletaContentDialogStyle}"
+                   UseLayoutRounding="True"
                    mc:Ignorable="d">
     <Grid x:Name="AddRoomSurface"
           MinWidth="420"

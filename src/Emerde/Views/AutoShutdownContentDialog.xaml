@@ -10,7 +10,9 @@
                    d:DesignHeight="NaN"
                    d:DesignWidth="NaN"
                    FontSize="14"
+                   SnapsToDevicePixels="True"
                    Style="{StaticResource DefaultVioletaContentDialogStyle}"
+                   UseLayoutRounding="True"
                    mc:Ignorable="d">
     <ui:StackPanel MinWidth="560"
                    Spacing="18"

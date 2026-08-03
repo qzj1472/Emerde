@@ -12,6 +12,8 @@
              Focusable="False"
              FocusVisualStyle="{x:Null}"
              FontSize="14"
+             SnapsToDevicePixels="True"
+             UseLayoutRounding="True"
              mc:Ignorable="d">
     <UserControl.Resources>
         <Style TargetType="{x:Type ui:Card}" BasedOn="{StaticResource {x:Type ui:Card}}">

@@ -6,6 +6,24 @@ namespace Emerde.Tests;
 public sealed class AdaptiveSplitPanelTests
 {
     [Fact]
+    public void CalculateLayout_RoundsCumulativeBoundariesWithoutLosingTheRightEdge()
+    {
+        AdaptiveSplitLayout layout = AdaptiveSplitPanel.CalculateLayout(
+            430.4d,
+            new WpfSize(120.4d, 32.5d),
+            new WpfSize(140.4d, 28.5d),
+            new WpfSize(80.4d, 28.5d),
+            24d,
+            12d);
+
+        Assert.Equal(430d, layout.Third.Right);
+        Assert.Equal(120d, layout.First.Width);
+        Assert.Equal(140d, layout.Second.Width);
+        Assert.Equal(80d, layout.Third.Width);
+        Assert.Equal(33d, layout.DesiredHeight);
+    }
+
+    [Fact]
     public void CalculateLayout_UsesEqualSpacingBetweenThreeContainers()
     {
         AdaptiveSplitLayout layout = AdaptiveSplitPanel.CalculateLayout(
