@@ -1468,7 +1468,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             {
                 Toast.Warning($"有 {failed} 个视频导入失败");
             }
-            await RefreshAsync();
+            await RefreshForDisplayAsync();
         }
         finally
         {
@@ -1891,7 +1891,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             string sourcePath = item.FullPath;
             RenameVideoFile(sourcePath, targetPath);
             Toast.Success("重命名完成");
-            await RefreshAsync();
+            await RefreshForDisplayAsync();
         }
         catch (Exception e)
         {
@@ -1934,7 +1934,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             {
                 Toast.Warning(GetResourceText("TranscodeFailed", "Transcoding failed"));
             }
-            await RefreshAsync();
+            await RefreshForDisplayAsync();
         }
         catch (OperationCanceledException)
         {
@@ -2142,7 +2142,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             {
                 Toast.Success($"已分割 {completed} 个视频");
                 IsSplitPanelOpen = false;
-                await RefreshAsync();
+                await RefreshForDisplayAsync();
             }
             else
             {
@@ -2245,7 +2245,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
                 MergeProgressValue = 100;
                 IsMergePanelOpen = false;
                 Toast.Success(GetResourceText("MergeComplete", "Merge complete"));
-                await RefreshAsync();
+                await RefreshForDisplayAsync();
             }
             else
             {
@@ -2347,7 +2347,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             {
                 Toast.Warning($"有 {failed} 个视频删除失败");
             }
-            await RefreshAsync();
+            await RefreshForDisplayAsync();
         }
         finally
         {
@@ -2456,7 +2456,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             {
                 Toast.Warning($"有 {failed} 个视频未能处理，请检查目标目录或同名文件");
             }
-            await RefreshAsync();
+            await RefreshForDisplayAsync();
         }
         finally
         {
@@ -2639,14 +2639,6 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         IReadOnlyList<RecordedVideoItem> nextItems)
     {
         HashSet<RecordedVideoItem> nextSet = new(nextItems, ReferenceEqualityComparer.Instance);
-        for (int index = currentItems.Count - 1; index >= 0; index--)
-        {
-            if (!nextSet.Contains(currentItems[index]))
-            {
-                currentItems.RemoveAt(index);
-            }
-        }
-
         for (int targetIndex = 0; targetIndex < nextItems.Count; targetIndex++)
         {
             RecordedVideoItem target = nextItems[targetIndex];
@@ -2660,10 +2652,19 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             {
                 currentItems.Move(currentIndex, targetIndex);
             }
+            else if (targetIndex < currentItems.Count && !nextSet.Contains(currentItems[targetIndex]))
+            {
+                currentItems[targetIndex] = target;
+            }
             else
             {
                 currentItems.Insert(targetIndex, target);
             }
+        }
+
+        while (currentItems.Count > nextItems.Count)
+        {
+            currentItems.RemoveAt(currentItems.Count - 1);
         }
     }
 

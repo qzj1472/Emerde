@@ -193,6 +193,35 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
+    public void ReconcileVideoItems_ReplacesTheOnlyItemWithoutEmptyingTheCollection()
+    {
+        ObservableCollection<RecordedVideoItem> current =
+        [
+            new RecordedVideoItem { FullPath = @"C:\videos\source.ts" },
+        ];
+        RecordedVideoItem converted = new() { FullPath = @"C:\videos\source.mp4" };
+        List<int> observedCounts = [];
+        List<System.Collections.Specialized.NotifyCollectionChangedAction> observedActions = [];
+        current.CollectionChanged += (_, _) => observedCounts.Add(current.Count);
+        current.CollectionChanged += (_, e) => observedActions.Add(e.Action);
+
+        ScreenRecordListViewModel.ReconcileVideoItems(current, [converted]);
+
+        Assert.Equal([converted], current);
+        Assert.DoesNotContain(0, observedCounts);
+        Assert.Equal([System.Collections.Specialized.NotifyCollectionChangedAction.Replace], observedActions);
+    }
+
+    [Fact]
+    public void InternalVideoOperations_UseIncrementalRefresh()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
+
+        Assert.Contains("await RefreshForDisplayAsync();", source);
+        Assert.DoesNotContain("await RefreshAsync();", source);
+    }
+
+    [Fact]
     public void TryGetExistingFile_ReturnsFalseAfterFileIsRemoved()
     {
         string path = Path.Combine(Path.GetTempPath(), $"emerde-list-file-{Guid.NewGuid():N}.ts");
