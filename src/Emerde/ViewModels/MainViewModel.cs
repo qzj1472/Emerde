@@ -134,7 +134,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     partial void OnSelectedMainPageIndexChanged(int value)
     {
-        if (value < 0 || value > 4)
+        if (value < 0)
         {
             SelectedMainPageIndex = 0;
             return;
@@ -1793,6 +1793,60 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private async Task StopPreviewAsync()
     {
         await RequestPreviewTransitionAsync(null, PreviewTransitionReason.ManualStop);
+    }
+
+    internal async Task<bool> PlayPreviewForExtensionAsync(string roomUrl, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        RoomStatusReactive? room = RoomStatuses.FirstOrDefault(item => string.Equals(item.RoomUrl, roomUrl, StringComparison.OrdinalIgnoreCase));
+        if (room == null)
+        {
+            return false;
+        }
+        if (IsPreviewing && IsSameRoom(PreviewingRoom, room))
+        {
+            return true;
+        }
+        await PreviewLiveRoomAsync(room);
+        cancellationToken.ThrowIfCancellationRequested();
+        return IsPreviewing && string.Equals(PreviewingRoom?.RoomUrl, roomUrl, StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal async Task StopPreviewForExtensionAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await StopPreviewAsync();
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    internal async Task RefreshPreviewForExtensionAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await RefreshPreviewAsync();
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    internal async Task SetPreviewPausedForExtensionAsync(bool paused, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (IsPreviewPaused != paused)
+        {
+            await TogglePreviewPauseAsync();
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    internal void SetPreviewMutedForExtension(bool muted)
+    {
+        if (IsPreviewMuted != muted)
+        {
+            TogglePreviewMute();
+        }
+    }
+
+    internal void SetPreviewVolumeForExtension(int volume)
+    {
+        PreviewVolume = LivePreviewPlayer.NormalizeVolume(volume);
     }
 
     [RelayCommand]

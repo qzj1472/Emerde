@@ -100,33 +100,19 @@ internal static class Spider
             prioritizeDouyin,
             allowDouyinWebViewFallback,
             cancellationToken), LazyThreadSafetyMode.ExecutionAndPublication);
-        ISpiderResult? ResolveDefault()
-        {
-            return defaultResolution.Value;
-        }
-
-        if (!ExtensionHostRuntime.TryGetOverride(ExtensionContractNames.StreamResolver, out ExtensionStreamResolverOverride? extensionResolver))
-        {
-            return ResolveDefault();
-        }
-
-        try
-        {
-            return extensionResolver!(
-                new ExtensionStreamResolveRequest(
-                    url,
-                    preferredQuality,
-                    bypassDouyinThrottle,
-                    prioritizeDouyin,
-                    allowDouyinWebViewFallback,
-                    cancellationToken),
-                ResolveDefault);
-        }
-        catch (Exception e)
-        {
-            AppSessionLogger.WriteException(e);
-            return ResolveDefault();
-        }
+        ExtensionStreamResolveRequest request = new(
+            url,
+            preferredQuality,
+            bypassDouyinThrottle,
+            prioritizeDouyin,
+            allowDouyinWebViewFallback,
+            cancellationToken);
+        return ExtensionHostRuntime.InvokeOverrideChain<ExtensionStreamResolverOverride, ISpiderResult?>(
+            ExtensionContractNames.StreamResolver,
+            (resolver, next) => resolver(request, next),
+            () => defaultResolution.Value,
+            AppSessionLogger.WriteException,
+            exception => exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested);
     }
 
     internal static ISpiderResult? GetLegacyResult(string url, string? preferredQuality = null)

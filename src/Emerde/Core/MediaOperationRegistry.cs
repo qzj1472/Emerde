@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using Emerde.Plugins;
 
 namespace Emerde.Core;
 
@@ -30,7 +31,7 @@ internal static class MediaOperationRegistry
         Guid id = Guid.NewGuid();
         OperationState state = new(kind, protectedPaths, cancel);
         Operations[id] = state;
-        RaiseOperationsChanged(kind, true, GetPaths(state));
+        RaiseOperationsChanged(id, kind, true, GetPaths(state));
         return new Registration(id, state);
     }
 
@@ -271,9 +272,17 @@ internal static class MediaOperationRegistry
         }
     }
 
-    private static void RaiseOperationsChanged(MediaOperationKind kind, bool isActive, IReadOnlyList<string> paths)
+    private static void RaiseOperationsChanged(Guid operationId, MediaOperationKind kind, bool isActive, IReadOnlyList<string> paths)
     {
         MediaOperationsChangedEventArgs eventArgs = new(kind, isActive, paths);
+        ExtensionMediaOperationChangedEvent payload = new(
+            Guid.NewGuid().ToString("N"),
+            operationId.ToString("N"),
+            kind.ToString(),
+            isActive,
+            paths,
+            DateTimeOffset.UtcNow);
+        _ = ExtensionHostRuntime.PublishAsync(ExtensionEventNames.MediaOperationChanged, payload);
         foreach (EventHandler<MediaOperationsChangedEventArgs> handler in OperationsChanged?.GetInvocationList().Cast<EventHandler<MediaOperationsChangedEventArgs>>() ?? [])
         {
             try
@@ -315,7 +324,7 @@ internal static class MediaOperationRegistry
 
             _ = Operations.TryRemove(new KeyValuePair<Guid, OperationState>(id, state));
             state.Completion.TrySetResult();
-            RaiseOperationsChanged(state.Kind, false, GetPaths(state));
+            RaiseOperationsChanged(id, state.Kind, false, GetPaths(state));
         }
     }
 }

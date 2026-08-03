@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Emerde.Core;
 using Emerde.Extensions;
@@ -403,10 +403,10 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
     private void UpdateVideoMarquee(Point position)
     {
         Rect selection = CreateSelectionRect(videoMarqueeStart, position);
-        Canvas.SetLeft(VideoSelectionRectangle, selection.Left);
-        Canvas.SetTop(VideoSelectionRectangle, selection.Top);
-        VideoSelectionRectangle.Width = selection.Width;
-        VideoSelectionRectangle.Height = selection.Height;
+        Canvas.SetLeft(VideoSelectionRectangle, WindowSizing.RoundLayoutValue(selection.Left));
+        Canvas.SetTop(VideoSelectionRectangle, WindowSizing.RoundLayoutValue(selection.Top));
+        VideoSelectionRectangle.Width = WindowSizing.RoundLayoutValue(selection.Width);
+        VideoSelectionRectangle.Height = WindowSizing.RoundLayoutValue(selection.Height);
     }
 
     private void FinishVideoMarquee(bool commit)
@@ -4148,170 +4148,47 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
     private static async Task<bool> SplitVideoFileAsync(RecordedVideoItem item, int seconds)
     {
-        if (!File.Exists(item.FullPath))
-        {
-            return false;
-        }
-
-        FileInfo source = new(item.FullPath);
-        string directory = source.DirectoryName ?? Environment.CurrentDirectory;
-        string outputBase = GetUniqueSegmentBase(directory, $"{Path.GetFileNameWithoutExtension(source.Name)}_part");
-        string temporaryStem = $".emerde-split-{Guid.NewGuid():N}";
-        string temporaryPattern = Path.Combine(directory, $"{temporaryStem}_%03d{source.Extension}");
-        string finalPattern = Path.Combine(directory, $"{outputBase}_%03d{source.Extension}");
         using CancellationTokenSource operationCancellation = new(TimeSpan.FromHours(12));
-        using IDisposable operation = MediaOperationRegistry.Register(
-            MediaOperationKind.Split,
-            () => [source.FullName, temporaryPattern, finalPattern],
-            operationCancellation.Cancel);
-        VideoRecordingMetadata sourceMetadata = VideoRecordingMetadataStore.Load(source);
-        FfmpegMediaRunResult result = await Task.Run(() => FfmpegMediaEngine.SplitFile(
-            source.FullName,
-            temporaryPattern,
-            seconds,
-            sourceMetadata,
-            operationCancellation.Token));
-        bool succeeded = result.ExitCode == 0 && result.HadMediaProgress;
-        if (!succeeded && !string.IsNullOrWhiteSpace(result.ErrorOutput))
-        {
-            AppSessionLogger.Event("error", "video_list", "ffmpeg_operation_failed", result.ErrorOutput, new { result.ExitCode });
-        }
-        string[] temporaryOutputs = MediaFileCatalog.OrderSegmentPaths(
-                Directory.EnumerateFiles(directory, $"{temporaryStem}_*{source.Extension}", System.IO.SearchOption.TopDirectoryOnly),
-                temporaryPattern)
-            .ToArray();
-        if (!succeeded || temporaryOutputs.Length == 0 || temporaryOutputs.Any(path => new FileInfo(path).Length == 0))
-        {
-            foreach (string output in temporaryOutputs)
-            {
-                DeleteFileIfExists(output);
-            }
-            return false;
-        }
-
-        bool hasMetadata = VideoRecordingMetadataStore.HasAnyMetadata(sourceMetadata);
-        List<(string Temporary, string Final)> preparedOutputs = [];
-        List<string> finalOutputs = [];
+        MediaFileWorkflowResult result;
         try
         {
-            for (int index = 0; index < temporaryOutputs.Length; index++)
-            {
-                string finalOutput = Path.Combine(directory, $"{outputBase}_{index:000}{source.Extension}");
-                preparedOutputs.Add((temporaryOutputs[index], finalOutput));
-            }
-
-            foreach ((string temporary, string final) in preparedOutputs)
-            {
-                File.Move(temporary, final, overwrite: false);
-                finalOutputs.Add(final);
-                if (hasMetadata && !VideoRecordingMetadataStore.WriteCompletedMetadata(final, sourceMetadata))
-                {
-                    throw new IOException("Failed to store split recording metadata.");
-                }
-            }
-            return true;
+            result = await MediaFileWorkflow.SplitAsync(item.FullPath, seconds, operationCancellation.Token);
         }
-        catch (Exception e)
+        catch (OperationCanceledException)
         {
-            AppSessionLogger.WriteException(e);
-            foreach (string output in temporaryOutputs.Concat(finalOutputs))
-            {
-                DeleteFileIfExists(output);
-                VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(output);
-            }
             return false;
         }
-    }
-
-    private static string GetUniqueSegmentBase(string directory, string stem)
-    {
-        for (int index = 0; index < 10000; index++)
+        if (!result.Success && !string.IsNullOrWhiteSpace(result.Error))
         {
-            string candidate = index == 0 ? stem : $"{stem}_{index:000}";
-            if (!Directory.EnumerateFiles(directory, $"{candidate}_*.*", System.IO.SearchOption.TopDirectoryOnly).Any())
-            {
-                return candidate;
-            }
+            AppSessionLogger.Event("error", "video_list", "ffmpeg_operation_failed", result.Error);
         }
-
-        return $"{stem}_{Guid.NewGuid():N}";
+        return result.Success;
     }
 
     private static async Task<bool> MergeVideosAsync(IReadOnlyList<RecordedVideoItem> selected, string targetFolder, Action<double> progress)
     {
         RecordedVideoItem[] ordered = OrderVideosForMerge(selected).ToArray();
-        FileInfo first = new(ordered[0].FullPath);
-        string baseStem = TryGetSegmentIdentity(first.FullName, out string segmentBaseStem, out _) ? segmentBaseStem : Path.GetFileNameWithoutExtension(first.Name);
-        string target = GetUniquePath(Path.Combine(targetFolder, $"{baseStem}_merged{first.Extension}"));
-        string temporaryTarget = MediaFileCatalog.CreateTemporaryPath(target, "merge");
-        string listPath = Path.Combine(Path.GetTempPath(), $"emerde_concat_{Guid.NewGuid():N}.txt");
         using CancellationTokenSource operationCancellation = new(TimeSpan.FromHours(12));
-        using IDisposable operation = MediaOperationRegistry.Register(
-            MediaOperationKind.Merge,
-            () => [.. ordered.Select(item => item.FullPath), temporaryTarget, target],
-            operationCancellation.Cancel);
-        bool targetCommitted = false;
+        Progress<double> operationProgress = new(progress);
+        MediaFileWorkflowResult result;
         try
         {
-            long totalBytes = ordered.Sum(item => Math.Max(0, new FileInfo(item.FullPath).Length));
-            long processedBytes = 0;
-            double lastProgress = 0;
-            FfmpegMediaRunResult result = await Task.Run(() => FfmpegMediaEngine.RemuxFiles(
+            result = await MediaFileWorkflow.MergeAsync(
                 ordered.Select(item => item.FullPath).ToArray(),
-                temporaryTarget,
-                VideoRecordingMetadataStore.Load(first),
+                targetFolder,
+                operationProgress,
                 operationCancellation.Token,
-                bytes =>
-                {
-                    processedBytes = processedBytes > long.MaxValue - bytes ? long.MaxValue : processedBytes + bytes;
-                    double currentProgress = totalBytes > 0
-                        ? Math.Min(99, processedBytes * 100d / totalBytes)
-                        : 0;
-                    if (currentProgress - lastProgress >= 1)
-                    {
-                        lastProgress = currentProgress;
-                        progress(currentProgress);
-                    }
-                }));
-            bool succeeded = result.ExitCode == 0 && result.HadMediaProgress;
-            if (!succeeded && !string.IsNullOrWhiteSpace(result.ErrorOutput))
-            {
-                AppSessionLogger.Event("error", "video_list", "ffmpeg_operation_failed", result.ErrorOutput, new { result.ExitCode });
-            }
-            if (!succeeded || !File.Exists(temporaryTarget) || new FileInfo(temporaryTarget).Length == 0)
-            {
-                DeleteFileIfExists(temporaryTarget);
-                return false;
-            }
-
-            try
-            {
-                VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(first);
-                bool hasMetadata = VideoRecordingMetadataStore.HasAnyMetadata(metadata);
-                File.Move(temporaryTarget, target, overwrite: false);
-                targetCommitted = true;
-                if (hasMetadata && !VideoRecordingMetadataStore.WriteCompletedMetadata(target, metadata))
-                {
-                    throw new IOException("Failed to store merged recording metadata.");
-                }
-                return true;
-            }
-            catch (Exception e)
-            {
-                AppSessionLogger.WriteException(e);
-                if (targetCommitted)
-                {
-                    DeleteFileIfExists(target);
-                    VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(target);
-                }
-                return false;
-            }
+                validateStreams: false);
         }
-        finally
+        catch (OperationCanceledException)
         {
-            DeleteFileIfExists(temporaryTarget);
-            DeleteFileIfExists(listPath);
+            return false;
         }
+        if (!result.Success && !string.IsNullOrWhiteSpace(result.Error))
+        {
+            AppSessionLogger.Event("error", "video_list", "ffmpeg_operation_failed", result.Error);
+        }
+        return result.Success;
     }
 
     private static bool TryReadProcessOutput(Process process, int timeoutMilliseconds, out string output)

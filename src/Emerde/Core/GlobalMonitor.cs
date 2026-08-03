@@ -508,26 +508,13 @@ internal static class GlobalMonitor
         Lazy<Task> defaultMonitoring = new(
             () => RunRoomsCoreAsync(roomArray, token, force, recordingLaneOnly),
             LazyThreadSafetyMode.ExecutionAndPublication);
-        Task RunDefault()
-        {
-            return defaultMonitoring.Value;
-        }
-
-        if (!ExtensionHostRuntime.TryGetOverride(ExtensionContractNames.Monitor, out ExtensionMonitorOverride? extensionMonitor))
-        {
-            await RunDefault();
-            return;
-        }
-
-        try
-        {
-            await extensionMonitor!(new ExtensionMonitorRequest(roomArray, force, recordingLaneOnly, token), RunDefault);
-        }
-        catch (Exception e) when (e is not OperationCanceledException || !token.IsCancellationRequested)
-        {
-            AppSessionLogger.WriteException(e);
-            await RunDefault();
-        }
+        ExtensionMonitorRequest request = new(roomArray, force, recordingLaneOnly, token);
+        await ExtensionHostRuntime.InvokeOverrideChainAsync<ExtensionMonitorOverride>(
+            ExtensionContractNames.Monitor,
+            (monitor, next) => monitor(request, next),
+            () => defaultMonitoring.Value,
+            AppSessionLogger.WriteException,
+            exception => exception is not OperationCanceledException || !token.IsCancellationRequested);
     }
 
     private static async Task RunRoomsCoreAsync(IEnumerable<Room> rooms, CancellationToken token = default, bool force = false, bool? recordingLaneOnly = null)
@@ -1935,22 +1922,12 @@ internal static class GlobalMonitor
             _ = roomStatus.Recorder.Start(startInfo);
             return true;
         }, LazyThreadSafetyMode.ExecutionAndPublication);
-        bool StartDefault() => defaultRecordingStart.Value;
-
-        if (!ExtensionHostRuntime.TryGetOverride(ExtensionContractNames.Recorder, out ExtensionRecorderOverride? extensionRecorder))
-        {
-            return StartDefault();
-        }
-
-        try
-        {
-            return extensionRecorder!(new ExtensionRecorderStartRequest(room, roomStatus, settings, startInfo), StartDefault);
-        }
-        catch (Exception e)
-        {
-            AppSessionLogger.WriteException(e);
-            return StartDefault();
-        }
+        ExtensionRecorderStartRequest request = new(room, roomStatus, settings, startInfo);
+        return ExtensionHostRuntime.InvokeOverrideChain<ExtensionRecorderOverride, bool>(
+            ExtensionContractNames.Recorder,
+            (recorder, next) => recorder(request, next),
+            () => defaultRecordingStart.Value,
+            AppSessionLogger.WriteException);
     }
 
     internal static bool IsRoomRecordStartPaused(string roomUrl, DateTime now)

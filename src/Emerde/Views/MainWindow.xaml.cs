@@ -34,7 +34,10 @@ public partial class MainWindow : FluentWindow
     private const int VirtualKeyCapsLock = 0x14;
     private HwndSource? hwndSource;
     private readonly List<IDisposable> extensionHostRegistrations = [];
+    private readonly List<ToggleButton> extensionPageButtons = [];
+    private string selectedExtensionPageId = string.Empty;
     private readonly HashSet<FrameworkElement> suppressedToolTipOwners = [];
+    private DataTemplate? defaultRoomCardTemplate;
     private bool areToolTipsSuppressed;
     public MainViewModel ViewModel { get; }
 
@@ -280,14 +283,26 @@ public partial class MainWindow : FluentWindow
         DataContext = ViewModel = new();
         WindowSizing.UseMainWindowAspectSize(this);
         InitializeComponent();
+        defaultRoomCardTemplate = RoomCardList.ItemTemplate;
         WindowAppearance.EnableBorderless(this);
         ApplicationThemeManager.Changed += MainWindowThemeChanged;
+        ExtensionHostRuntime.PagesChanged += ExtensionPagesChanged;
+        ExtensionHostRuntime.OverridesChanged += ExtensionOverridesChanged;
+        ExtensionHostRuntime.UiContributionsChanged += ExtensionUiContributionsChanged;
         extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.Application, Application.Current));
         extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.MainWindow, this));
         extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.MainViewModel, ViewModel));
         extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.MainContentOverlay, MainDialogOverlay));
         extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.PlatformCookies, new ExtensionPlatformCookieProvider()));
         extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.DialogService, new ExtensionDialogService(this)));
+        extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.PreviewService, new ExtensionPreviewService(this, ViewModel)));
+        extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.MediaService, new ExtensionMediaService()));
+        extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.RecordingService, new ExtensionRecordingService()));
+        extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.NavigationService, new ExtensionNavigationService(ViewModel)));
+        extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.NotificationService, new ExtensionNotificationService()));
+        extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.LogService, new ExtensionLogService()));
+        extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.LogExportService, new ExtensionLogExportService()));
+        extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.UpdateService, new ExtensionUpdateService()));
         HomePreviewPanel.RenderTransformOrigin = new Point(0d, 0d);
         HomePreviewPanel.RenderTransform = new TransformGroup
         {
@@ -312,6 +327,9 @@ public partial class MainWindow : FluentWindow
             try
             {
                 await ExtensionService.Default.InitializeAsync();
+                UpdateExtensionPages();
+                UpdateExtensionHomeCardTemplate();
+                UpdateExtensionHomeToolbar();
             }
             catch (Exception extensionException)
             {
@@ -384,6 +402,9 @@ public partial class MainWindow : FluentWindow
         PreviewKeyDown -= MainWindowPreviewKeyDown;
         PreviewMouseMove -= MainWindowPreviewMouseMove;
         ApplicationThemeManager.Changed -= MainWindowThemeChanged;
+        ExtensionHostRuntime.PagesChanged -= ExtensionPagesChanged;
+        ExtensionHostRuntime.OverridesChanged -= ExtensionOverridesChanged;
+        ExtensionHostRuntime.UiContributionsChanged -= ExtensionUiContributionsChanged;
         ComponentDispatcher.ThreadPreprocessMessage -= MainWindowThreadPreprocessMessage;
         ViewModel.IsPreviewDetached = false;
         ViewModel.PropertyChanged -= ViewModelPropertyChanged;
@@ -399,6 +420,215 @@ public partial class MainWindow : FluentWindow
     private void MainWindowThemeChanged(ApplicationTheme applicationTheme, Color accentColor)
     {
         _ = Dispatcher.BeginInvoke(EnforceBorderlessWindowChrome, DispatcherPriority.Loaded);
+    }
+
+    private void ExtensionPagesChanged(object? sender, EventArgs e)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(UpdateExtensionPages);
+            return;
+        }
+        UpdateExtensionPages();
+    }
+
+    private void ExtensionOverridesChanged(object? sender, EventArgs e)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(UpdateExtensionHomeCardTemplate);
+            return;
+        }
+        UpdateExtensionHomeCardTemplate();
+    }
+
+    private void ExtensionUiContributionsChanged(object? sender, EventArgs e)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(UpdateExtensionHomeToolbar);
+            return;
+        }
+        UpdateExtensionHomeToolbar();
+    }
+
+    private void UpdateExtensionHomeToolbar()
+    {
+        HomeExtensionToolbarHost.Children.Clear();
+        foreach (ExtensionUiContribution contribution in ExtensionHostRuntime.GetUiContributionsSnapshot()
+                     .Where(item => item.RegionName.Equals(ExtensionContractNames.HomeToolbar, StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(item => item.Order))
+        {
+            HomeExtensionToolbarHost.Children.Add(contribution.Content);
+        }
+    }
+
+    private void UpdateExtensionPages()
+    {
+        ExtensionPageContribution[] pages = ExtensionHostRuntime.GetPagesSnapshot();
+        ExtensionNavigationHost.Children.Clear();
+        ExtensionPageHost.Children.Clear();
+        extensionPageButtons.Clear();
+
+        if (ViewModel.SelectedMainPageIndex >= 5)
+        {
+            int selectedIndex = Array.FindIndex(
+                pages,
+                item => string.Equals(item.Page.Id, selectedExtensionPageId, StringComparison.OrdinalIgnoreCase));
+            ViewModel.SelectedMainPageIndex = selectedIndex >= 0 ? selectedIndex + 5 : 0;
+        }
+
+        for (int index = 0; index < pages.Length; index++)
+        {
+            int pageIndex = index + 5;
+            ExtensionPageDefinition page = pages[index].Page;
+            ToggleButton button = CreateExtensionPageButton(page, pageIndex);
+            ExtensionNavigationHost.Children.Add(button);
+            extensionPageButtons.Add(button);
+
+            FrameworkElement content = page.Content;
+            content.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
+            content.VerticalAlignment = System.Windows.VerticalAlignment.Stretch;
+            content.Visibility = ViewModel.SelectedMainPageIndex == pageIndex ? Visibility.Visible : Visibility.Collapsed;
+            ExtensionPageHost.Children.Add(content);
+        }
+
+        UpdateExtensionPageSelection();
+    }
+
+    private ToggleButton CreateExtensionPageButton(ExtensionPageDefinition page, int pageIndex)
+    {
+        FontIcon icon = new()
+        {
+            FontFamily = TryFindResource("SymbolThemeFontFamily") as System.Windows.Media.FontFamily
+                ?? new System.Windows.Media.FontFamily("Segoe Fluent Icons"),
+            FontSize = 20,
+            Glyph = page.IconGlyph,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+        };
+        System.Windows.Controls.TextBlock label = new()
+        {
+            FontSize = 11,
+            Text = page.Title,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        Wpf.Ui.Controls.StackPanel content = new()
+        {
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+            Spacing = 4,
+            Children = { icon, label },
+        };
+        ToggleButton button = new()
+        {
+            Content = content,
+            Style = TryFindResource("ShellNavButtonStyle") as Style,
+            ToolTip = page.Title,
+            Tag = pageIndex,
+        };
+        button.Click += ExtensionPageButtonClick;
+        return button;
+    }
+
+    private void ExtensionPageButtonClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is ToggleButton { Tag: int pageIndex })
+        {
+            ExtensionPageContribution[] pages = ExtensionHostRuntime.GetPagesSnapshot();
+            int extensionIndex = pageIndex - 5;
+            selectedExtensionPageId = extensionIndex >= 0 && extensionIndex < pages.Length
+                ? pages[extensionIndex].Page.Id
+                : string.Empty;
+            ViewModel.SelectedMainPageIndex = pageIndex;
+        }
+    }
+
+    private void UpdateExtensionPageSelection()
+    {
+        int selectedPageIndex = ViewModel.SelectedMainPageIndex;
+        for (int index = 0; index < extensionPageButtons.Count; index++)
+        {
+            extensionPageButtons[index].IsChecked = selectedPageIndex == index + 5;
+        }
+        for (int index = 0; index < ExtensionPageHost.Children.Count; index++)
+        {
+            ExtensionPageHost.Children[index].Visibility = selectedPageIndex == index + 5
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+        ExtensionPageHost.Visibility = selectedPageIndex >= 5 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void UpdateExtensionHomeCardTemplate()
+    {
+        RoomCardList.ItemTemplate = ExtensionHostRuntime.TryGetOverride(
+            ExtensionContractNames.HomeCardTemplate,
+            out DataTemplate? template)
+            ? template
+            : defaultRoomCardTemplate;
+    }
+
+    private void RoomCardContextMenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ContextMenu contextMenu
+            || contextMenu.PlacementTarget is not FrameworkElement { DataContext: RoomStatusReactive roomStatus })
+        {
+            return;
+        }
+
+        foreach (object item in contextMenu.Items.Cast<object>().Where(item => item is System.Windows.Controls.MenuItem { Tag: ExtensionRoomActionTag }).ToArray())
+        {
+            contextMenu.Items.Remove(item);
+        }
+
+        ExtensionRoomInfo room = new(
+            roomStatus.RoomUrl,
+            roomStatus.NickName,
+            roomStatus.PlatformName,
+            roomStatus.StreamStatus == Models.StreamStatus.Streaming,
+            roomStatus.RecordStatus == RecordStatus.Recording,
+            roomStatus.CanPreview);
+        int insertionIndex = contextMenu.Items.Cast<object>().TakeWhile(item => item is not Separator).Count();
+        foreach (IExtensionRoomAction action in ExtensionHostRuntime.GetOverrides<IExtensionRoomAction>(ExtensionContractNames.HomeRoomActions)
+                     .Where(item => !string.IsNullOrWhiteSpace(item.Id) && !string.IsNullOrWhiteSpace(item.Label))
+                     .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+                     .Select(group => group.First())
+                     .OrderBy(item => item.Order)
+                     .ThenBy(item => item.Label, StringComparer.CurrentCultureIgnoreCase))
+        {
+            bool isEnabled;
+            try
+            {
+                isEnabled = action.CanExecute(room);
+            }
+            catch (Exception exception)
+            {
+                AppSessionLogger.WriteException(exception);
+                continue;
+            }
+
+            System.Windows.Controls.MenuItem menuItem = new()
+            {
+                Header = action.Label,
+                IsEnabled = isEnabled,
+                FocusVisualStyle = null,
+                Tag = new ExtensionRoomActionTag(action.Id),
+            };
+            menuItem.Click += async (_, _) =>
+            {
+                menuItem.IsEnabled = false;
+                try
+                {
+                    await action.ExecuteAsync(room, CancellationToken.None);
+                }
+                catch (Exception exception)
+                {
+                    AppSessionLogger.WriteException(exception);
+                    Wpf.Ui.Violeta.Controls.Toast.Error(exception.Message);
+                }
+            };
+            contextMenu.Items.Insert(insertionIndex++, menuItem);
+        }
     }
 
     private void EnforceBorderlessWindowChrome()
@@ -518,12 +748,19 @@ public partial class MainWindow : FluentWindow
 
         if (isPreviewFullScreen)
         {
-            e.Handled = TryHandlePreviewShortcut(key, modifiers);
+            e.Handled = ExtensionHostRuntime.TryHandleShortcut(key, modifiers)
+                || TryHandlePreviewShortcut(key, modifiers);
             return;
         }
 
         if (IsShortcutInputSuppressed(e.OriginalSource as DependencyObject))
         {
+            return;
+        }
+
+        if (ExtensionHostRuntime.TryHandleShortcut(key, modifiers))
+        {
+            e.Handled = true;
             return;
         }
 
@@ -632,7 +869,8 @@ public partial class MainWindow : FluentWindow
             RestoreCapsLockState();
         }
 
-        ViewModel.SelectedMainPageIndex = (ViewModel.SelectedMainPageIndex + direction + 5) % 5;
+        int pageCount = 5 + ExtensionHostRuntime.GetPagesSnapshot().Length;
+        ViewModel.SelectedMainPageIndex = (ViewModel.SelectedMainPageIndex + direction + pageCount) % pageCount;
         FocusActivePage();
         return true;
     }
@@ -923,6 +1161,12 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
+        if (ExtensionHostRuntime.TryHandleShortcut(key, modifiers))
+        {
+            handled = true;
+            return;
+        }
+
         handled = TryHandlePreviewShortcut(key, modifiers);
         if (handled)
         {
@@ -1014,8 +1258,29 @@ public partial class MainWindow : FluentWindow
 
     private void ViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (IsPreviewLifecycleProperty(e.PropertyName))
+        {
+            PublishPreviewStateChanged(e.PropertyName ?? string.Empty);
+        }
+
         if (e.PropertyName == nameof(MainViewModel.SelectedMainPageIndex))
         {
+            if (ViewModel.SelectedMainPageIndex >= 5)
+            {
+                ExtensionPageContribution[] pages = ExtensionHostRuntime.GetPagesSnapshot();
+                int extensionIndex = ViewModel.SelectedMainPageIndex - 5;
+                if (extensionIndex < 0 || extensionIndex >= pages.Length)
+                {
+                    ViewModel.SelectedMainPageIndex = 0;
+                    return;
+                }
+                selectedExtensionPageId = pages[extensionIndex].Page.Id;
+            }
+            else
+            {
+                selectedExtensionPageId = string.Empty;
+            }
+            UpdateExtensionPageSelection();
             CloseActiveToolTips();
             if (!ViewModel.IsHomePageSelected && isPreviewClosingTransitionActive)
             {
@@ -1078,6 +1343,27 @@ public partial class MainWindow : FluentWindow
                 }
             }
         }, DispatcherPriority.Loaded);
+    }
+
+    private static bool IsPreviewLifecycleProperty(string? propertyName)
+    {
+        return propertyName is nameof(MainViewModel.IsPreviewing)
+            or nameof(MainViewModel.PreviewingRoom)
+            or nameof(MainViewModel.IsPreviewPaused)
+            or nameof(MainViewModel.IsPreviewMuted)
+            or nameof(MainViewModel.PreviewVolume)
+            or nameof(MainViewModel.IsPreviewTransitioning)
+            or nameof(MainViewModel.LivePreviewStatus);
+    }
+
+    private void PublishPreviewStateChanged(string change)
+    {
+        ExtensionPreviewStateChangedEvent payload = new(
+            Guid.NewGuid().ToString("N"),
+            change,
+            ExtensionPreviewService.CreateState(this, ViewModel),
+            DateTimeOffset.UtcNow);
+        _ = ExtensionHostRuntime.PublishAsync(ExtensionEventNames.PreviewStateChanged, payload);
     }
 
     private void QueueRoomCardMetricsRefresh()
@@ -1768,6 +2054,15 @@ public partial class MainWindow : FluentWindow
 
     internal bool IsPreviewFullScreenActive => isPreviewFullScreen;
 
+    internal void SetPreviewFullScreenForExtension(bool fullScreen)
+    {
+        if (fullScreen == IsPreviewFullScreenActive)
+        {
+            return;
+        }
+        TogglePreviewFullScreen();
+    }
+
     internal void PrepareForTrayHide()
     {
         if (isPreviewFullScreen)
@@ -1796,6 +2091,7 @@ public partial class MainWindow : FluentWindow
         {
             isPreviewFullScreen = true;
             ViewModel.IsPreviewDetached = true;
+            PublishPreviewStateChanged(nameof(IsPreviewFullScreenActive));
             ApplyPreviewFullScreenLayout();
             HomePreviewPanel.IsFullScreen = true;
             ApplyPreviewFullScreenWindowBounds();
@@ -1856,6 +2152,7 @@ public partial class MainWindow : FluentWindow
         SetPreviewSystemTransitionsDisabled(true);
         isPreviewFullScreen = false;
         HomePreviewPanel.IsFullScreen = false;
+        PublishPreviewStateChanged(nameof(IsPreviewFullScreenActive));
         RestorePreviewFullScreenLayout();
         RestorePreviewWindowPlacement();
         ViewModel.IsPreviewDetached = false;
@@ -3041,6 +3338,8 @@ public partial class MainWindow : FluentWindow
         }
     }
 }
+
+internal sealed record ExtensionRoomActionTag(string Id);
 
 [StructLayout(LayoutKind.Sequential)]
 internal struct NativePoint

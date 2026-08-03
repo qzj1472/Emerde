@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows;
+using System.Windows.Input;
 using Emerde.Core;
 using Emerde.Models;
 
@@ -11,6 +12,9 @@ public static class ExtensionContractNames
     public const string StreamResolver = "core.stream-resolver";
     public const string Monitor = "core.monitor";
     public const string Recorder = "core.recorder";
+    public const string RecorderStop = "core.recorder-stop";
+    public const string RecorderReconnect = "core.recorder-reconnect";
+    public const string PostProcessing = "core.post-processing";
     public const string MainWindow = "host.main-window";
     public const string MainViewModel = "host.main-view-model";
     public const string Application = "host.application";
@@ -18,20 +22,73 @@ public static class ExtensionContractNames
     public const string ExtensionDetail = "ui.extension-detail";
     public const string VideoListToolbar = "ui.video-list-toolbar";
     public const string VideoListActions = "ui.video-list-actions";
+    public const string HomeToolbar = "ui.home-toolbar";
+    public const string HomeRoomActions = "ui.home-room-actions";
     public const string PlatformCookies = "host.platform-cookies";
     public const string VideoSelection = "host.video-selection";
     public const string DialogService = "host.dialog-service";
+    public const string HomeCardTemplate = "ui.home-card-template";
+    public const string PreviewService = "host.preview-service";
+    public const string MediaService = "host.media-service";
+    public const string RecordingService = "host.recording-service";
+    public const string NavigationService = "host.navigation-service";
+    public const string NotificationService = "host.notification-service";
+    public const string LogService = "host.log-service";
+    public const string LogExportService = "host.log-export-service";
+    public const string UpdateService = "host.update-service";
 }
 
 public static class ExtensionEventNames
 {
     public const string MediaFinalized = "media.finalized";
+    public const string PreviewStateChanged = "preview.state-changed";
+    public const string MediaOperationChanged = "media.operation-changed";
+    public const string RecordingLifecycle = "recording.lifecycle";
 }
 
 public static class ExtensionPermissionNames
 {
     public const string PlatformCookieRead = "credentials.platform-cookie.read";
+    public const string UiModify = "ui.modify";
+    public const string CoreOverride = "core.override";
+    public const string MediaFinalizedRead = "events.media-finalized.read";
+    public const string ShortcutRegister = "shortcuts.register";
+    public const string PreviewControl = "preview.control";
+    public const string MediaControl = "media.control";
+    public const string RecordingControl = "recording.control";
+    public const string NotificationWrite = "notifications.write";
+    public const string LogWrite = "logs.write";
+    public const string LogExport = "logs.export";
+    public const string UpdateOpen = "updates.open";
+    public const string PreviewEventsRead = "events.preview.read";
+    public const string MediaOperationsRead = "events.media-operations.read";
+    public const string RecordingEventsRead = "events.recording.read";
 }
+
+public sealed record ExtensionPreviewStateChangedEvent(
+    string EventId,
+    string Change,
+    ExtensionPreviewState State,
+    DateTimeOffset OccurredAt);
+
+public sealed record ExtensionMediaOperationChangedEvent(
+    string EventId,
+    string OperationId,
+    string Operation,
+    bool IsActive,
+    IReadOnlyList<string> Paths,
+    DateTimeOffset OccurredAt);
+
+public sealed record ExtensionRecordingLifecycleEvent(
+    string EventId,
+    string RecordingId,
+    string Phase,
+    string RoomUrl,
+    string NickName,
+    string PlatformName,
+    string OutputPath,
+    int Attempt,
+    DateTimeOffset OccurredAt);
 
 public sealed record ExtensionMediaFinalizedEvent(
     string EventId,
@@ -126,6 +183,204 @@ public delegate Task ExtensionMonitorOverride(ExtensionMonitorRequest request, F
 public sealed record ExtensionRecorderStartRequest(Room Room, RoomStatus RoomStatus, RoomRecordingOptions Settings, RecorderStartInfo StartInfo);
 
 public delegate bool ExtensionRecorderOverride(ExtensionRecorderStartRequest request, Func<bool> next);
+
+public sealed record ExtensionRecorderStopRequest(
+    string RoomUrl,
+    string NickName,
+    string PlatformName,
+    string OutputPath,
+    bool DeferPostProcessing);
+
+public delegate bool ExtensionRecorderStopOverride(ExtensionRecorderStopRequest request, Func<bool> next);
+
+public sealed record ExtensionRecorderReconnectRequest(
+    string RoomUrl,
+    string NickName,
+    string PlatformName,
+    string OutputPath,
+    int Attempt,
+    int ExitCode,
+    bool HadMediaProgress,
+    TimeSpan ProposedDelay);
+
+public sealed record ExtensionRecorderReconnectDecision(bool ShouldRetry, TimeSpan Delay);
+
+public delegate ExtensionRecorderReconnectDecision ExtensionRecorderReconnectOverride(
+    ExtensionRecorderReconnectRequest request,
+    Func<ExtensionRecorderReconnectDecision> next);
+
+public sealed record ExtensionPostProcessingRequest(
+    string RoomUrl,
+    string NickName,
+    string PlatformName,
+    IReadOnlyList<string> PendingPaths);
+
+public delegate Task ExtensionPostProcessingOverride(ExtensionPostProcessingRequest request, Func<Task> next);
+
+public sealed record ExtensionPageDefinition(
+    string Id,
+    string Title,
+    string IconGlyph,
+    FrameworkElement Content,
+    int Order = 0);
+
+public delegate bool ExtensionShortcutHandler();
+
+public sealed record ExtensionShortcutDefinition(
+    string Id,
+    Key Key,
+    ModifierKeys Modifiers,
+    ExtensionShortcutHandler Handler,
+    int Priority = 0,
+    Func<bool>? CanExecute = null);
+
+public sealed record ExtensionPreviewState(
+    bool IsActive,
+    bool IsPaused,
+    bool IsMuted,
+    int Volume,
+    bool IsFullScreen,
+    string RoomUrl,
+    string NickName);
+
+public interface IExtensionPreviewService
+{
+    ExtensionPreviewState GetState();
+
+    Task<bool> PlayAsync(string roomUrl, CancellationToken cancellationToken = default);
+
+    Task StopAsync(CancellationToken cancellationToken = default);
+
+    Task RefreshAsync(CancellationToken cancellationToken = default);
+
+    Task SetPausedAsync(bool paused, CancellationToken cancellationToken = default);
+
+    void SetMuted(bool muted);
+
+    void SetVolume(int volume);
+
+    void SetFullScreen(bool fullScreen);
+}
+
+public sealed record ExtensionRoomInfo(
+    string RoomUrl,
+    string NickName,
+    string PlatformName,
+    bool IsLive,
+    bool IsRecording,
+    bool CanPreview);
+
+public interface IExtensionRoomAction
+{
+    string Id { get; }
+
+    string Label { get; }
+
+    int Order { get; }
+
+    bool CanExecute(ExtensionRoomInfo room);
+
+    Task ExecuteAsync(ExtensionRoomInfo room, CancellationToken cancellationToken);
+}
+
+public sealed record ExtensionMediaOperationResult(
+    bool Success,
+    IReadOnlyList<string> OutputPaths,
+    string Message = "");
+
+public interface IExtensionMediaService
+{
+    Task<ExtensionMediaOperationResult> TranscodeAsync(
+        string sourcePath,
+        string targetFormat,
+        bool optimizeAudio,
+        CancellationToken cancellationToken = default);
+
+    Task<ExtensionMediaOperationResult> SplitAsync(
+        string sourcePath,
+        int segmentSeconds,
+        CancellationToken cancellationToken = default);
+
+    Task<ExtensionMediaOperationResult> MergeAsync(
+        IReadOnlyList<string> sourcePaths,
+        string targetDirectory,
+        IProgress<double>? progress = null,
+        CancellationToken cancellationToken = default);
+
+    int Cancel(string operation, IReadOnlyList<string>? paths = null);
+}
+
+public sealed record ExtensionRecordingState(
+    string RoomUrl,
+    string NickName,
+    string PlatformName,
+    bool IsLive,
+    bool IsRecording,
+    string OutputPath);
+
+public interface IExtensionRecordingService
+{
+    IReadOnlyList<ExtensionRecordingState> GetStates();
+
+    Task StartAsync(string roomUrl, CancellationToken cancellationToken = default);
+
+    void Stop(string roomUrl, bool deferPostProcessing = false);
+
+    Task RefreshAsync(string roomUrl, CancellationToken cancellationToken = default);
+
+    void ReleaseTemporaryOverride(string roomUrl);
+
+    Task ProcessPendingAsync(CancellationToken cancellationToken = default);
+}
+
+public interface IExtensionNavigationService
+{
+    string CurrentPageId { get; }
+
+    IReadOnlyList<string> GetPageIds();
+
+    bool Navigate(string pageId);
+}
+
+public enum ExtensionNotificationLevel
+{
+    Information,
+    Success,
+    Warning,
+    Error,
+}
+
+public interface IExtensionNotificationService
+{
+    void Show(ExtensionNotificationLevel level, string message);
+
+    void ShowSystem(string title, string message, string detail = "");
+}
+
+public interface IExtensionLogService
+{
+    void Write(string level, string category, string action, string message, object? data = null);
+
+    void WriteException(Exception exception);
+}
+
+public interface IExtensionLogExportService
+{
+    string ExportToday(string targetDirectory);
+
+    string ExportAll(string targetDirectory);
+}
+
+public interface IExtensionUpdateService
+{
+    string Version { get; }
+
+    string BuildId { get; }
+
+    string ProjectUrl { get; }
+
+    Task OpenProjectPageAsync();
+}
 
 public sealed class ExtensionManifest
 {
@@ -251,6 +506,10 @@ public interface IExtensionContext
 
     IDisposable RegisterUi(string regionName, FrameworkElement content, int order = 0);
 
+    IDisposable RegisterPage(ExtensionPageDefinition page);
+
+    IDisposable RegisterShortcut(ExtensionShortcutDefinition shortcut);
+
     IDisposable Subscribe<T>(string eventName, ExtensionEventHandler<T> handler);
 
     IDisposable RegisterCleanup(Func<ValueTask> cleanup);
@@ -297,3 +556,5 @@ public sealed class ExtensionProcessResponse
 public sealed record ExtensionExecutionResult(bool Success, string Message, JsonElement Data, int ExitCode = 0);
 
 public sealed record ExtensionUiContribution(string ExtensionId, string RegionName, FrameworkElement Content, int Order);
+
+public sealed record ExtensionPageContribution(string ExtensionId, ExtensionPageDefinition Page);

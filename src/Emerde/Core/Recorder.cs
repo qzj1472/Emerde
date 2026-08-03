@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Emerde.Extensions;
 using Emerde.Models;
+using Emerde.Plugins;
 using Emerde.Threading;
 
 namespace Emerde.Core;
@@ -32,6 +33,10 @@ public sealed class Recorder
     public CancellationTokenSource? TokenSource { get; private set; } = null;
 
     private readonly object stateLock = new();
+
+    private RecorderStartInfo? activeStartInfo;
+
+    private string activeRecordingId = string.Empty;
 
     private Task? recordingTask;
 
@@ -130,6 +135,8 @@ public sealed class Recorder
             StartTime = DateTime.MinValue;
             EndTime = DateTime.MinValue;
             RecordStatus = RecordStatus.Recording;
+            activeStartInfo = startInfo;
+            activeRecordingId = Guid.NewGuid().ToString("N");
             TokenSource = tokenSource ?? new CancellationTokenSource();
             ownsTokenSource = tokenSource == null;
             CancellationToken recordingToken = TokenSource.Token;
@@ -156,6 +163,8 @@ public sealed class Recorder
                 }
                 TokenSource = null;
                 ownsTokenSource = false;
+                activeStartInfo = null;
+                activeRecordingId = string.Empty;
                 RecordStatus = RecordStatus.NotRecording;
                 throw;
             }
@@ -469,6 +478,7 @@ public sealed class Recorder
                         attempt,
                         lastAttemptHadMediaProgress,
                     });
+                    PublishLifecycle("reconnect_exhausted", startInfo, attempt);
                     startInfo.ReconnectExhausted?.Invoke();
                     break;
                 }
@@ -476,12 +486,37 @@ public sealed class Recorder
                 TimeSpan delay = isLiveAfterRefresh == true && !lastStreamRefreshHadUrl
                     ? TimeSpan.FromSeconds(3)
                     : TimeSpan.FromSeconds(Math.Min(8, attempt switch
+                    {
+                        0 => 1,
+                        1 => 1,
+                        2 => 3,
+                        _ => 8,
+                    }));
+                ExtensionRecorderReconnectRequest reconnectRequest = new(
+                    startInfo.RoomUrl,
+                    startInfo.NickName,
+                    startInfo.PlatformName,
+                    FileName ?? string.Empty,
+                    attempt,
+                    exitCode,
+                    lastAttemptHadMediaProgress,
+                    delay);
+                ExtensionRecorderReconnectDecision reconnectDecision = ExtensionHostRuntime.InvokeOverrideChain<ExtensionRecorderReconnectOverride, ExtensionRecorderReconnectDecision>(
+                    ExtensionContractNames.RecorderReconnect,
+                    (implementation, next) => implementation(reconnectRequest, next),
+                    () => new ExtensionRecorderReconnectDecision(true, delay),
+                    AppSessionLogger.WriteException)
+                    ?? new ExtensionRecorderReconnectDecision(true, delay);
+                if (!reconnectDecision.ShouldRetry)
                 {
-                    0 => 1,
-                    1 => 1,
-                    2 => 3,
-                    _ => 8,
-                }));
+                    PublishLifecycle("reconnect_cancelled", startInfo, attempt);
+                    break;
+                }
+                delay = reconnectDecision.Delay < TimeSpan.Zero
+                    ? TimeSpan.Zero
+                    : reconnectDecision.Delay > TimeSpan.FromMinutes(5)
+                        ? TimeSpan.FromMinutes(5)
+                        : reconnectDecision.Delay;
                 AppSessionLogger.Event("warn", "recorder", "record_reconnect_scheduled", "record reconnect scheduled", new
                 {
                     startInfo.RoomUrl,
@@ -491,6 +526,7 @@ public sealed class Recorder
                     useSessionPartFiles,
                     delaySeconds = delay.TotalSeconds,
                 });
+                PublishLifecycle("reconnect_scheduled", startInfo, attempt);
                 await Task.Delay(delay, token);
             }
         }
@@ -526,6 +562,7 @@ public sealed class Recorder
                     endedAt = EndTime,
                     durationSeconds = StartTime == DateTime.MinValue ? 0 : Math.Max(0, (EndTime - StartTime).TotalSeconds),
                 });
+                PublishLifecycle("stopped", startInfo);
                 try
                 {
                     _ = WeakReferenceMessenger.Default.Send(new RoomRecordingStateChangedMessage(startInfo.RoomUrl));
@@ -585,6 +622,7 @@ public sealed class Recorder
                         startInfo.NickName,
                         pendingCount = pendingRecordingPaths.Count,
                     });
+                    PublishLifecycle("post_processing_deferred", startInfo);
                 }
                 if (!processNow)
                 {
@@ -604,8 +642,23 @@ public sealed class Recorder
                 {
                     try
                     {
-                        _ = RecordingRecoveryService.QueueProcessAsync(queuedPostProcessingPaths);
+                        string[] pendingPaths = queuedPostProcessingPaths.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                        ExtensionPostProcessingRequest request = new(
+                            startInfo.RoomUrl,
+                            startInfo.NickName,
+                            startInfo.PlatformName,
+                            pendingPaths);
+                        IDisposable handoffProtection = MediaOperationRegistry.Register(
+                            MediaOperationKind.Conversion,
+                            () => pendingPaths);
+                        Task dispatchTask = ExtensionHostRuntime.InvokeOverrideChainAsync<ExtensionPostProcessingOverride>(
+                            ExtensionContractNames.PostProcessing,
+                            (implementation, next) => implementation(request, next),
+                            () => RecordingRecoveryService.QueueProcessAsync(pendingPaths),
+                            AppSessionLogger.WriteException);
+                        _ = ReleasePostProcessingHandoffAsync(dispatchTask, handoffProtection);
                         postProcessingQueued = true;
+                        PublishLifecycle("post_processing_queued", startInfo);
                     }
                     catch (Exception e)
                     {
@@ -622,6 +675,8 @@ public sealed class Recorder
                     }
                     TokenSource = null;
                     ownsTokenSource = false;
+                    activeStartInfo = null;
+                    activeRecordingId = string.Empty;
                 }
                 if (!postProcessingQueued)
                 {
@@ -632,6 +687,26 @@ public sealed class Recorder
     }
 
     public void Stop(bool deferPostProcessing = false)
+    {
+        RecorderStartInfo? startInfo;
+        lock (stateLock)
+        {
+            startInfo = activeStartInfo;
+        }
+        ExtensionRecorderStopRequest request = new(
+            startInfo?.RoomUrl ?? string.Empty,
+            startInfo?.NickName ?? string.Empty,
+            startInfo?.PlatformName ?? string.Empty,
+            FileName ?? string.Empty,
+            deferPostProcessing);
+        _ = ExtensionHostRuntime.InvokeOverrideChain<ExtensionRecorderStopOverride, bool>(
+            ExtensionContractNames.RecorderStop,
+            (implementation, next) => implementation(request, next),
+            () => StopCore(deferPostProcessing),
+            AppSessionLogger.WriteException);
+    }
+
+    private bool StopCore(bool deferPostProcessing)
     {
         if (deferPostProcessing)
         {
@@ -647,6 +722,7 @@ public sealed class Recorder
                 RecordStatus = RecordStatus.NotRecording;
             }
         }
+        return true;
     }
 
     public void EndNowIfRecording()
@@ -1176,7 +1252,35 @@ public sealed class Recorder
             startInfo.PlatformName,
             FileName,
         });
+        PublishLifecycle("started", startInfo);
         _ = WeakReferenceMessenger.Default.Send(new RoomRecordingStateChangedMessage(startInfo.RoomUrl));
+    }
+
+    private void PublishLifecycle(string phase, RecorderStartInfo startInfo, int attempt = 0)
+    {
+        ExtensionRecordingLifecycleEvent payload = new(
+            Guid.NewGuid().ToString("N"),
+            activeRecordingId,
+            phase,
+            startInfo.RoomUrl,
+            startInfo.NickName,
+            startInfo.PlatformName,
+            FileName ?? string.Empty,
+            attempt,
+            DateTimeOffset.UtcNow);
+        _ = ExtensionHostRuntime.PublishAsync(ExtensionEventNames.RecordingLifecycle, payload);
+    }
+
+    private static async Task ReleasePostProcessingHandoffAsync(Task dispatchTask, IDisposable handoffProtection)
+    {
+        try
+        {
+            await dispatchTask;
+        }
+        finally
+        {
+            handoffProtection.Dispose();
+        }
     }
 
     internal static string GetProcessExitLogLevel(int exitCode, bool wasCanceled, bool wasStalled)

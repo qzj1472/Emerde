@@ -706,7 +706,8 @@
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <ui:StackPanel Grid.Row="0"
+                    <ui:StackPanel x:Name="ShellNavigationItems"
+                                   Grid.Row="0"
                                    HorizontalAlignment="Center"
                                    Orientation="Vertical">
                     <ToggleButton Command="{Binding ShowHomePageCommand}"
@@ -769,6 +770,7 @@
                             <TextBlock HorizontalAlignment="Center" FontSize="11" Text="关于" />
                         </ui:StackPanel>
                     </ToggleButton>
+                    <StackPanel x:Name="ExtensionNavigationHost" />
                     </ui:StackPanel>
                     <Button Grid.Row="2"
                             Command="{Binding ExitApplicationCommand}"
@@ -845,6 +847,12 @@
                         </Button.Content>
                     </Button>
                 </ui:StackPanel>
+
+                <ui:StackPanel x:Name="HomeExtensionToolbarHost"
+                               Grid.Column="2"
+                               HorizontalAlignment="Right"
+                               Orientation="Horizontal"
+                               Spacing="8" />
 
             </ui:Grid>
 
@@ -982,7 +990,8 @@
                                             Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
                                             TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
                                         <Border.ContextMenu>
-                                            <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
+                                            <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}"
+                                                         Opened="RoomCardContextMenuOpened">
                                                 <MenuItem Header="{I18N PreviewLiveRoom}"
                                                           Command="{Binding PreviewLiveRoomCommand}"
                                                           CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}">
@@ -1736,6 +1745,7 @@
                         </Style>
                     </views:AboutContentDialog.Style>
                 </views:AboutContentDialog>
+                <Grid x:Name="ExtensionPageHost" Visibility="Collapsed" />
             </Grid>
             </Border>
         </ui:Grid>

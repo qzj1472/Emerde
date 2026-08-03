@@ -1,4 +1,5 @@
 using Emerde.Plugins;
+using Emerde.Core;
 using System.IO.Compression;
 using System.Text;
 
@@ -58,6 +59,9 @@ public sealed class ExtensionContractsTests
             ExtensionContractNames.StreamResolver,
             ExtensionContractNames.Monitor,
             ExtensionContractNames.Recorder,
+            ExtensionContractNames.RecorderStop,
+            ExtensionContractNames.RecorderReconnect,
+            ExtensionContractNames.PostProcessing,
             ExtensionContractNames.MainWindow,
             ExtensionContractNames.MainViewModel,
             ExtensionContractNames.Application,
@@ -65,12 +69,67 @@ public sealed class ExtensionContractsTests
             ExtensionContractNames.ExtensionDetail,
             ExtensionContractNames.VideoListToolbar,
             ExtensionContractNames.VideoListActions,
+            ExtensionContractNames.HomeToolbar,
+            ExtensionContractNames.HomeRoomActions,
             ExtensionContractNames.PlatformCookies,
             ExtensionContractNames.VideoSelection,
             ExtensionContractNames.DialogService,
+            ExtensionContractNames.HomeCardTemplate,
+            ExtensionContractNames.PreviewService,
+            ExtensionContractNames.MediaService,
+            ExtensionContractNames.RecordingService,
+            ExtensionContractNames.NavigationService,
+            ExtensionContractNames.NotificationService,
+            ExtensionContractNames.LogService,
+            ExtensionContractNames.LogExportService,
+            ExtensionContractNames.UpdateService,
         ];
 
         Assert.Equal(contracts.Length, contracts.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
+
+    [Fact]
+    public void ExtensionEventNames_AreDistinct()
+    {
+        string[] events =
+        [
+            ExtensionEventNames.MediaFinalized,
+            ExtensionEventNames.PreviewStateChanged,
+            ExtensionEventNames.MediaOperationChanged,
+            ExtensionEventNames.RecordingLifecycle,
+        ];
+
+        Assert.Equal(events.Length, events.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
+
+    [Fact]
+    public void MainWindow_RegistersEveryExtensionHostService()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
+        string[] contracts =
+        [
+            ExtensionContractNames.PreviewService,
+            ExtensionContractNames.MediaService,
+            ExtensionContractNames.RecordingService,
+            ExtensionContractNames.NavigationService,
+            ExtensionContractNames.NotificationService,
+            ExtensionContractNames.LogService,
+            ExtensionContractNames.LogExportService,
+            ExtensionContractNames.UpdateService,
+        ];
+
+        foreach (string contract in contracts)
+        {
+            Assert.Contains($"RegisterHostObject(ExtensionContractNames.{GetContractFieldName(contract)}", source, StringComparison.Ordinal);
+        }
+    }
+
+    private static string GetContractFieldName(string contract)
+    {
+        return typeof(ExtensionContractNames)
+            .GetFields()
+            .Single(field => Equals(field.GetValue(null), contract))
+            .Name;
     }
 
     [Fact]
@@ -175,6 +234,620 @@ public sealed class ExtensionContractsTests
 
         await denied.DisposeAsync();
         await allowed.DisposeAsync();
+    }
+
+    [Theory]
+    [InlineData(ExtensionContractNames.PreviewService, ExtensionPermissionNames.PreviewControl)]
+    [InlineData(ExtensionContractNames.MediaService, ExtensionPermissionNames.MediaControl)]
+    [InlineData(ExtensionContractNames.RecordingService, ExtensionPermissionNames.RecordingControl)]
+    [InlineData(ExtensionContractNames.NavigationService, ExtensionPermissionNames.UiModify)]
+    [InlineData(ExtensionContractNames.NotificationService, ExtensionPermissionNames.NotificationWrite)]
+    [InlineData(ExtensionContractNames.LogService, ExtensionPermissionNames.LogWrite)]
+    [InlineData(ExtensionContractNames.LogExportService, ExtensionPermissionNames.LogExport)]
+    [InlineData(ExtensionContractNames.UpdateService, ExtensionPermissionNames.UpdateOpen)]
+    public async Task ExtensionContext_RequiresPermissionForHostServices(string contractName, string permission)
+    {
+        object service = new();
+        using IDisposable registration = ExtensionHostRuntime.RegisterHostObject(contractName, service);
+        ExtensionContext denied = new("test.service-denied", string.Empty, string.Empty, new Dictionary<string, string>());
+        ExtensionContext allowed = new(
+            "test.service-allowed",
+            string.Empty,
+            string.Empty,
+            new Dictionary<string, string>(),
+            [permission]);
+
+        Assert.Null(denied.GetHostObject(contractName));
+        Assert.Same(service, allowed.GetHostObject(contractName));
+
+        await denied.DisposeAsync();
+        await allowed.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ExtensionContext_RequiresPermissionsForUiCoreAndMediaEvents()
+    {
+        ExtensionContext denied = new("test.denied-permissions", string.Empty, string.Empty, new Dictionary<string, string>());
+
+        Assert.Throws<UnauthorizedAccessException>(() => denied.RegisterOverride(
+            ExtensionContractNames.StreamResolver,
+            (ExtensionStreamResolverOverride)((_, next) => next())));
+        await RunStaAsync(() => Assert.Throws<UnauthorizedAccessException>(() => denied.RegisterUi(
+            ExtensionContractNames.ExtensionDetail,
+            new System.Windows.Controls.Border())));
+        Assert.Throws<UnauthorizedAccessException>(() => denied.Subscribe<ExtensionMediaFinalizedEvent>(
+            ExtensionEventNames.MediaFinalized,
+            (_, _) => ValueTask.CompletedTask));
+
+        await denied.DisposeAsync();
+    }
+
+    [Theory]
+    [InlineData(ExtensionEventNames.PreviewStateChanged)]
+    [InlineData(ExtensionEventNames.MediaOperationChanged)]
+    [InlineData(ExtensionEventNames.RecordingLifecycle)]
+    public async Task ExtensionContext_RejectsUndeclaredLifecycleEvents(string eventName)
+    {
+        ExtensionContext denied = new("test.lifecycle-denied", string.Empty, string.Empty, new Dictionary<string, string>());
+
+        Assert.Throws<UnauthorizedAccessException>(() => denied.Subscribe<object>(
+            eventName,
+            (_, _) => ValueTask.CompletedTask));
+
+        await denied.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ExtensionHostRuntime_PublishesMediaOperationLifecycle()
+    {
+        string operationPath = Path.Combine(Path.GetTempPath(), $"test-{Guid.NewGuid():N}.ts");
+        TaskCompletionSource<ExtensionMediaOperationChangedEvent> started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource<ExtensionMediaOperationChangedEvent> stopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        ExtensionContext context = new(
+            "test.media-lifecycle",
+            string.Empty,
+            string.Empty,
+            new Dictionary<string, string>(),
+            [ExtensionPermissionNames.MediaOperationsRead]);
+        using IDisposable subscription = context.Subscribe<ExtensionMediaOperationChangedEvent>(
+            ExtensionEventNames.MediaOperationChanged,
+            (payload, _) =>
+            {
+                if (!payload.Paths.Contains(operationPath, StringComparer.OrdinalIgnoreCase))
+                {
+                    return ValueTask.CompletedTask;
+                }
+                if (payload.IsActive)
+                {
+                    started.TrySetResult(payload);
+                }
+                else
+                {
+                    stopped.TrySetResult(payload);
+                }
+                return ValueTask.CompletedTask;
+            });
+
+        IDisposable operation = MediaOperationRegistry.Register(
+            MediaOperationKind.Split,
+            () => [operationPath]);
+        ExtensionMediaOperationChangedEvent startedPayload = await started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        operation.Dispose();
+        ExtensionMediaOperationChangedEvent stoppedPayload = await stopped.Task.WaitAsync(TimeSpan.FromSeconds(3));
+
+        Assert.Equal(nameof(MediaOperationKind.Split), startedPayload.Operation);
+        Assert.True(startedPayload.IsActive);
+        Assert.False(stoppedPayload.IsActive);
+        Assert.NotEqual(startedPayload.EventId, stoppedPayload.EventId);
+        Assert.Equal(startedPayload.OperationId, stoppedPayload.OperationId);
+        await context.DisposeAsync();
+    }
+
+    [Fact]
+    public void RecordingLifecycleContract_ExposesStableRecordingIdentity()
+    {
+        Assert.NotNull(typeof(ExtensionRecordingLifecycleEvent).GetProperty(nameof(ExtensionRecordingLifecycleEvent.RecordingId)));
+    }
+
+    [Fact]
+    public async Task ExtensionHostRuntime_OrdersAndRemovesPages()
+    {
+        await RunStaAsync(() =>
+        {
+            string suffix = Guid.NewGuid().ToString("N");
+            using IDisposable later = ExtensionHostRuntime.RegisterPage(
+                $"test.page-later.{suffix}",
+                new ExtensionPageDefinition($"later.{suffix}", "Later", string.Empty, new System.Windows.Controls.Border(), 20));
+            IDisposable earlier = ExtensionHostRuntime.RegisterPage(
+                $"test.page-earlier.{suffix}",
+                new ExtensionPageDefinition($"earlier.{suffix}", "Earlier", string.Empty, new System.Windows.Controls.Border(), 10));
+
+            Assert.Equal([$"earlier.{suffix}", $"later.{suffix}"], ExtensionHostRuntime.GetPagesSnapshot().Select(item => item.Page.Id));
+
+            earlier.Dispose();
+
+            Assert.DoesNotContain(ExtensionHostRuntime.GetPagesSnapshot(), item => item.Page.Id == $"earlier.{suffix}");
+        });
+    }
+
+    [Fact]
+    public async Task ExtensionHostRuntime_RejectsReusedUiElements()
+    {
+        await RunStaAsync(() =>
+        {
+            string suffix = Guid.NewGuid().ToString("N");
+            System.Windows.Controls.Border content = new();
+            using IDisposable first = ExtensionHostRuntime.RegisterUi(
+                $"test.ui-first.{suffix}",
+                ExtensionContractNames.HomeToolbar,
+                content);
+
+            Assert.Throws<InvalidOperationException>(() => ExtensionHostRuntime.RegisterUi(
+                $"test.ui-second.{suffix}",
+                ExtensionContractNames.VideoListToolbar,
+                content));
+        });
+    }
+
+    [Fact]
+    public void ExtensionHostRuntime_UsesShortcutPriorityAndRestoresAfterDispose()
+    {
+        List<string> calls = [];
+        string suffix = Guid.NewGuid().ToString("N");
+        using IDisposable low = ExtensionHostRuntime.RegisterShortcut(
+            $"test.shortcut-low.{suffix}",
+            new ExtensionShortcutDefinition("low", System.Windows.Input.Key.F8, System.Windows.Input.ModifierKeys.Control, () =>
+            {
+                calls.Add("low");
+                return true;
+            }, 10));
+        IDisposable high = ExtensionHostRuntime.RegisterShortcut(
+            $"test.shortcut-high.{suffix}",
+            new ExtensionShortcutDefinition("high", System.Windows.Input.Key.F8, System.Windows.Input.ModifierKeys.Control, () =>
+            {
+                calls.Add("high");
+                return true;
+            }, 20));
+
+        Assert.True(ExtensionHostRuntime.TryHandleShortcut(System.Windows.Input.Key.F8, System.Windows.Input.ModifierKeys.Control));
+        Assert.Equal(["high"], calls);
+
+        high.Dispose();
+        calls.Clear();
+
+        Assert.True(ExtensionHostRuntime.TryHandleShortcut(System.Windows.Input.Key.F8, System.Windows.Input.ModifierKeys.Control));
+        Assert.Equal(["low"], calls);
+    }
+
+    [Fact]
+    public void ExtensionHostRuntime_IsolatesFailingShortcuts()
+    {
+        string suffix = Guid.NewGuid().ToString("N");
+        using IDisposable failing = ExtensionHostRuntime.RegisterShortcut(
+            $"test.shortcut-failing.{suffix}",
+            new ExtensionShortcutDefinition("failing", System.Windows.Input.Key.F9, System.Windows.Input.ModifierKeys.Alt, () => throw new InvalidOperationException("failure"), 20));
+        using IDisposable succeeding = ExtensionHostRuntime.RegisterShortcut(
+            $"test.shortcut-succeeding.{suffix}",
+            new ExtensionShortcutDefinition("succeeding", System.Windows.Input.Key.F9, System.Windows.Input.ModifierKeys.Alt, () => true, 10));
+
+        Assert.True(ExtensionHostRuntime.TryHandleShortcut(System.Windows.Input.Key.F9, System.Windows.Input.ModifierKeys.Alt));
+    }
+
+    [Fact]
+    public async Task ExtensionHostRuntime_RemovesEveryExtensionContribution()
+    {
+        await RunStaAsync(() =>
+        {
+            string extensionId = $"test.remove-all.{Guid.NewGuid():N}";
+            string pageId = $"page.{Guid.NewGuid():N}";
+            using IDisposable ui = ExtensionHostRuntime.RegisterUi(extensionId, ExtensionContractNames.HomeToolbar, new System.Windows.Controls.Border());
+            using IDisposable page = ExtensionHostRuntime.RegisterPage(
+                extensionId,
+                new ExtensionPageDefinition(pageId, "Page", string.Empty, new System.Windows.Controls.Border()));
+            using IDisposable shortcut = ExtensionHostRuntime.RegisterShortcut(
+                extensionId,
+                new ExtensionShortcutDefinition("shortcut", System.Windows.Input.Key.F10, System.Windows.Input.ModifierKeys.None, () => true));
+
+            ExtensionHostRuntime.RemoveExtensionRegistrations(extensionId);
+
+            Assert.DoesNotContain(ExtensionHostRuntime.GetUiContributionsSnapshot(), item => item.ExtensionId == extensionId);
+            Assert.DoesNotContain(ExtensionHostRuntime.GetPagesSnapshot(), item => item.ExtensionId == extensionId);
+            Assert.False(ExtensionHostRuntime.TryHandleShortcut(System.Windows.Input.Key.F10, System.Windows.Input.ModifierKeys.None));
+        });
+    }
+
+    [Fact]
+    public async Task ExtensionRecordingService_RejectsUnknownRoomsBeforeChangingState()
+    {
+        string roomUrl = $"https://example.invalid/{Guid.NewGuid():N}";
+        ExtensionRecordingService service = new();
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.StartAsync(roomUrl));
+        Assert.Throws<KeyNotFoundException>(() => service.Stop(roomUrl));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => service.RefreshAsync(roomUrl));
+    }
+
+    [Fact]
+    public async Task MediaFileWorkflow_RejectsInvalidInputsWithoutRegisteringOperations()
+    {
+        string missingPath = Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.ts");
+
+        MediaFileWorkflowResult split = await MediaFileWorkflow.SplitAsync(
+            missingPath,
+            60,
+            CancellationToken.None);
+        MediaFileWorkflowResult merge = await MediaFileWorkflow.MergeAsync(
+            [],
+            Path.GetTempPath(),
+            null,
+            CancellationToken.None);
+
+        Assert.False(split.Success);
+        Assert.False(merge.Success);
+        Assert.False(MediaOperationRegistry.IsPathProtected(missingPath));
+    }
+
+    [Fact]
+    public async Task MediaFileWorkflow_RejectsConcurrentTargetPathClaims()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"Emerde.MediaWorkflow.Tests.{Guid.NewGuid():N}");
+        string firstSource = Path.Combine(root, "first.ts");
+        string secondSource = Path.Combine(root, "second.ts");
+        string sharedTarget = Path.Combine(root, "merged.ts");
+        using IDisposable? first = await MediaFileWorkflow.TryRegisterOperationAsync(
+            MediaOperationKind.Merge,
+            [firstSource],
+            () => [firstSource, sharedTarget],
+            () => { },
+            CancellationToken.None);
+        using IDisposable? second = await MediaFileWorkflow.TryRegisterOperationAsync(
+            MediaOperationKind.Merge,
+            [secondSource],
+            () => [secondSource, sharedTarget],
+            () => { },
+            CancellationToken.None);
+
+        Assert.NotNull(first);
+        Assert.Null(second);
+    }
+
+    [Fact]
+    public void PreviewExtensionPlay_IsIdempotentForCurrentRoom()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "ViewModels", "MainViewModel.cs"));
+        int methodStart = source.IndexOf("internal async Task<bool> PlayPreviewForExtensionAsync", StringComparison.Ordinal);
+        int methodEnd = source.IndexOf("internal async Task StopPreviewForExtensionAsync", methodStart, StringComparison.Ordinal);
+
+        Assert.True(methodStart >= 0);
+        Assert.True(methodEnd > methodStart);
+        string method = source[methodStart..methodEnd];
+        Assert.Contains("IsPreviewing && IsSameRoom(PreviewingRoom, room)", method, StringComparison.Ordinal);
+        Assert.Contains("return true;", method, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExtensionContext_AllowsDeclaredUiCoreAndMediaPermissions()
+    {
+        ExtensionContext allowed = new(
+            "test.allowed-permissions",
+            string.Empty,
+            string.Empty,
+            new Dictionary<string, string>(),
+            [
+                ExtensionPermissionNames.UiModify,
+                ExtensionPermissionNames.CoreOverride,
+                ExtensionPermissionNames.MediaFinalizedRead,
+            ]);
+
+        using IDisposable coreRegistration = allowed.RegisterOverride(
+            ExtensionContractNames.StreamResolver,
+            (ExtensionStreamResolverOverride)((_, next) => next()));
+        using IDisposable eventRegistration = allowed.Subscribe<ExtensionMediaFinalizedEvent>(
+            ExtensionEventNames.MediaFinalized,
+            (_, _) => ValueTask.CompletedTask);
+        await RunStaAsync(() =>
+        {
+            using IDisposable uiRegistration = allowed.RegisterUi(
+                ExtensionContractNames.ExtensionDetail,
+                new System.Windows.Controls.Border());
+        });
+
+        await allowed.DisposeAsync();
+    }
+
+    [Theory]
+    [InlineData(ExtensionContractNames.RecorderStop)]
+    [InlineData(ExtensionContractNames.RecorderReconnect)]
+    [InlineData(ExtensionContractNames.PostProcessing)]
+    public async Task ExtensionContext_RequiresCorePermissionForRecorderLifecycleOverrides(string contractName)
+    {
+        ExtensionContext denied = new("test.recorder-lifecycle-denied", string.Empty, string.Empty, new Dictionary<string, string>());
+        ExtensionContext allowed = new(
+            "test.recorder-lifecycle-allowed",
+            string.Empty,
+            string.Empty,
+            new Dictionary<string, string>(),
+            [ExtensionPermissionNames.CoreOverride]);
+        object implementation = contractName switch
+        {
+            ExtensionContractNames.RecorderStop => (ExtensionRecorderStopOverride)((_, next) => next()),
+            ExtensionContractNames.RecorderReconnect => (ExtensionRecorderReconnectOverride)((_, next) => next()),
+            ExtensionContractNames.PostProcessing => (ExtensionPostProcessingOverride)((_, next) => next()),
+            _ => throw new ArgumentOutOfRangeException(nameof(contractName)),
+        };
+
+        Assert.Throws<UnauthorizedAccessException>(() => denied.RegisterOverride(contractName, implementation));
+        using IDisposable registration = allowed.RegisterOverride(contractName, implementation);
+
+        await denied.DisposeAsync();
+        await allowed.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ExtensionContext_RejectsUnknownAndMismatchedContracts()
+    {
+        ExtensionContext context = new(
+            "test.contract-validation",
+            string.Empty,
+            string.Empty,
+            new Dictionary<string, string>(),
+            [
+                ExtensionPermissionNames.CoreOverride,
+                ExtensionPermissionNames.MediaOperationsRead,
+            ]);
+
+        Assert.Null(context.GetHostObject($"host.unknown.{Guid.NewGuid():N}"));
+        Assert.Throws<NotSupportedException>(() => context.RegisterOverride(
+            $"core.unknown.{Guid.NewGuid():N}",
+            new object()));
+        Assert.Throws<ArgumentException>(() => context.RegisterOverride(
+            ExtensionContractNames.RecorderStop,
+            new object()));
+        Assert.Throws<ArgumentException>(() => context.Subscribe<string>(
+            ExtensionEventNames.MediaOperationChanged,
+            (_, _) => ValueTask.CompletedTask));
+
+        await context.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ExtensionHostRuntime_DoesNotLetOneEventHandlerDelayOtherExtensions()
+    {
+        string eventName = $"test.event.parallel.{Guid.NewGuid():N}";
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource completed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using IDisposable blocking = ExtensionHostRuntime.Subscribe<string>(
+            "test.blocking-extension",
+            eventName,
+            async (_, _) => await new ValueTask(release.Task));
+        using IDisposable succeeding = ExtensionHostRuntime.Subscribe<string>(
+            "test.succeeding-extension",
+            eventName,
+            (_, _) =>
+            {
+                completed.TrySetResult();
+                return ValueTask.CompletedTask;
+            });
+
+        Task publish = ExtensionHostRuntime.PublishAsync(eventName, "payload");
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        release.TrySetResult();
+        await publish;
+    }
+
+    [Fact]
+    public async Task ExtensionHostRuntime_PreservesOrderBetweenConcurrentEventPublishes()
+    {
+        string eventName = $"test.event.ordered.{Guid.NewGuid():N}";
+        TaskCompletionSource firstStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource releaseFirst = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        List<int> received = [];
+        using IDisposable subscription = ExtensionHostRuntime.Subscribe<int>(
+            "test.ordered-extension",
+            eventName,
+            async (payload, _) =>
+            {
+                received.Add(payload);
+                if (payload == 1)
+                {
+                    firstStarted.TrySetResult();
+                    await new ValueTask(releaseFirst.Task);
+                }
+            });
+
+        Task first = ExtensionHostRuntime.PublishAsync(eventName, 1);
+        await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Task second = ExtensionHostRuntime.PublishAsync(eventName, 2);
+        await Task.Delay(50);
+
+        Assert.Equal([1], received);
+
+        releaseFirst.TrySetResult();
+        await Task.WhenAll(first, second);
+        Assert.Equal([1, 2], received);
+    }
+
+    [Fact]
+    public void RecorderStopOverride_InterceptsAndRestoresDefaultStopPath()
+    {
+        Recorder recorder = new();
+        int intercepted = 0;
+        using IDisposable registration = ExtensionHostRuntime.RegisterOverride(
+            "test.recorder-stop",
+            ExtensionContractNames.RecorderStop,
+            (ExtensionRecorderStopOverride)((_, _) =>
+            {
+                intercepted++;
+                return false;
+            }));
+
+        recorder.Stop();
+        Assert.Equal(1, intercepted);
+
+        registration.Dispose();
+        recorder.Stop();
+
+        Assert.Equal(1, intercepted);
+    }
+
+    [Fact]
+    public async Task PostProcessingOverride_UsesSingleDownstreamExecution()
+    {
+        int downstreamCalls = 0;
+        using IDisposable registration = ExtensionHostRuntime.RegisterOverride(
+            "test.post-processing",
+            ExtensionContractNames.PostProcessing,
+            (ExtensionPostProcessingOverride)(async (_, next) =>
+            {
+                await next();
+                await next();
+            }));
+
+        await ExtensionHostRuntime.InvokeOverrideChainAsync<ExtensionPostProcessingOverride>(
+            ExtensionContractNames.PostProcessing,
+            (implementation, next) => implementation(new ExtensionPostProcessingRequest(string.Empty, string.Empty, string.Empty, []), next),
+            () =>
+            {
+                downstreamCalls++;
+                return Task.CompletedTask;
+            },
+            _ => { });
+
+        Assert.Equal(1, downstreamCalls);
+    }
+
+    [Fact]
+    public void ExtensionHostRuntime_ComposesSyncOverridesAndCachesDownstream()
+    {
+        string contract = $"test.chain.sync.{Guid.NewGuid():N}";
+        List<string> calls = [];
+        int fallbackCalls = 0;
+        TestSyncOverride high = next =>
+        {
+            calls.Add("high");
+            return next() + next();
+        };
+        TestSyncOverride low = next =>
+        {
+            calls.Add("low");
+            return next();
+        };
+        using IDisposable highRegistration = ExtensionHostRuntime.RegisterOverride("test.high", contract, high, 20);
+        using IDisposable lowRegistration = ExtensionHostRuntime.RegisterOverride("test.low", contract, low, 10);
+
+        int result = ExtensionHostRuntime.InvokeOverrideChain<TestSyncOverride, int>(
+            contract,
+            (implementation, next) => implementation(next),
+            () =>
+            {
+                calls.Add("default");
+                return ++fallbackCalls;
+            },
+            _ => { });
+
+        Assert.Equal(2, result);
+        Assert.Equal(1, fallbackCalls);
+        Assert.Equal(["high", "low", "default"], calls);
+    }
+
+    [Fact]
+    public void ExtensionHostRuntime_ContinuesSyncChainAfterExtensionFailure()
+    {
+        string contract = $"test.chain.failure.{Guid.NewGuid():N}";
+        int lowCalls = 0;
+        int logged = 0;
+        using IDisposable highRegistration = ExtensionHostRuntime.RegisterOverride(
+            "test.high",
+            contract,
+            (TestSyncOverride)(_ => throw new InvalidOperationException("failure")),
+            20);
+        using IDisposable lowRegistration = ExtensionHostRuntime.RegisterOverride(
+            "test.low",
+            contract,
+            (TestSyncOverride)(next =>
+            {
+                lowCalls++;
+                return next();
+            }),
+            10);
+
+        int result = ExtensionHostRuntime.InvokeOverrideChain<TestSyncOverride, int>(
+            contract,
+            (implementation, next) => implementation(next),
+            () => 7,
+            _ => logged++);
+
+        Assert.Equal(7, result);
+        Assert.Equal(1, lowCalls);
+        Assert.Equal(1, logged);
+    }
+
+    [Fact]
+    public void ExtensionHostRuntime_DoesNotRepeatFailingFallback()
+    {
+        string contract = $"test.chain.fallback-failure.{Guid.NewGuid():N}";
+        int fallbackCalls = 0;
+        int logged = 0;
+        using IDisposable highRegistration = ExtensionHostRuntime.RegisterOverride(
+            "test.high",
+            contract,
+            (TestSyncOverride)(next => next()),
+            20);
+        using IDisposable lowRegistration = ExtensionHostRuntime.RegisterOverride(
+            "test.low",
+            contract,
+            (TestSyncOverride)(next => next()),
+            10);
+
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+            ExtensionHostRuntime.InvokeOverrideChain<TestSyncOverride, int>(
+                contract,
+                (implementation, next) => implementation(next),
+                () =>
+                {
+                    fallbackCalls++;
+                    throw new InvalidOperationException("default failure");
+                },
+                _ => logged++));
+
+        Assert.Equal("default failure", error.Message);
+        Assert.Equal(1, fallbackCalls);
+        Assert.Equal(0, logged);
+    }
+
+    [Fact]
+    public async Task ExtensionHostRuntime_ComposesAsyncOverridesAndCachesDownstream()
+    {
+        string contract = $"test.chain.async.{Guid.NewGuid():N}";
+        List<string> calls = [];
+        int fallbackCalls = 0;
+        TestAsyncOverride high = async next =>
+        {
+            calls.Add("high");
+            await next();
+            await next();
+        };
+        TestAsyncOverride low = async next =>
+        {
+            calls.Add("low");
+            await next();
+        };
+        using IDisposable highRegistration = ExtensionHostRuntime.RegisterOverride("test.high", contract, high, 20);
+        using IDisposable lowRegistration = ExtensionHostRuntime.RegisterOverride("test.low", contract, low, 10);
+
+        await ExtensionHostRuntime.InvokeOverrideChainAsync<TestAsyncOverride>(
+            contract,
+            (implementation, next) => implementation(next),
+            () =>
+            {
+                calls.Add("default");
+                fallbackCalls++;
+                return Task.CompletedTask;
+            },
+            _ => { });
+
+        Assert.Equal(1, fallbackCalls);
+        Assert.Equal(["high", "low", "default"], calls);
     }
 
     [Fact]
@@ -505,6 +1178,10 @@ public sealed class ExtensionContractsTests
         thread.Start();
         return completion.Task;
     }
+
+    private delegate int TestSyncOverride(Func<int> next);
+
+    private delegate Task TestAsyncOverride(Func<Task> next);
 }
 
 internal sealed class TestVideoAction(string id, int order) : IExtensionVideoAction
