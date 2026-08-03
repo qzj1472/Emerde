@@ -468,7 +468,7 @@ public sealed class Converter
             }
             if (!IsTrackTimelineWithinTolerance(output.AudioEndSeconds, output.VideoEndSeconds))
             {
-                return $"output_audio_exceeds_video:audio={output.AudioEndSeconds:F3},video={output.VideoEndSeconds:F3}";
+                return $"output_track_timeline_mismatch:audio={output.AudioEndSeconds:F3},video={output.VideoEndSeconds:F3}";
             }
 
             double probedDuration = sourceProbes.Sum(probe => Math.Max(0, probe.DurationSeconds));
@@ -505,7 +505,7 @@ public sealed class Converter
     {
         return audioEndSeconds <= 0d
             || videoEndSeconds <= 0d
-            || audioEndSeconds - videoEndSeconds <= 2d;
+            || Math.Abs(audioEndSeconds - videoEndSeconds) <= 2d;
     }
 
     private static void DeleteTemporaryOutput(string? path)

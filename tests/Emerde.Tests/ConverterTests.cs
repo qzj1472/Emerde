@@ -9,9 +9,11 @@ public sealed class ConverterTests
     [InlineData(100, 100, true)]
     [InlineData(102, 100, true)]
     [InlineData(102.001, 100, false)]
+    [InlineData(100, 102, true)]
+    [InlineData(100, 102.001, false)]
     [InlineData(0, 100, true)]
     [InlineData(100, 0, true)]
-    public void TrackTimelineValidation_RejectsAudioPastVideo(
+    public void TrackTimelineValidation_RejectsEitherTrackPastTheOther(
         double audioEndSeconds,
         double videoEndSeconds,
         bool expected)
