@@ -11,6 +11,7 @@
              SnapsToDevicePixels="True"
              UseLayoutRounding="True">
     <UserControl.Resources>
+        <CornerRadius x:Key="PreviewControlButtonCornerRadius">5</CornerRadius>
         <Style x:Key="PreviewControlButtonStyle" TargetType="{x:Type Button}">
             <Setter Property="Width" Value="30" />
             <Setter Property="Height" Value="30" />
@@ -30,7 +31,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                            CornerRadius="{DynamicResource PreviewControlButtonCornerRadius}"
                             SnapsToDevicePixels="True">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"
@@ -289,6 +290,9 @@
                                 ToolTip="关闭预览 (Esc)"
                                 MouseEnter="PreviewControls_OnMouseEnter"
                                 MouseLeave="PreviewControls_OnMouseLeave">
+                            <Button.Resources>
+                                <CornerRadius x:Key="PreviewControlButtonCornerRadius">8</CornerRadius>
+                            </Button.Resources>
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          FontSize="14"
                                          Glyph="{x:Static ui:FontSymbols.CalculatorMultiply}" />
@@ -296,7 +300,7 @@
                         <Border x:Name="PreviewControls"
                                 Panel.ZIndex="4"
                                 Margin="12"
-                                Padding="6,3"
+                                Padding="3"
                                 HorizontalAlignment="Stretch"
                                 VerticalAlignment="Bottom"
                                 Background="#D9161616"
@@ -306,12 +310,11 @@
                                 Opacity="0"
                                 MouseEnter="PreviewControls_OnMouseEnter"
                                 MouseLeave="PreviewControls_OnMouseLeave">
-                            <Grid>
+                            <Grid ClipToBounds="True">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" Orientation="Horizontal">
                                     <Button Style="{StaticResource PreviewControlButtonStyle}"
@@ -404,7 +407,10 @@
                                                TextTrimming="CharacterEllipsis" />
                                 </ui:StackPanel>
                                 <Button x:Name="WindowSizeButton"
-                                        Grid.Column="3"
+                                        Grid.Column="0"
+                                        Grid.ColumnSpan="3"
+                                        Panel.ZIndex="2"
+                                        HorizontalAlignment="Right"
                                         Style="{StaticResource PreviewControlButtonStyle}"
                                         Click="ToggleWindowSize_OnClick">
                                     <Grid>
