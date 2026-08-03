@@ -8,6 +8,8 @@
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              FontSize="14"
              SizeChanged="AboutContentDialogSizeChanged"
+             SnapsToDevicePixels="True"
+             UseLayoutRounding="True"
              mc:Ignorable="d">
     <UserControl.Resources>
         <Style x:Key="AboutHeroTitleStyle" TargetType="{x:Type TextBlock}">
@@ -101,7 +103,7 @@
                       FocusVisualStyle="{x:Null}"
                       HorizontalScrollBarVisibility="Disabled"
                       VerticalScrollBarVisibility="Auto">
-            <Border Padding="24,18,24,28">
+            <Border Padding="20,10,20,20">
                 <ui:StackPanel HorizontalAlignment="Stretch" Spacing="18">
                     <Border Padding="18"
                             Background="{DynamicResource EmerdeCardBrush}"
@@ -163,7 +165,7 @@
                         <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="快速开始" />
                         <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="正常录制只需要确认四个开关和一个保存位置。" />
                     </ui:StackPanel>
-                    <WrapPanel>
+                    <WrapPanel Margin="0,0,-12,0">
                         <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" Text="01" />
@@ -202,7 +204,7 @@
                         <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="录制与检测" />
                         <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="这些规则决定软件什么时候刷新、什么时候开始录制、什么时候停止录制。" />
                     </ui:StackPanel>
-                    <WrapPanel>
+                    <WrapPanel Margin="0,0,-12,0">
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="监控、直播状态与连麦" />
@@ -242,7 +244,7 @@
                         <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="文件与维护" />
                         <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="录制文件、日志和配置都尽量保留可恢复空间，减少误删。" />
                     </ui:StackPanel>
-                    <WrapPanel>
+                    <WrapPanel Margin="0,0,-12,0">
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="视频列表" />
@@ -281,7 +283,7 @@
                         <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="快捷键速查" />
                         <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="快捷键按当前页面生效；输入框内可直接撤销、恢复、复制和粘贴文字。" />
                     </ui:StackPanel>
-                    <WrapPanel>
+                    <WrapPanel Margin="0,0,-12,0">
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="页面与窗口" />
@@ -759,7 +761,7 @@
                         </Border>
                     </WrapPanel>
 
-                    <Border Margin="0,0,12,0"
+                    <Border Margin="0"
                             Padding="16"
                             Background="#14D83B01"
                             BorderBrush="#55D83B01"

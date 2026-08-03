@@ -284,8 +284,14 @@ public sealed class FocusVisualTests
         XElement toolbar = document.Descendants()
             .Single(element => element.Name.LocalName == "Grid"
                 && (string?)element.Attribute("ColumnDefinitions") == "*,Auto,Auto,Auto");
+        XElement sectionHeader = document.Descendants()
+            .Single(element => element.Name.LocalName == "TextBlock"
+                && (string?)element.Attribute("Text") == "已安装扩展")
+            .Parent!
+            .Parent!;
 
-        Assert.Equal("0,0,22,14", (string?)toolbar.Attribute("Margin"));
+        Assert.Equal("20,10,22,14", (string?)toolbar.Attribute("Margin"));
+        Assert.Equal("20,0,22,10", (string?)sectionHeader.Attribute("Margin"));
     }
 
     [Fact]

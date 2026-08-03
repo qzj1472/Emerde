@@ -11,6 +11,8 @@
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:vio="http://schemas.lepo.co/wpfui/2022/xaml/violeta"
                    FontSize="14"
+                   SnapsToDevicePixels="True"
+                   UseLayoutRounding="True"
                    mc:Ignorable="d">
     <UserControl.Resources>
         <Style TargetType="{x:Type ui:Card}" BasedOn="{StaticResource {x:Type ui:Card}}">
@@ -221,7 +223,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <TextBlock Grid.Row="0"
-                   Margin="0,0,0,16"
+                   Margin="20,10,0,16"
                    FontSize="22"
                    FontWeight="SemiBold"
                    Text="{I18N Settings}" />

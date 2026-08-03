@@ -6,6 +6,17 @@ namespace Emerde.Tests;
 public sealed class SettingsViewModelTests
 {
     [Fact]
+    public void PageTitle_AlignsWithSettingsCards()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml"));
+        XElement title = document.Descendants()
+            .Single(element => element.Name.LocalName == "TextBlock"
+                && (string?)element.Attribute("Text") == "{I18N Settings}");
+
+        Assert.Equal("20,10,0,16", (string?)title.Attribute("Margin"));
+    }
+
+    [Fact]
     public void SessionLogRetentionInput_UsesStandardSettingsWidth()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml"));

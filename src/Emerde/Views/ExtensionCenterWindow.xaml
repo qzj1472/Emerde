@@ -8,6 +8,8 @@
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              FontSize="14"
              AllowDrop="True"
+             SnapsToDevicePixels="True"
+             UseLayoutRounding="True"
              DragEnter="ExtensionCenterDragEnter"
              DragLeave="ExtensionCenterDragLeave"
              DragOver="ExtensionCenterDragOver"
@@ -299,7 +301,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
-        <ui:Grid Grid.Row="0" Margin="0,0,22,14" ColumnDefinitions="*,Auto,Auto,Auto">
+        <ui:Grid Grid.Row="0" Margin="20,10,22,14" ColumnDefinitions="*,Auto,Auto,Auto">
             <ui:StackPanel Spacing="3">
                 <TextBlock FontSize="24" FontWeight="Bold" Text="扩展" />
                 <TextBlock Style="{StaticResource ExtensionSecondaryTextStyle}" Text="安装、管理和撤销第三方扩展。扩展可以访问应用能力，只安装你信任的来源。" />
@@ -316,7 +318,7 @@
         </ui:Grid>
         <Grid Grid.Row="1">
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-            <ui:Grid Grid.Row="0" Margin="0,0,0,10" ColumnDefinitions="*,Auto">
+            <ui:Grid Grid.Row="0" Margin="20,0,22,10" ColumnDefinitions="*,Auto">
                 <ui:StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock FontSize="16" FontWeight="Bold" Text="已安装扩展" />
                     <TextBlock VerticalAlignment="Center" Style="{StaticResource ExtensionSecondaryTextStyle}" Text="{Binding EnabledExtensionCount, StringFormat={}已启用 {0}}" />

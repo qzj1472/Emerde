@@ -237,9 +237,13 @@ public sealed class ScreenRecordListWindowTests
     {
         string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
 
-        Assert.Contains("Margin=\"10,8,22,0\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Property=\"Padding\" Value=\"20,8,0,10\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Margin=\"20,0,20,0\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"VideoListHeaderActions\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("<TranslateTransform Y=\"8\" />", xaml, StringComparison.Ordinal);
+        Assert.Contains("Margin=\"20,8,22,0\"", xaml, StringComparison.Ordinal);
         Assert.Contains("OpacityMask=\"{StaticResource TopEdgeFadeOpacityMask}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Margin=\"10,0,22,10\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Margin=\"20,0,22,10\"", xaml, StringComparison.Ordinal);
         Assert.Contains("OpacityMask=\"{StaticResource BottomEdgeFadeOpacityMask}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"VideoListTopFade\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"VideoListBottomFade\"", xaml, StringComparison.Ordinal);

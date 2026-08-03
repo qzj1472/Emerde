@@ -26,11 +26,11 @@ public partial class AboutContentDialog : System.Windows.Controls.UserControl
 
     internal static (double AboutCardWidth, double WorkflowCardWidth) CalculateCardWidths(double controlWidth)
     {
-        double availableWidth = Math.Max(0, controlWidth - 54);
+        double availableWidth = Math.Max(0, controlWidth - 46);
         int cardColumns = availableWidth >= 760 ? 2 : 1;
         int workflowColumns = availableWidth >= 960 ? 4 : availableWidth >= 560 ? 2 : 1;
-        double cardWidth = Math.Max(0, Math.Floor(availableWidth / cardColumns - 12));
-        double workflowWidth = Math.Max(0, Math.Floor(availableWidth / workflowColumns - 12));
+        double cardWidth = Math.Max(0, Core.WindowSizing.RoundLayoutValue((availableWidth - 12 * (cardColumns - 1)) / cardColumns));
+        double workflowWidth = Math.Max(0, Core.WindowSizing.RoundLayoutValue((availableWidth - 12 * (workflowColumns - 1)) / workflowColumns));
         return (cardWidth, workflowWidth);
     }
 

@@ -6,20 +6,31 @@ namespace Emerde.Tests;
 public class AboutContentDialogTests
 {
     [Fact]
-    public void WarningCard_UsesTheSameRightSpacingAsContentCards()
+    public void ContentCards_ReachTheHeroCardRightEdge()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml"));
+        XElement pagePadding = document.Descendants()
+            .First(element => element.Name.LocalName == "ScrollViewer")
+            .Elements()
+            .Single();
         XElement warningCard = document.Descendants()
             .Single(element => element.Name.LocalName == "Border" && (string?)element.Attribute("Background") == "#14D83B01");
+        XElement[] cardRows = document.Descendants()
+            .Where(element => element.Name.LocalName == "WrapPanel"
+                && element.Elements().Any(child => (string?)child.Attribute("Style") == "{StaticResource AboutCardStyle}"))
+            .ToArray();
 
-        Assert.Equal("0,0,12,0", (string?)warningCard.Attribute("Margin"));
+        Assert.Equal("20,10,20,20", (string?)pagePadding.Attribute("Padding"));
+        Assert.Equal("0", (string?)warningCard.Attribute("Margin"));
+        Assert.Equal(4, cardRows.Length);
+        Assert.All(cardRows, row => Assert.Equal("0,0,-12,0", (string?)row.Attribute("Margin")));
     }
 
     [Theory]
-    [InlineData(1574, 748, 368)]
-    [InlineData(1174, 548, 268)]
-    [InlineData(754, 688, 338)]
-    [InlineData(500, 434, 434)]
+    [InlineData(1574, 758, 373)]
+    [InlineData(1174, 558, 273)]
+    [InlineData(754, 708, 348)]
+    [InlineData(500, 454, 454)]
     [InlineData(40, 0, 0)]
     public void CalculateCardWidths_UsesResponsiveColumnCounts(
         double controlWidth,
