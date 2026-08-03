@@ -42,6 +42,31 @@ public sealed class PlatformCookieAcquisitionTests
         Assert.Equal("sessionid=root; theme=dark", header);
     }
 
+    [Fact]
+    public void SettingsCookieRows_ExposeAcquisitionCommands()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml"));
+        XElement[] buttons = document.Descendants()
+            .Where(element => element.Name.LocalName == "Button"
+                && ((string?)element.Attribute("Command"))?.Contains("AcquirePlatformCookieCommand", StringComparison.Ordinal) == true)
+            .ToArray();
+
+        Assert.Equal(2, buttons.Length);
+        Assert.All(buttons, button => Assert.Contains("AcquireCookie", (string?)button.Attribute("Content")));
+    }
+
+    [Fact]
+    public void SettingsCookieHeaders_DoNotExposeLegacyInstructions()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml"));
+        XElement[] buttons = document.Descendants()
+            .Where(element => element.Name.LocalName == "Button"
+                && ((string?)element.Attribute("Command"))?.Contains("OpenHowToGetCookie", StringComparison.Ordinal) == true)
+            .ToArray();
+
+        Assert.Empty(buttons);
+    }
+
     [Theory]
     [InlineData(".douyin.com", "douyin.com", true)]
     [InlineData("live.douyin.com", "douyin.com", true)]

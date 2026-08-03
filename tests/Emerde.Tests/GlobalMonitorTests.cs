@@ -691,6 +691,47 @@ public sealed class GlobalMonitorTests
     }
 
     [Theory]
+    [InlineData(false, "Douyin", StreamStatus.Streaming, true, true)]
+    [InlineData(true, "Douyin", StreamStatus.Streaming, true, false)]
+    [InlineData(false, "Douyin", StreamStatus.NotStreaming, true, false)]
+    [InlineData(false, "Bilibili", StreamStatus.Streaming, true, false)]
+    [InlineData(false, "Douyin", StreamStatus.Streaming, false, false)]
+    public void ShouldReuseResolvedDouyinStream_AvoidsRepeatedCookiePageRequests(
+        bool force,
+        string platformName,
+        StreamStatus streamStatus,
+        bool hasRecordableStream,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            GlobalMonitor.ShouldReuseResolvedDouyinStream(force, platformName, streamStatus, hasRecordableStream));
+    }
+
+    [Fact]
+    public void CreatePreservedStreamResult_KeepsPlaybackHeadersAndUrls()
+    {
+        Room room = new() { RoomUrl = "https://live.douyin.com/123" };
+        RoomStatus status = new()
+        {
+            PlatformName = "Douyin",
+            StreamStatus = StreamStatus.Streaming,
+            RecordUrl = "https://cdn.example/live.flv",
+            FlvUrl = "https://cdn.example/live.flv",
+            Headers = "User-Agent: test",
+            LiveTitle = "live",
+        };
+
+        StreamResolverResult result = GlobalMonitor.CreatePreservedStreamResult(room, status);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Equal(status.RecordUrl, result.RecordUrl);
+        Assert.Equal(status.FlvUrl, result.FlvUrl);
+        Assert.Equal(status.Headers, result.Headers);
+        Assert.Equal(status.LiveTitle, result.Title);
+    }
+
+    [Theory]
     [InlineData("Douyin", StreamStatus.Initialized, true, false)]
     [InlineData("Douyin", StreamStatus.NotStreaming, true, false)]
     [InlineData("Douyin", StreamStatus.Streaming, true, true)]

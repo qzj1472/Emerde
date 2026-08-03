@@ -20,6 +20,19 @@ public sealed class ExtensionContractsTests
         Assert.Contains("WindowSizing.ShowContentDialogAsync", method);
     }
 
+    [Fact]
+    public void MainWindow_StartsRecoveryAfterExtensionsInitialize()
+    {
+        string mainWindow = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
+        string mainViewModel = File.ReadAllText(FindRepositoryFile("src", "Emerde", "ViewModels", "MainViewModel.cs"));
+        int extensionInitialization = mainWindow.IndexOf("await ExtensionService.Default.InitializeAsync()", StringComparison.Ordinal);
+        int recoveryStartup = mainWindow.IndexOf("RecordingRecoveryService.QueueRun()", StringComparison.Ordinal);
+
+        Assert.True(extensionInitialization >= 0);
+        Assert.True(recoveryStartup > extensionInitialization);
+        Assert.DoesNotContain("RecordingRecoveryService.QueueRun()", mainViewModel, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryFile(params string[] parts)
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);

@@ -61,7 +61,7 @@ internal sealed class ExtensionDialogService(Window owner) : IExtensionDialogSer
         {
             void ApplyWideLayout()
             {
-                if (!TryGetDialogVisualSize(
+                if (!LocalSettingsContentDialog.TryGetDialogVisualSize(
                         owner,
                         Math.Clamp(request.WideHeightRatio, 0.6d, 0.9d),
                         out double targetWidth,
@@ -70,7 +70,7 @@ internal sealed class ExtensionDialogService(Window owner) : IExtensionDialogSer
                     return;
                 }
                 dialog.Resources["EmerdeWideContentDialog"] = true;
-                ApplyWideDialogVisualSize(dialog, targetWidth, targetHeight);
+                LocalSettingsContentDialog.ApplyWideDialogVisualSize(dialog, targetWidth, targetHeight);
                 request.Content.Width = double.NaN;
                 request.Content.Height = double.NaN;
                 request.Content.MinWidth = 0d;
@@ -106,34 +106,4 @@ internal sealed class ExtensionDialogService(Window owner) : IExtensionDialogSer
         };
     }
 
-    private static void ApplyWideDialogVisualSize(ContentDialog dialog, double targetWidth, double targetHeight)
-    {
-        dialog.Width = targetWidth;
-        dialog.Height = targetHeight;
-        dialog.MinWidth = targetWidth;
-        dialog.MinHeight = targetHeight;
-        dialog.MaxWidth = targetWidth;
-        dialog.MaxHeight = targetHeight;
-        dialog.Resources["ContentDialogMinWidth"] = targetWidth;
-        dialog.Resources["ContentDialogMinHeight"] = targetHeight;
-        dialog.Resources["ContentDialogMaxWidth"] = targetWidth;
-        dialog.Resources["ContentDialogMaxHeight"] = targetHeight;
-    }
-
-    private static bool TryGetDialogVisualSize(Window owner, double heightRatio, out double targetWidth, out double targetHeight)
-    {
-        Window? reference = owner ?? Application.Current?.MainWindow;
-        double ownerWidth = reference?.ActualWidth > 1d ? reference.ActualWidth : reference?.Width ?? 0d;
-        double ownerHeight = reference?.ActualHeight > 1d ? reference.ActualHeight : reference?.Height ?? 0d;
-        if (ownerWidth <= 1d || ownerHeight <= 1d)
-        {
-            targetWidth = 0d;
-            targetHeight = 0d;
-            return false;
-        }
-
-        targetWidth = Math.Max(1d, Math.Floor(ownerWidth * 0.72d));
-        targetHeight = Math.Max(1d, Math.Floor(ownerHeight * heightRatio));
-        return true;
-    }
 }

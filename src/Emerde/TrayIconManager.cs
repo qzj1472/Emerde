@@ -383,6 +383,7 @@ internal sealed class TrayIconManager : IDisposable
 
         try
         {
+            bool shouldRestoreWindow = !mainWindow.IsVisible || mainWindow.WindowState == WindowState.Minimized;
             if (pageIndex.HasValue)
             {
                 mainWindow.ViewModel.SelectedMainPageIndex = pageIndex.Value;
@@ -392,7 +393,10 @@ internal sealed class TrayIconManager : IDisposable
                 mainWindow.Show();
             }
             mainWindow.Activate();
-            Interop.RestoreWindow(new WindowInteropHelper(mainWindow).Handle);
+            if (shouldRestoreWindow && !mainWindow.IsPreviewFullScreenActive)
+            {
+                Interop.RestoreWindow(new WindowInteropHelper(mainWindow).Handle);
+            }
         }
         catch (Exception e) when (e is InvalidOperationException or ArgumentException)
         {

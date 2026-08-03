@@ -13,8 +13,10 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Emerde.Core;
+using Emerde.Plugins;
 using Emerde.ViewModels;
 using Vanara.PInvoke;
+using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 using AppResources = Emerde.Properties.Resources;
 using Brush = System.Windows.Media.Brush;
@@ -31,6 +33,9 @@ public partial class MainWindow : FluentWindow
 {
     private const int VirtualKeyCapsLock = 0x14;
     private HwndSource? hwndSource;
+    private readonly List<IDisposable> extensionHostRegistrations = [];
+    private readonly HashSet<FrameworkElement> suppressedToolTipOwners = [];
+    private bool areToolTipsSuppressed;
     public MainViewModel ViewModel { get; }
 
     public static readonly DependencyProperty RoomCardColumnCountProperty = DependencyProperty.Register(nameof(RoomCardColumnCount), typeof(int), typeof(MainWindow), new PropertyMetadata(RoomCardNormalBaseColumns));
@@ -275,6 +280,14 @@ public partial class MainWindow : FluentWindow
         DataContext = ViewModel = new();
         WindowSizing.UseMainWindowAspectSize(this);
         InitializeComponent();
+        WindowAppearance.EnableBorderless(this);
+        ApplicationThemeManager.Changed += MainWindowThemeChanged;
+        extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.Application, Application.Current));
+        extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.MainWindow, this));
+        extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.MainViewModel, ViewModel));
+        extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.MainContentOverlay, MainDialogOverlay));
+        extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.PlatformCookies, new ExtensionPlatformCookieProvider()));
+        extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.DialogService, new ExtensionDialogService(this)));
         HomePreviewPanel.RenderTransformOrigin = new Point(0d, 0d);
         HomePreviewPanel.RenderTransform = new TransformGroup
         {
@@ -289,11 +302,23 @@ public partial class MainWindow : FluentWindow
         UpdateHomePreviewLayout();
         ViewModel.PropertyChanged += ViewModelPropertyChanged;
         PreviewKeyDown += MainWindowPreviewKeyDown;
+        PreviewMouseMove += MainWindowPreviewMouseMove;
         ComponentDispatcher.ThreadPreprocessMessage += MainWindowThreadPreprocessMessage;
         AppSessionLogger.Write($"perf MainWindow initialized in {stopwatch.ElapsedMilliseconds} ms");
-        Loaded += (_, _) =>
+        Loaded += async (_, _) =>
         {
+            EnforceBorderlessWindowChrome();
             UpdateHomePreviewLayout();
+            try
+            {
+                await ExtensionService.Default.InitializeAsync();
+            }
+            catch (Exception extensionException)
+            {
+                AppSessionLogger.WriteException(extensionException);
+            }
+            RecordingRecoveryService.QueueRun();
+            EnforceBorderlessWindowChrome();
             AppSessionLogger.Write($"perf MainWindow loaded in {stopwatch.ElapsedMilliseconds} ms");
             QueueStartupAboutNotice();
         };
@@ -304,12 +329,18 @@ public partial class MainWindow : FluentWindow
         };
         StateChanged += (_, _) =>
         {
+            EnforceBorderlessWindowChrome();
             CloseActiveToolTips();
             UpdatePreviewPresentationState();
             QueueStartupAboutNotice();
         };
+        Activated += (_, _) => EnforceBorderlessWindowChrome();
         Deactivated += (_, _) => CloseActiveToolTips();
-        SizeChanged += (_, _) => CloseActiveToolTips();
+        SizeChanged += (_, _) =>
+        {
+            EnforceBorderlessWindowChrome();
+            CloseActiveToolTips();
+        };
 
         if (Configurations.IsUseKeepAwake.Get())
         {
@@ -327,8 +358,23 @@ public partial class MainWindow : FluentWindow
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        hwndSource = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
+        IntPtr handle = new WindowInteropHelper(this).Handle;
+        hwndSource = HwndSource.FromHwnd(handle);
         hwndSource?.AddHook(MainWindowWindowProc);
+        SetPreviewWindowFrameAttributes(handle, false);
+        EnforceBorderlessWindowChrome();
+    }
+
+    protected override void OnContentRendered(EventArgs e)
+    {
+        base.OnContentRendered(e);
+        EnforceBorderlessWindowChrome();
+    }
+
+    public override void OnApplyTemplate()
+    {
+        base.OnApplyTemplate();
+        _ = Dispatcher.BeginInvoke(EnforceBorderlessWindowChrome, DispatcherPriority.Loaded);
     }
 
     protected override void OnClosed(EventArgs e)
@@ -336,10 +382,33 @@ public partial class MainWindow : FluentWindow
         hwndSource?.RemoveHook(MainWindowWindowProc);
         hwndSource = null;
         PreviewKeyDown -= MainWindowPreviewKeyDown;
+        PreviewMouseMove -= MainWindowPreviewMouseMove;
+        ApplicationThemeManager.Changed -= MainWindowThemeChanged;
         ComponentDispatcher.ThreadPreprocessMessage -= MainWindowThreadPreprocessMessage;
         ViewModel.IsPreviewDetached = false;
         ViewModel.PropertyChanged -= ViewModelPropertyChanged;
+        foreach (IDisposable registration in extensionHostRegistrations.AsEnumerable().Reverse())
+        {
+            registration.Dispose();
+        }
+        extensionHostRegistrations.Clear();
+        ExtensionsPage.ViewModel.Dispose();
         base.OnClosed(e);
+    }
+
+    private void MainWindowThemeChanged(ApplicationTheme applicationTheme, Color accentColor)
+    {
+        _ = Dispatcher.BeginInvoke(EnforceBorderlessWindowChrome, DispatcherPriority.Loaded);
+    }
+
+    private void EnforceBorderlessWindowChrome()
+    {
+        WindowAppearance.ApplyBorderless(this);
+        IntPtr handle = new WindowInteropHelper(this).Handle;
+        if (handle != IntPtr.Zero)
+        {
+            SetPreviewWindowFrameAttributes(handle, isPreviewFullScreen);
+        }
     }
 
     private void MainWindowPreviewDragOver(object sender, System.Windows.DragEventArgs e)
@@ -529,6 +598,7 @@ public partial class MainWindow : FluentWindow
                 Key.D2 or Key.NumPad2 => 1,
                 Key.D3 or Key.NumPad3 => 2,
                 Key.D4 or Key.NumPad4 => 3,
+                Key.D5 or Key.NumPad5 => 4,
                 _ => -1,
             };
             if (pageIndex < 0)
@@ -562,7 +632,7 @@ public partial class MainWindow : FluentWindow
             RestoreCapsLockState();
         }
 
-        ViewModel.SelectedMainPageIndex = (ViewModel.SelectedMainPageIndex + direction + 4) % 4;
+        ViewModel.SelectedMainPageIndex = (ViewModel.SelectedMainPageIndex + direction + 5) % 5;
         FocusActivePage();
         return true;
     }
@@ -1364,10 +1434,28 @@ public partial class MainWindow : FluentWindow
 
     private void CloseActiveToolTips()
     {
+        areToolTipsSuppressed = true;
         CloseActiveToolTips(this, []);
     }
 
-    private static void CloseActiveToolTips(DependencyObject root, HashSet<DependencyObject> visited)
+    private void MainWindowPreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (!areToolTipsSuppressed)
+        {
+            return;
+        }
+        foreach (FrameworkElement owner in suppressedToolTipOwners)
+        {
+            if (owner.IsLoaded)
+            {
+                ToolTipService.SetIsEnabled(owner, true);
+            }
+        }
+        suppressedToolTipOwners.Clear();
+        areToolTipsSuppressed = false;
+    }
+
+    private void CloseActiveToolTips(DependencyObject root, HashSet<DependencyObject> visited)
     {
         foreach (FrameworkElement owner in EnumerateToolTipOwners(root, visited))
         {
@@ -1382,9 +1470,7 @@ public partial class MainWindow : FluentWindow
             }
 
             ToolTipService.SetIsEnabled(owner, false);
-            _ = owner.Dispatcher.BeginInvoke(
-                () => ToolTipService.SetIsEnabled(owner, true),
-                DispatcherPriority.Background);
+            suppressedToolTipOwners.Add(owner);
         }
     }
 
@@ -2188,6 +2274,8 @@ public partial class MainWindow : FluentWindow
             : (int)Interop.DwmWindowCornerPreference.DWMWCP_DEFAULT;
 
         _ = Interop.DwmSetWindowAttribute(handle, Interop.DwmWindowAttribute.BorderColor, ref borderColor, sizeof(int));
+        int visibleFrameBorderThickness = 0;
+        _ = Interop.DwmSetWindowAttribute(handle, Interop.DwmWindowAttribute.VisibleFrameBorderThickness, ref visibleFrameBorderThickness, sizeof(int));
         _ = Interop.DwmSetWindowAttribute(handle, Interop.DwmWindowAttribute.WindowCornerPreference, ref cornerPreference, sizeof(int));
     }
 

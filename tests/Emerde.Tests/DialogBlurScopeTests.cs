@@ -54,7 +54,7 @@ public sealed class DialogBlurScopeTests
     }
 
     [Fact]
-    public void ClosingDialog_StopsStartupPumpsBeforeRunningExitAnimation()
+    public void ClosingDialog_StopsStartupPumpsWithoutClearingTheBackdropEarly()
     {
         string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "DialogBlurScope.cs"));
         int methodStart = source.IndexOf("private void ContentDialogClosing", StringComparison.Ordinal);
@@ -64,7 +64,8 @@ public sealed class DialogBlurScopeTests
         string preparation = source[methodStart..animationStart];
         Assert.Contains("ownerEnableTimer?.Stop()", preparation);
         Assert.Contains("dialogMaskClearTimer?.Stop()", preparation);
-        Assert.Contains("ClearDialogMaskVisuals(sender)", preparation);
+        Assert.DoesNotContain("ClearDialogMaskVisuals(sender)", preparation);
+        Assert.DoesNotContain("EnableOwnerWindow(ownerWindow)", preparation);
     }
 
     private static string FindRepositoryFile(params string[] parts)

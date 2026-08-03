@@ -78,12 +78,19 @@ public sealed class MainViewModelRefreshTests
     }
 
     [Theory]
-    [InlineData(RecordStatus.Initialized, true)]
-    [InlineData(RecordStatus.Disabled, true)]
-    [InlineData(RecordStatus.NotRecording, true)]
-    [InlineData(RecordStatus.Recording, false)]
-    public void SelectedRoomRecordCommand_UsesRuntimeRecordingState(RecordStatus recordStatus, bool expected)
+    [InlineData(RecordStatus.Initialized, false, true)]
+    [InlineData(RecordStatus.Initialized, true, false)]
+    [InlineData(RecordStatus.Disabled, false, true)]
+    [InlineData(RecordStatus.Disabled, true, false)]
+    [InlineData(RecordStatus.NotRecording, false, true)]
+    [InlineData(RecordStatus.NotRecording, true, false)]
+    [InlineData(RecordStatus.Recording, false, false)]
+    [InlineData(RecordStatus.Recording, true, false)]
+    public void SelectedRoomRecordCommand_UsesRuntimeAndEffectiveRecordingState(
+        RecordStatus recordStatus,
+        bool effectiveIsToRecord,
+        bool expected)
     {
-        Assert.Equal(expected, MainViewModel.ShouldEnableSelectedRoomRecord(recordStatus));
+        Assert.Equal(expected, MainViewModel.ShouldEnableSelectedRoomRecord(recordStatus, effectiveIsToRecord));
     }
 }

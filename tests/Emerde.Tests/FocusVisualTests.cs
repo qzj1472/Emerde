@@ -89,15 +89,39 @@ public sealed class FocusVisualTests
     }
 
     [Fact]
-    public void LocalSettings_AddsSurfaceTransformWithoutReplacingNativeDialogOpacity()
+    public void LocalSettings_UsesNativeDialogExitWithoutACompetingDeferral()
     {
         string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "LocalSettingsContentDialog.xaml.cs"));
 
-        Assert.Contains("dialog.Closing += DialogClosing", source);
-        Assert.Contains("PlayContentDialogExitTransformAsync(LocalSettingsSurface)", source);
-        Assert.DoesNotContain("MotionAssist.PlayExitAsync(LocalSettingsSurface)", source);
-        Assert.Contains("args.GetDeferral()", source);
-        Assert.Contains("deferral.Complete()", source);
+        Assert.DoesNotContain("dialog.Closing += DialogClosing", source);
+        Assert.DoesNotContain("PlayContentDialogExitTransformAsync(LocalSettingsSurface)", source);
+        Assert.DoesNotContain("args.GetDeferral()", source);
+        Assert.DoesNotContain("ExpandDialogVisualPath", source);
+        Assert.Contains("dialog.Resources[DialogMinWidthResource] = targetWidth", source);
+        Assert.Contains("dialog.Resources[DialogMaxWidthResource] = targetWidth", source);
+        Assert.Contains("dialog.Resources[DialogMinHeightResource] = targetHeight", source);
+        Assert.Contains("dialog.Resources[DialogMaxHeightResource] = targetHeight", source);
+
+        string viewModelSource = File.ReadAllText(FindRepositoryFile("src", "Emerde", "ViewModels", "MainViewModel.cs"));
+        int methodStart = viewModelSource.IndexOf("private async Task OpenLocalSettingsDialogAsync()", StringComparison.Ordinal);
+        int methodEnd = viewModelSource.IndexOf("[RelayCommand]", methodStart, StringComparison.Ordinal);
+        Assert.True(methodStart >= 0);
+        Assert.True(methodEnd > methodStart);
+        Assert.Contains("FocusVisualStyle = null", viewModelSource[methodStart..methodEnd]);
+    }
+
+    [Fact]
+    public void DialogBlurScope_DoesNotRemoveTheBackdropBeforeClosingIsConfirmed()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "DialogBlurScope.cs"));
+        int methodStart = source.IndexOf("private void ContentDialogClosing", StringComparison.Ordinal);
+        int methodEnd = source.IndexOf("private async Task CompleteContentDialogExitAsync", methodStart, StringComparison.Ordinal);
+
+        Assert.True(methodStart >= 0);
+        Assert.True(methodEnd > methodStart);
+        string method = source[methodStart..methodEnd];
+        Assert.DoesNotContain("ClearDialogMaskVisuals(sender)", method);
+        Assert.DoesNotContain("EnableOwnerWindow(ownerWindow)", method);
     }
 
     [Theory]
@@ -113,6 +137,29 @@ public sealed class FocusVisualTests
         Assert.Contains(style.Elements().Where(element => element.Name.LocalName == "Setter"), setter =>
             (string?)setter.Attribute("Property") == "FocusVisualStyle" &&
             (string?)setter.Attribute("Value") == "{x:Null}");
+    }
+
+    [Fact]
+    public void HomeActiveActionButtons_KeepTheirBackgroundWhenHovered()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XElement template = document.Descendants()
+            .Single(element => element.Name.LocalName == "ControlTemplate"
+                && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "StableActiveActionButtonTemplate");
+
+        Assert.DoesNotContain(template.Descendants(), element =>
+            element.Name.LocalName == "Trigger"
+            && (string?)element.Attribute("Property") == "IsMouseOver");
+        foreach (string styleKey in new[] { "MonitorActionButtonStyle", "RecordActionButtonStyle" })
+        {
+            XElement style = document.Descendants()
+                .Single(element => element.Name.LocalName == "Style"
+                    && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == styleKey);
+            Assert.Contains(style.Descendants(), element =>
+                element.Name.LocalName == "Setter"
+                && (string?)element.Attribute("Property") == "Template"
+                && (string?)element.Attribute("Value") == "{StaticResource StableActiveActionButtonTemplate}");
+        }
     }
 
     [Fact]
@@ -145,6 +192,141 @@ public sealed class FocusVisualTests
         Assert.Equal("False", (string?)content.Attribute("Focusable"));
         Assert.Equal("{x:Null}", (string?)content.Attribute("FocusVisualStyle"));
         Assert.Equal("{x:Null}", (string?)list.Attribute("FocusVisualStyle"));
+    }
+
+    [Fact]
+    public void MainWindowAndExtensionList_DoNotRenderWindowSwitchOutlines()
+    {
+        XDocument mainWindow = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XElement root = mainWindow.Root!;
+
+        Assert.Equal("Transparent", (string?)root.Attribute("BorderBrush"));
+        Assert.Equal("0", (string?)root.Attribute("BorderThickness"));
+
+        XDocument extensionPage = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ExtensionCenterWindow.xaml"));
+        XElement list = extensionPage.Descendants().Single(element => element.Name.LocalName == "ListBox");
+        XElement listStyle = extensionPage.Descendants()
+            .Single(element => element.Name.LocalName == "Style" && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "ExtensionListBoxStyle");
+        XElement listScrollViewer = listStyle.Descendants().Single(element => element.Name.LocalName == "ScrollViewer");
+        XElement itemsPresenter = listScrollViewer.Descendants().Single(element => element.Name.LocalName == "ItemsPresenter");
+        XElement itemStyle = extensionPage.Descendants()
+            .Single(element => element.Name.LocalName == "Style" && (string?)element.Attribute("TargetType") == "{x:Type ListBoxItem}");
+        XElement cardStyle = extensionPage.Descendants()
+            .Single(element => element.Name.LocalName == "Style" && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "ExtensionCardStyle");
+
+        Assert.Equal("{StaticResource ExtensionListBoxStyle}", (string?)list.Attribute("Style"));
+        Assert.Equal("0", (string?)listScrollViewer.Attribute("BorderThickness"));
+        Assert.Equal("Transparent", (string?)listScrollViewer.Attribute("BorderBrush"));
+        Assert.Equal("False", (string?)listScrollViewer.Attribute("Focusable"));
+        Assert.Equal("{x:Null}", (string?)listScrollViewer.Attribute("FocusVisualStyle"));
+        Assert.Equal("20,0,22,14", (string?)itemsPresenter.Attribute("Margin"));
+        Assert.Contains(itemStyle.Elements().Where(element => element.Name.LocalName == "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Focusable"
+            && (string?)setter.Attribute("Value") == "False");
+        Assert.Contains(cardStyle.Elements().Where(element => element.Name.LocalName == "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "BorderThickness"
+            && (string?)setter.Attribute("Value") == "0");
+
+        XElement extensionContent = extensionPage.Descendants()
+            .Single(element => element.Name.LocalName == "ContentPresenter" && (string?)element.Attribute("Content") == "{Binding Content}");
+        Assert.Equal("False", (string?)extensionContent.Attribute("Focusable"));
+        Assert.Equal("{x:Null}", (string?)extensionContent.Attribute("FocusVisualStyle"));
+    }
+
+    [Fact]
+    public void ExtensionToggle_KeepsEnabledStateOwnedByItsCommand()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ExtensionCenterWindow.xaml"));
+        XElement toggle = document.Descendants().Single(element =>
+            element.Name.LocalName == "ToggleSwitch"
+            && element.Attribute("Command") != null);
+
+        Assert.Equal("{Binding IsEnabled, Mode=OneWay}", (string?)toggle.Attribute("IsChecked"));
+        Assert.Equal("{Binding DataContext.ToggleExtensionCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}", (string?)toggle.Attribute("Command"));
+    }
+
+    [Fact]
+    public void ExtensionDetails_RenderManifestSettingsAndOptionalIcon()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ExtensionCenterWindow.xaml"));
+        XElement details = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "SelectedDetails");
+        XElement cardStyle = document.Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "ExtensionCardStyle");
+
+        Assert.Contains(document.Descendants(), element =>
+            element.Name.LocalName == "ImageBrush"
+            && (string?)element.Attribute("ImageSource") == "{Binding IconSource}");
+        Assert.Contains(document.Descendants(), element =>
+            element.Name.LocalName == "ToggleSwitch"
+            && (string?)element.Attribute("IsChecked") == "{Binding BooleanValue, Mode=TwoWay}");
+        Assert.DoesNotContain(document.Descendants(), element =>
+            element.Name.LocalName == "CardExpander"
+            && (string?)element.Attribute("Header") == "扩展设置");
+
+        Assert.DoesNotContain(document.Descendants(), element =>
+            element.Name.LocalName == "Style"
+            && (string?)element.Attribute("TargetType") == "{x:Type ui:FontIcon}"
+            && (string?)element.Attribute("BasedOn") == "{StaticResource {x:Type ui:FontIcon}}");
+        Assert.Equal("StackPanel", details.Name.LocalName);
+        Assert.Null(details.Attribute("Background"));
+        Assert.Null(details.Attribute("Padding"));
+        Assert.Contains(cardStyle.Elements().Where(element => element.Name.LocalName == "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Background"
+            && (string?)setter.Attribute("Value") == "{DynamicResource EmerdePanelBrush}");
+    }
+
+    [Fact]
+    public void ExtensionPage_AlignsToolbarAndCardsOutsideTheScrollBar()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ExtensionCenterWindow.xaml"));
+        XElement toolbar = document.Descendants()
+            .Single(element => element.Name.LocalName == "Grid"
+                && (string?)element.Attribute("ColumnDefinitions") == "*,Auto,Auto,Auto");
+
+        Assert.Equal("0,0,22,14", (string?)toolbar.Attribute("Margin"));
+    }
+
+    [Fact]
+    public void ExtensionInputStyles_KeepHoverChromeConsistentWithSettings()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Resources.xaml"));
+        XDocument extensionDocument = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ExtensionCenterWindow.xaml"));
+        XElement textStyle = document.Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "ExtensionTextInputStyle");
+        XElement choiceStyle = document.Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "ExtensionChoiceInputStyle");
+        XElement passwordStyle = extensionDocument.Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "ExtensionPasswordInputStyle");
+        XElement borderBrush = document.Descendants()
+            .Single(element => element.Name.LocalName == "SolidColorBrush"
+                && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "EmerdeExtensionInputBorderBrush");
+
+        Assert.Equal("#24000000", (string?)borderBrush.Attribute("Color"));
+        Assert.Contains("SetBrush(\"EmerdeExtensionInputBorderBrush\"", File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "AppThemeBrushes.cs")), StringComparison.Ordinal);
+        AssertExtensionInputStyleUsesStateTriggers(textStyle);
+        Assert.Contains(textStyle.Descendants(), element =>
+            element.Name.LocalName == "SolidColorBrush"
+            && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "TextControlFocusedBorderBrush"
+            && (string?)element.Attribute("Color") == "Transparent");
+        AssertExtensionInputStyleUsesStateTriggers(choiceStyle);
+        Assert.Contains(choiceStyle.Descendants(), element =>
+            element.Name.LocalName == "SolidColorBrush"
+            && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "ComboBoxDropDownBorderBrush"
+            && (string?)element.Attribute("Color") == "Transparent");
+        Assert.Contains(choiceStyle.Descendants(), element =>
+            element.Name.LocalName == "SolidColorBrush"
+            && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "ControlElevationBorderBrush"
+            && (string?)element.Attribute("Color") == "Transparent");
+        AssertExtensionInputStyleUsesStateTriggers(passwordStyle);
+        Assert.Contains(passwordStyle.Descendants(), element =>
+            element.Name.LocalName == "SolidColorBrush"
+            && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "TextControlFocusedBorderBrush"
+            && (string?)element.Attribute("Color") == "Transparent");
     }
 
     [Fact]
@@ -209,7 +391,9 @@ public sealed class FocusVisualTests
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Resources.xaml"));
         XElement style = document.Descendants()
-            .Single(element => element.Name.LocalName == "Style" && (string?)element.Attribute("TargetType") == targetType);
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute("TargetType") == targetType
+                && element.Attribute(XName.Get("Key", XamlNamespace)) == null);
 
         Assert.Contains(style.Descendants(), element =>
             element.Name.LocalName == "SolidColorBrush"
@@ -476,6 +660,7 @@ public sealed class FocusVisualTests
     [Theory]
     [InlineData("VideoListPage", "DataContext.IsVideoListPageSelected")]
     [InlineData("SettingsPage", "DataContext.IsSettingsPageSelected")]
+    [InlineData("ExtensionsPage", "DataContext.IsExtensionsPageSelected")]
     [InlineData("AboutPage", "DataContext.IsAboutPageSelected")]
     public void MainChildPages_BindEntranceMotionToMainPageState(string elementName, string expectedPath)
     {
@@ -676,6 +861,37 @@ public sealed class FocusVisualTests
     }
 
     private const string XamlNamespace = "http://schemas.microsoft.com/winfx/2006/xaml";
+
+    private static void AssertExtensionInputStyleUsesStateTriggers(XElement style)
+    {
+        Assert.DoesNotContain(style.Descendants(), element =>
+            element.Name.LocalName == "StaticResource"
+            && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "ControlStrokeColorDefaultBrush");
+        Assert.Contains(style.Elements(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "BorderBrush"
+            && (string?)element.Attribute("Value") == "{DynamicResource EmerdeExtensionInputBorderBrush}");
+
+        XElement[] triggers = style.Descendants()
+            .Where(element => element.Name.LocalName == "Trigger")
+            .ToArray();
+        Assert.Contains(triggers, trigger =>
+            (string?)trigger.Attribute("Property") == "IsMouseOver"
+            && (string?)trigger.Attribute("Value") == "True"
+            && HasBorderBrushSetter(trigger, "{DynamicResource EmerdeExtensionInputBorderBrush}"));
+        Assert.Contains(triggers, trigger =>
+            (string?)trigger.Attribute("Property") == "IsKeyboardFocusWithin"
+            && (string?)trigger.Attribute("Value") == "True"
+            && HasBorderBrushSetter(trigger, "{DynamicResource SystemAccentColorPrimaryBrush}"));
+    }
+
+    private static bool HasBorderBrushSetter(XElement trigger, string value)
+    {
+        return trigger.Elements().Any(element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "BorderBrush"
+            && (string?)element.Attribute("Value") == value);
+    }
 
     private static bool IsPressMotionSetter(XElement setter)
     {

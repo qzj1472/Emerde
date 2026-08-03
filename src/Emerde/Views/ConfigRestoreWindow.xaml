@@ -82,10 +82,10 @@
             controls:MotionAssist.EntranceOffsetY="8"
             controls:MotionAssist.EntranceScale="0.98">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="24"
+            <DropShadowEffect BlurRadius="14"
                               Direction="270"
-                              Opacity="0.18"
-                              ShadowDepth="4"
+                              Opacity="0.10"
+                              ShadowDepth="2"
                               Color="#000000" />
         </Border.Effect>
         <Grid>

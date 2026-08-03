@@ -22,6 +22,7 @@ internal static class AppThemeBrushes
         SetBrush("EmerdeSurfaceBrush", isLightTheme ? Color.FromRgb(0xFF, 0xFF, 0xFF) : Color.FromRgb(0x1C, 0x1C, 0x1C), durationMilliseconds);
         SetBrush("EmerdePanelBrush", isLightTheme ? Color.FromRgb(0xF8, 0xF8, 0xF8) : Color.FromRgb(0x20, 0x20, 0x20), durationMilliseconds);
         SetBrush("EmerdeCardBrush", isLightTheme ? Color.FromRgb(0xFF, 0xFF, 0xFF) : Color.FromRgb(0x24, 0x24, 0x24), durationMilliseconds);
+        SetBrush("EmerdeExtensionInputBorderBrush", isLightTheme ? Color.FromArgb(0x24, 0x00, 0x00, 0x00) : Color.FromArgb(0x30, 0xFF, 0xFF, 0xFF), durationMilliseconds);
         SetBrush("EmerdeAboutCardTitleBrush", isLightTheme ? Color.FromRgb(0x56, 0x56, 0x56) : Color.FromRgb(0xD6, 0xD6, 0xD6), durationMilliseconds);
         SetBrush("EmerdeAboutShortcutKeyBrush", isLightTheme ? Color.FromRgb(0x66, 0x66, 0x66) : Color.FromRgb(0xC4, 0xC4, 0xC4), durationMilliseconds);
         SetBrush("EmerdeAboutShortcutDescriptionBrush", isLightTheme ? Color.FromRgb(0x73, 0x73, 0x73) : Color.FromRgb(0xAD, 0xAD, 0xAD), durationMilliseconds);

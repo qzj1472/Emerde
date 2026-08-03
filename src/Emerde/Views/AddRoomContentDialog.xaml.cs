@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Emerde.Core;
+using Emerde.ViewModels;
+using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Wpf.Ui.Violeta.Controls;
@@ -9,6 +11,7 @@ namespace Emerde.Views;
 [ObservableObject]
 public sealed partial class AddRoomContentDialog : ContentDialog
 {
+    private const double ExpandedDialogHeightRatio = 0.95d;
     private readonly CancellationTokenSource lifetimeCancellation = new();
     private bool isSubmitting;
 
@@ -19,6 +22,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
     {
         string platformName = string.IsNullOrWhiteSpace(value) ? string.Empty : Spider.GetPlatformName(value);
         DetectedPlatformName = string.IsNullOrWhiteSpace(platformName) ? "Unsupported" : PlatformDisplayName.Get(platformName);
+        SettingsEditor?.SetPlatformName(platformName);
     }
 
     [ObservableProperty]
@@ -30,7 +34,19 @@ public sealed partial class AddRoomContentDialog : ContentDialog
     [ObservableProperty]
     private string detectedPlatformName = "Unsupported";
 
+    [ObservableProperty]
+    private bool isFollowGlobalSettings = true;
+
+    partial void OnIsFollowGlobalSettingsChanged(bool value)
+    {
+        UpdateDialogSize();
+    }
+
     public string SupportedPlatformsText => string.Join(" / ", Spider.SupportedPlatformNames.Select(PlatformDisplayName.Get));
+
+    public LocalSettingsContentDialog SettingsEditor { get; }
+
+    public RoomRecordingOptions RecordingOptions => SettingsEditor.GetRecordingOptions();
 
     public string? RoomUrl = null;
 
@@ -38,6 +54,13 @@ public sealed partial class AddRoomContentDialog : ContentDialog
 
     public AddRoomContentDialog()
     {
+        SettingsEditor = new LocalSettingsContentDialog(new RoomStatusReactive
+        {
+            IsFollowGlobalSettings = false,
+            IsToNotify = true,
+            IsToMonitor = Configurations.IsToMonitor.Get(),
+            IsToRecord = Configurations.IsToRecord.Get(),
+        }, false, false, true);
         DataContext = this;
         InitializeComponent();
         Loaded += AddRoomContentDialogLoaded;
@@ -53,7 +76,52 @@ public sealed partial class AddRoomContentDialog : ContentDialog
                 RoomUrlTextBox.Focus();
                 Keyboard.Focus(RoomUrlTextBox);
                 UpdateRoomUrlInputBorder();
+                UpdateDialogSize();
             }));
+    }
+
+    private void UpdateDialogSize()
+    {
+        if (!IsLoaded || AddRoomSurface == null)
+        {
+            return;
+        }
+
+        if (IsFollowGlobalSettings)
+        {
+            LocalSettingsContentDialog.ClearWideDialogVisualSize(this);
+            Width = double.NaN;
+            Height = double.NaN;
+            MinWidth = 0d;
+            MinHeight = 0d;
+            MaxWidth = double.PositiveInfinity;
+            MaxHeight = double.PositiveInfinity;
+            AddRoomSurface.Width = double.NaN;
+            AddRoomSurface.Height = double.NaN;
+            AddRoomSurface.MinWidth = 420d;
+            AddRoomSurface.MinHeight = 0d;
+            AddRoomSurface.MaxWidth = double.PositiveInfinity;
+            AddRoomSurface.MaxHeight = double.PositiveInfinity;
+            WindowSizing.ApplyContentDialogSizeLimit(this, Application.Current?.MainWindow);
+            return;
+        }
+
+        if (!LocalSettingsContentDialog.TryGetDialogVisualSize(
+                Application.Current?.MainWindow,
+                ExpandedDialogHeightRatio,
+                out double targetWidth,
+                out double targetHeight))
+        {
+            return;
+        }
+
+        LocalSettingsContentDialog.ApplyWideDialogVisualSize(this, targetWidth, targetHeight);
+        AddRoomSurface.Width = double.NaN;
+        AddRoomSurface.Height = double.NaN;
+        AddRoomSurface.MinWidth = 0d;
+        AddRoomSurface.MinHeight = 0d;
+        AddRoomSurface.MaxWidth = double.PositiveInfinity;
+        AddRoomSurface.MaxHeight = double.PositiveInfinity;
     }
 
     private void RoomUrlTextBoxFocusWithinChanged(object sender, System.Windows.DependencyPropertyChangedEventArgs e)

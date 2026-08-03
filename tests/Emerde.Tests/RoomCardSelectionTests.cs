@@ -54,6 +54,17 @@ public sealed class RoomCardSelectionTests
     }
 
     [Fact]
+    public void DetailRecordButton_UsesEffectiveRecordingIntent()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XElement button = document.Descendants()
+            .Single(element => element.Name.LocalName == "Button"
+                && (string?)element.Attribute("Command") == "{Binding ToggleSelectedRoomRecordCommand}");
+
+        Assert.Equal("{Binding SelectedItem.EffectiveIsToRecord}", (string?)button.Attribute("Tag"));
+    }
+
+    [Fact]
     public void RoomHistoryLimit_IsTwoHundred()
     {
         Assert.Equal(200, MainViewModel.RoomHistoryLimit);

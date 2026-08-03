@@ -722,6 +722,16 @@ public sealed class DouyinPublisherTests
     }
 
     [Fact]
+    public void ConfigRestoreWindow_UsesCompactShadow()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ConfigRestoreWindow.xaml"));
+
+        Assert.Contains("BlurRadius=\"14\"", source, StringComparison.Ordinal);
+        Assert.Contains("Opacity=\"0.10\"", source, StringComparison.Ordinal);
+        Assert.Contains("ShadowDepth=\"2\"", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PublisherManifest_ExposesEveryAutomaticPublishSetting()
     {
         string manifest = File.ReadAllText(FindRepositoryFile("extensions", "Emerde.DouyinPublisher", "package", "extension.json"));
@@ -765,6 +775,7 @@ public sealed class DouyinPublisherTests
         string optionsPanel = File.ReadAllText(FindRepositoryFile("extensions", "Emerde.DouyinPublisher", "DouyinPublishOptionsPanel.cs"));
         string publisherPanel = File.ReadAllText(FindRepositoryFile("extensions", "Emerde.DouyinPublisher", "DouyinPublisherPanel.cs"));
         string dialogService = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Plugins", "ExtensionDialogService.cs"));
+        string resources = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Resources.xaml"));
 
         Assert.Contains("ToolTipService.SetToolTip(control, description)", optionsPanel, StringComparison.Ordinal);
         Assert.Contains("CreateTitleTemplateEditor()", optionsPanel, StringComparison.Ordinal);
@@ -785,6 +796,12 @@ public sealed class DouyinPublisherTests
         Assert.Contains("new Wpf.Ui.Controls.TextBox", optionsPanel, StringComparison.Ordinal);
         Assert.Contains("TryFindResource(\"ExtensionTextInputStyle\")", optionsPanel, StringComparison.Ordinal);
         Assert.DoesNotContain("IsEditable = true", optionsPanel, StringComparison.Ordinal);
+        Assert.Contains("x:Key=\"ExtensionChoiceInputStyle\"", resources, StringComparison.Ordinal);
+        Assert.Contains("x:Key=\"ExtensionTextInputStyle\"", resources, StringComparison.Ordinal);
+        Assert.Contains("<Style x:Key=\"ExtensionTextInputStyle\"", resources, StringComparison.Ordinal);
+        Assert.Contains("<Style x:Key=\"ExtensionChoiceInputStyle\"", resources, StringComparison.Ordinal);
+        Assert.Contains("Background\" Value=\"{DynamicResource EmerdeCardBrush}", resources, StringComparison.Ordinal);
+        Assert.Contains("EmerdeExtensionInputBorderBrush", resources, StringComparison.Ordinal);
         Assert.Contains("FocusVisualStyle = null", dialogService, StringComparison.Ordinal);
         Assert.Contains("BorderBrush = System.Windows.Media.Brushes.Transparent", dialogService, StringComparison.Ordinal);
         Assert.DoesNotContain(".Where(room => room.PlatformName", publisherPanel, StringComparison.Ordinal);

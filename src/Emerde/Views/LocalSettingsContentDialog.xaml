@@ -9,10 +9,13 @@
              xmlns:vio="http://schemas.lepo.co/wpfui/2022/xaml/violeta"
              MinWidth="0"
              MinHeight="0"
+             Focusable="False"
+             FocusVisualStyle="{x:Null}"
              FontSize="14"
              mc:Ignorable="d">
     <UserControl.Resources>
         <Style TargetType="{x:Type ui:Card}" BasedOn="{StaticResource {x:Type ui:Card}}">
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -43,6 +46,7 @@
             </Setter>
         </Style>
         <Style TargetType="{x:Type ui:CardExpander}" BasedOn="{StaticResource {x:Type ui:CardExpander}}">
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -61,6 +65,8 @@
                 Background="{DynamicResource EmerdeSurfaceBrush}"
                 ClipToBounds="True"
                 CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                Focusable="False"
+                FocusVisualStyle="{x:Null}"
                 SizeChanged="LocalSettingsSurfaceSizeChanged"
                 controls:MotionAssist.IsEntranceEnabled="True"
                 controls:MotionAssist.EntranceOffsetY="8"
@@ -72,7 +78,9 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" Margin="14,14,14,0">
+                <Grid Grid.Row="0"
+                      Margin="14,10,14,0"
+                      Visibility="{Binding ShowIdentityHeader, Converter={x:Static c:BoolToVisibilityConverter.Instance}}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
@@ -93,8 +101,10 @@
                 </Grid>
 
                 <ui:Card Grid.Row="1"
-                         Margin="14,16,14,12"
-                         Padding="14,12">
+                         MinHeight="64"
+                         Margin="14,10,14,8"
+                         Padding="14,8"
+                         Visibility="{Binding ShowSettingsHeader, Converter={x:Static c:BoolToVisibilityConverter.Instance}}">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -125,10 +135,11 @@
                     </Border.Style>
                     <Grid ClipToBounds="True">
                         <ScrollViewer x:Name="LocalSettingsScrollViewer"
+                                      Margin="0,0,8,0"
                                       BorderThickness="0"
                                       Focusable="False"
                                       FocusVisualStyle="{x:Null}"
-                                      Padding="14,0,8,0"
+                                      Padding="14,12,6,12"
                                       PanningMode="VerticalOnly"
                                       ScrollViewer.CanContentScroll="False"
                                       VerticalScrollBarVisibility="Visible">
@@ -262,15 +273,15 @@
                                         </Grid>
                                     </ui:CardExpander.Header>
                                     <ui:StackPanel Margin="42,0,28,0" Spacing="12">
-                                        <WrapPanel>
-                                            <ToggleButton Margin="0,0,8,8" Content="周一" IsChecked="{Binding RoutineScheduleMonday, Mode=TwoWay}" />
-                                            <ToggleButton Margin="0,0,8,8" Content="周二" IsChecked="{Binding RoutineScheduleTuesday, Mode=TwoWay}" />
-                                            <ToggleButton Margin="0,0,8,8" Content="周三" IsChecked="{Binding RoutineScheduleWednesday, Mode=TwoWay}" />
-                                            <ToggleButton Margin="0,0,8,8" Content="周四" IsChecked="{Binding RoutineScheduleThursday, Mode=TwoWay}" />
-                                            <ToggleButton Margin="0,0,8,8" Content="周五" IsChecked="{Binding RoutineScheduleFriday, Mode=TwoWay}" />
-                                            <ToggleButton Margin="0,0,8,8" Content="周六" IsChecked="{Binding RoutineScheduleSaturday, Mode=TwoWay}" />
-                                            <ToggleButton Margin="0,0,8,8" Content="周日" IsChecked="{Binding RoutineScheduleSunday, Mode=TwoWay}" />
-                                        </WrapPanel>
+                                        <UniformGrid Columns="7">
+                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周一" IsChecked="{Binding RoutineScheduleMonday, Mode=TwoWay}" />
+                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周二" IsChecked="{Binding RoutineScheduleTuesday, Mode=TwoWay}" />
+                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周三" IsChecked="{Binding RoutineScheduleWednesday, Mode=TwoWay}" />
+                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周四" IsChecked="{Binding RoutineScheduleThursday, Mode=TwoWay}" />
+                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周五" IsChecked="{Binding RoutineScheduleFriday, Mode=TwoWay}" />
+                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周六" IsChecked="{Binding RoutineScheduleSaturday, Mode=TwoWay}" />
+                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周日" IsChecked="{Binding RoutineScheduleSunday, Mode=TwoWay}" />
+                                        </UniformGrid>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
@@ -284,26 +295,26 @@
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="时间段" />
                                             <controls:CompactNumberBox Grid.Column="1"
-                                                                       Width="72"
+                                                                       Width="112"
                                                                        Margin="12,0,0,0"
                                                                        Maximum="23"
                                                                        Minimum="0"
                                                                        Value="{Binding RoutineScheduleStartHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             <TextBlock Grid.Column="2" Margin="6,0" VerticalAlignment="Center" Text=":" />
                                             <controls:CompactNumberBox Grid.Column="3"
-                                                                       Width="72"
+                                                                       Width="112"
                                                                        Maximum="59"
                                                                        Minimum="0"
                                                                        Value="{Binding RoutineScheduleStartMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             <TextBlock Grid.Column="4" Margin="12,0" VerticalAlignment="Center" Text="至" />
                                             <controls:CompactNumberBox Grid.Column="5"
-                                                                       Width="72"
+                                                                       Width="112"
                                                                        Maximum="23"
                                                                        Minimum="0"
                                                                        Value="{Binding RoutineScheduleEndHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             <TextBlock Grid.Column="6" Margin="6,0" VerticalAlignment="Center" Text=":" />
                                             <controls:CompactNumberBox Grid.Column="7"
-                                                                       Width="72"
+                                                                       Width="112"
                                                                        Maximum="59"
                                                                        Minimum="0"
                                                                        Value="{Binding RoutineScheduleEndMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -425,17 +436,19 @@
                                                        Margin="16,0,12,0"
                                                        Orientation="Horizontal"
                                                        Spacing="8">
-                                            <controls:CompactNumberBox MinWidth="112"
-                                                                       IsEnabled="{Binding IsToSegment}"
-                                                                       Maximum="2147483647"
-                                                                       Minimum="1"
-                                                                       Value="{Binding SegmentTimeValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                            <ComboBox MinWidth="86"
-                                                      DisplayMemberPath="DisplayName"
-                                                      IsEnabled="{Binding IsToSegment}"
-                                                      ItemsSource="{Binding SegmentUnitOptions}"
-                                                      SelectedValue="{Binding SegmentTimeUnitIndex, Mode=TwoWay}"
-                                                      SelectedValuePath="Value" />
+                                            <ui:StackPanel Orientation="Horizontal"
+                                                           Spacing="8"
+                                                           Visibility="{Binding IsToSegment, Converter={x:Static c:BoolToVisibilityConverter.Instance}}">
+                                                <controls:CompactNumberBox MinWidth="112"
+                                                                           Maximum="2147483647"
+                                                                           Minimum="1"
+                                                                           Value="{Binding SegmentTimeValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <ComboBox MinWidth="86"
+                                                          DisplayMemberPath="DisplayName"
+                                                          ItemsSource="{Binding SegmentUnitOptions}"
+                                                          SelectedValue="{Binding SegmentTimeUnitIndex, Mode=TwoWay}"
+                                                          SelectedValuePath="Value" />
+                                            </ui:StackPanel>
                                             <ui:ToggleSwitch IsChecked="{Binding IsToSegment, Mode=TwoWay}" />
                                         </ui:StackPanel>
                                     </Grid>
@@ -559,20 +572,50 @@
                                 </ui:CardExpander>
                             </ui:StackPanel>
                         </ScrollViewer>
-                        <Border Height="18"
-                                Margin="14,0,22,0"
+                        <Border x:Name="TopScrollFade"
+                                Margin="14,0,30,0"
                                 VerticalAlignment="Top"
                                 Panel.ZIndex="20"
                                 Background="{DynamicResource EmerdeSurfaceBrush}"
                                 IsHitTestVisible="False"
-                                OpacityMask="{StaticResource TopEdgeFadeOpacityMask}" />
-                        <Border Height="26"
-                                Margin="14,0,22,0"
+                                OpacityMask="{StaticResource TopEdgeFadeOpacityMask}">
+                            <Border.Style>
+                                <Style TargetType="{x:Type Border}">
+                                    <Setter Property="Height" Value="18" />
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding ShowIdentityHeader}" Value="False" />
+                                                <Condition Binding="{Binding ShowSettingsHeader}" Value="False" />
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Height" Value="32" />
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                        </Border>
+                        <Border x:Name="BottomScrollFade"
+                                Margin="14,0,30,0"
                                 VerticalAlignment="Bottom"
                                 Panel.ZIndex="20"
                                 Background="{DynamicResource EmerdeSurfaceBrush}"
                                 IsHitTestVisible="False"
-                                OpacityMask="{StaticResource BottomEdgeFadeOpacityMask}" />
+                                OpacityMask="{StaticResource BottomEdgeFadeOpacityMask}">
+                            <Border.Style>
+                                <Style TargetType="{x:Type Border}">
+                                    <Setter Property="Height" Value="26" />
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding ShowIdentityHeader}" Value="False" />
+                                                <Condition Binding="{Binding ShowSettingsHeader}" Value="False" />
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Height" Value="36" />
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                        </Border>
                     </Grid>
                 </Border>
             </Grid>

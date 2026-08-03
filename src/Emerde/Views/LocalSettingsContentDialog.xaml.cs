@@ -13,8 +13,6 @@ using Windows.System;
 using WindowsAPICodePack.Dialogs;
 using Wpf.Ui.Controls;
 using WpfPoint = System.Windows.Point;
-using VioletaContentDialogClosedEventArgs = Wpf.Ui.Violeta.Controls.ContentDialogClosedEventArgs;
-using VioletaContentDialogClosingEventArgs = Wpf.Ui.Violeta.Controls.ContentDialogClosingEventArgs;
 
 namespace Emerde.Views;
 
@@ -24,15 +22,18 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
     private const int Seconds = 1;
     private const int Minutes = 2;
     private const int Hours = 3;
-    private const double DialogHorizontalChrome = 48d;
-    private const double DialogVerticalChrome = 176d;
-
+    private const double DialogWidthRatio = 0.72d;
+    private const double DialogHeightRatio = 0.85d;
+    private const string DialogMinWidthResource = "ContentDialogMinWidth";
+    private const string DialogMinHeightResource = "ContentDialogMinHeight";
+    private const string DialogMaxWidthResource = "ContentDialogMaxWidth";
+    private const string DialogMaxHeightResource = "ContentDialogMaxHeight";
     private int routineIntervalMilliseconds;
     private bool isUpdatingRoutineInterval;
     private long segmentRawValue;
     private int segmentRawUnit;
     private bool isUpdatingSegmentTime;
-    private ContentDialog? exitAnimationDialog;
+    private readonly bool useGlobalQualityOptionsWhenPlatformUnknown;
 
     public sealed record UnitOption(int Value, string DisplayName);
 
@@ -53,7 +54,14 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         new(SegmentTimeUnitHelper.Gigabytes, "GB"),
     ];
 
-    public IReadOnlyList<StreamQualityOption> QualityOptions { get; }
+    [ObservableProperty]
+    private IReadOnlyList<StreamQualityOption> qualityOptions = StreamQualityCatalog.GetOptions(string.Empty);
+
+    [ObservableProperty]
+    private bool showIdentityHeader = true;
+
+    [ObservableProperty]
+    private bool showSettingsHeader = true;
 
     [ObservableProperty]
     private string nickName = string.Empty;
@@ -256,6 +264,15 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
     private string saveFileNameCustomRule = string.Empty;
 
     public LocalSettingsContentDialog(RoomStatusReactive room)
+        : this(room, true, true, false)
+    {
+    }
+
+    internal LocalSettingsContentDialog(
+        RoomStatusReactive room,
+        bool showIdentityHeader,
+        bool showSettingsHeader,
+        bool useGlobalQualityOptions)
     {
         NickName = room.NickName;
         RoomUrl = room.RoomUrl;
@@ -263,7 +280,12 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         IsToNotify = room.IsToNotify;
         IsToMonitor = room.IsToMonitor;
         IsToRecord = room.IsToRecord;
-        QualityOptions = StreamQualityCatalog.GetOptions(room.PlatformName);
+        ShowIdentityHeader = showIdentityHeader;
+        ShowSettingsHeader = showSettingsHeader;
+        useGlobalQualityOptionsWhenPlatformUnknown = useGlobalQualityOptions;
+        QualityOptions = useGlobalQualityOptions
+            ? StreamQualityCatalog.GlobalOptions
+            : StreamQualityCatalog.GetOptions(room.PlatformName);
 
         Room? storedRoom = Configurations.Rooms.Get()
             .FirstOrDefault(item => string.Equals(item.RoomUrl, room.RoomUrl, StringComparison.OrdinalIgnoreCase));
@@ -271,6 +293,17 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
 
         DataContext = this;
         InitializeComponent();
+    }
+
+    internal void SetPlatformName(string? platformName)
+    {
+        QualityOptions = useGlobalQualityOptionsWhenPlatformUnknown && string.IsNullOrWhiteSpace(platformName)
+            ? StreamQualityCatalog.GlobalOptions
+            : StreamQualityCatalog.GetOptions(platformName ?? string.Empty);
+        string normalized = StreamQualityCatalog.NormalizePreference(PreferredQuality);
+        PreferredQuality = QualityOptions.Any(option => option.Value == normalized)
+            ? normalized
+            : StreamQualityCatalog.Original;
     }
 
     private void LocalSettingsSurfaceSizeChanged(object sender, SizeChangedEventArgs e)
@@ -373,40 +406,23 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
 
     public void ApplyDialogVisualSize(Wpf.Ui.Violeta.Controls.ContentDialog dialog, Window? owner = null)
     {
-        AttachExitAnimation(dialog);
-
         void ApplySize()
         {
-            Window? reference = owner ?? Application.Current?.MainWindow;
-            double ownerWidth = reference?.ActualWidth > 1d ? reference.ActualWidth : reference?.Width ?? 0d;
-            double ownerHeight = reference?.ActualHeight > 1d ? reference.ActualHeight : reference?.Height ?? 0d;
-            if (ownerWidth <= 1d || ownerHeight <= 1d)
+            if (!TryGetDialogVisualSize(owner, out double targetWidth, out double targetHeight))
             {
                 return;
             }
 
-            double targetWidth = Math.Max(1d, Math.Floor(ownerWidth * 0.65d));
-            double targetHeight = Math.Max(1d, Math.Floor(ownerHeight * 0.85d));
-            double contentWidth = Math.Max(1d, targetWidth - DialogHorizontalChrome);
-            double contentHeight = Math.Max(1d, targetHeight - DialogVerticalChrome);
+            ApplyWideDialogVisualSize(dialog, targetWidth, targetHeight);
 
-            dialog.Width = targetWidth;
-            dialog.Height = targetHeight;
-            dialog.MinWidth = targetWidth;
-            dialog.MinHeight = targetHeight;
-            dialog.MaxWidth = targetWidth;
-            dialog.MaxHeight = targetHeight;
-
-            Width = contentWidth;
-            Height = contentHeight;
-            MinWidth = contentWidth;
-            MinHeight = contentHeight;
-            MaxWidth = contentWidth;
-            MaxHeight = contentHeight;
+            Width = double.NaN;
+            Height = double.NaN;
+            MinWidth = 0d;
+            MinHeight = 0d;
+            MaxWidth = double.PositiveInfinity;
+            MaxHeight = double.PositiveInfinity;
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
             VerticalAlignment = System.Windows.VerticalAlignment.Stretch;
-
-            ExpandDialogVisualPath(dialog, targetWidth, targetHeight);
         }
 
         ApplySize();
@@ -419,78 +435,58 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         dialog.Loaded += loadedHandler;
     }
 
-    private void AttachExitAnimation(ContentDialog dialog)
+    internal static void ApplyWideDialogVisualSize(
+        Wpf.Ui.Violeta.Controls.ContentDialog dialog,
+        double targetWidth,
+        double targetHeight)
     {
-        if (ReferenceEquals(exitAnimationDialog, dialog))
-        {
-            return;
-        }
-
-        if (exitAnimationDialog != null)
-        {
-            exitAnimationDialog.Closing -= DialogClosing;
-            exitAnimationDialog.Closed -= DialogClosed;
-        }
-
-        exitAnimationDialog = dialog;
-        dialog.Closing += DialogClosing;
-        dialog.Closed += DialogClosed;
+        dialog.Width = targetWidth;
+        dialog.Height = targetHeight;
+        dialog.MinWidth = targetWidth;
+        dialog.MinHeight = targetHeight;
+        dialog.MaxWidth = targetWidth;
+        dialog.MaxHeight = targetHeight;
+        dialog.Resources[DialogMinWidthResource] = targetWidth;
+        dialog.Resources[DialogMinHeightResource] = targetHeight;
+        dialog.Resources[DialogMaxWidthResource] = targetWidth;
+        dialog.Resources[DialogMaxHeightResource] = targetHeight;
     }
 
-    private async void DialogClosing(ContentDialog sender, VioletaContentDialogClosingEventArgs args)
+    internal static void ClearWideDialogVisualSize(Wpf.Ui.Violeta.Controls.ContentDialog dialog)
     {
-        if (args.Cancel)
-        {
-            return;
-        }
-
-        var deferral = args.GetDeferral();
-        try
-        {
-            await MotionAssist.PlayContentDialogExitTransformAsync(LocalSettingsSurface).WaitAsync(TimeSpan.FromSeconds(2));
-            if (args.Cancel)
-            {
-                MotionAssist.ResetExit(LocalSettingsSurface);
-            }
-        }
-        catch
-        {
-            MotionAssist.ResetExit(LocalSettingsSurface);
-        }
-        finally
-        {
-            deferral.Complete();
-        }
+        dialog.Resources.Remove(DialogMinWidthResource);
+        dialog.Resources.Remove(DialogMinHeightResource);
+        dialog.Resources.Remove(DialogMaxWidthResource);
+        dialog.Resources.Remove(DialogMaxHeightResource);
     }
 
-    private void DialogClosed(ContentDialog sender, VioletaContentDialogClosedEventArgs args)
+    internal static bool TryGetDialogVisualSize(
+        Window? owner,
+        out double targetWidth,
+        out double targetHeight)
     {
-        sender.Closing -= DialogClosing;
-        sender.Closed -= DialogClosed;
-        exitAnimationDialog = null;
-        MotionAssist.ResetExit(LocalSettingsSurface);
+        return TryGetDialogVisualSize(owner, DialogHeightRatio, out targetWidth, out targetHeight);
     }
 
-    private void ExpandDialogVisualPath(Wpf.Ui.Violeta.Controls.ContentDialog dialog, double targetWidth, double targetHeight)
+    internal static bool TryGetDialogVisualSize(
+        Window? owner,
+        double heightRatio,
+        out double targetWidth,
+        out double targetHeight)
     {
-        DependencyObject? current = this;
-        while (current != null && !ReferenceEquals(current, dialog))
+        Window? reference = owner ?? Application.Current?.MainWindow;
+        double ownerWidth = reference?.ActualWidth > 1d ? reference.ActualWidth : reference?.Width ?? 0d;
+        double ownerHeight = reference?.ActualHeight > 1d ? reference.ActualHeight : reference?.Height ?? 0d;
+        if (ownerWidth <= 1d || ownerHeight <= 1d)
         {
-            current = VisualTreeHelper.GetParent(current) ?? LogicalTreeHelper.GetParent(current);
-            if (current is not FrameworkElement element || ReferenceEquals(element, dialog))
-            {
-                continue;
-            }
-
-            element.Width = double.NaN;
-            element.Height = double.NaN;
-            element.MinWidth = 0d;
-            element.MinHeight = 0d;
-            element.MaxWidth = targetWidth;
-            element.MaxHeight = targetHeight;
-            element.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
-            element.VerticalAlignment = System.Windows.VerticalAlignment.Stretch;
+            targetWidth = 0d;
+            targetHeight = 0d;
+            return false;
         }
+
+        targetWidth = Math.Max(1d, Math.Floor(ownerWidth * DialogWidthRatio));
+        targetHeight = Math.Max(1d, Math.Floor(ownerHeight * heightRatio));
+        return true;
     }
 
     public RoomRecordingOptions GetRecordingOptions()

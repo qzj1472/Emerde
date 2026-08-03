@@ -69,7 +69,8 @@ internal static class WindowSizing
 
     public static void ApplyContentDialogSizeLimit(ContentDialog dialog, Window? owner = null)
     {
-        if (dialog.Content is Views.LocalSettingsContentDialog or Views.ConfigRestoreContentDialog)
+        if (dialog.Content is Views.LocalSettingsContentDialog or Views.ConfigRestoreContentDialog
+            || dialog.Resources["EmerdeWideContentDialog"] is true)
         {
             return;
         }

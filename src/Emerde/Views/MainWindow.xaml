@@ -15,6 +15,9 @@
                  Title="Emerde"
                  d:Background="#FF101010"
                  ExtendsContentIntoTitleBar="True"
+                 BorderBrush="Transparent"
+                 BorderThickness="0"
+                 WindowCornerPreference="Round"
                  WindowBackdropType="Mica"
                  WindowStartupLocation="Manual"
                  AllowDrop="True"
@@ -381,6 +384,28 @@
                 <Setter Property="VerticalAlignment" Value="Center" />
             </Style>
 
+            <ControlTemplate x:Key="StableActiveActionButtonTemplate" TargetType="{x:Type Button}">
+                <Border x:Name="ButtonChrome"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                        SnapsToDevicePixels="True">
+                    <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                      Content="{TemplateBinding Content}"
+                                      ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      RecognizesAccessKey="True" />
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsPressed" Value="True">
+                        <Setter TargetName="ButtonChrome" Property="Opacity" Value="0.82" />
+                    </Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate>
+
             <Style x:Key="MonitorActionButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
                 <Style.Triggers>
                     <MultiDataTrigger>
@@ -392,6 +417,7 @@
                         <Setter Property="BorderBrush" Value="{StaticResource MonitorActiveBorderBrush}" />
                         <Setter Property="BorderThickness" Value="1" />
                         <Setter Property="Foreground" Value="{StaticResource MonitorActiveForegroundBrush}" />
+                        <Setter Property="Template" Value="{StaticResource StableActiveActionButtonTemplate}" />
                     </MultiDataTrigger>
                 </Style.Triggers>
             </Style>
@@ -407,6 +433,7 @@
                         <Setter Property="BorderBrush" Value="{StaticResource RecordActiveBorderBrush}" />
                         <Setter Property="BorderThickness" Value="1" />
                         <Setter Property="Foreground" Value="{StaticResource RecordActiveForegroundBrush}" />
+                        <Setter Property="Template" Value="{StaticResource StableActiveActionButtonTemplate}" />
                     </MultiDataTrigger>
                 </Style.Triggers>
             </Style>
@@ -718,10 +745,22 @@
                             <TextBlock HorizontalAlignment="Center" FontSize="11" Text="设置" />
                         </ui:StackPanel>
                     </ToggleButton>
+                    <ToggleButton Command="{Binding OpenExtensionsCommand}"
+                                  IsChecked="{Binding IsExtensionsPageSelected, Mode=OneWay}"
+                                  Style="{StaticResource ShellNavButtonStyle}"
+                                  ToolTip="扩展（Alt+4，Tab 向上 / CapsLock 向下）">
+                        <ui:StackPanel HorizontalAlignment="Center" Spacing="4">
+                            <ui:FontIcon HorizontalAlignment="Center"
+                                         FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                         FontSize="20"
+                                         Glyph="{x:Static ui:FontSymbols.AppIconDefault}" />
+                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="扩展" />
+                        </ui:StackPanel>
+                    </ToggleButton>
                     <ToggleButton Command="{Binding OpenAboutCommand}"
                                   IsChecked="{Binding IsAboutPageSelected, Mode=OneWay}"
                                   Style="{StaticResource ShellNavButtonStyle}"
-                                  ToolTip="关于（Alt+4，Tab 向上 / CapsLock 向下）">
+                                  ToolTip="关于（Alt+5，Tab 向上 / CapsLock 向下）">
                         <ui:StackPanel HorizontalAlignment="Center" Spacing="4">
                             <ui:FontIcon HorizontalAlignment="Center"
                                          FontFamily="{DynamicResource SymbolThemeFontFamily}"
@@ -1409,7 +1448,7 @@
                                         HorizontalAlignment="Stretch"
                                         Command="{Binding ToggleSelectedRoomRecordCommand}"
                                         Style="{StaticResource RecordActionButtonStyle}"
-                                        Tag="{Binding SelectedItem.IsRecordingOrStarting}"
+                                        Tag="{Binding SelectedItem.EffectiveIsToRecord}"
                                         ToolTip="开启/暂停当前直播间录制（Shift+R）">
                                     <ui:StackPanel Orientation="Horizontal" Spacing="6">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
@@ -1665,6 +1704,22 @@
                         </Style>
                     </views:SettingsWindow.Style>
                 </views:SettingsWindow>
+
+                <views:ExtensionCenterWindow x:Name="ExtensionsPage"
+                                             controls:MotionAssist.IsEntranceEnabled="True"
+                                             controls:MotionAssist.EntranceOffsetY="8"
+                                             controls:MotionAssist.EntranceTrigger="{Binding DataContext.IsExtensionsPageSelected, ElementName=ShellPageHost}">
+                    <views:ExtensionCenterWindow.Style>
+                        <Style TargetType="{x:Type views:ExtensionCenterWindow}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DataContext.IsExtensionsPageSelected, ElementName=ShellPageHost}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </views:ExtensionCenterWindow.Style>
+                </views:ExtensionCenterWindow>
 
                 <views:AboutContentDialog x:Name="AboutPage"
                                           controls:MotionAssist.IsEntranceEnabled="True"

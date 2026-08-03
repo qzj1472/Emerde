@@ -662,38 +662,38 @@
                         <ui:StackPanel Margin="42,0,28,0"
                                        Spacing="12"
                                        Visibility="{Binding IsRoutineScheduleCustom, Converter={x:Static c:BoolToVisibilityConverter.Instance}}">
-                            <WrapPanel>
-                                <ToggleButton Margin="0,0,8,8" Content="周一" IsChecked="{Binding RoutineScheduleMonday, Mode=TwoWay}" />
-                                <ToggleButton Margin="0,0,8,8" Content="周二" IsChecked="{Binding RoutineScheduleTuesday, Mode=TwoWay}" />
-                                <ToggleButton Margin="0,0,8,8" Content="周三" IsChecked="{Binding RoutineScheduleWednesday, Mode=TwoWay}" />
-                                <ToggleButton Margin="0,0,8,8" Content="周四" IsChecked="{Binding RoutineScheduleThursday, Mode=TwoWay}" />
-                                <ToggleButton Margin="0,0,8,8" Content="周五" IsChecked="{Binding RoutineScheduleFriday, Mode=TwoWay}" />
-                                <ToggleButton Margin="0,0,8,8" Content="周六" IsChecked="{Binding RoutineScheduleSaturday, Mode=TwoWay}" />
-                                <ToggleButton Margin="0,0,8,8" Content="周日" IsChecked="{Binding RoutineScheduleSunday, Mode=TwoWay}" />
-                            </WrapPanel>
+                            <UniformGrid Columns="7">
+                                <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周一" IsChecked="{Binding RoutineScheduleMonday, Mode=TwoWay}" />
+                                <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周二" IsChecked="{Binding RoutineScheduleTuesday, Mode=TwoWay}" />
+                                <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周三" IsChecked="{Binding RoutineScheduleWednesday, Mode=TwoWay}" />
+                                <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周四" IsChecked="{Binding RoutineScheduleThursday, Mode=TwoWay}" />
+                                <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周五" IsChecked="{Binding RoutineScheduleFriday, Mode=TwoWay}" />
+                                <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周六" IsChecked="{Binding RoutineScheduleSaturday, Mode=TwoWay}" />
+                                <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周日" IsChecked="{Binding RoutineScheduleSunday, Mode=TwoWay}" />
+                            </UniformGrid>
                             <ui:Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="时间段" />
                                 <controls:CompactNumberBox Grid.Column="1"
-                                                           Width="72"
+                                                           Width="112"
                                                            Margin="12,0,0,0"
                                                            Maximum="23"
                                                            Minimum="0"
                                                            Value="{Binding RoutineScheduleStartHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 <TextBlock Grid.Column="2" Margin="6,0" VerticalAlignment="Center" Text=":" />
                                 <controls:CompactNumberBox Grid.Column="3"
-                                                           Width="72"
+                                                           Width="112"
                                                            Maximum="59"
                                                            Minimum="0"
                                                            Value="{Binding RoutineScheduleStartMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 <TextBlock Grid.Column="4" Margin="12,0" VerticalAlignment="Center" Text="至" />
                                 <controls:CompactNumberBox Grid.Column="5"
-                                                           Width="72"
+                                                           Width="112"
                                                            Maximum="23"
                                                            Minimum="0"
                                                            Value="{Binding RoutineScheduleEndHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 <TextBlock Grid.Column="6" Margin="6,0" VerticalAlignment="Center" Text=":" />
                                 <controls:CompactNumberBox Grid.Column="7"
-                                                           Width="72"
+                                                           Width="112"
                                                            Maximum="59"
                                                            Minimum="0"
                                                            Value="{Binding RoutineScheduleEndMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -1169,14 +1169,10 @@
                             </ui:Grid>
                         </ui:CardExpander.Header>
                         <ui:StackPanel Spacing="14">
-                            <ui:Grid Margin="52,0,40,0" ColumnDefinitions="*,Auto">
-                                <TextBlock Grid.Column="0"
-                                           VerticalAlignment="Center"
+                            <ui:Grid Margin="52,0,40,0">
+                                <TextBlock VerticalAlignment="Center"
                                            FontWeight="SemiBold"
                                            Text="{I18N DomesticCookiePlatforms}" />
-                                <Button Grid.Column="1"
-                                        Command="{Binding OpenHowToGetCookieChinaCommand}"
-                                        Content="{I18N HowToGet}" />
                             </ui:Grid>
                             <ItemsControl Margin="52,0,28,0" ItemsSource="{Binding DomesticCookiePlatforms}">
                                 <ItemsControl.ItemsPanel>
@@ -1186,7 +1182,7 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <ui:Grid Margin="0,0,12,8" ColumnDefinitions="96,*">
+                                        <ui:Grid Margin="0,0,18,8" ColumnDefinitions="96,*,Auto">
                                             <TextBlock Grid.Column="0"
                                                        VerticalAlignment="Center"
                                                        Text="{Binding DisplayName, StringFormat={}{0}:}"
@@ -1197,6 +1193,13 @@
                                                             Password="{Binding Cookie, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                             PlaceholderText="{I18N UseCookieEnterHint}"
                                                             RevealButtonEnabled="True" />
+                                            <Button Grid.Column="2"
+                                                    MinWidth="56"
+                                                    Margin="10,0,0,0"
+                                                    Command="{Binding DataContext.AcquirePlatformCookieCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                    CommandParameter="{Binding}"
+                                                    Content="{I18N AcquireCookie}"
+                                                    FocusVisualStyle="{x:Null}" />
                                         </ui:Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -1206,14 +1209,10 @@
                                     Margin="52,0,40,0"
                                     Background="{DynamicResource ControlStrokeColorDefaultBrush}"
                                     Opacity="0.65" />
-                            <ui:Grid Margin="52,0,40,0" ColumnDefinitions="*,Auto">
-                                <TextBlock Grid.Column="0"
-                                           VerticalAlignment="Center"
+                            <ui:Grid Margin="52,0,40,0">
+                                <TextBlock VerticalAlignment="Center"
                                            FontWeight="SemiBold"
                                            Text="{I18N OverseasCookiePlatforms}" />
-                                <Button Grid.Column="1"
-                                        Command="{Binding OpenHowToGetCookieOverseaCommand}"
-                                        Content="{I18N HowToGet}" />
                             </ui:Grid>
                             <ItemsControl Margin="52,0,28,0" ItemsSource="{Binding OverseasCookiePlatforms}">
                                 <ItemsControl.ItemsPanel>
@@ -1223,7 +1222,7 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <ui:Grid Margin="0,0,12,8" ColumnDefinitions="96,*">
+                                        <ui:Grid Margin="0,0,18,8" ColumnDefinitions="96,*,Auto">
                                             <TextBlock Grid.Column="0"
                                                        VerticalAlignment="Center"
                                                        Text="{Binding DisplayName, StringFormat={}{0}:}"
@@ -1234,6 +1233,13 @@
                                                             Password="{Binding Cookie, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                             PlaceholderText="{I18N UseCookieEnterHint}"
                                                             RevealButtonEnabled="True" />
+                                            <Button Grid.Column="2"
+                                                    MinWidth="56"
+                                                    Margin="10,0,0,0"
+                                                    Command="{Binding DataContext.AcquirePlatformCookieCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                    CommandParameter="{Binding}"
+                                                    Content="{I18N AcquireCookie}"
+                                                    FocusVisualStyle="{x:Null}" />
                                         </ui:Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>

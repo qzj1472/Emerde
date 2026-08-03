@@ -1,4 +1,5 @@
 using Emerde.Core;
+using Emerde.Plugins;
 using Emerde.Views;
 using System.Collections.ObjectModel;
 using System.Text.Json;
@@ -8,6 +9,15 @@ namespace Emerde.Tests;
 
 public sealed class ScreenRecordListWindowTests
 {
+    [Fact]
+    public void VideoList_ContextMenuLoadsRegisteredExtensionActions()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
+
+        Assert.Contains("ContextMenuOpening=\"VideoCardContextMenuOpening\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("GetOverrides<IExtensionVideoAction>(ExtensionContractNames.VideoListActions)", code, StringComparison.Ordinal);
+    }
     [Theory]
     [InlineData(0, true, ".mp4", true)]
     [InlineData(0, false, ".mp4", false)]
@@ -150,6 +160,56 @@ public sealed class ScreenRecordListWindowTests
         RecordedVideoItem[] result = ScreenRecordListViewModel.ReuseExistingVideoItems([existing], [changed]);
 
         Assert.Same(changed, result[0]);
+    }
+
+    [Theory]
+    [InlineData(@"C:\videos\record.ts", WatcherChangeTypes.Deleted, false, true)]
+    [InlineData(@"C:\videos\record.ts", WatcherChangeTypes.Created, true, false)]
+    [InlineData(@"C:\videos\record.txt", WatcherChangeTypes.Created, false, false)]
+    public void DirectoryRefresh_SkipsProtectedMediaChanges(
+        string path,
+        WatcherChangeTypes changeType,
+        bool isProtected,
+        bool expected)
+    {
+        Assert.Equal(expected, ScreenRecordListViewModel.ShouldQueueDirectoryRefresh(path, changeType, isProtected));
+    }
+
+    [Fact]
+    public void ReconcileVideoItems_PreservesExistingReferencesWithoutClearingCollection()
+    {
+        ObservableCollection<RecordedVideoItem> current =
+        [
+            new RecordedVideoItem { FullPath = @"C:\videos\first.ts" },
+            new RecordedVideoItem { FullPath = @"C:\videos\second.ts" },
+        ];
+        RecordedVideoItem first = current[0];
+        RecordedVideoItem second = current[1];
+        RecordedVideoItem third = new() { FullPath = @"C:\videos\third.ts" };
+
+        ScreenRecordListViewModel.ReconcileVideoItems(current, [second, third, first]);
+
+        Assert.Equal([second, third, first], current);
+    }
+
+    [Fact]
+    public void TryGetExistingFile_ReturnsFalseAfterFileIsRemoved()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"emerde-list-file-{Guid.NewGuid():N}.ts");
+        File.WriteAllBytes(path, [1, 2, 3]);
+        try
+        {
+            Assert.True(ScreenRecordListViewModel.TryGetExistingFile(path, out _, out long length));
+            Assert.Equal(3, length);
+
+            File.Delete(path);
+
+            Assert.False(ScreenRecordListViewModel.TryGetExistingFile(path, out _, out _));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     [Fact]
@@ -300,6 +360,94 @@ public sealed class ScreenRecordListWindowTests
         Assert.False(viewModel.IsMultiSelectMode);
         Assert.False(item.IsSelected);
         Assert.Equal(0, item.SelectionOrder);
+    }
+
+    [Fact]
+    public void ResetSelectionForPageNavigation_ClearsMultiSelectionWithoutClearingRegularFocus()
+    {
+        ScreenRecordListViewModel viewModel = new();
+        ObservableCollection<RecordedVideoItem> videos = Assert.IsType<ObservableCollection<RecordedVideoItem>>(viewModel.Videos.SourceCollection);
+        RecordedVideoItem regular = new() { FullPath = @"C:\videos\regular.ts" };
+        RecordedVideoItem multi = new() { FullPath = @"C:\videos\multi.ts" };
+        videos.Add(regular);
+        videos.Add(multi);
+
+        viewModel.SelectRegularItem(regular);
+        viewModel.SelectMultipleItem(multi, true, false);
+        viewModel.ResetSelectionForPageNavigation();
+
+        Assert.Same(regular, viewModel.RegularSelectedItem);
+        Assert.False(viewModel.IsMultiSelectMode);
+        Assert.False(regular.IsSelected);
+        Assert.False(multi.IsSelected);
+        Assert.Equal(0, viewModel.SelectedVideoCount);
+    }
+
+    [Fact]
+    public void ExtensionVideoSelection_ReturnsRegularSelectedExistingFile()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"Emerde.VideoSelection.{Guid.NewGuid():N}");
+        string mediaPath = Path.Combine(root, "regular.mp4");
+        Directory.CreateDirectory(root);
+        File.WriteAllBytes(mediaPath, [1]);
+        try
+        {
+            ScreenRecordListViewModel viewModel = new();
+            ObservableCollection<RecordedVideoItem> videos = Assert.IsType<ObservableCollection<RecordedVideoItem>>(viewModel.Videos.SourceCollection);
+            RecordedVideoItem item = new()
+            {
+                FullPath = mediaPath,
+                NickName = "主播",
+                Title = "旧视频",
+                CreatedAt = new DateTime(2026, 8, 1),
+            };
+            videos.Add(item);
+            viewModel.SelectRegularItem(item);
+
+            ExtensionVideoFileInfo selected = Assert.Single(viewModel.GetSelectedFiles());
+
+            Assert.Equal(new FileInfo(mediaPath).FullName, selected.FilePath);
+            Assert.Equal("主播", selected.NickName);
+            Assert.Equal("旧视频", selected.Title);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void ExtensionVideoSelection_UsesUserOrderAndSkipsMissingFilesInMultiSelect()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"Emerde.VideoSelection.{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        string firstPath = Path.Combine(root, "first.mp4");
+        string secondPath = Path.Combine(root, "second.mp4");
+        string missingPath = Path.Combine(root, "missing.mp4");
+        File.WriteAllBytes(firstPath, [1]);
+        File.WriteAllBytes(secondPath, [2]);
+        try
+        {
+            ScreenRecordListViewModel viewModel = new();
+            ObservableCollection<RecordedVideoItem> videos = Assert.IsType<ObservableCollection<RecordedVideoItem>>(viewModel.Videos.SourceCollection);
+            RecordedVideoItem first = new() { FullPath = firstPath };
+            RecordedVideoItem second = new() { FullPath = secondPath };
+            RecordedVideoItem missing = new() { FullPath = missingPath };
+            videos.Add(first);
+            videos.Add(second);
+            videos.Add(missing);
+            viewModel.SelectMultipleItem(second, true, false);
+            viewModel.SelectMultipleItem(missing, true, false);
+            viewModel.SelectMultipleItem(first, true, false);
+
+            IReadOnlyList<ExtensionVideoFileInfo> selected = viewModel.GetSelectedFiles();
+
+            Assert.Equal([new FileInfo(secondPath).FullName, new FileInfo(firstPath).FullName], selected.Select(item => item.FilePath));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
     }
 
     [Fact]

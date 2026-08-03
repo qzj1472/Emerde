@@ -118,6 +118,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     [NotifyPropertyChangedFor(nameof(IsHomePageSelected))]
     [NotifyPropertyChangedFor(nameof(IsVideoListPageSelected))]
     [NotifyPropertyChangedFor(nameof(IsSettingsPageSelected))]
+    [NotifyPropertyChangedFor(nameof(IsExtensionsPageSelected))]
     [NotifyPropertyChangedFor(nameof(IsAboutPageSelected))]
     private int selectedMainPageIndex;
 
@@ -127,11 +128,13 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     public bool IsSettingsPageSelected => SelectedMainPageIndex == 2;
 
-    public bool IsAboutPageSelected => SelectedMainPageIndex == 3;
+    public bool IsExtensionsPageSelected => SelectedMainPageIndex == 3;
+
+    public bool IsAboutPageSelected => SelectedMainPageIndex == 4;
 
     partial void OnSelectedMainPageIndexChanged(int value)
     {
-        if (value < 0 || value > 3)
+        if (value < 0 || value > 4)
         {
             SelectedMainPageIndex = 0;
             return;
@@ -616,7 +619,6 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         ChildProcessTracerPeriodicTimer.Default.WhiteList = [];
         ChildProcessTracerPeriodicTimer.Default.Start();
-        RecordingRecoveryService.QueueRun();
         if (ShouldRunMonitorLoop())
         {
             GlobalMonitor.Start();
@@ -2281,7 +2283,15 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return;
         }
 
-        await AddConfirmedRoomAsync(dialog.NickName, dialog.RoomUrl, dialog.SpiderResult);
+        await AddConfirmedRoomAsync(
+            dialog.NickName,
+            dialog.RoomUrl,
+            dialog.SpiderResult,
+            dialog.IsFollowGlobalSettings,
+            dialog.SettingsEditor.IsToNotify,
+            dialog.SettingsEditor.IsToMonitor,
+            dialog.SettingsEditor.IsToRecord,
+            dialog.RecordingOptions);
     }
 
     private static async Task<ContentDialogResult> ShowMainContentDialogAsync(ContentDialog dialog)
@@ -2290,22 +2300,33 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         return await WindowSizing.ShowContentDialogAsync(dialog, owner);
     }
 
-    private async Task AddConfirmedRoomAsync(string nickName, string roomUrl, ISpiderResult? spiderResult)
+    private async Task AddConfirmedRoomAsync(
+        string nickName,
+        string roomUrl,
+        ISpiderResult? spiderResult,
+        bool isFollowGlobalSettings,
+        bool isToNotify,
+        bool isToMonitor,
+        bool isToRecord,
+        RoomRecordingOptions recordingOptions)
     {
         RoomListHistoryState before = CaptureRoomListHistoryState();
         List<Room> rooms = [.. Configurations.Rooms.Get() ?? []];
 
         rooms.RemoveAll(room => string.Equals(room.RoomUrl, roomUrl, StringComparison.OrdinalIgnoreCase));
-        rooms.Add(new Room()
+        Room room = new()
         {
             NickName = nickName,
             RoomUrl = roomUrl,
             AvatarThumbUrl = spiderResult?.AvatarThumbUrl ?? string.Empty,
             PlatformName = Spider.GetPlatformName(roomUrl),
-            IsToMonitor = Configurations.IsToMonitor.Get(),
-            IsToRecord = Configurations.IsToRecord.Get(),
-            IsFollowGlobalSettings = true,
-        });
+            IsToNotify = isToNotify,
+            IsToMonitor = isToMonitor,
+            IsToRecord = isToRecord,
+            IsFollowGlobalSettings = isFollowGlobalSettings,
+        };
+        RoomRecordingSettings.Apply(room, recordingOptions);
+        rooms.Add(room);
         Configurations.Rooms.Set([.. rooms]);
         ConfigurationSaveScheduler.Request();
 
@@ -2315,9 +2336,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             RoomUrl = roomUrl,
             AvatarLocalPath = AvatarCache.GetCachedAvatarSource(roomUrl),
             PlatformName = Spider.GetPlatformName(roomUrl),
-            IsToMonitor = Configurations.IsToMonitor.Get(),
-            IsToRecord = Configurations.IsToRecord.Get(),
-            IsFollowGlobalSettings = true,
+            IsToNotify = isToNotify,
+            IsToMonitor = isToMonitor,
+            IsToRecord = isToRecord,
+            IsFollowGlobalSettings = isFollowGlobalSettings,
             AddedOrder = RoomStatuses.Count == 0 ? 0 : RoomStatuses.Max(room => room.AddedOrder) + 1,
         };
         if (spiderResult != null)
@@ -2358,6 +2380,12 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     }
 
     [RelayCommand]
+    private void OpenExtensions()
+    {
+        SelectedMainPageIndex = 3;
+    }
+
+    [RelayCommand]
     private async Task OpenSaveFolderAsync()
     {
         try
@@ -2394,7 +2422,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     [RelayCommand]
     private void OpenAbout()
     {
-        SelectedMainPageIndex = 3;
+        SelectedMainPageIndex = 4;
     }
 
     [RelayCommand]
@@ -3965,7 +3993,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             GlobalMonitor.SyncRecordStatus(runtimeStatus);
             currentRecordStatus = runtimeStatus.RecordStatus;
         }
-        bool enabled = ShouldEnableSelectedRoomRecord(currentRecordStatus);
+        bool enabled = ShouldEnableSelectedRoomRecord(currentRecordStatus, SelectedItem.EffectiveIsToRecord);
         if (enabled)
         {
             GlobalMonitor.ClearRoomRecordStartPause(SelectedItem.RoomUrl);
@@ -4025,9 +4053,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         RefreshRoomEffectiveStates();
     }
 
-    internal static bool ShouldEnableSelectedRoomRecord(RecordStatus recordStatus)
+    internal static bool ShouldEnableSelectedRoomRecord(RecordStatus recordStatus, bool effectiveIsToRecord)
     {
-        return recordStatus != RecordStatus.Recording;
+        return recordStatus != RecordStatus.Recording && !effectiveIsToRecord;
     }
 
     private void StopGlobalFollowRecorders()
@@ -4107,6 +4135,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             PrimaryButtonText = "Save".Tr(),
             CloseButtonText = "ButtonOfCancel".Tr(),
             DefaultButton = ContentDialogButton.Primary,
+            FocusVisualStyle = null,
             Style = Application.Current?.TryFindResource("DefaultVioletaContentDialogStyle") as Style,
         };
         content.ApplyDialogVisualSize(dialog, owner);

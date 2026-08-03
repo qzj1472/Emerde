@@ -46,6 +46,81 @@ public sealed class SettingsViewModelTests
         Assert.Contains("IsTranscodedRecordFormat", (string?)removeSource.Attribute("Visibility"));
     }
 
+    [Fact]
+    public void LocalSettings_InsetsScrollingContentAndScrollbar()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "LocalSettingsContentDialog.xaml"));
+        XElement scrollViewer = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == "LocalSettingsScrollViewer");
+
+        Assert.Equal("0,0,8,0", (string?)scrollViewer.Attribute("Margin"));
+        Assert.Equal("14,12,6,12", (string?)scrollViewer.Attribute("Padding"));
+    }
+
+    [Fact]
+    public void EmbeddedLocalSettings_UsesDeeperScrollFades()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "LocalSettingsContentDialog.xaml"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement topFade = document.Descendants()
+            .Single(element => (string?)element.Attribute(xaml + "Name") == "TopScrollFade");
+        XElement bottomFade = document.Descendants()
+            .Single(element => (string?)element.Attribute(xaml + "Name") == "BottomScrollFade");
+
+        Assert.Contains(topFade.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Height"
+            && (string?)element.Attribute("Value") == "32");
+        Assert.Contains(bottomFade.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Height"
+            && (string?)element.Attribute("Value") == "36");
+        Assert.All(topFade.Descendants().Where(element => element.Name.LocalName == "MultiDataTrigger")
+            .Concat(bottomFade.Descendants().Where(element => element.Name.LocalName == "MultiDataTrigger")), trigger =>
+            Assert.Equal(2, trigger.Descendants().Count(element => element.Name.LocalName == "Condition")));
+    }
+
+    [Fact]
+    public void LocalSettings_UsesACompactGlobalOptionsCard()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "LocalSettingsContentDialog.xaml"));
+        XElement card = document.Descendants()
+            .Single(element => element.Name.LocalName == "Card"
+                && ((string?)element.Attribute("Visibility"))?.Contains("ShowSettingsHeader", StringComparison.Ordinal) == true);
+
+        Assert.Equal("64", (string?)card.Attribute("MinHeight"));
+        Assert.Equal("14,10,14,8", (string?)card.Attribute("Margin"));
+        Assert.Equal("14,8", (string?)card.Attribute("Padding"));
+    }
+
+    [Fact]
+    public void LocalSegmentInputs_AreCollapsedWhenSegmentationIsDisabled()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "LocalSettingsContentDialog.xaml"));
+        XElement numberBox = document.Descendants()
+            .Single(element => element.Name.LocalName == "CompactNumberBox"
+                && ((string?)element.Attribute("Value"))?.Contains("SegmentTimeValue", StringComparison.Ordinal) == true);
+        XElement inputGroup = numberBox.Ancestors()
+            .First(element => element.Name.LocalName == "StackPanel"
+                && element.Attribute("Visibility") != null);
+
+        Assert.Contains("IsToSegment", (string?)inputGroup.Attribute("Visibility"));
+    }
+
+    [Theory]
+    [InlineData("LocalSettingsContentDialog.xaml")]
+    [InlineData("SettingsWindow.xaml")]
+    public void CustomScheduleDays_UseSevenEqualColumns(string fileName)
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", fileName));
+        XElement uniformGrid = document.Descendants()
+            .Single(element => element.Name.LocalName == "UniformGrid"
+                && element.Elements().Count(child => child.Name.LocalName == "ToggleButton") == 7);
+
+        Assert.Equal("7", (string?)uniformGrid.Attribute("Columns"));
+        Assert.All(uniformGrid.Elements(), button => Assert.Equal("Stretch", (string?)button.Attribute("HorizontalAlignment")));
+    }
+
     [Theory]
     [InlineData("127.0.0.1:7890", "http://127.0.0.1:7890/")]
     [InlineData("localhost:8080", "http://localhost:8080/")]

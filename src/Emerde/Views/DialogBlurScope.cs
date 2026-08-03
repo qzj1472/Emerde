@@ -292,11 +292,6 @@ internal sealed class DialogBlurScope : IDisposable
 
         ownerEnableTimer?.Stop();
         dialogMaskClearTimer?.Stop();
-        ClearDialogMaskVisuals(sender);
-        if (ownerWindow != null)
-        {
-            EnableOwnerWindow(ownerWindow);
-        }
 
         if (isExitAnimating)
         {
