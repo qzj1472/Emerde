@@ -19,7 +19,8 @@
   ],
   "permissions": [
     "credentials.platform-cookie.read",
-    "ui.modify"
+    "ui.modify",
+    "events.media-finalized.read"
   ],
   "settings": [
     {

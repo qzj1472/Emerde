@@ -759,6 +759,7 @@ public sealed class DouyinPublisherTests
             Assert.Contains($"\"key\": \"{key}\"", manifest, StringComparison.Ordinal);
         }
         Assert.Contains("\"version\": \"1.3.3\"", manifest, StringComparison.Ordinal);
+        Assert.Contains("events.media-finalized.read", manifest, StringComparison.Ordinal);
         Assert.Contains("\"section\": \"基础信息\"", manifest, StringComparison.Ordinal);
         Assert.Contains("\"column\": 1", manifest, StringComparison.Ordinal);
         Assert.Contains("\"{title}\"", manifest, StringComparison.Ordinal);
