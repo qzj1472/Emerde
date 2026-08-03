@@ -103,7 +103,88 @@ public sealed class RoomCardLayoutTests
 
         Assert.Equal("UniformGrid", panel.Name.LocalName);
         Assert.Contains("RoomCardColumnCount", (string?)panel.Attribute("Columns") ?? string.Empty);
+        Assert.Equal("Top", (string?)panel.Attribute("VerticalAlignment"));
         Assert.DoesNotContain(itemsPanel.Descendants(), element => element.Name.LocalName == "WrapPanel");
+    }
+
+    [Fact]
+    public void TopAlignedRoomCardGrid_KeepsFixedRowSpacingWhenTheViewportIsUnderfilled()
+    {
+        RunOnStaThread(() =>
+        {
+            System.Windows.Controls.Primitives.UniformGrid panel = new()
+            {
+                Columns = 3,
+                VerticalAlignment = System.Windows.VerticalAlignment.Top,
+            };
+            List<System.Windows.Controls.Border> cards = [];
+            for (int index = 0; index < 6; index++)
+            {
+                System.Windows.Controls.Border card = new()
+                {
+                    Width = 100d,
+                    Height = 60d,
+                    Margin = new System.Windows.Thickness(6d),
+                };
+                cards.Add(card);
+                panel.Children.Add(card);
+            }
+
+            panel.Measure(new System.Windows.Size(600d, 400d));
+            panel.Arrange(new System.Windows.Rect(0d, 0d, 600d, 400d));
+
+            System.Windows.Point firstRow = cards[0].TranslatePoint(new System.Windows.Point(), panel);
+            System.Windows.Point secondRow = cards[3].TranslatePoint(new System.Windows.Point(), panel);
+
+            Assert.Equal(144d, panel.ActualHeight);
+            Assert.Equal(72d, secondRow.Y - firstRow.Y);
+        });
+    }
+
+    [Fact]
+    public void RoomCardScrollViewer_UsesTheSharedScrollBarStyleInsideTheEighteenPixelRail()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement viewer = document.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "RoomCardScrollViewer");
+        XElement roomCardList = document.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "RoomCardList");
+        XElement style = document.Descendants().Single(element => (string?)element.Attribute(x + "Key") == "CenteredVerticalScrollViewerStyle");
+        XElement template = style.Descendants().Single(element => element.Name.LocalName == "ControlTemplate");
+        XElement scrollBar = template.Descendants().Single(element => element.Name.LocalName == "ScrollBar");
+
+        Assert.Equal("{StaticResource CenteredVerticalScrollViewerStyle}", (string?)viewer.Attribute("Style"));
+        Assert.Equal("6", (string?)viewer.Attribute("Padding"));
+        Assert.Equal("Auto", (string?)roomCardList.Attribute("ScrollViewer.VerticalScrollBarVisibility"));
+        Assert.Equal("6", (string?)style.Elements().Single(element => element.Name.LocalName == "Setter" && (string?)element.Attribute("Property") == "Padding").Attribute("Value"));
+        Assert.Contains(template.Descendants(), element => element.Name.LocalName == "ColumnDefinition" && (string?)element.Attribute("Width") == "Auto");
+        Assert.Equal("18", (string?)scrollBar.Attribute("Width"));
+        Assert.Equal("1", (string?)scrollBar.Attribute("Grid.Column"));
+        Assert.Equal("Center", (string?)scrollBar.Attribute("HorizontalAlignment"));
+        Assert.Equal("{StaticResource UiScrollBar}", (string?)scrollBar.Attribute("Style"));
+        Assert.Null(scrollBar.Attribute("Margin"));
+        Assert.Empty(scrollBar.Elements());
+        Assert.Contains(template.Descendants(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("TargetName") == "RoomCardScrollContentPresenter"
+            && (string?)element.Attribute("Property") == "Margin"
+            && (string?)element.Attribute("Value") == "6,6,-6,6");
+        XElement listStyle = document.Descendants().Single(element => (string?)element.Attribute(x + "Key") == "RoomCardListBoxStyle");
+        XElement listTemplate = listStyle.Descendants().Single(element => element.Name.LocalName == "ControlTemplate");
+        XElement topFade = listTemplate.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "RoomCardTopFade");
+        XElement bottomFade = listTemplate.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "RoomCardBottomFade");
+        Assert.Equal("6,6,6,0", (string?)topFade.Attribute("Margin"));
+        Assert.Equal("6,0,6,6", (string?)bottomFade.Attribute("Margin"));
+    }
+
+    [Fact]
+    public void HomeStatusTray_UsesTheSameSixPixelInsetAboveAndBelow()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement statusTray = document.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "HomeStatusTray");
+        XElement shellSurface = document.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "ShellContentSurface");
+
+        Assert.Equal("2,6,2,0", (string?)statusTray.Attribute("Margin"));
+        Assert.EndsWith(",6", (string?)shellSurface.Attribute("Padding"));
     }
 
     [Theory]
@@ -135,5 +216,29 @@ public sealed class RoomCardLayoutTests
         }
 
         throw new FileNotFoundException(string.Join(Path.DirectorySeparatorChar, parts));
+    }
+
+    private static void RunOnStaThread(Action action)
+    {
+        Exception? error = null;
+        Thread thread = new(() =>
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception exception)
+            {
+                error = exception;
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (error != null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error).Throw();
+        }
     }
 }

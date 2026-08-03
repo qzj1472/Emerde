@@ -23,6 +23,8 @@
                  AllowDrop="True"
                  PreviewDragOver="MainWindowPreviewDragOver"
                  PreviewDrop="MainWindowPreviewDrop"
+                 SnapsToDevicePixels="True"
+                 UseLayoutRounding="True"
                  mc:Ignorable="d">
     <Grid Background="{DynamicResource EmerdeShellBackgroundBrush}">
         <Grid.Resources>
@@ -490,133 +492,8 @@
                 </Style.Triggers>
             </Style>
 
-            <Style x:Key="CenteredVerticalScrollBarLineButtonStyle" TargetType="{x:Type RepeatButton}">
-                <Setter Property="Width" Value="12" />
-                <Setter Property="Height" Value="12" />
-                <Setter Property="Padding" Value="0" />
-                <Setter Property="Focusable" Value="False" />
-                <Setter Property="BorderThickness" Value="0" />
-                <Setter Property="Background" Value="Transparent" />
-                <Setter Property="HorizontalContentAlignment" Value="Center" />
-                <Setter Property="VerticalContentAlignment" Value="Center" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="{x:Type RepeatButton}">
-                            <Border x:Name="ButtonChrome"
-                                    Width="{TemplateBinding Width}"
-                                    Height="{TemplateBinding Height}"
-                                    Background="{TemplateBinding Background}"
-                                    CornerRadius="{StaticResource Win11ControlCornerRadius}"
-                                    SnapsToDevicePixels="True">
-                                <ContentPresenter HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center" />
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="ButtonChrome" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
-                                </Trigger>
-                                <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="ButtonChrome" Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <Style x:Key="CenteredVerticalScrollBarPageButtonStyle" TargetType="{x:Type RepeatButton}">
-                <Setter Property="Focusable" Value="False" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="{x:Type RepeatButton}">
-                            <Border Background="Transparent" />
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <Style x:Key="CenteredVerticalScrollBarThumbStyle" TargetType="{x:Type Thumb}">
-                <Setter Property="MinHeight" Value="24" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="{x:Type Thumb}">
-                            <Border x:Name="ThumbChrome"
-                                    Width="8"
-                                    Background="{DynamicResource SystemFillColorSolidNeutralBrush}"
-                                    CornerRadius="8"
-                                    Opacity="0.65"
-                                    SnapsToDevicePixels="True" />
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="ThumbChrome" Property="Opacity" Value="0.85" />
-                                </Trigger>
-                                <Trigger Property="IsDragging" Value="True">
-                                    <Setter TargetName="ThumbChrome" Property="Opacity" Value="1" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <Style x:Key="CenteredVerticalScrollBarStyle" TargetType="{x:Type ScrollBar}">
-                <Setter Property="Width" Value="12" />
-                <Setter Property="MinWidth" Value="12" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="{x:Type ScrollBar}">
-                            <Grid Width="{TemplateBinding Width}"
-                                  Background="Transparent"
-                                  SnapsToDevicePixels="True">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="12" />
-                                    <RowDefinition Height="*" />
-                                    <RowDefinition Height="12" />
-                                </Grid.RowDefinitions>
-
-                                <RepeatButton Grid.Row="0"
-                                              Command="{x:Static ScrollBar.LineUpCommand}"
-                                              Style="{StaticResource CenteredVerticalScrollBarLineButtonStyle}">
-                                    <Path Width="6"
-                                          Height="4"
-                                          Data="M 0 4 L 3 0 L 6 4 Z"
-                                          Fill="{DynamicResource TextFillColorSecondaryBrush}"
-                                          Stretch="Fill" />
-                                </RepeatButton>
-
-                                <Track x:Name="PART_Track"
-                                       Grid.Row="1"
-                                       Width="8"
-                                       HorizontalAlignment="Center"
-                                       IsDirectionReversed="True">
-                                    <Track.DecreaseRepeatButton>
-                                        <RepeatButton Command="{x:Static ScrollBar.PageUpCommand}" Style="{StaticResource CenteredVerticalScrollBarPageButtonStyle}" />
-                                    </Track.DecreaseRepeatButton>
-                                    <Track.Thumb>
-                                        <Thumb Style="{StaticResource CenteredVerticalScrollBarThumbStyle}" />
-                                    </Track.Thumb>
-                                    <Track.IncreaseRepeatButton>
-                                        <RepeatButton Command="{x:Static ScrollBar.PageDownCommand}" Style="{StaticResource CenteredVerticalScrollBarPageButtonStyle}" />
-                                    </Track.IncreaseRepeatButton>
-                                </Track>
-
-                                <RepeatButton Grid.Row="2"
-                                              Command="{x:Static ScrollBar.LineDownCommand}"
-                                              Style="{StaticResource CenteredVerticalScrollBarLineButtonStyle}">
-                                    <Path Width="6"
-                                          Height="4"
-                                          Data="M 0 0 L 3 4 L 6 0 Z"
-                                          Fill="{DynamicResource TextFillColorSecondaryBrush}"
-                                          Stretch="Fill" />
-                                </RepeatButton>
-                            </Grid>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
             <Style x:Key="CenteredVerticalScrollViewerStyle" TargetType="{x:Type ScrollViewer}">
-                <Setter Property="Padding" Value="10" />
+                <Setter Property="Padding" Value="6" />
                 <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
                 <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
                 <Setter Property="Template">
@@ -625,27 +502,32 @@
                             <Grid ClipToBounds="True">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="22" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-
-                                <ScrollContentPresenter Grid.Column="0"
+                                <ScrollContentPresenter x:Name="RoomCardScrollContentPresenter"
+                                                        Grid.Column="0"
                                                         Margin="{TemplateBinding Padding}"
                                                         CanContentScroll="{TemplateBinding CanContentScroll}"
                                                         Content="{TemplateBinding Content}"
                                                         ContentTemplate="{TemplateBinding ContentTemplate}" />
                                 <ScrollBar x:Name="PART_VerticalScrollBar"
                                            Grid.Column="1"
-                                           Width="12"
-                                           Margin="5"
+                                           Width="18"
                                            HorizontalAlignment="Center"
                                            Maximum="{TemplateBinding ScrollableHeight}"
                                            Minimum="0"
                                            Orientation="Vertical"
-                                           Style="{StaticResource CenteredVerticalScrollBarStyle}"
+                                           IsVisibleChanged="RoomCardScrollBarVisibilityChanged"
+                                           Style="{StaticResource UiScrollBar}"
                                            ViewportSize="{TemplateBinding ViewportHeight}"
                                            Value="{TemplateBinding VerticalOffset}"
                                            Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" />
                             </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger SourceName="PART_VerticalScrollBar" Property="Visibility" Value="Visible">
+                                    <Setter TargetName="RoomCardScrollContentPresenter" Property="Margin" Value="6,6,-6,6" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
@@ -662,26 +544,35 @@
                                               Focusable="False"
                                               FocusVisualStyle="{x:Null}"
                                               BorderThickness="0"
-                                              Padding="9"
+                                              Padding="6"
                                               HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
-                                              VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}">
+                                              VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}"
+                                              Style="{StaticResource CenteredVerticalScrollViewerStyle}">
                                     <ItemsPresenter />
                                 </ScrollViewer>
-                                <Border Height="6"
-                                        Margin="9,9,22,0"
+                                <Border x:Name="RoomCardTopFade"
+                                        Height="6"
+                                        Margin="6,6,6,0"
                                         VerticalAlignment="Top"
                                         Panel.ZIndex="20"
                                         Background="{DynamicResource EmerdePanelBrush}"
                                         IsHitTestVisible="False"
                                         OpacityMask="{StaticResource TopEdgeFadeOpacityMask}" />
-                                <Border Height="6"
-                                        Margin="9,0,22,9"
+                                <Border x:Name="RoomCardBottomFade"
+                                        Height="6"
+                                        Margin="6,0,6,6"
                                         VerticalAlignment="Bottom"
                                         Panel.ZIndex="20"
                                         Background="{DynamicResource EmerdePanelBrush}"
                                         IsHitTestVisible="False"
                                         OpacityMask="{StaticResource BottomEdgeFadeOpacityMask}" />
                             </Grid>
+                            <ControlTemplate.Triggers>
+                                <DataTrigger Binding="{Binding ComputedVerticalScrollBarVisibility, ElementName=RoomCardScrollViewer}" Value="Visible">
+                                    <Setter TargetName="RoomCardTopFade" Property="Margin" Value="6,6,18,0" />
+                                    <Setter TargetName="RoomCardBottomFade" Property="Margin" Value="6,0,18,6" />
+                                </DataTrigger>
+                            </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
@@ -935,15 +826,16 @@
                                  Loaded="RoomCardListLoaded"
                                  LostMouseCapture="RoomCardListLostMouseCapture"
                                  Padding="0"
-                                 ScrollViewer.CanContentScroll="True"
-                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                 ScrollViewer.VerticalScrollBarVisibility="Visible"
+                                  ScrollViewer.CanContentScroll="True"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
                                  SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
                                  SelectionMode="Single"
                                  Style="{StaticResource RoomCardListBoxStyle}">
                             <ListBox.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <UniformGrid IsItemsHost="True"
+                                                 VerticalAlignment="Top"
                                                  Columns="{Binding RoomCardColumnCount, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" />
                                 </ItemsPanelTemplate>
                             </ListBox.ItemsPanel>
@@ -1501,7 +1393,7 @@
             <ui:Grid x:Name="HomeStatusTray"
                      Grid.Row="2"
                      Height="28"
-                     Margin="0,4,0,0"
+                     Margin="2,6,2,0"
                      SnapsToDevicePixels="True"
                      UseLayoutRounding="True"
                      VerticalAlignment="Center"

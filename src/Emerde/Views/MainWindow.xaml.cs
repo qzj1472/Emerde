@@ -205,7 +205,7 @@ public partial class MainWindow : FluentWindow
     private const double RoomCardVerticalGap = 12d;
     private const double RoomCardSmallGapScale = 2d / 3d;
     private const double RoomCardScrollContentPadding = 6d;
-    private const double RoomCardScrollBarReservedWidth = 17d;
+    private const double RoomCardScrollBarWidth = 18d;
     private const int WmGetMinMaxInfo = 0x0024;
     private const int WmNcHitTest = 0x0084;
     private const int WmSysCommand = 0x0112;
@@ -1648,7 +1648,9 @@ public partial class MainWindow : FluentWindow
 
     private static double NormalizeAnimatedWidth(double value)
     {
-        return double.IsFinite(value) ? Math.Max(0d, value) : value > 0d ? double.MaxValue : 0d;
+        return double.IsFinite(value)
+            ? Math.Max(0d, WindowSizing.RoundLayoutValue(value))
+            : value > 0d ? double.MaxValue : 0d;
     }
 
     private static void AnimateHomePreviewColumn(ColumnDefinition column, double from, double to)
@@ -1688,7 +1690,7 @@ public partial class MainWindow : FluentWindow
 
     internal static double GetHomeDetailPanelMaxWidth()
     {
-        return Math.Round(HomeDetailPanelBaseMaxWidth * (1d - HomeDetailPanelMaxWidthReductionRatio));
+        return WindowSizing.RoundLayoutValue(HomeDetailPanelBaseMaxWidth * (1d - HomeDetailPanelMaxWidthReductionRatio));
     }
 
     private void RoundedPanelContentSizeChanged(object sender, SizeChangedEventArgs e)
@@ -1705,6 +1707,14 @@ public partial class MainWindow : FluentWindow
     {
         RoundedPanelContentSizeChanged(sender, e);
         UpdateRoomCardMetrics(e.NewSize.Width);
+    }
+
+    private void RoomCardScrollBarVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (IsLoaded)
+        {
+            QueueRoomCardMetricsRefresh();
+        }
     }
 
     private void HomePreviewLayoutRootSizeChanged(object sender, SizeChangedEventArgs e)
@@ -1817,7 +1827,7 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
-        double availableWidth = GetRoomCardAvailableWidth(width - RoomCardScrollContentPadding * 2d - RoomCardScrollBarReservedWidth);
+        double availableWidth = GetRoomCardAvailableWidth(GetRoomCardLayoutWidth(width));
         bool isPreviewMode = ViewModel.IsPreviewing;
         double baseWidth = GetRoomCardBaseWidth(availableWidth, isPreviewMode);
         double effectivePreference = NormalizeRoomCardScale(availableWidth, baseWidth, roomCardSizePreference);
@@ -1831,18 +1841,34 @@ public partial class MainWindow : FluentWindow
             baseWidth * effectivePreference,
             horizontalGap);
         double cardWidth = GetCardWidthForColumns(availableWidth, columns, horizontalGap);
-        double cardHeight = Math.Floor(cardWidth * 2d / 3d);
+        double cardHeight = WindowSizing.RoundLayoutValue(cardWidth * 2d / 3d);
 
         RoomCardColumnCount = columns;
         RoomCardWidth = cardWidth;
         RoomCardHeight = cardHeight;
-        RoomCardMargin = new Thickness(horizontalGap / 2d, verticalGap / 2d, horizontalGap / 2d, verticalGap / 2d);
+        double horizontalMargin = WindowSizing.RoundLayoutValue(horizontalGap / 2d);
+        double verticalMargin = WindowSizing.RoundLayoutValue(verticalGap / 2d);
+        RoomCardMargin = new Thickness(horizontalMargin, verticalMargin, horizontalMargin, verticalMargin);
         UpdateRoomCardVisualMetrics(cardWidth, baseWidth);
     }
 
     private static double GetRoomCardAvailableWidth(double width)
     {
         return Math.Max(90d, width);
+    }
+
+    private double GetRoomCardScrollBarReservedWidth()
+    {
+        return FindVisualChild<System.Windows.Controls.Primitives.ScrollBar>(RoomCardList, "PART_VerticalScrollBar")?.Visibility == Visibility.Visible
+            ? RoomCardScrollBarWidth
+            : 0d;
+    }
+
+    private double GetRoomCardLayoutWidth(double width)
+    {
+        double scrollBarWidth = GetRoomCardScrollBarReservedWidth();
+        double rightPadding = scrollBarWidth > 0d ? -RoomCardScrollContentPadding : RoomCardScrollContentPadding;
+        return width - RoomCardScrollContentPadding - rightPadding - scrollBarWidth;
     }
 
     private void CaptureRoomCardBaseWidth(double width)
@@ -1858,7 +1884,7 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
-        double availableWidth = GetRoomCardAvailableWidth(width - RoomCardScrollContentPadding * 2d - RoomCardScrollBarReservedWidth);
+        double availableWidth = GetRoomCardAvailableWidth(GetRoomCardLayoutWidth(width));
         int baseColumns = GetRoomCardBaseColumns(isPreviewMode);
         double baseWidth = Math.Max(1d, (availableWidth - GetRoomCardHorizontalGap(RoomCardMediumSizeScale) * baseColumns) / baseColumns);
 
@@ -1960,7 +1986,7 @@ public partial class MainWindow : FluentWindow
 
     private static double GetCardWidthForColumns(double availableWidth, int columns, double horizontalGap)
     {
-        return Math.Max(1d, availableWidth / columns - horizontalGap);
+        return Math.Max(1d, WindowSizing.RoundLayoutValue(availableWidth / columns - horizontalGap));
     }
 
     private void UpdateRoomCardVisualMetrics(double cardWidth, double baseWidth)
@@ -1970,26 +1996,34 @@ public partial class MainWindow : FluentWindow
 
         double avatarSize = CalculateRoomCardAvatarSize(scale);
 
-        RoomCardPadding = new Thickness(Math.Round(8d * scale));
-        RoomCardAvatarContainerSize = Math.Max(avatarSize, Math.Round(38d * scale));
+        RoomCardPadding = new Thickness(WindowSizing.RoundLayoutValue(8d * scale));
+        RoomCardAvatarContainerSize = Math.Max(avatarSize, WindowSizing.RoundLayoutValue(38d * scale));
         RoomCardAvatarSize = avatarSize;
-        RoomCardAvatarIconSize = Math.Round(20d * scale);
-        RoomCardAvatarMargin = new Thickness(Math.Round(3d * scale), Math.Round(3d * scale), Math.Round(10d * scale), 0);
-        RoomCardHeaderColumnWidth = new GridLength(Math.Round(54d * scale));
-        RoomCardNameFontSize = Math.Max(8d, Math.Round(15d * scale));
-        RoomCardPlatformFontSize = Math.Max(7d, Math.Round(12d * scale));
-        RoomCardTitleFontSize = Math.Max(7d, Math.Round(12d * scale));
-        RoomCardTitleLineHeight = Math.Max(9d, Math.Round(16d * scale));
-        RoomCardTitleMaxHeight = Math.Round(32d * scale);
+        RoomCardAvatarIconSize = WindowSizing.RoundLayoutValue(20d * scale);
+        RoomCardAvatarMargin = new Thickness(
+            WindowSizing.RoundLayoutValue(3d * scale),
+            WindowSizing.RoundLayoutValue(3d * scale),
+            WindowSizing.RoundLayoutValue(10d * scale),
+            0);
+        RoomCardHeaderColumnWidth = new GridLength(WindowSizing.RoundLayoutValue(54d * scale));
+        RoomCardNameFontSize = Math.Max(8d, WindowSizing.RoundLayoutValue(15d * scale));
+        RoomCardPlatformFontSize = Math.Max(7d, WindowSizing.RoundLayoutValue(12d * scale));
+        RoomCardTitleFontSize = Math.Max(7d, WindowSizing.RoundLayoutValue(12d * scale));
+        RoomCardTitleLineHeight = Math.Max(9d, WindowSizing.RoundLayoutValue(16d * scale));
+        RoomCardTitleMaxHeight = WindowSizing.RoundLayoutValue(32d * scale);
         RoomCardTitleVisibility = scale < 0.72d ? Visibility.Collapsed : Visibility.Visible;
-        RoomCardChipFontSize = Math.Max(7d, Math.Round(11d * scale));
-        RoomCardChipPadding = new Thickness(Math.Round(6d * scale), Math.Round(4d * scale), Math.Round(6d * scale), Math.Round(4d * scale));
-        RoomCardChipMinHeight = chipHeight;
+        RoomCardChipFontSize = Math.Max(7d, WindowSizing.RoundLayoutValue(11d * scale));
+        RoomCardChipPadding = new Thickness(
+            WindowSizing.RoundLayoutValue(6d * scale),
+            WindowSizing.RoundLayoutValue(4d * scale),
+            WindowSizing.RoundLayoutValue(6d * scale),
+            WindowSizing.RoundLayoutValue(4d * scale));
+        RoomCardChipMinHeight = WindowSizing.RoundLayoutValue(chipHeight);
     }
 
     internal static double CalculateRoomCardAvatarSize(double scale)
     {
-        return Math.Max(RoomCardMinimumAvatarSize, Math.Round(36d * scale));
+        return Math.Max(RoomCardMinimumAvatarSize, WindowSizing.RoundLayoutValue(36d * scale));
     }
 
     internal static double GetRoomCardHorizontalGap(double preference)
@@ -2024,7 +2058,7 @@ public partial class MainWindow : FluentWindow
 
     private void SetRoomCardScale(double scale)
     {
-        double availableWidth = GetRoomCardAvailableWidth(RoomCardList.ActualWidth - RoomCardScrollContentPadding * 2d - RoomCardScrollBarReservedWidth);
+        double availableWidth = GetRoomCardAvailableWidth(GetRoomCardLayoutWidth(RoomCardList.ActualWidth));
         double baseWidth = GetRoomCardBaseWidth(availableWidth, ViewModel.IsPreviewing);
 
         if (scale > RoomCardMediumSizeScale && !CanUseRoomCardScale(availableWidth, baseWidth, scale, GetRoomCardHorizontalGap(scale)))
@@ -2399,8 +2433,8 @@ public partial class MainWindow : FluentWindow
             : RestoreBounds;
         previewLeft = restoreBounds.Left;
         previewTop = restoreBounds.Top;
-        previewWidth = restoreBounds.Width;
-        previewHeight = restoreBounds.Height;
+        previewWidth = WindowSizing.RoundLayoutValue(restoreBounds.Width);
+        previewHeight = WindowSizing.RoundLayoutValue(restoreBounds.Height);
     }
 
     private void ApplyPreviewFullScreenWindowBounds()
@@ -2934,10 +2968,10 @@ public partial class MainWindow : FluentWindow
     private void UpdateRoomCardMarquee(Point position)
     {
         Rect selection = CreateSelectionRect(roomCardMarqueeStart, position);
-        Canvas.SetLeft(RoomCardSelectionRectangle, selection.Left);
-        Canvas.SetTop(RoomCardSelectionRectangle, selection.Top);
-        RoomCardSelectionRectangle.Width = selection.Width;
-        RoomCardSelectionRectangle.Height = selection.Height;
+        Canvas.SetLeft(RoomCardSelectionRectangle, WindowSizing.RoundLayoutValue(selection.Left));
+        Canvas.SetTop(RoomCardSelectionRectangle, WindowSizing.RoundLayoutValue(selection.Top));
+        RoomCardSelectionRectangle.Width = WindowSizing.RoundLayoutValue(selection.Width);
+        RoomCardSelectionRectangle.Height = WindowSizing.RoundLayoutValue(selection.Height);
     }
 
     private void FinishRoomCardMarquee(bool commit)
@@ -3050,14 +3084,22 @@ public partial class MainWindow : FluentWindow
             bestIndex = before ? index : index + 1;
             double lineTop = bounds.Top + Math.Min(10d, bounds.Height / 5d);
             double lineHeight = Math.Max(28d, bounds.Height - Math.Min(20d, bounds.Height / 2d));
-            bestLine = new Rect(edgeX - 1.5d, lineTop, 3d, lineHeight);
+            bestLine = new Rect(
+                WindowSizing.RoundLayoutValue(edgeX - 1.5d),
+                WindowSizing.RoundLayoutValue(lineTop),
+                3d,
+                WindowSizing.RoundLayoutValue(lineHeight));
         }
 
         if (bestLine.IsEmpty && draggedRoomItem != null)
         {
             Rect bounds = GetElementBounds(draggedRoomItem, RoomCardList);
             bestIndex = RoomCardList.Items.IndexOf(draggedRoom);
-            bestLine = new Rect(bounds.Left - 1.5d, bounds.Top + 8d, 3d, Math.Max(28d, bounds.Height - 16d));
+            bestLine = new Rect(
+                WindowSizing.RoundLayoutValue(bounds.Left - 1.5d),
+                WindowSizing.RoundLayoutValue(bounds.Top + 8d),
+                3d,
+                WindowSizing.RoundLayoutValue(Math.Max(28d, bounds.Height - 16d)));
         }
 
         return (bestIndex, bestLine);
