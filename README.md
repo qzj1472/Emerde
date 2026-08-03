@@ -146,13 +146,9 @@ Emerde is a Windows-only WPF application.
 | ---- | ------- |
 | `src/Emerde` | Windows WPF application |
 | `build` | Windows packaging assets and scripts |
-| `doc` | Cookie setup guides |
+| `doc` | Extension development and project documentation |
 | `branding` | Product icons and branding assets |
 | `tests/Emerde.Tests` | Automated tests |
-
-## Cookies
-
-Some platforms require cookies or regional network access. See [GETCOOKIE_DOUYIN.md](doc/GETCOOKIE_DOUYIN.md) and [GETCOOKIE_TIKTOK.md](doc/GETCOOKIE_TIKTOK.md) for the existing cookie setup examples.
 
 ## Privacy Policy
 

@@ -481,6 +481,19 @@
   <data name="HowToGet" xml:space="preserve">
     <value>How to get it?</value>
   </data>
+  <data name="AcquireCookie" xml:space="preserve"><value>Get</value></data>
+  <data name="CookieLoginInitializing" xml:space="preserve"><value>Starting the secure login browser...</value></data>
+  <data name="CookieLoginInstruction" xml:space="preserve"><value>Sign in on this page, then choose Finish and get Cookie.</value></data>
+  <data name="CookieLoginFinish" xml:space="preserve"><value>Finish and get</value></data>
+  <data name="CookieLoginRuntimeMissing" xml:space="preserve"><value>Microsoft Edge WebView2 Runtime is unavailable.</value></data>
+  <data name="CookieLoginOpenFailed" xml:space="preserve"><value>Unable to open the login page: {0}</value></data>
+  <data name="CookieLoginReading" xml:space="preserve"><value>Reading this platform's login Cookie...</value></data>
+  <data name="CookieLoginEmpty" xml:space="preserve"><value>No signed-in Cookie was found. Complete sign-in before trying again.</value></data>
+  <data name="CookieLoginReadFailed" xml:space="preserve"><value>Unable to read Cookie: {0}</value></data>
+  <data name="CookieLoginLoading" xml:space="preserve"><value>Loading...</value></data>
+  <data name="CookieLoginNavigationFailed" xml:space="preserve"><value>The page failed to load. Check the network or proxy and retry.</value></data>
+  <data name="CookieLoginUnsupported" xml:space="preserve"><value>This platform does not support automatic Cookie acquisition yet.</value></data>
+  <data name="CookieLoginSaved" xml:space="preserve"><value>{0} Cookie was acquired and saved securely.</value></data>
   <data name="UseCookieOfOversea" xml:space="preserve">
     <value>Overseas Cookie</value>
   </data>

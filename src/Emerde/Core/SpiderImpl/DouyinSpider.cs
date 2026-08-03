@@ -1,6 +1,4 @@
-﻿using RestSharp;
-using System.Diagnostics.CodeAnalysis;
-using System.Net;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 
 namespace Emerde.Core;
@@ -45,52 +43,12 @@ public sealed partial class DouyinSpider : ISpider
             return null;
         }
 
-        RestClientOptions options = new()
-        {
-            BaseUrl = new Uri(url),
-        };
-
-        if (Configurations.IsUseProxy.Get())
-        {
-            string proxyUrl = Configurations.ProxyUrl.Get();
-
-            if (!string.IsNullOrWhiteSpace(proxyUrl))
-            {
-                options.Proxy = ProxyAddress.Create(proxyUrl);
-            }
-        }
-
-        using RestClient client = new(options);
-
-        RestRequest request = new()
-        {
-            Method = Method.Get,
-            Timeout = TimeSpan.FromSeconds(5),
-        };
-
-        string cookie = PlatformCookieStore.GetCookie("Douyin", SecretProtector.GetChinaCookie());
-
-        request.AddHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0");
-        request.AddHeader("Accept-Language", "zh-CN,zh;q=0.8,zh-TW;q=0.7,zh-HK;q=0.5,en-US;q=0.3,en;q=0.2");
-        request.AddHeader("Referer", "https://live.douyin.com/");
-        if (!string.IsNullOrWhiteSpace(cookie))
-        {
-            request.AddHeader("Cookie", cookie);
-        }
-
-        RestResponse response = client.Execute(request);
-
-        if (response.IsSuccessful)
-        {
-            string? htmlStr = response.Content;
-
-            return htmlStr;
-        }
-        else
-        {
-            Console.WriteLine($"{response.ErrorMessage}");
-            return null!;
-        }
+        return StreamResolver.RequestDouyinText(
+            url,
+            url,
+            "https://live.douyin.com/",
+            StreamResolver.GetDouyinAnonymousCookie(),
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0");
     }
 
     public static DouyinSpiderResult ExtractData(string? htmlStr)

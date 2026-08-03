@@ -1250,6 +1250,41 @@ public partial class SettingsViewModel : ReactiveObject
         await Launcher.LaunchUriAsync(new Uri($"file://{filePath}"));
     }
 
+    [RelayCommand]
+    private void AcquirePlatformCookie(PlatformCookieItem? item)
+    {
+        if (item == null)
+        {
+            return;
+        }
+
+        if (!PlatformCookieAcquisition.TryGetProfile(item.PlatformName, out PlatformCookieAcquisitionProfile? profile)
+            || profile == null)
+        {
+            Toast.Warning("CookieLoginUnsupported".Tr());
+            return;
+        }
+
+        try
+        {
+            PlatformCookieLoginWindow window = new(profile, item.DisplayName, OwnerWindow);
+            if (window.ShowDialog() == true && !string.IsNullOrWhiteSpace(window.AcquiredCookieHeader))
+            {
+                item.Cookie = window.AcquiredCookieHeader;
+                Toast.Success("CookieLoginSaved".Tr(item.DisplayName));
+            }
+        }
+        catch (Exception exception)
+        {
+            AppSessionLogger.Event("error", "settings", "platform_cookie_window_failed", exception.Message, new
+            {
+                item.PlatformName,
+                type = exception.GetType().Name,
+            });
+            Toast.Error("CookieLoginOpenFailed".Tr(exception.Message));
+        }
+    }
+
     [ObservableProperty]
     private string cookieOversea = SecretProtector.GetOverseaCookie();
 

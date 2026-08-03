@@ -1,3 +1,5 @@
+using Emerde.Plugins;
+
 namespace Emerde.Core;
 
 internal static class Spider
@@ -91,7 +93,40 @@ internal static class Spider
         bool allowDouyinWebViewFallback = true,
         CancellationToken cancellationToken = default)
     {
-        return ExternalStreamResolver.GetResult(url, preferredQuality, bypassDouyinThrottle, prioritizeDouyin, allowDouyinWebViewFallback, cancellationToken);
+        Lazy<ISpiderResult?> defaultResolution = new(() => ExternalStreamResolver.GetResult(
+            url,
+            preferredQuality,
+            bypassDouyinThrottle,
+            prioritizeDouyin,
+            allowDouyinWebViewFallback,
+            cancellationToken), LazyThreadSafetyMode.ExecutionAndPublication);
+        ISpiderResult? ResolveDefault()
+        {
+            return defaultResolution.Value;
+        }
+
+        if (!ExtensionHostRuntime.TryGetOverride(ExtensionContractNames.StreamResolver, out ExtensionStreamResolverOverride? extensionResolver))
+        {
+            return ResolveDefault();
+        }
+
+        try
+        {
+            return extensionResolver!(
+                new ExtensionStreamResolveRequest(
+                    url,
+                    preferredQuality,
+                    bypassDouyinThrottle,
+                    prioritizeDouyin,
+                    allowDouyinWebViewFallback,
+                    cancellationToken),
+                ResolveDefault);
+        }
+        catch (Exception e)
+        {
+            AppSessionLogger.WriteException(e);
+            return ResolveDefault();
+        }
     }
 
     internal static ISpiderResult? GetLegacyResult(string url, string? preferredQuality = null)

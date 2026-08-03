@@ -410,6 +410,84 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("HowToGet", resourceCulture);
             }
         }
+
+        public static string AcquireCookie {
+            get {
+                return ResourceManager.GetString("AcquireCookie", resourceCulture);
+            }
+        }
+
+        public static string CookieLoginInitializing {
+            get {
+                return ResourceManager.GetString("CookieLoginInitializing", resourceCulture);
+            }
+        }
+
+        public static string CookieLoginInstruction {
+            get {
+                return ResourceManager.GetString("CookieLoginInstruction", resourceCulture);
+            }
+        }
+
+        public static string CookieLoginFinish {
+            get {
+                return ResourceManager.GetString("CookieLoginFinish", resourceCulture);
+            }
+        }
+
+        public static string CookieLoginRuntimeMissing {
+            get {
+                return ResourceManager.GetString("CookieLoginRuntimeMissing", resourceCulture);
+            }
+        }
+
+        public static string CookieLoginOpenFailed {
+            get {
+                return ResourceManager.GetString("CookieLoginOpenFailed", resourceCulture);
+            }
+        }
+
+        public static string CookieLoginReading {
+            get {
+                return ResourceManager.GetString("CookieLoginReading", resourceCulture);
+            }
+        }
+
+        public static string CookieLoginEmpty {
+            get {
+                return ResourceManager.GetString("CookieLoginEmpty", resourceCulture);
+            }
+        }
+
+        public static string CookieLoginReadFailed {
+            get {
+                return ResourceManager.GetString("CookieLoginReadFailed", resourceCulture);
+            }
+        }
+
+        public static string CookieLoginLoading {
+            get {
+                return ResourceManager.GetString("CookieLoginLoading", resourceCulture);
+            }
+        }
+
+        public static string CookieLoginNavigationFailed {
+            get {
+                return ResourceManager.GetString("CookieLoginNavigationFailed", resourceCulture);
+            }
+        }
+
+        public static string CookieLoginUnsupported {
+            get {
+                return ResourceManager.GetString("CookieLoginUnsupported", resourceCulture);
+            }
+        }
+
+        public static string CookieLoginSaved {
+            get {
+                return ResourceManager.GetString("CookieLoginSaved", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to Keep Windows System Awake.

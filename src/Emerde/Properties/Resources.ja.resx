@@ -487,6 +487,19 @@
   <data name="HowToGet" xml:space="preserve">
     <value>いかに獲得？</value>
   </data>
+  <data name="AcquireCookie" xml:space="preserve"><value>取得</value></data>
+  <data name="CookieLoginInitializing" xml:space="preserve"><value>安全なログイン画面を起動しています...</value></data>
+  <data name="CookieLoginInstruction" xml:space="preserve"><value>このページでログインし、「完了して取得」を選択してください。</value></data>
+  <data name="CookieLoginFinish" xml:space="preserve"><value>完了して取得</value></data>
+  <data name="CookieLoginRuntimeMissing" xml:space="preserve"><value>Microsoft Edge WebView2 Runtime が見つかりません。</value></data>
+  <data name="CookieLoginOpenFailed" xml:space="preserve"><value>ログインページを開けません：{0}</value></data>
+  <data name="CookieLoginReading" xml:space="preserve"><value>このプラットフォームのログイン Cookie を読み取っています...</value></data>
+  <data name="CookieLoginEmpty" xml:space="preserve"><value>ログイン Cookie が見つかりません。ログイン後に再試行してください。</value></data>
+  <data name="CookieLoginReadFailed" xml:space="preserve"><value>Cookie を読み取れません：{0}</value></data>
+  <data name="CookieLoginLoading" xml:space="preserve"><value>読み込み中...</value></data>
+  <data name="CookieLoginNavigationFailed" xml:space="preserve"><value>ページを読み込めません。ネットワークまたはプロキシを確認してください。</value></data>
+  <data name="CookieLoginUnsupported" xml:space="preserve"><value>このプラットフォームは Cookie の自動取得に未対応です。</value></data>
+  <data name="CookieLoginSaved" xml:space="preserve"><value>{0} の Cookie を取得し、暗号化して保存しました。</value></data>
   <data name="UserAgent" xml:space="preserve">
     <value>ブラウザ UserAgent</value>
   </data>

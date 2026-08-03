@@ -16,6 +16,8 @@ internal static class DouyinWebViewResolver
     private static Window? hostWindow;
     private static WebView2? browser;
     private static string browserProxyKey = string.Empty;
+    private static bool browserCookiesSanitized;
+    private static bool riskControlCookiesApplied;
     private static TaskCompletionSource? interactiveClosed;
     private static bool allowClose;
 
@@ -31,7 +33,11 @@ internal static class DouyinWebViewResolver
         }
     }
 
-    public static DouyinWebViewSnapshot Resolve(string roomUrl, string cookie, bool allowInteractiveVerification, CancellationToken cancellationToken = default)
+    public static DouyinWebViewSnapshot Resolve(
+        string roomUrl,
+        string cookie,
+        bool allowInteractiveVerification,
+        CancellationToken cancellationToken = default)
     {
         Application? application = Application.Current;
         if (application == null || application.Dispatcher.HasShutdownStarted)
@@ -64,6 +70,8 @@ internal static class DouyinWebViewResolver
         interactiveClosed?.TrySetResult();
         browser?.Dispose();
         browser = null;
+        browserCookiesSanitized = false;
+        riskControlCookiesApplied = false;
         hostWindow?.Close();
         hostWindow = null;
     }
@@ -101,8 +109,22 @@ internal static class DouyinWebViewResolver
             cancellationToken.ThrowIfCancellationRequested();
             webView = await EnsureBrowserAsync(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            await ApplyCookiesAsync(webView.CoreWebView2.CookieManager, cookie);
+            await ApplyCookiesAsync(webView.CoreWebView2.CookieManager, cookie, !browserCookiesSanitized || riskControlCookiesApplied);
+            browserCookiesSanitized = true;
+            riskControlCookiesApplied = false;
             DouyinWebViewSnapshot snapshot = await NavigateAndCaptureAsync(webView, roomUrl, TimeSpan.FromSeconds(12), cancellationToken);
+            if (StreamResolver.ContainsDouyinChallenge(snapshot.Html))
+            {
+                string riskControlCookie = StreamResolver.GetDouyinRiskControlCookie();
+                if (!string.IsNullOrWhiteSpace(riskControlCookie)
+                    && !string.Equals(cookie, riskControlCookie, StringComparison.Ordinal))
+                {
+                    await ApplyCookiesAsync(webView.CoreWebView2.CookieManager, riskControlCookie, clearExistingCookies: false);
+                    riskControlCookiesApplied = true;
+                    StreamResolver.LogDouyinRiskControlFallback(roomUrl, "webview_challenge");
+                    snapshot = await NavigateAndCaptureAsync(webView, roomUrl, TimeSpan.FromSeconds(12), cancellationToken);
+                }
+            }
             if (allowInteractiveVerification && StreamResolver.ContainsDouyinChallenge(snapshot.Html))
             {
                 ShowInteractiveWindow();
@@ -154,6 +176,7 @@ internal static class DouyinWebViewResolver
             ResizeMode = ResizeMode.CanResize,
             Title = "抖音验证 - Emerde",
         };
+        WindowAppearance.EnableBorderless(createdWindow);
         createdWindow.Closing += OnHostWindowClosing;
         hostWindow = createdWindow;
         browser = createdBrowser;
@@ -289,8 +312,12 @@ internal static class DouyinWebViewResolver
         }
     }
 
-    private static Task ApplyCookiesAsync(CoreWebView2CookieManager cookieManager, string cookie)
+    private static Task ApplyCookiesAsync(CoreWebView2CookieManager cookieManager, string cookie, bool clearExistingCookies)
     {
+        if (clearExistingCookies)
+        {
+            cookieManager.DeleteAllCookies();
+        }
         foreach (string segment in cookie.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             int separator = segment.IndexOf('=');
@@ -407,6 +434,8 @@ internal static class DouyinWebViewResolver
     {
         browser?.Dispose();
         browser = null;
+        browserCookiesSanitized = false;
+        riskControlCookiesApplied = false;
         if (hostWindow != null)
         {
             allowClose = true;

@@ -12,6 +12,7 @@ using System.Text.RegularExpressions;
 using System.Web;
 using Emerde.Models;
 using Emerde.Threading;
+using Emerde.Plugins;
 using Windows.System;
 using Wpf.Ui.Violeta.Resources;
 
@@ -503,6 +504,34 @@ internal static class GlobalMonitor
 
     private static async Task RunRoomsAsync(IEnumerable<Room> rooms, CancellationToken token = default, bool force = false, bool? recordingLaneOnly = null)
     {
+        Room[] roomArray = rooms as Room[] ?? rooms.ToArray();
+        Lazy<Task> defaultMonitoring = new(
+            () => RunRoomsCoreAsync(roomArray, token, force, recordingLaneOnly),
+            LazyThreadSafetyMode.ExecutionAndPublication);
+        Task RunDefault()
+        {
+            return defaultMonitoring.Value;
+        }
+
+        if (!ExtensionHostRuntime.TryGetOverride(ExtensionContractNames.Monitor, out ExtensionMonitorOverride? extensionMonitor))
+        {
+            await RunDefault();
+            return;
+        }
+
+        try
+        {
+            await extensionMonitor!(new ExtensionMonitorRequest(roomArray, force, recordingLaneOnly, token), RunDefault);
+        }
+        catch (Exception e) when (e is not OperationCanceledException || !token.IsCancellationRequested)
+        {
+            AppSessionLogger.WriteException(e);
+            await RunDefault();
+        }
+    }
+
+    private static async Task RunRoomsCoreAsync(IEnumerable<Room> rooms, CancellationToken token = default, bool force = false, bool? recordingLaneOnly = null)
+    {
         try
         {
             bool isGlobalToNotify = Configurations.IsToNotify.Get();
@@ -809,7 +838,21 @@ internal static class GlobalMonitor
         SyncRecordStatus(roomStatus);
         bool prioritizeDouyin = roomStatus.StreamStatus == StreamStatus.Streaming
             || roomStatus.RecordStatus == RecordStatus.Recording;
-        ISpiderResult? spiderResult = await GetSpiderResultAsync(room, settings, prioritizeDouyin, force, token);
+        long currentTimestamp = Environment.TickCount64;
+        ISpiderResult? spiderResult;
+        if (ShouldReuseResolvedDouyinStream(
+                force,
+                roomStatus.PlatformName,
+                roomStatus.StreamStatus,
+                HasRecordableStream(roomStatus))
+            && await IsPreservedStreamReachableAsync(roomStatus, token))
+        {
+            spiderResult = CreatePreservedStreamResult(room, roomStatus);
+        }
+        else
+        {
+            spiderResult = await GetSpiderResultAsync(room, settings, prioritizeDouyin, force, token);
+        }
         token.ThrowIfCancellationRequested();
         shouldRecord = GetEffectiveRoomRecord(room) && !IsRecordStartBlocked;
 
@@ -888,7 +931,6 @@ internal static class GlobalMonitor
 
         StreamStatus prevStreamStatus = roomStatus.StreamStatus;
 
-        long currentTimestamp = Environment.TickCount64;
         if (ShouldRefreshFixedRoomMetadata(roomStatus.FixedMetadataRefreshTimestamp, currentTimestamp))
         {
             bool fixedMetadataChanged = false;
@@ -1471,6 +1513,39 @@ internal static class GlobalMonitor
             && isReachable;
     }
 
+    internal static bool ShouldReuseResolvedDouyinStream(
+        bool force,
+        string platformName,
+        StreamStatus streamStatus,
+        bool hasRecordableStream)
+    {
+        return !force
+            && IsDouyinPlatform(platformName)
+            && streamStatus == StreamStatus.Streaming
+            && hasRecordableStream;
+    }
+
+    internal static StreamResolverResult CreatePreservedStreamResult(Room room, RoomStatus roomStatus)
+    {
+        return new StreamResolverResult
+        {
+            RoomUrl = room.RoomUrl,
+            PlatformName = roomStatus.PlatformName,
+            IsLiveStreaming = true,
+            Nickname = roomStatus.NickName,
+            AvatarThumbUrl = roomStatus.AvatarThumbUrl,
+            FlvUrl = roomStatus.FlvUrl,
+            HlsUrl = roomStatus.HlsUrl,
+            RecordUrl = roomStatus.RecordUrl,
+            Title = roomStatus.LiveTitle,
+            Quality = roomStatus.Quality,
+            Uid = roomStatus.Uid,
+            Resolution = roomStatus.Resolution,
+            Bitrate = roomStatus.Bitrate,
+            Headers = roomStatus.Headers,
+        };
+    }
+
     internal static bool ShouldProbePreservedDouyinStream(string platformName, StreamStatus streamStatus, bool hasRecordableStream)
     {
         return IsDouyinPlatform(platformName)
@@ -1823,7 +1898,7 @@ internal static class GlobalMonitor
             hasHlsUrl = !string.IsNullOrWhiteSpace(roomStatus.HlsUrl),
         });
 
-        _ = roomStatus.Recorder.Start(new RecorderStartInfo()
+        RecorderStartInfo startInfo = new()
         {
             NickName = room.NickName,
             RoomUrl = room.RoomUrl,
@@ -1853,8 +1928,29 @@ internal static class GlobalMonitor
                 : null,
             ReconnectExhausted = () => PauseRoomRecordStart(room.RoomUrl, room.NickName, "reconnect_exhausted"),
             RapidExitDetected = () => PauseRoomRecordStart(room.RoomUrl, room.NickName, "rapid_exit"),
-        });
-        return true;
+        };
+
+        Lazy<bool> defaultRecordingStart = new(() =>
+        {
+            _ = roomStatus.Recorder.Start(startInfo);
+            return true;
+        }, LazyThreadSafetyMode.ExecutionAndPublication);
+        bool StartDefault() => defaultRecordingStart.Value;
+
+        if (!ExtensionHostRuntime.TryGetOverride(ExtensionContractNames.Recorder, out ExtensionRecorderOverride? extensionRecorder))
+        {
+            return StartDefault();
+        }
+
+        try
+        {
+            return extensionRecorder!(new ExtensionRecorderStartRequest(room, roomStatus, settings, startInfo), StartDefault);
+        }
+        catch (Exception e)
+        {
+            AppSessionLogger.WriteException(e);
+            return StartDefault();
+        }
     }
 
     internal static bool IsRoomRecordStartPaused(string roomUrl, DateTime now)

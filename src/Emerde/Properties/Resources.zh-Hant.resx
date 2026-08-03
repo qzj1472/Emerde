@@ -481,6 +481,19 @@
   <data name="HowToGet" xml:space="preserve">
     <value>如何獲取？</value>
   </data>
+  <data name="AcquireCookie" xml:space="preserve"><value>獲取</value></data>
+  <data name="CookieLoginInitializing" xml:space="preserve"><value>正在啟動安全登入視窗...</value></data>
+  <data name="CookieLoginInstruction" xml:space="preserve"><value>請在此頁面完成登入，然後點擊「完成並獲取」。</value></data>
+  <data name="CookieLoginFinish" xml:space="preserve"><value>完成並獲取</value></data>
+  <data name="CookieLoginRuntimeMissing" xml:space="preserve"><value>未偵測到 Microsoft Edge WebView2 Runtime。</value></data>
+  <data name="CookieLoginOpenFailed" xml:space="preserve"><value>無法開啟登入頁面：{0}</value></data>
+  <data name="CookieLoginReading" xml:space="preserve"><value>正在讀取該平台的登入 Cookie...</value></data>
+  <data name="CookieLoginEmpty" xml:space="preserve"><value>沒有偵測到登入 Cookie，請完成登入後再試。</value></data>
+  <data name="CookieLoginReadFailed" xml:space="preserve"><value>無法讀取 Cookie：{0}</value></data>
+  <data name="CookieLoginLoading" xml:space="preserve"><value>正在載入...</value></data>
+  <data name="CookieLoginNavigationFailed" xml:space="preserve"><value>頁面載入失敗，請檢查網路或代理後重試。</value></data>
+  <data name="CookieLoginUnsupported" xml:space="preserve"><value>該平台暫不支援自動獲取 Cookie。</value></data>
+  <data name="CookieLoginSaved" xml:space="preserve"><value>已獲取 {0} Cookie 並加密儲存。</value></data>
   <data name="UseCookieOfOversea" xml:space="preserve">
     <value>海外 Cookie</value>
   </data>
