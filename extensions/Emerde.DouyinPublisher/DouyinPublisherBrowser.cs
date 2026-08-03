@@ -310,7 +310,11 @@ internal sealed class DouyinPublisherBrowser : IAsyncDisposable
         {
             DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 248, 248, 248),
         };
-        Grid root = new();
+        Grid root = new()
+        {
+            SnapsToDevicePixels = true,
+            UseLayoutRounding = true,
+        };
         root.SetResourceReference(Panel.BackgroundProperty, "EmerdeShellBackgroundBrush");
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(36) });
         root.RowDefinitions.Add(new RowDefinition());
@@ -339,6 +343,8 @@ internal sealed class DouyinPublisherBrowser : IAsyncDisposable
             BorderBrush = Brushes.Transparent,
             BorderThickness = new Thickness(0),
             ExtendsContentIntoTitleBar = true,
+            SnapsToDevicePixels = true,
+            UseLayoutRounding = true,
             WindowBackdropType = WindowBackdropType.Mica,
             WindowCornerPreference = WindowCornerPreference.Round,
             Background = new SolidColorBrush(Color.FromRgb(248, 248, 248)),
