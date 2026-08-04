@@ -205,6 +205,33 @@ public sealed class RecordingRecoveryServiceTests
     }
 
     [Fact]
+    public void StallSessionMarker_DisablesMergingAndSurvivesRawFormatUpdate()
+    {
+        string sourcePattern = Path.Combine(Path.GetTempPath(), $"emerde-recording-{Guid.NewGuid():N}_%03d.ts");
+        string? markerPath = RecordingRecoveryService.RegisterSessionParts(sourcePattern, ".ts", removeSource: false);
+
+        Assert.NotNull(markerPath);
+        try
+        {
+            Assert.True(RecordingRecoveryService.MarkSessionPartsAsStallSegments(markerPath!));
+            Assert.True(RecordingRecoveryService.UpdateOptions(markerPath!, new RoomRecordingOptions
+            {
+                RecordFormat = "TS/FLV",
+                IsRemoveTs = false,
+            }));
+
+            JsonObject marker = JsonNode.Parse(File.ReadAllText(markerPath!))!.AsObject();
+            Assert.False(marker["MergeSessionParts"]!.GetValue<bool>());
+            Assert.Equal(VideoRecordingMetadataStore.TimelineStallSegmentReason, marker["SegmentReason"]!.GetValue<string>());
+        }
+        finally
+        {
+            File.Delete(markerPath);
+            File.Delete(markerPath + ".tmp");
+        }
+    }
+
+    [Fact]
     public void UpdateOptions_UpgradesLegacyMarkerWithoutCompletionState()
     {
         string directory = Path.Combine(Path.GetTempPath(), $"emerde-recovery-{Guid.NewGuid():N}");

@@ -33,17 +33,31 @@ internal static class RecordingRecoveryService
         return Register(sourcePattern, targetFormat, options.IsRemoveTs, options.IsOptimizeAudio, mergeSessionParts: false, roomUrl);
     }
 
-    internal static string? RegisterSessionParts(string sourcePattern, string targetFormat, bool removeSource, string roomUrl = "", bool optimizeAudio = false)
+    internal static string? RegisterSessionParts(
+        string sourcePattern,
+        string targetFormat,
+        bool removeSource,
+        string roomUrl = "",
+        bool optimizeAudio = false,
+        bool mergeSessionParts = true,
+        string segmentReason = "")
     {
         if (string.IsNullOrWhiteSpace(sourcePattern) || string.IsNullOrWhiteSpace(targetFormat))
         {
             return null;
         }
 
-        return Register(sourcePattern, targetFormat, removeSource, optimizeAudio, mergeSessionParts: true, roomUrl);
+        return Register(sourcePattern, targetFormat, removeSource, optimizeAudio, mergeSessionParts, roomUrl, segmentReason);
     }
 
-    private static string? Register(string sourcePattern, string targetFormat, bool removeSource, bool optimizeAudio, bool mergeSessionParts, string roomUrl)
+    private static string? Register(
+        string sourcePattern,
+        string targetFormat,
+        bool removeSource,
+        bool optimizeAudio,
+        bool mergeSessionParts,
+        string roomUrl,
+        string segmentReason = "")
     {
         string? temporaryPath = null;
         try
@@ -59,6 +73,7 @@ internal static class RecordingRecoveryService
                 OptimizeAudio = optimizeAudio,
                 MergeSessionParts = mergeSessionParts,
                 RoomUrl = roomUrl ?? string.Empty,
+                SegmentReason = segmentReason ?? string.Empty,
             };
             using (FileStream stream = new(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             using (StreamWriter writer = new(stream, new System.Text.UTF8Encoding(false)))
@@ -95,7 +110,7 @@ internal static class RecordingRecoveryService
         }
         if (string.IsNullOrWhiteSpace(targetFormat))
         {
-            if (!item.MergeSessionParts)
+            if (!item.MergeSessionParts && !IsSessionPattern(item.SourcePattern))
             {
                 DeleteMarker(path);
                 return false;
@@ -128,6 +143,19 @@ internal static class RecordingRecoveryService
         item.TargetFormat = targetFormat;
         item.RemoveSource = options.IsRemoveTs;
         item.OptimizeAudio = options.IsOptimizeAudio;
+        return Save(path, item);
+    }
+
+    internal static bool MarkSessionPartsAsStallSegments(string path)
+    {
+        PendingRecording? item = Load(path, out _, validateAllowedDirectory: false);
+        if (item == null || !IsSessionPattern(item.SourcePattern))
+        {
+            return false;
+        }
+
+        item.MergeSessionParts = false;
+        item.SegmentReason = VideoRecordingMetadataStore.TimelineStallSegmentReason;
         return Save(path, item);
     }
 
@@ -338,6 +366,22 @@ internal static class RecordingRecoveryService
 
         string[] sourceFiles = GetSourceFiles(item.SourcePattern);
         VideoRecordingMetadata sourceMetadata = LoadFirstMetadata(sourceFiles);
+        bool isStallSegment = item.SegmentReason.Equals(VideoRecordingMetadataStore.TimelineStallSegmentReason, StringComparison.Ordinal)
+            || sourceMetadata.SegmentReason.Equals(VideoRecordingMetadataStore.TimelineStallSegmentReason, StringComparison.Ordinal);
+        if (isStallSegment && item.MergeSessionParts && !IsUsableSource(item.CompletedTargetPath))
+        {
+            item.MergeSessionParts = false;
+            item.SegmentReason = VideoRecordingMetadataStore.TimelineStallSegmentReason;
+            if (!Save(path, item))
+            {
+                return;
+            }
+        }
+        if (isStallSegment)
+        {
+            sourceMetadata.SegmentReason = VideoRecordingMetadataStore.TimelineStallSegmentReason;
+            PersistSegmentReason(sourceFiles, sourceMetadata);
+        }
 
         if (IsUsableSource(item.CompletedTargetPath))
         {
@@ -515,6 +559,18 @@ internal static class RecordingRecoveryService
             }
         }
         return new VideoRecordingMetadata();
+    }
+
+    private static void PersistSegmentReason(IEnumerable<string> sourceFiles, VideoRecordingMetadata sourceMetadata)
+    {
+        foreach (string sourceFile in sourceFiles)
+        {
+            VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Merge(
+                VideoRecordingMetadataStore.Load(new FileInfo(sourceFile)),
+                sourceMetadata);
+            metadata.SegmentReason = sourceMetadata.SegmentReason;
+            _ = VideoRecordingMetadataStore.WriteCompletedMetadata(sourceFile, metadata);
+        }
     }
 
     private static string CreateFinalizedEventId(string recordingId, string finalPath)
@@ -1038,12 +1094,12 @@ internal static class RecordingRecoveryService
             return "分段占位符只能使用 %03d";
         }
 
-        bool targetFormatAllowed = item.MergeSessionParts
+        bool targetFormatAllowed = item.MergeSessionParts || IsSessionPattern(item.SourcePattern)
             ? item.TargetFormat is ".mp4" or ".mkv" or ".ts" or ".flv"
             : item.TargetFormat is ".mp4" or ".mkv";
         if (!targetFormatAllowed)
         {
-            return item.MergeSessionParts
+            return item.MergeSessionParts || IsSessionPattern(item.SourcePattern)
                 ? "目标格式只能是 MP4、MKV、TS 或 FLV"
                 : "目标格式只能是 MP4 或 MKV";
         }
@@ -1222,6 +1278,11 @@ internal static class RecordingRecoveryService
         return deleted && GetSourceFiles(sourcePattern).Length == 0;
     }
 
+    private static bool IsSessionPattern(string sourcePattern)
+    {
+        return sourcePattern.Contains("%03d", StringComparison.Ordinal);
+    }
+
     private static bool Save(string path, PendingRecording item)
     {
         string directory = Path.GetDirectoryName(path) ?? AppPaths.PendingRecordingsDirectory;
@@ -1286,6 +1347,8 @@ internal static class RecordingRecoveryService
         public bool MergeSessionParts { get; set; }
 
         public string RoomUrl { get; set; } = string.Empty;
+
+        public string SegmentReason { get; set; } = string.Empty;
 
         public string CompletedTargetPath { get; set; } = string.Empty;
 

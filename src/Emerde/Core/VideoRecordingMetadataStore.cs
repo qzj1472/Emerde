@@ -8,6 +8,8 @@ namespace Emerde.Core;
 
 internal static class VideoRecordingMetadataStore
 {
+    internal const string TimelineStallSegmentReason = "timeline_stall";
+
     private const string MetadataSuffix = ".mplr.json";
     private const string AttachedMetadataStream = ":emerde.metadata";
     private const uint GenericRead = 0x80000000;
@@ -233,6 +235,7 @@ internal static class VideoRecordingMetadataStore
                 || !string.IsNullOrWhiteSpace(metadata.Resolution)
                 || !string.IsNullOrWhiteSpace(metadata.Bitrate)
                 || !string.IsNullOrWhiteSpace(metadata.CoverPath)
+                || !string.IsNullOrWhiteSpace(metadata.SegmentReason)
                 || metadata.RecordedAt > DateTime.MinValue);
     }
 
@@ -253,6 +256,7 @@ internal static class VideoRecordingMetadataStore
             Resolution = First(preferred.Resolution, fallback.Resolution),
             Bitrate = First(preferred.Bitrate, fallback.Bitrate),
             CoverPath = First(preferred.CoverPath, fallback.CoverPath),
+            SegmentReason = First(preferred.SegmentReason, fallback.SegmentReason),
             RecordedAt = preferred.RecordedAt > DateTime.MinValue ? preferred.RecordedAt : fallback.RecordedAt,
         };
     }
@@ -269,6 +273,7 @@ internal static class VideoRecordingMetadataStore
             Resolution = metadata.Resolution,
             Bitrate = metadata.Bitrate,
             CoverPath = metadata.CoverPath,
+            SegmentReason = metadata.SegmentReason,
             RecordedAt = metadata.RecordedAt,
         };
     }
@@ -288,6 +293,7 @@ internal static class VideoRecordingMetadataStore
         AddMetadata(arguments, "emerde_resolution", metadata.Resolution);
         AddMetadata(arguments, "emerde_bitrate", metadata.Bitrate);
         AddMetadata(arguments, "emerde_cover_path", metadata.CoverPath);
+        AddMetadata(arguments, "emerde_segment_reason", metadata.SegmentReason);
         AddMetadata(arguments, "emerde_recorded_at", FormatTimestamp(metadata.RecordedAt));
 
         return arguments;
@@ -318,6 +324,7 @@ internal static class VideoRecordingMetadataStore
             Resolution = GetTag(tags, "emerde_resolution"),
             Bitrate = GetTag(tags, "emerde_bitrate"),
             CoverPath = GetTag(tags, "emerde_cover_path"),
+            SegmentReason = GetTag(tags, "emerde_segment_reason"),
         };
 
         string recordedAtText = First(GetTag(tags, "emerde_recorded_at"), GetTag(tags, "creation_time"), GetTag(tags, "date"));
@@ -346,6 +353,7 @@ internal static class VideoRecordingMetadataStore
             Resolution = Get("emerde_resolution"),
             Bitrate = Get("emerde_bitrate"),
             CoverPath = Get("emerde_cover_path"),
+            SegmentReason = Get("emerde_segment_reason"),
         };
 
         string recordedAtText = First(Get("emerde_recorded_at"), Get("creation_time"), Get("date"));

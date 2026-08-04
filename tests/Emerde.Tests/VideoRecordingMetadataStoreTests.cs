@@ -50,6 +50,7 @@ public sealed class VideoRecordingMetadataStoreTests
             Assert.Equal(metadata.NickName, loaded.NickName);
             Assert.Equal(metadata.RoomUrl, loaded.RoomUrl);
             Assert.Equal(metadata.Title, loaded.Title);
+            Assert.Equal(metadata.SegmentReason, loaded.SegmentReason);
         }
         finally
         {
@@ -90,6 +91,7 @@ public sealed class VideoRecordingMetadataStoreTests
             Title = "直播标题",
             Resolution = "1920x1080",
             Bitrate = "8 Mbps",
+            SegmentReason = VideoRecordingMetadataStore.TimelineStallSegmentReason,
             RecordedAt = new DateTime(2026, 7, 23, 12, 34, 56),
         };
     }
