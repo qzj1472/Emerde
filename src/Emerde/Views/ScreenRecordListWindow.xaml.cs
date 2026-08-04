@@ -2730,6 +2730,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             IsInProgress = isInProgress,
             IsConverting = isConverting,
             IsRecordingFile = isRecordingFile,
+            IsStallSegment = string.Equals(metadata.SegmentReason, VideoRecordingMetadataStore.TimelineStallSegmentReason, StringComparison.Ordinal),
             SourceLength = snapshot.Length,
             SourceLastWriteTimeUtc = snapshot.LastWriteTimeUtc,
             MetadataLastWriteTimeUtc = snapshot.MetadataLastWriteTimeUtc,
@@ -3062,6 +3063,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
                     }
                     item.CreatedAt = createdAt;
                     item.Title = BuildDisplayTitle(metadata.Title, createdAt, file);
+                    item.IsStallSegment = string.Equals(metadata.SegmentReason, VideoRecordingMetadataStore.TimelineStallSegmentReason, StringComparison.Ordinal);
                     item.IsEnriched = true;
                     if (createdAtChanged)
                     {
@@ -4350,6 +4352,9 @@ public partial class RecordedVideoItem : ObservableObject
 
     [ObservableProperty]
     private bool isConverting;
+
+    [ObservableProperty]
+    private bool isStallSegment;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSelect))]

@@ -750,6 +750,7 @@
   <data name="OpenVideoFailed" xml:space="preserve"><value>開啟影片失敗</value></data>
   <data name="TranscodingVideo" xml:space="preserve"><value>正在轉碼...</value></data>
   <data name="TranscodingChip" xml:space="preserve"><value>轉碼中</value></data>
+  <data name="StallSegmentChip" xml:space="preserve"><value>卡頓分段</value></data>
   <data name="TranscodeComplete" xml:space="preserve"><value>轉碼完成</value></data>
   <data name="TranscodeFailed" xml:space="preserve"><value>轉碼失敗</value></data>
   <data name="SplitDurationInvalid" xml:space="preserve"><value>分割時間無效</value></data>

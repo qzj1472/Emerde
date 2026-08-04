@@ -571,6 +571,28 @@
                                                        Foreground="#C50F1F"
                                                        Text="{I18N RecordStatusOfRecording}" />
                                         </Border>
+                                        <Border MaxWidth="110"
+                                                Background="#183B82F6"
+                                                BorderBrush="#453B82F6"
+                                                BorderThickness="1"
+                                                CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                                Margin="0,0,6,0"
+                                                MinHeight="22"
+                                                Padding="9,2">
+                                            <Border.Style>
+                                                <Style TargetType="{x:Type Border}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsStallSegment}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <TextBlock FontSize="12"
+                                                       Foreground="#2563EB"
+                                                       Text="{I18N StallSegmentChip}" />
+                                        </Border>
                                         <TextBlock MaxWidth="360"
                                                    VerticalAlignment="Center"
                                                    FontSize="12"

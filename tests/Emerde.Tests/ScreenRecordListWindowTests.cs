@@ -322,6 +322,15 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
+    public void VideoListXaml_ShowsLocalizedStallSegmentChip()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+
+        Assert.Contains("Binding=\"{Binding IsStallSegment}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{I18N StallSegmentChip}\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void GlobalResources_DoNotOverrideDefaultControlFocusOutlines()
     {
         string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Resources.xaml"));

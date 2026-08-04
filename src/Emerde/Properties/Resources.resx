@@ -750,6 +750,7 @@
   <data name="OpenVideoFailed" xml:space="preserve"><value>Failed to open video</value></data>
   <data name="TranscodingVideo" xml:space="preserve"><value>Transcoding...</value></data>
   <data name="TranscodingChip" xml:space="preserve"><value>Transcoding</value></data>
+  <data name="StallSegmentChip" xml:space="preserve"><value>Stall split</value></data>
   <data name="TranscodeComplete" xml:space="preserve"><value>Transcoding complete</value></data>
   <data name="TranscodeFailed" xml:space="preserve"><value>Transcoding failed</value></data>
   <data name="SplitDurationInvalid" xml:space="preserve"><value>Invalid split interval</value></data>

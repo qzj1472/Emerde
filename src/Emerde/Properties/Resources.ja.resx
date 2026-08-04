@@ -753,6 +753,7 @@
   <data name="OpenVideoFailed" xml:space="preserve"><value>動画を開けませんでした</value></data>
   <data name="TranscodingVideo" xml:space="preserve"><value>変換中...</value></data>
   <data name="TranscodingChip" xml:space="preserve"><value>変換中</value></data>
+  <data name="StallSegmentChip" xml:space="preserve"><value>停止による分割</value></data>
   <data name="TranscodeComplete" xml:space="preserve"><value>変換が完了しました</value></data>
   <data name="TranscodeFailed" xml:space="preserve"><value>変換に失敗しました</value></data>
   <data name="SplitDurationInvalid" xml:space="preserve"><value>分割間隔が無効です</value></data>

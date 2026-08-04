@@ -1826,6 +1826,10 @@ namespace Emerde.Properties {
             get { return ResourceManager.GetString("TranscodingChip", resourceCulture); }
         }
 
+        public static string StallSegmentChip {
+            get { return ResourceManager.GetString("StallSegmentChip", resourceCulture); }
+        }
+
         public static string SplitButton {
             get { return ResourceManager.GetString("SplitButton", resourceCulture); }
         }
