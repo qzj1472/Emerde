@@ -5,6 +5,31 @@ namespace Emerde.Tests;
 public sealed class FfmpegMediaEngineContractTests
 {
     [Fact]
+    public void CrossStreamSampling_AcceptsFirstSampleWithoutSentinelArithmetic()
+    {
+        Assert.True(FfmpegMediaEngine.IsCrossStreamSampleDue(
+            TimeSpan.Zero,
+            null,
+            TimeSpan.FromMilliseconds(200)));
+    }
+
+    [Fact]
+    public void CrossStreamSampling_UsesConfiguredIntervalAfterFirstSample()
+    {
+        TimeSpan previous = TimeSpan.FromSeconds(1);
+        TimeSpan interval = TimeSpan.FromMilliseconds(200);
+
+        Assert.False(FfmpegMediaEngine.IsCrossStreamSampleDue(
+            previous + TimeSpan.FromMilliseconds(199),
+            previous,
+            interval));
+        Assert.True(FfmpegMediaEngine.IsCrossStreamSampleDue(
+            previous + interval,
+            previous,
+            interval));
+    }
+
+    [Fact]
     public void CrossStreamDecision_RestartsAfterPersistentMismatch()
     {
         FfmpegMediaEngine.CrossStreamDecisionTracker tracker = new(
@@ -256,7 +281,7 @@ public sealed class FfmpegMediaEngineContractTests
         Assert.Equal(FfmpegTimelineEventKind.None, video.EventKind);
         Assert.Equal(FfmpegTimelineEventKind.None, audio.EventKind);
         Assert.False(nextVideo.DiscardPacket);
-        Assert.Equal(0, nextVideo.VideoTimestampCorrection);
+        Assert.Equal(0, nextVideo.PacketTimestampCorrection);
     }
 
     [Fact]
@@ -359,20 +384,24 @@ public sealed class FfmpegMediaEngineContractTests
 
         _ = recovery.Observe(true, false, 0, 40_000, true);
         FfmpegMediaEngine.MediaTimelineRecoveryResult stalled = recovery.Observe(false, true, 3_020_000, 20_000, false);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult quarantinedAudio = recovery.Observe(false, true, 3_040_000, 20_000, false);
         FfmpegMediaEngine.MediaTimelineRecoveryResult nonKeyframe = recovery.Observe(true, false, 40_000, 40_000, false);
         FfmpegMediaEngine.MediaTimelineRecoveryResult recovered = recovery.Observe(true, false, 80_000, 40_000, true);
         FfmpegMediaEngine.MediaTimelineRecoveryResult continued = recovery.Observe(true, false, 120_000, 40_000, false);
 
         Assert.Equal(FfmpegTimelineEventKind.VideoStalled, stalled.EventKind);
         Assert.Equal(3_000_000, stalled.GapMicroseconds);
+        Assert.True(stalled.DiscardPacket);
+        Assert.True(quarantinedAudio.DiscardPacket);
         Assert.True(nonKeyframe.DiscardPacket);
+        Assert.False(recovered.DiscardPacket);
         Assert.Equal(FfmpegTimelineEventKind.VideoRecovered, recovered.EventKind);
-        Assert.Equal(2_960_000, recovered.VideoTimestampCorrection);
-        Assert.Equal(recovered.VideoTimestampCorrection, continued.VideoTimestampCorrection);
+        Assert.Equal(-40_000, recovered.PacketTimestampCorrection);
+        Assert.Equal(recovered.PacketTimestampCorrection, continued.PacketTimestampCorrection);
     }
 
     [Fact]
-    public void MediaTimelineRecovery_DoesNotShiftVideoThatResumesOnTheAudioTimeline()
+    public void MediaTimelineRecovery_AlignsRecoveryToLastSafeWrittenTimestamp()
     {
         FfmpegMediaEngine.MediaTimelineRecovery recovery = new(
             FfmpegMediaEngine.VideoTimelineStallThresholdMicroseconds);
@@ -382,25 +411,87 @@ public sealed class FfmpegMediaEngineContractTests
         FfmpegMediaEngine.MediaTimelineRecoveryResult recovered = recovery.Observe(true, false, 3_100_000, 40_000, true);
 
         Assert.Equal(FfmpegTimelineEventKind.VideoRecovered, recovered.EventKind);
-        Assert.Equal(0, recovered.VideoTimestampCorrection);
+        Assert.Equal(40_000, 3_100_000 + recovered.PacketTimestampCorrection);
         Assert.Equal(0, recovered.GapMicroseconds);
     }
 
     [Fact]
-    public void MediaTimelineRecovery_RemovesPriorCorrectionWhenSourceVideoCatchesUp()
+    public void MediaTimelineRecovery_RebasesBothTracksAtSharedRecoveryAnchor()
     {
         FfmpegMediaEngine.MediaTimelineRecovery recovery = new(
             FfmpegMediaEngine.VideoTimelineStallThresholdMicroseconds);
 
         _ = recovery.Observe(true, false, 0, 40_000, true);
+        _ = recovery.Observe(false, true, 20_000, 20_000, false);
         _ = recovery.Observe(false, true, 3_020_000, 20_000, false);
         FfmpegMediaEngine.MediaTimelineRecoveryResult recovered = recovery.Observe(true, false, 80_000, 40_000, true);
-        _ = recovery.Observe(false, true, 6_000_000, 20_000, false);
-        FfmpegMediaEngine.MediaTimelineRecoveryResult caughtUp = recovery.Observe(true, false, 6_100_000, 40_000, true);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult recoveredAudio = recovery.Observe(false, true, 53_000_000, 20_000, false);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult continuedAudio = recovery.Observe(false, true, 53_020_000, 20_000, false);
 
-        Assert.True(recovered.VideoTimestampCorrection > 0);
-        Assert.Equal(0, caughtUp.VideoTimestampCorrection);
-        Assert.False(caughtUp.DiscardPacket);
+        Assert.Equal(40_000, 80_000 + recovered.PacketTimestampCorrection);
+        Assert.Equal(40_000, 53_000_000 + recoveredAudio.PacketTimestampCorrection);
+        Assert.Equal(recoveredAudio.PacketTimestampCorrection, continuedAudio.PacketTimestampCorrection);
+        Assert.False(recoveredAudio.DiscardPacket);
+    }
+
+    [Fact]
+    public void MediaTimelineRecovery_PreservesSixtyFpsDurationAfterLongQuarantine()
+    {
+        const long videoFrameDuration = 16_667;
+        const long audioFrameDuration = 21_333;
+        FfmpegMediaEngine.MediaTimelineRecovery recovery = new(
+            FfmpegMediaEngine.VideoTimelineStallThresholdMicroseconds);
+
+        _ = recovery.Observe(true, false, 0, videoFrameDuration, true);
+        _ = recovery.Observe(false, true, 0, audioFrameDuration, false);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult stalled = recovery.Observe(
+            false,
+            true,
+            3_000_000,
+            audioFrameDuration,
+            false);
+        _ = recovery.Observe(false, true, 53_000_000, audioFrameDuration, false);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult recovered = recovery.Observe(
+            true,
+            false,
+            videoFrameDuration,
+            videoFrameDuration,
+            true);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult recoveredAudio = recovery.Observe(
+            false,
+            true,
+            53_000_000,
+            audioFrameDuration,
+            false);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult finalVideo = default;
+        for (int frameIndex = 2; frameIndex <= 3_601; frameIndex++)
+        {
+            finalVideo = recovery.Observe(
+                true,
+                false,
+                videoFrameDuration * frameIndex,
+                videoFrameDuration,
+                false);
+        }
+
+        long recoveredVideoStart = videoFrameDuration + recovered.PacketTimestampCorrection;
+        long recoveredAudioStart = 53_000_000 + recoveredAudio.PacketTimestampCorrection;
+        long finalVideoStart = videoFrameDuration * 3_601 + finalVideo.PacketTimestampCorrection;
+
+        Assert.Equal(FfmpegTimelineEventKind.VideoStalled, stalled.EventKind);
+        Assert.Equal(FfmpegTimelineEventKind.VideoRecovered, recovered.EventKind);
+        Assert.Equal(recoveredVideoStart, recoveredAudioStart);
+        Assert.InRange(finalVideoStart - recoveredVideoStart, 60_000_000, 60_002_000);
+    }
+
+    [Fact]
+    public void PacketNormalization_PersistsDerivedFrameDuration()
+    {
+        string source = ReadSource();
+
+        Assert.Contains("GetPacketDuration(packet, inputStream)", source);
+        Assert.Contains("long duration = GetPacketDuration(packet, stream);", source);
+        Assert.Contains("packet->duration = duration;", source);
     }
 
     [Fact]
@@ -412,16 +503,18 @@ public sealed class FfmpegMediaEngineContractTests
             FfmpegMediaEngine.VideoTimelineStallThresholdMicroseconds);
 
         _ = recovery.Observe(true, false, 0, 40_000, true);
+        _ = recovery.Observe(false, true, 20_000, 20_000, false);
         _ = recovery.Observe(false, true, 3_020_000, 20_000, false);
         FfmpegMediaEngine.MediaTimelineRecoveryResult firstRecovery = recovery.Observe(true, false, 80_000, 40_000, true);
-        FfmpegMediaEngine.MediaTimelineRecoveryResult secondStall = recovery.Observe(false, true, 6_080_000, 20_000, false);
-        FfmpegMediaEngine.MediaTimelineRecoveryResult secondRecovery = recovery.Observe(true, false, 120_000, 40_000, true);
+        _ = recovery.Observe(false, true, 3_040_000, 20_000, false);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult secondStall = recovery.Observe(false, true, 6_100_000, 20_000, false);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult secondRecovery = recovery.Observe(true, false, 160_000, 40_000, true);
         FfmpegMediaEngine.MediaTimelineRecoveryResult audioOnly = audioOnlyRecovery.Observe(false, true, 30_000_000, 20_000, false);
 
         Assert.Equal(FfmpegTimelineEventKind.VideoRecovered, firstRecovery.EventKind);
         Assert.Equal(FfmpegTimelineEventKind.VideoStalled, secondStall.EventKind);
         Assert.Equal(FfmpegTimelineEventKind.VideoRecovered, secondRecovery.EventKind);
-        Assert.True(secondRecovery.VideoTimestampCorrection > firstRecovery.VideoTimestampCorrection);
+        Assert.False(secondRecovery.DiscardPacket);
         Assert.Equal(FfmpegTimelineEventKind.None, audioOnly.EventKind);
     }
 
@@ -446,6 +539,29 @@ public sealed class FfmpegMediaEngineContractTests
     }
 
     [Fact]
+    public void MediaTimelineRecovery_RestartsWhenAudioDoesNotReturnAfterVideoRecovery()
+    {
+        FfmpegMediaEngine.MediaTimelineRecovery recovery = new(
+            FfmpegMediaEngine.VideoTimelineStallThresholdMicroseconds,
+            detectAudioStalls: true);
+
+        _ = recovery.Observe(true, false, 0, 40_000, true);
+        _ = recovery.Observe(false, true, 20_000, 20_000, false);
+        _ = recovery.Observe(false, true, 3_020_000, 20_000, false);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult recovered = recovery.Observe(true, false, 80_000, 40_000, true);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult audioStalled = recovery.Observe(
+            true,
+            false,
+            3_040_000,
+            40_000,
+            false);
+
+        Assert.Equal(FfmpegTimelineEventKind.VideoRecovered, recovered.EventKind);
+        Assert.Equal(FfmpegTimelineEventKind.AudioStalled, audioStalled.EventKind);
+        Assert.Equal(3_000_000, audioStalled.GapMicroseconds);
+    }
+
+    [Fact]
     public void MediaTimelineRecovery_DoesNotTreatInitialAlignmentAsAudioStall()
     {
         FfmpegMediaEngine.MediaTimelineRecovery recovery = new(
@@ -467,6 +583,49 @@ public sealed class FfmpegMediaEngineContractTests
     }
 
     [Fact]
+    public void MediaTimelineRecovery_DoesNotReportAudioStallAfterAudioTimestampReset()
+    {
+        FfmpegMediaEngine.MediaTimelineRecovery recovery = new(
+            FfmpegMediaEngine.VideoTimelineStallThresholdMicroseconds,
+            detectAudioStalls: true);
+
+        _ = recovery.Observe(true, false, 10_000_000, 40_000, true);
+        _ = recovery.Observe(false, true, 10_000_000, 20_000, false);
+        _ = recovery.Observe(false, true, 0, 20_000, false);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult video = recovery.Observe(
+            true,
+            false,
+            12_000_000,
+            40_000,
+            false);
+
+        Assert.Equal(FfmpegTimelineEventKind.None, video.EventKind);
+    }
+
+    [Fact]
+    public void MediaTimelineRecovery_DoesNotReportVideoStallForRepeatedVideoTimestampsThatRemainWritable()
+    {
+        FfmpegMediaEngine.MediaTimelineRecovery recovery = new(
+            FfmpegMediaEngine.VideoTimelineStallThresholdMicroseconds,
+            detectAudioStalls: true);
+
+        _ = recovery.Observe(true, false, 0, 1_000_000, true);
+        _ = recovery.Observe(false, true, 0, 1_000_000, false);
+        _ = recovery.Observe(true, false, 0, 1_000_000, false);
+        _ = recovery.Observe(false, true, 1_000_000, 1_000_000, false);
+        _ = recovery.Observe(true, false, 0, 1_000_000, false);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult audio = recovery.Observe(
+            false,
+            true,
+            2_000_000,
+            1_000_000,
+            false);
+
+        Assert.Equal(FfmpegTimelineEventKind.None, audio.EventKind);
+        Assert.False(audio.DiscardPacket);
+    }
+
+    [Fact]
     public void Remux_UsesOneReferenceClockAndWaitsForVideoRecoveryKeyframe()
     {
         string source = ReadSource();
@@ -483,21 +642,26 @@ public sealed class FfmpegMediaEngineContractTests
     }
 
     [Fact]
-    public void LiveRecording_RestartsBeforeWritingConfirmedAudioOnlyTimeline()
+    public void LiveRecording_QuarantinesVideoStallWhileCrossStreamVerificationRuns()
     {
         string source = ReadSource();
 
         int segmentStart = source.IndexOf("private static FfmpegMediaRunResult SegmentStream(", StringComparison.Ordinal);
-        int segmentRestart = source.IndexOf("CreateLiveTimelineRestartResult(hadProgress, timelineRecoveryResult, onPacketProgress)", segmentStart, StringComparison.Ordinal);
-        int segmentWrite = source.IndexOf("ffmpeg.av_interleaved_write_frame(outputContext, packet)", segmentRestart, StringComparison.Ordinal);
+        int segmentReport = source.IndexOf("ReportTimelineEvent(timelineRecoveryResult, onPacketProgress);", segmentStart, StringComparison.Ordinal);
+        int segmentDiscard = source.IndexOf("if (timelineRecoveryResult.DiscardPacket)", segmentReport, StringComparison.Ordinal);
+        int segmentWrite = source.IndexOf("ffmpeg.av_interleaved_write_frame(outputContext, packet)", segmentDiscard, StringComparison.Ordinal);
         int remuxStart = source.IndexOf("private static FfmpegMediaRunResult Remux(", StringComparison.Ordinal);
-        int remuxRestart = source.IndexOf("CreateLiveTimelineRestartResult(hadProgress, timelineRecoveryResult, onPacketProgress)", remuxStart, StringComparison.Ordinal);
-        int remuxWrite = source.IndexOf("ffmpeg.av_interleaved_write_frame(outputContext, packet)", remuxRestart, StringComparison.Ordinal);
+        int remuxReport = source.IndexOf("ReportTimelineEvent(timelineRecoveryResult, onPacketProgress);", remuxStart, StringComparison.Ordinal);
+        int remuxDiscard = source.IndexOf("if (timelineRecoveryResult.DiscardPacket)", remuxReport, StringComparison.Ordinal);
+        int remuxWrite = source.IndexOf("ffmpeg.av_interleaved_write_frame(outputContext, packet)", remuxDiscard, StringComparison.Ordinal);
 
-        Assert.True(segmentRestart > segmentStart);
-        Assert.True(segmentWrite > segmentRestart);
-        Assert.True(remuxRestart > remuxStart);
-        Assert.True(remuxWrite > remuxRestart);
+        Assert.True(segmentReport > segmentStart);
+        Assert.True(segmentDiscard > segmentReport);
+        Assert.True(segmentWrite > segmentDiscard);
+        Assert.True(remuxReport > remuxStart);
+        Assert.True(remuxDiscard > remuxReport);
+        Assert.True(remuxWrite > remuxDiscard);
+        Assert.Contains("timelineRecoveryResult.EventKind == FfmpegTimelineEventKind.AudioStalled", source);
         Assert.Contains("if (inputOptions.IsLive)", source);
         Assert.Contains("if (inputOptions?.IsLive == true)", source);
         Assert.Contains("RequiresInputRestart: true", source);

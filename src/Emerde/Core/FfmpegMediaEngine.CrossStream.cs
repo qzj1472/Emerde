@@ -35,9 +35,9 @@ internal static partial class FfmpegMediaEngine
         }
 
         TimeSpan boundedDuration = maximumDuration <= TimeSpan.Zero
-            ? TimeSpan.FromSeconds(30)
-            : maximumDuration > TimeSpan.FromSeconds(30)
-                ? TimeSpan.FromSeconds(30)
+            ? TimeSpan.FromSeconds(15)
+            : maximumDuration > TimeSpan.FromSeconds(15)
+                ? TimeSpan.FromSeconds(15)
                 : maximumDuration;
         using CancellationTokenSource timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(token);
         timeoutSource.CancelAfter(boundedDuration);
@@ -201,8 +201,8 @@ internal static partial class FfmpegMediaEngine
             }
 
             Stopwatch elapsed = Stopwatch.StartNew();
-            TimeSpan lastSampleAt = TimeSpan.MinValue;
-            TimeSpan lastVideoHashAt = TimeSpan.MinValue;
+            TimeSpan? lastSampleAt = null;
+            TimeSpan? lastVideoHashAt = null;
             long firstVideoTimestamp = ffmpeg.AV_NOPTS_VALUE;
             long firstAudioTimestamp = ffmpeg.AV_NOPTS_VALUE;
             long videoEndTimestamp = ffmpeg.AV_NOPTS_VALUE;
@@ -240,9 +240,9 @@ internal static partial class FfmpegMediaEngine
                         audioEndTimestamp = audioEndTimestamp == ffmpeg.AV_NOPTS_VALUE ? endTimestamp : Math.Max(audioEndTimestamp, endTimestamp);
                     }
 
-                    if (elapsed.Elapsed - lastSampleAt >= CrossStreamSampleInterval
-                        && firstVideoTimestamp != ffmpeg.AV_NOPTS_VALUE
-                        && firstAudioTimestamp != ffmpeg.AV_NOPTS_VALUE)
+                    if (firstVideoTimestamp != ffmpeg.AV_NOPTS_VALUE
+                        && firstAudioTimestamp != ffmpeg.AV_NOPTS_VALUE
+                        && IsCrossStreamSampleDue(elapsed.Elapsed, lastSampleAt, CrossStreamSampleInterval))
                     {
                         lastSampleAt = elapsed.Elapsed;
                         double driftSeconds = SubtractSaturated(audioEndTimestamp, videoEndTimestamp) / 1_000_000d;
@@ -297,7 +297,7 @@ internal static partial class FfmpegMediaEngine
         AVFrame* frame,
         AVPacket* packet,
         TimeSpan elapsed,
-        ref TimeSpan lastVideoHashAt,
+        ref TimeSpan? lastVideoHashAt,
         ref ulong? latestVideoHash)
     {
         if (ffmpeg.avcodec_send_packet(decoderContext, packet) < 0)
@@ -307,7 +307,7 @@ internal static partial class FfmpegMediaEngine
 
         while (ffmpeg.avcodec_receive_frame(decoderContext, frame) >= 0)
         {
-            if (elapsed - lastVideoHashAt >= TimeSpan.FromMilliseconds(500))
+            if (IsCrossStreamSampleDue(elapsed, lastVideoHashAt, TimeSpan.FromMilliseconds(500)))
             {
                 ulong? hash = CalculateVideoDifferenceHash(frame);
                 if (hash.HasValue)
@@ -318,6 +318,11 @@ internal static partial class FfmpegMediaEngine
             }
             ffmpeg.av_frame_unref(frame);
         }
+    }
+
+    internal static bool IsCrossStreamSampleDue(TimeSpan elapsed, TimeSpan? lastSampleAt, TimeSpan interval)
+    {
+        return !lastSampleAt.HasValue || elapsed - lastSampleAt.Value >= interval;
     }
 
     private static unsafe ulong? CalculateVideoDifferenceHash(AVFrame* frame)

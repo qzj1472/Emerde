@@ -68,7 +68,7 @@ internal static class MediaWorker
                     command.InputUrl,
                     command.ReferenceInputUrl,
                     inputOptions,
-                    TimeSpan.FromSeconds(Math.Clamp(command.AnalysisDurationSeconds, 1, 30)),
+                    TimeSpan.FromSeconds(Math.Clamp(command.AnalysisDurationSeconds, 1, 15)),
                     stopSource.Token).GetAwaiter().GetResult();
                 Console.Out.WriteLine($"cross|{JsonSerializer.Serialize(analysis, JsonOptions)}");
                 Console.Out.Flush();
@@ -228,7 +228,7 @@ internal static class MediaWorker
             Headers = inputOptions.Headers,
             IsUseProxy = inputOptions.IsUseProxy,
             HttpProxy = inputOptions.HttpProxy,
-            AnalysisDurationSeconds = Math.Clamp((int)Math.Ceiling(maximumDuration.TotalSeconds), 1, 30),
+            AnalysisDurationSeconds = Math.Clamp((int)Math.Ceiling(maximumDuration.TotalSeconds), 1, 15),
         };
         File.WriteAllText(path, JsonSerializer.Serialize(command, JsonOptions));
         return path;
@@ -342,7 +342,7 @@ internal sealed class MediaWorkerCommand
 
     public string ReferenceInputUrl { get; set; } = string.Empty;
 
-    public int AnalysisDurationSeconds { get; set; } = 30;
+    public int AnalysisDurationSeconds { get; set; } = 15;
 
     public string OutputFileName { get; set; } = string.Empty;
 

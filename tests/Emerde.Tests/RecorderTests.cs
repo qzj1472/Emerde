@@ -225,7 +225,7 @@ public sealed class RecorderTests
     {
         string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "Recorder.cs"));
         int initialRegistration = source.IndexOf(
-            "string? pendingRecordingPath = RecordingRecoveryService.RegisterSessionParts(",
+            "sessionPendingRecordingPath = RecordingRecoveryService.RegisterSessionParts(",
             StringComparison.Ordinal);
         int optimizeAudioArgument = source.IndexOf(
             "recordingOptions.IsOptimizeAudio);",
@@ -237,20 +237,35 @@ public sealed class RecorderTests
     }
 
     [Fact]
-    public void CrossStreamVerification_UsesRecordingLifetimeInsteadOfWorkerLifetime()
+    public void CrossStreamVerification_UsesWorkerLifetimeAndWakesDecisionLoop()
     {
         string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "Recorder.cs"));
+        int processCancellation = source.IndexOf("using CancellationTokenSource processCancellation = new();", StringComparison.Ordinal);
         int readerCall = source.IndexOf("Task outputTask = ReadMediaWorkerOutputAsync(", StringComparison.Ordinal);
         int readTokenArgument = source.IndexOf("processCancellation.Token,", readerCall, StringComparison.Ordinal);
-        int recordingTokenArgument = source.IndexOf("token);", readTokenArgument, StringComparison.Ordinal);
+        int verificationTokenArgument = source.IndexOf("processCancellation.Token);", readTokenArgument, StringComparison.Ordinal);
         int errorReaderCall = source.IndexOf("Task errorTask = ReadMediaWorkerErrorAsync(", readerCall, StringComparison.Ordinal);
+        int cancellationWait = source.IndexOf("Task cancellationTask = WaitForCancellationAsync(token);", errorReaderCall, StringComparison.Ordinal);
+        int verificationSignalWait = source.IndexOf("crossStreamVerificationStarted.WaitAsync(processCancellation.Token)", cancellationWait, StringComparison.Ordinal);
+        int verificationProtectedWait = source.IndexOf("Task.WhenAny(exitTask, cancellationTask, verificationTask)", verificationSignalWait, StringComparison.Ordinal);
+        int verificationCancellation = source.IndexOf("await CancelCrossStreamVerificationAsync();", verificationProtectedWait, StringComparison.Ordinal);
+        int verificationReaderCleanup = source.IndexOf("ObserveCrossStreamReaderAsync(outputTask),", verificationCancellation, StringComparison.Ordinal);
         int verificationStart = source.IndexOf("StartCrossStreamVerification(startInfo, verificationToken);", StringComparison.Ordinal);
 
+        Assert.True(processCancellation >= 0);
         Assert.True(readerCall >= 0);
         Assert.True(readTokenArgument > readerCall);
-        Assert.True(recordingTokenArgument > readTokenArgument);
-        Assert.True(errorReaderCall > recordingTokenArgument);
+        Assert.True(verificationTokenArgument > readTokenArgument);
+        Assert.True(errorReaderCall > verificationTokenArgument);
+        Assert.True(cancellationWait > errorReaderCall);
+        Assert.True(verificationSignalWait > cancellationWait);
+        Assert.True(verificationProtectedWait > verificationSignalWait);
+        Assert.True(verificationCancellation > verificationProtectedWait);
+        Assert.True(verificationReaderCleanup > verificationCancellation);
         Assert.True(verificationStart >= 0);
+        Assert.Contains("outputTask = process.StandardOutput.ReadToEndAsync();", source);
+        Assert.Contains("errorTask = process.StandardError.ReadToEndAsync();", source);
+        Assert.DoesNotContain("record_quarantine_segment_discarded", source);
     }
 
     [Theory]
@@ -517,7 +532,7 @@ public sealed class RecorderTests
 
             Assert.Equal("https://example.test/selected.flv", document.RootElement.GetProperty("InputUrl").GetString());
             Assert.Equal("https://example.test/reference.flv", document.RootElement.GetProperty("ReferenceInputUrl").GetString());
-            Assert.Equal(30, document.RootElement.GetProperty("AnalysisDurationSeconds").GetInt32());
+            Assert.Equal(15, document.RootElement.GetProperty("AnalysisDurationSeconds").GetInt32());
         }
         finally
         {

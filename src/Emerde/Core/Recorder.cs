@@ -54,8 +54,6 @@ public sealed class Recorder
 
     private bool lastAttemptWasStalled;
 
-    private bool lastAttemptWasRejectedByCrossStreamVerification;
-
     private double lastAttemptDurationSeconds;
 
     private string lastProcessErrorOutput = string.Empty;
@@ -68,7 +66,7 @@ public sealed class Recorder
 
     private readonly List<string> unregisteredRecordingPatterns = [];
 
-    private readonly List<(string SourcePattern, string TargetFormat)> unregisteredSessionRecordings = [];
+    private readonly List<(string SourcePattern, string TargetFormat, bool IsStallSegment)> unregisteredSessionRecordings = [];
 
     private IDisposable? mediaOperationRegistration;
 
@@ -114,6 +112,8 @@ public sealed class Recorder
 
     private CancellationTokenSource? crossStreamVerificationCancellation;
 
+    private readonly SemaphoreSlim crossStreamVerificationStarted = new(0, 1);
+
     public Task Start(RecorderStartInfo startInfo, CancellationTokenSource? tokenSource = null)
     {
         lock (stateLock)
@@ -139,8 +139,7 @@ public sealed class Recorder
             lastMediaInputBytes = 0;
             lastMediaProgressAt = DateTime.MinValue;
             mediaSpeedSummaryWindow.Reset();
-            lastAttemptWasRejectedByCrossStreamVerification = false;
-            CancelCrossStreamVerification();
+            DrainCrossStreamVerificationSignal();
             RequestedAt = DateTime.Now;
             StartTime = DateTime.MinValue;
             EndTime = DateTime.MinValue;
@@ -187,6 +186,12 @@ public sealed class Recorder
         RoomRecordingOptions recordingOptions = startInfo.Options;
         OutputReservation? sessionOutputReservation = null;
         List<string> queuedPostProcessingPaths = [];
+        string? sessionOutputPattern = null;
+        string? sessionBaseFileName = null;
+        string? sessionMetadataPath = null;
+        VideoRecordingMetadata? sessionMetadata = null;
+        string? sessionPendingRecordingPath = null;
+        bool sessionSplitByStall = false;
         try
         {
             if (!FfmpegMediaEngine.IsAvailable)
@@ -271,10 +276,6 @@ public sealed class Recorder
             int sessionPartIndex = 0;
             bool hasTriedInputFallback = false;
             DateTime sessionTimestamp = DateTime.Now;
-            string? sessionOutputPattern = null;
-            string? sessionBaseFileName = null;
-            string? sessionMetadataPath = null;
-            VideoRecordingMetadata? sessionMetadata = null;
             if (useSessionPartFiles)
             {
                 string sessionRequestedBaseFileName = BuildBaseFileName(startInfo, sessionTimestamp).SanitizeFileName();
@@ -283,19 +284,19 @@ public sealed class Recorder
                 sessionOutputPattern = sessionOutputReservation.OutputPattern;
                 sessionMetadata = BuildMetadata(sessionBaseFileName, sessionSourceExtension, startInfo, sessionTimestamp);
                 sessionMetadataPath = VideoRecordingMetadataStore.WriteSidecar(saveFolder, sessionBaseFileName, sessionMetadata);
-                string? pendingRecordingPath = RecordingRecoveryService.RegisterSessionParts(
+                sessionPendingRecordingPath = RecordingRecoveryService.RegisterSessionParts(
                     sessionOutputPattern,
                     sessionTargetFormat,
                     recordingOptions.IsRemoveTs,
                     startInfo.RoomUrl,
                     recordingOptions.IsOptimizeAudio);
-                if (!string.IsNullOrWhiteSpace(pendingRecordingPath))
+                if (!string.IsNullOrWhiteSpace(sessionPendingRecordingPath))
                 {
-                    pendingRecordingPaths.Add(pendingRecordingPath);
+                    pendingRecordingPaths.Add(sessionPendingRecordingPath);
                 }
                 else
                 {
-                    unregisteredSessionRecordings.Add((sessionOutputPattern, sessionTargetFormat));
+                    unregisteredSessionRecordings.Add((sessionOutputPattern, sessionTargetFormat, false));
                 }
             }
             while (!token.IsCancellationRequested && Volatile.Read(ref stopRequested) == 0)
@@ -372,16 +373,6 @@ public sealed class Recorder
                     segmentOptions,
                     startInfo,
                     token);
-                if (lastAttemptWasRejectedByCrossStreamVerification)
-                {
-                    DeleteFailedOutputFiles(outputFileName, useSessionPartFiles ? null : MetadataPath);
-                    AppSessionLogger.Event("warn", "recorder", "record_quarantine_segment_discarded", "cross-stream verification rejected the temporary recording part", new
-                    {
-                        startInfo.RoomUrl,
-                        startInfo.NickName,
-                        outputFileName,
-                    });
-                }
                 DeleteEmptyOutputFiles(outputFileName);
                 bool hasSessionOutput = useSessionPartFiles && HasUsableOutput(outputFileName);
                 if (!useSessionPartFiles)
@@ -461,6 +452,20 @@ public sealed class Recorder
                         startInfo.OfflineConfirmed?.Invoke();
                     }
                     break;
+                }
+
+                if (useSessionPartFiles
+                    && lastAttemptWasStalled
+                    && (hasSessionOutput || sessionPartIndex > 0))
+                {
+                    sessionSplitByStall = true;
+                    sessionMetadata!.SegmentReason = VideoRecordingMetadataStore.TimelineStallSegmentReason;
+                    if (!string.IsNullOrWhiteSpace(sessionPendingRecordingPath))
+                    {
+                        _ = RecordingRecoveryService.MarkSessionPartsAsStallSegments(sessionPendingRecordingPath);
+                    }
+                    sessionMetadataPath = VideoRecordingMetadataStore.WriteSidecar(saveFolder, sessionBaseFileName!, sessionMetadata)
+                        ?? sessionMetadataPath;
                 }
 
                 if (isLiveAfterRefresh == true)
@@ -563,6 +568,18 @@ public sealed class Recorder
             try
             {
                 EndTime = DateTime.Now;
+                if (sessionSplitByStall && sessionMetadata != null && sessionBaseFileName != null)
+                {
+                    sessionMetadata.SegmentReason = VideoRecordingMetadataStore.TimelineStallSegmentReason;
+                    if (!string.IsNullOrWhiteSpace(sessionPendingRecordingPath))
+                    {
+                        _ = RecordingRecoveryService.MarkSessionPartsAsStallSegments(sessionPendingRecordingPath);
+                    }
+                    sessionMetadataPath = VideoRecordingMetadataStore.WriteSidecar(
+                        Path.GetDirectoryName(sessionOutputPattern!)!,
+                        sessionBaseFileName,
+                        sessionMetadata) ?? sessionMetadataPath;
+                }
                 FinalizeMetadataForOutput(FileName ?? string.Empty, MetadataPath);
                 DeleteMetadataIfNoOutput(FileName ?? string.Empty, MetadataPath);
                 lock (stateLock)
@@ -614,7 +631,7 @@ public sealed class Recorder
                     }
                 }
 
-                foreach ((string sourcePattern, string format) in unregisteredSessionRecordings)
+                foreach ((string sourcePattern, string format, bool isStallSegment) in unregisteredSessionRecordings)
                 {
                     string latestTargetFormat = GetTargetFormat(postProcessingOptions.RecordFormat)
                         ?? Path.GetExtension(sourcePattern);
@@ -623,7 +640,11 @@ public sealed class Recorder
                         latestTargetFormat,
                         postProcessingOptions.IsRemoveTs,
                         startInfo.RoomUrl,
-                        postProcessingOptions.IsOptimizeAudio);
+                        postProcessingOptions.IsOptimizeAudio,
+                        mergeSessionParts: !(sessionSplitByStall || isStallSegment),
+                        segmentReason: sessionSplitByStall || isStallSegment
+                            ? VideoRecordingMetadataStore.TimelineStallSegmentReason
+                            : string.Empty);
                     if (!string.IsNullOrWhiteSpace(pendingPath))
                     {
                         pendingRecordingPaths.Add(pendingPath);
@@ -687,7 +708,7 @@ public sealed class Recorder
                 }
                 mediaOperationRegistration?.Dispose();
                 mediaOperationRegistration = null;
-                CancelCrossStreamVerification();
+                await CancelCrossStreamVerificationAsync();
                 lock (stateLock)
                 {
                     if (ownsTokenSource)
@@ -850,8 +871,8 @@ public sealed class Recorder
         lastAttemptHadMediaProgress = false;
         lastAttemptWasCanceled = false;
         lastAttemptWasStalled = false;
-        lastAttemptWasRejectedByCrossStreamVerification = false;
         lastAttemptDurationSeconds = 0;
+        await CancelCrossStreamVerificationAsync();
         Stopwatch processLifetime = Stopwatch.StartNew();
         FfmpegInputOptions inputOptions = new(userAgent, headers, isUseProxy, httpProxy, true);
         AppSessionLogger.Event("info", "recorder", "record_native_starting", "ffmpeg native recording is starting", new
@@ -887,33 +908,44 @@ public sealed class Recorder
             _ = WeakReferenceMessenger.Default.Send(new RoomRecordingStateChangedMessage(startInfo.RoomUrl));
             TryTraceProcess(process);
             progressTracker = new(DateTime.UtcNow);
-            using CancellationTokenSource processCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
+            using CancellationTokenSource processCancellation = new();
             Task outputTask = ReadMediaWorkerOutputAsync(
                 process.StandardOutput,
                 progressTracker,
                 startInfo,
                 outputFileName,
                 processCancellation.Token,
-                token);
+                processCancellation.Token);
             Task errorTask = ReadMediaWorkerErrorAsync(process.StandardError, errorOutput, processCancellation.Token);
             Task exitTask = process.WaitForExitAsync(CancellationToken.None);
             Task<bool> stallTask = WaitForProgressStallAsync(progressTracker, processCancellation.Token);
-            Task cancellationTask = WaitForCancellationAsync(processCancellation.Token);
+            Task cancellationTask = WaitForCancellationAsync(token);
             while (true)
             {
                 Task<FfmpegCrossStreamAnalysisResult>? verificationTask = GetCrossStreamVerificationTask();
-                Task completedTask = verificationTask == null
-                    ? await Task.WhenAny(exitTask, stallTask, cancellationTask)
-                    : await Task.WhenAny(exitTask, stallTask, cancellationTask, verificationTask);
+                Task completedTask;
+                if (verificationTask == null)
+                {
+                    Task verificationStartedTask = crossStreamVerificationStarted.WaitAsync(processCancellation.Token);
+                    completedTask = await Task.WhenAny(exitTask, stallTask, cancellationTask, verificationStartedTask);
+                    if (completedTask == verificationStartedTask)
+                    {
+                        continue;
+                    }
+                }
+                else
+                {
+                    completedTask = await Task.WhenAny(exitTask, cancellationTask, verificationTask);
+                }
                 if (completedTask == verificationTask)
                 {
                     FfmpegCrossStreamAnalysisResult verification = await verificationTask!;
                     CompleteCrossStreamVerification(verificationTask!);
                     LogCrossStreamVerificationResult(startInfo, outputFileName, verification);
+                    stallTask = WaitForProgressStallAsync(progressTracker, processCancellation.Token);
                     if (verification.IsConclusive && verification.ShouldRestart && !token.IsCancellationRequested)
                     {
                         wasStalled = true;
-                        lastAttemptWasRejectedByCrossStreamVerification = true;
                         AppSessionLogger.Event("warn", "recorder", "record_restart_scheduled", "cross-stream verification confirmed a persistent mismatch", new
                         {
                             startInfo.RoomUrl,
@@ -936,6 +968,10 @@ public sealed class Recorder
                 }
                 if (completedTask == stallTask && await stallTask)
                 {
+                    if (GetCrossStreamVerificationTask() != null)
+                    {
+                        continue;
+                    }
                     wasStalled = true;
                     RecorderStallReason stallReason = progressTracker.GetStallReason(
                         DateTime.UtcNow,
@@ -971,6 +1007,7 @@ public sealed class Recorder
 
             await exitTask;
             processCancellation.Cancel();
+            await CancelCrossStreamVerificationAsync();
             await Task.WhenAll(outputTask, errorTask);
             wasStalled |= process.ExitCode == MediaWorker.TimelineRestartExitCode;
             exitCode = wasStalled ? 1 : process.ExitCode;
@@ -987,6 +1024,7 @@ public sealed class Recorder
         }
         finally
         {
+            await CancelCrossStreamVerificationAsync();
             if (process != null)
             {
                 KillProcessTree(process);
@@ -1106,11 +1144,15 @@ public sealed class Recorder
                 referenceUrl,
                 CreateCrossStreamInputOptions(startInfo),
                 crossStreamVerificationCancellation.Token);
+            if (crossStreamVerificationStarted.CurrentCount == 0)
+            {
+                crossStreamVerificationStarted.Release();
+            }
             AppSessionLogger.Event("info", "recorder", "record_reference_stream_started", "lower-quality reference stream verification started", new
             {
                 startInfo.RoomUrl,
                 startInfo.NickName,
-                maximumSeconds = 30,
+                maximumSeconds = 15,
             });
         }
     }
@@ -1135,16 +1177,18 @@ public sealed class Recorder
     {
         string commandPath = string.Empty;
         Process? process = null;
+        Task<string>? outputTask = null;
+        Task<string>? errorTask = null;
         try
         {
             commandPath = MediaWorker.WriteCrossStreamCommand(
                 selectedUrl,
                 referenceUrl,
                 inputOptions,
-                TimeSpan.FromSeconds(30));
+                TimeSpan.FromSeconds(15));
             process = StartMediaWorkerProcess(commandPath);
-            Task<string> outputTask = process.StandardOutput.ReadToEndAsync(token);
-            Task<string> errorTask = process.StandardError.ReadToEndAsync(token);
+            outputTask = process.StandardOutput.ReadToEndAsync();
+            errorTask = process.StandardError.ReadToEndAsync();
             await process.WaitForExitAsync(token);
             string output = await outputTask;
             string error = await errorTask;
@@ -1171,12 +1215,47 @@ public sealed class Recorder
             if (process != null)
             {
                 KillProcessTree(process);
+                await WaitForExitAsync(process, ProcessStopGracePeriod);
+                await Task.WhenAll(
+                    ObserveCrossStreamReaderAsync(outputTask),
+                    ObserveCrossStreamReaderAsync(errorTask));
                 process.Dispose();
             }
             if (!string.IsNullOrWhiteSpace(commandPath))
             {
                 DeleteFileIfExists(commandPath);
             }
+        }
+    }
+
+    private static async Task ObserveCrossStreamReaderAsync(Task<string>? readerTask)
+    {
+        if (readerTask == null)
+        {
+            return;
+        }
+
+        try
+        {
+            await readerTask.WaitAsync(ProcessStopGracePeriod);
+        }
+        catch (TimeoutException)
+        {
+            _ = ObserveCrossStreamReaderCompletionAsync(readerTask);
+        }
+        catch (Exception e) when (e is IOException or ObjectDisposedException or OperationCanceledException)
+        {
+        }
+    }
+
+    private static async Task ObserveCrossStreamReaderCompletionAsync(Task<string> readerTask)
+    {
+        try
+        {
+            await readerTask;
+        }
+        catch (Exception e) when (e is IOException or ObjectDisposedException or OperationCanceledException)
+        {
         }
     }
 
@@ -1199,17 +1278,41 @@ public sealed class Recorder
             crossStreamVerificationTask = null;
             crossStreamVerificationCancellation?.Dispose();
             crossStreamVerificationCancellation = null;
+            DrainCrossStreamVerificationSignal();
         }
     }
 
-    private void CancelCrossStreamVerification()
+    private async Task CancelCrossStreamVerificationAsync()
     {
+        Task<FfmpegCrossStreamAnalysisResult>? task;
+        CancellationTokenSource? cancellation;
         lock (crossStreamVerificationLock)
         {
-            crossStreamVerificationCancellation?.Cancel();
-            crossStreamVerificationCancellation?.Dispose();
+            task = crossStreamVerificationTask;
+            cancellation = crossStreamVerificationCancellation;
+            cancellation?.Cancel();
             crossStreamVerificationCancellation = null;
             crossStreamVerificationTask = null;
+            DrainCrossStreamVerificationSignal();
+        }
+
+        try
+        {
+            if (task != null)
+            {
+                await task;
+            }
+        }
+        finally
+        {
+            cancellation?.Dispose();
+        }
+    }
+
+    private void DrainCrossStreamVerificationSignal()
+    {
+        while (crossStreamVerificationStarted.Wait(0))
+        {
         }
     }
 
@@ -1229,10 +1332,10 @@ public sealed class Recorder
             result.Error,
         });
         string action = result.IsConclusive
-            ? result.ShouldRestart ? "record_timeline_offset_persisted" : "record_restart_cancelled"
+            ? result.ShouldRestart ? "record_restart_confirmed" : "record_restart_cancelled"
             : "record_cross_stream_inconclusive";
         string message = result.IsConclusive
-            ? result.ShouldRestart ? "cross-stream mismatch persisted and requires an internal restart" : "cross-stream timelines recovered and the internal restart was cancelled"
+            ? result.ShouldRestart ? "cross-stream mismatch persisted and requires an internal restart" : "cross-stream timelines recovered and the current recording continued"
             : "cross-stream verification was inconclusive and local timeline recovery remains active";
         AppSessionLogger.Event(result.IsConclusive && !result.ShouldRestart ? "info" : "warn", "recorder", action, message, new
         {
@@ -1246,15 +1349,6 @@ public sealed class Recorder
             result.Reason,
             result.Error,
         });
-        if (result.IsConclusive && !result.ShouldRestart)
-        {
-            AppSessionLogger.Event("info", "recorder", "record_quarantine_segment_kept", "the temporary recording part remained aligned and was kept", new
-            {
-                startInfo.RoomUrl,
-                startInfo.NickName,
-                outputFileName,
-            });
-        }
     }
 
     private static string GetApplicationExecutablePath()
@@ -2587,6 +2681,8 @@ public sealed class VideoRecordingMetadata
     public string Bitrate { get; set; } = string.Empty;
 
     public string CoverPath { get; set; } = string.Empty;
+
+    public string SegmentReason { get; set; } = string.Empty;
 
     public DateTime RecordedAt { get; set; } = DateTime.MinValue;
 }
