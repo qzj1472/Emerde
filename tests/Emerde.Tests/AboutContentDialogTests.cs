@@ -105,9 +105,10 @@ public class AboutContentDialogTests
         string text = string.Join('\n', document.Descendants().Attributes("Text").Select(attribute => attribute.Value));
 
         Assert.Contains("画面冻结、音频或视频缺包", text);
-        Assert.Contains("最长 30 秒内对比所选画质与低一级画质", text);
+        Assert.Contains("最长 15 秒内对比所选画质与低一级画质", text);
         Assert.Contains("偏差超过 500 毫秒并持续 5 秒", text);
         Assert.Contains("恢复到 200 毫秒内并稳定 10 秒", text);
+        Assert.Contains("保留卡顿前后的独立片段", text);
         Assert.Contains("不会降低最终录制画质", text);
         Assert.Contains("不使用账户 Cookie", text);
         Assert.Contains("短时增加低一级画质的下载带宽", text);

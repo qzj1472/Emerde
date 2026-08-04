@@ -774,7 +774,7 @@
                             <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 不要删除或单独移动 ffmpeg、libvlc 等程序依赖文件夹" />
                             <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 平台接口发生变化时请先保留日志，再反馈直播间链接、发生时间、操作步骤和截图" />
                             <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 网络短暂卡顿可能造成画面冻结、音频或视频缺包，并使音画偏差在后续录制中逐渐扩大" />
-                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 软件发现单轨停顿后会立即保护当前文件，并在最长 30 秒内对比所选画质与低一级画质；偏差超过 500 毫秒并持续 5 秒，或所选画面持续冻结时，会丢弃隔离片段并内部重启录制" />
+                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 软件发现单轨停顿后会立即保护当前文件，并在最长 15 秒内对比所选画质与低一级画质；偏差超过 500 毫秒并持续 5 秒，或所选画面持续冻结时，会保留卡顿前后的独立片段并内部重启录制" />
                             <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 两路流恢复到 200 毫秒内并稳定 10 秒时不会再次重启；参考流不可用时回退到本地时间轴判断，不会降低最终录制画质" />
                             <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 交叉检测只直连已解析的匿名直播流，不使用账户 Cookie；检测期间会短时增加低一级画质的下载带宽、视频解码和少量内存占用" />
                         </ui:StackPanel>
