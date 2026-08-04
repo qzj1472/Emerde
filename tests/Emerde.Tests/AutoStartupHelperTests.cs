@@ -8,24 +8,21 @@ public sealed class AutoStartupHelperTests : IDisposable
     public AutoStartupHelperTests()
     {
         RegistyAutoRunHelper.Disable(AppConfig.PackName);
-        RegistyAutoRunHelper.Disable(AppConfig.LegacyPackName);
     }
 
     [Fact]
-    public void IsAutorun_MigratesLegacyAutorunKey()
+    public void IsAutorun_UsesCurrentAutorunKey()
     {
-        RegistyAutoRunHelper.Enable(AppConfig.LegacyPackName, "\"legacy.exe\" /autorun");
+        RegistyAutoRunHelper.Enable(AppConfig.PackName, AutoStartupHelper.GetLaunchCommand());
 
         bool result = AutoStartupHelper.IsAutorun();
 
         Assert.True(result);
-        Assert.False(RegistyAutoRunHelper.Exists(AppConfig.LegacyPackName));
         Assert.True(RegistyAutoRunHelper.IsEnabled(AppConfig.PackName, AutoStartupHelper.GetLaunchCommand()));
     }
 
     public void Dispose()
     {
         RegistyAutoRunHelper.Disable(AppConfig.PackName);
-        RegistyAutoRunHelper.Disable(AppConfig.LegacyPackName);
     }
 }

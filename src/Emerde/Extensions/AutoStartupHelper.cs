@@ -1,5 +1,4 @@
 using Microsoft.Win32;
-using System.Diagnostics;
 
 namespace Emerde.Extensions;
 
@@ -8,25 +7,16 @@ internal static class AutoStartupHelper
     public static bool IsAutorun()
     {
         string launchCommand = GetLaunchCommand();
-
-        if (RegistyAutoRunHelper.Exists(AppConfig.LegacyPackName))
-        {
-            RegistyAutoRunHelper.Enable(AppConfig.PackName, launchCommand);
-            RegistyAutoRunHelper.Disable(AppConfig.LegacyPackName);
-        }
-
         return RegistyAutoRunHelper.IsEnabled(AppConfig.PackName, launchCommand);
     }
 
     public static void RemoveAutorunShortcut()
     {
         RegistyAutoRunHelper.Disable(AppConfig.PackName);
-        RegistyAutoRunHelper.Disable(AppConfig.LegacyPackName);
     }
 
     public static void CreateAutorunShortcut()
     {
-        RegistyAutoRunHelper.Disable(AppConfig.LegacyPackName);
         RegistyAutoRunHelper.Enable(AppConfig.PackName, GetLaunchCommand());
     }
 
