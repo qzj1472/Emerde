@@ -15,6 +15,9 @@
         <Version>$(VersionPrefix)1.6.7.0</Version>
         <Platforms>x64</Platforms>
         <DebugType>portable</DebugType>
+        <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+        <DebugSymbols Condition="'$(Configuration)' == 'Release'">false</DebugSymbols>
+        <SatelliteResourceLanguages>en;zh-Hans;zh-Hant;ja</SatelliteResourceLanguages>
         <AssemblyName>Emerde</AssemblyName>
         <RootNamespace>Emerde</RootNamespace>
         <StartupObject>Emerde.Program</StartupObject>
@@ -199,6 +202,25 @@
         </ItemGroup>
         <RemoveDir Directories="@(UnusedLibVlcRuntimeDirectory)" />
         <Delete Files="@(UnusedLibVlcRuntimeFile)" />
+    </Target>
+
+    <Target Name="PrunePublishedArtifacts"
+            AfterTargets="Publish"
+            Condition="'$(PublishDir)' != '' and Exists('$(MSBuildThisFileDirectory)..\..\build\Prune-Publish.ps1')">
+        <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\..\build\Prune-Publish.ps1&quot; -Root &quot;$(PublishDir).&quot; -Mode &quot;$(Configuration)&quot;" />
+    </Target>
+
+    <Target Name="RemoveReleaseDiagnosticsFromBundle"
+            AfterTargets="_ComputeFilesToBundle"
+            Condition="'$(Configuration)' == 'Release' and '$(PublishSingleFile)' == 'true'">
+        <ItemGroup>
+            <ReleaseDiagnosticBundleFile Include="@(_FilesToBundle)"
+                                         Condition="'%(_FilesToBundle.Filename)%(_FilesToBundle.Extension)' == 'createdump.exe'
+                                                    or '%(_FilesToBundle.Filename)%(_FilesToBundle.Extension)' == 'mscordbi.dll'
+                                                    or '%(_FilesToBundle.Filename)%(_FilesToBundle.Extension)' == 'Microsoft.DiaSymReader.Native.amd64.dll'
+                                                    or $([System.Text.RegularExpressions.Regex]::IsMatch('%(_FilesToBundle.Filename)', '^mscordaccore', System.Text.RegularExpressions.RegexOptions.IgnoreCase))" />
+            <_FilesToBundle Remove="@(ReleaseDiagnosticBundleFile)" />
+        </ItemGroup>
     </Target>
 
 </Project>
