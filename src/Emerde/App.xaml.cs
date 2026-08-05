@@ -169,6 +169,9 @@ public partial class App : Application
         }
         RuntimeResourceLogger.Start();
         TrayIconManager.Start();
+        RuntimeHelper.ListenForShutdownRequest(
+            AppConfig.PackName,
+            () => TrayIconManager.GetInstance().ShutdownApplication(confirmRecording: false));
     }
 
     /// <summary>

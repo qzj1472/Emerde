@@ -9,6 +9,7 @@ namespace Emerde.Extensions;
 internal static class RuntimeHelper
 {
     private const string RestartParentArgumentPrefix = "--emerde-restart-parent=";
+    private const string ShutdownEventSuffix = ".Shutdown";
 
     public static void CheckSingleInstance(string instanceName, Action<bool> callback = null!)
     {
@@ -43,6 +44,16 @@ internal static class RuntimeHelper
                     Interop.RestoreWindow(new WindowInteropHelper(mainWindow).Handle);
                 });
             }
+        }, TaskCreationOptions.LongRunning).ConfigureAwait(false);
+    }
+
+    public static void ListenForShutdownRequest(string instanceName, Action shutdown)
+    {
+        EventWaitHandle handle = new(false, EventResetMode.AutoReset, instanceName + ShutdownEventSuffix);
+        _ = Task.Factory.StartNew(() =>
+        {
+            handle.WaitOne();
+            Application.Current.Dispatcher.BeginInvoke(shutdown);
         }, TaskCreationOptions.LongRunning).ConfigureAwait(false);
     }
 
