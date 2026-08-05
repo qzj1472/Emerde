@@ -141,7 +141,7 @@
                                 </WrapPanel>
                                 <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                            LineHeight="20"
-                                           Text="面向多直播间的监控、预览、录制与文件管理工具。这里保留日常使用最需要知道的规则。"
+                                           Text="用于多直播间监控、预览、录制和视频管理。"
                                            TextWrapping="Wrap" />
                                 <WrapPanel>
                                     <ui:HyperlinkButton Command="{Binding OpenHyperlinkCommand}"
@@ -163,7 +163,7 @@
 
                     <ui:StackPanel Spacing="3">
                         <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="快速开始" />
-                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="正常录制只需要确认四个开关和一个保存位置。" />
+                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="完成以下设置后，即可开始监控和录制直播。" />
                     </ui:StackPanel>
                     <WrapPanel Margin="0,0,-12,0">
                         <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
@@ -178,23 +178,23 @@
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="#168A55" Text="02" />
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="开启监控" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 发现开播、关播和状态变化" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 只录制不开监控，不会主动发现开播" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 自动发现开播、下播和直播状态变化" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 仅开启录制不会自动发现开播，需要同时开启监控" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="#D83B01" Text="03" />
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="允许录制" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 检测到可用直播流后才会开始" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 录制中会显示写入状态和读秒" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="开启录制" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 获取到可用直播流后自动开始录制" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 可在首页查看当前录制状态和时长" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="#7A4DA0" Text="04" />
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="管理文件" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 到视频列表查看成品" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="管理视频" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 在视频列表查看录制文件和处理进度" />
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 支持转码、分割、合并、移动和删除" />
                             </ui:StackPanel>
                         </Border>
@@ -202,86 +202,92 @@
 
                     <ui:StackPanel Spacing="3">
                         <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="录制与检测" />
-                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="这些规则决定软件什么时候刷新、什么时候开始录制、什么时候停止录制。" />
+                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="了解软件如何发现直播、开始录制和处理网络异常。" />
                     </ui:StackPanel>
                     <WrapPanel Margin="0,0,-12,0">
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="监控、直播状态与连麦" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 连麦中的抖音直播间会结合直播状态和实际可用流判断" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 全部接口都无法确认时，会保留原状态，不把检测失败当成关播" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 手动刷新只刷新当前目标，不会被其他房间失败拖住" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="监控与录制" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 监控负责发现直播状态，录制开关决定是否保存直播" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 直播状态暂时无法确认时，软件会继续检测，避免误判下播" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="检测间隔" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 未开播房间使用设置里的检测间隔，默认 5 秒，通常保持默认值即可" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 直播中的房间固定每 10 秒检查一次" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 未开播的直播间按照设置中的检测间隔检查，默认每 5 秒一次" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 正在直播的直播间固定每 10 秒检查一次" />
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 直播结束后的 30 分钟内固定每 10 秒检查一次" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="录制状态" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• FFmpeg 录制进程结束后，会立即刷新对应卡片的录制状态" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 直播状态由下一次固定 10 秒检测更新" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• TS/FLV 保存原始数据；MP4/MKV 会在录制结束后转换" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="录制格式" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• TS 和 FLV 更能还原直播的原始数据" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• MP4 和 MKV 会在录制结束后自动转换" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 文件处理完成前，请不要强制退出软件" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="测速" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 首页底部状态栏的“测速”用于查看当前网络状态，并预计能同时录制多少路直播" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 会分别检查国内和国外线路，连续完成三轮下载并取平均值" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 可录路数会按当前开播房间的平台选择对应线路" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 多路录制时还要预留下载带宽和磁盘写入空间" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="网络异常处理" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 网络或直播源发生卡顿时，软件会保护已经录制的内容并尝试恢复" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 为避免音画不同步，恢复过程中可能生成新的独立片段" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 已经缺失的直播内容无法重新补录" />
+                            </ui:StackPanel>
+                        </Border>
+                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                            <ui:StackPanel Spacing="8">
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="网络测速" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 首页测速可估算当前网络适合同时录制的直播数量" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 实际录制能力还会受到平台线路、磁盘速度和系统负载影响" />
                             </ui:StackPanel>
                         </Border>
                     </WrapPanel>
 
                     <ui:StackPanel Spacing="3">
-                        <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="文件与维护" />
-                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="录制文件、日志和配置都尽量保留可恢复空间，减少误删。" />
+                        <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="文件与数据" />
+                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="管理录制文件、存储空间、日志和软件设置。" />
                     </ui:StackPanel>
                     <WrapPanel Margin="0,0,-12,0">
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="视频列表" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 显示可管理的视频和任务状态" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 正在录制写入的文件不能选中或操作" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 转码中的文件会显示状态提示，避免误删" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 显示录制文件、转码进度和其他处理状态" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 正在录制写入的文件不能选择或操作" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 正在转码的文件不建议选择或操作" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 请确认片段内容完整、播放正常后，再进行后续操作" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="保存目录与清理" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 保存目录应放在空间充足的位置" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 保留期清理只处理带有效 Emerde 元数据的录制" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 更新版本时保留 downloads、video_thumbnails、logs、cache 和配置文件" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 请将保存目录设置在空间充足的位置" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 启用保留期清理后，只清理由 Emerde 管理且达到期限的录制文件" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 更新软件时，请注意不要误删录制文件" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="日志与配置" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 导出当天日志会打包当天文件，导出全部会打包全部日志" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 配置文件和备份点都在 Emerde\config 文件夹内管理" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 导入、恢复或重置配置前会先验证文件" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="日志与设置" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 遇到问题时，可以导出当天日志或全部日志" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 设置支持备份、恢复和重置" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 导入设置前，软件会先检查文件是否有效" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="退出按钮、关闭窗口与恢复" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 右上角关闭按钮只隐藏主窗口，软件仍会留在托盘" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 完全退出请使用侧边栏或托盘菜单中的“退出”" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 未完成的收尾、分割或转码任务会在下次启动继续处理" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="退出与恢复" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 关闭主窗口后，软件仍会在系统托盘中运行" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 需要完全退出时，请使用侧边栏或托盘菜单中的“退出”" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 尚未完成的收尾、分割或转码任务会在下次启动后继续处理" />
                             </ui:StackPanel>
                         </Border>
                     </WrapPanel>
 
                     <ui:StackPanel Spacing="3">
                         <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="快捷键速查" />
-                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="快捷键按当前页面生效；输入框内可直接撤销、恢复、复制和粘贴文字。" />
+                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="快捷键仅在对应页面生效；输入框处于编辑状态时，撤销、恢复、复制和粘贴快捷键将用于文字操作。" />
                     </ui:StackPanel>
                     <WrapPanel Margin="0,0,-12,0">
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
@@ -770,13 +776,11 @@
                         <ui:StackPanel Spacing="8">
                             <TextBlock Style="{StaticResource AboutWarningTitleStyle}"
                                        Text="重要注意事项" />
-                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 不要在录制文件仍在写入时强制结束进程、断电或直接删除软件目录" />
+                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 录制文件仍在写入时，请勿强制结束软件、断电或删除相关文件" />
                             <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 不要删除或单独移动 ffmpeg、libvlc 等程序依赖文件夹" />
-                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 平台接口发生变化时请先保留日志，再反馈直播间链接、发生时间、操作步骤和截图" />
-                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 网络短暂卡顿可能造成画面冻结、音频或视频缺包，并使音画偏差在后续录制中逐渐扩大" />
-                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 软件发现单轨停顿后会立即保护当前文件，并在最长 15 秒内对比所选画质与低一级画质；偏差超过 500 毫秒并持续 5 秒，或所选画面持续冻结时，会保留卡顿前后的独立片段并内部重启录制" />
-                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 两路流恢复到 200 毫秒内并稳定 10 秒时不会再次重启；参考流不可用时回退到本地时间轴判断，不会降低最终录制画质" />
-                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 交叉检测只直连已解析的匿名直播流，不使用账户 Cookie；检测期间会短时增加低一级画质的下载带宽、视频解码和少量内存占用" />
+                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 请确保保存磁盘有足够空间，避免录制中断或文件损坏" />
+                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 网络或主播推流卡顿可能造成画面冻结、缺帧或音画异常" />
+                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 反馈问题时，请说明问题现象，并提供直播间链接、发生时间、操作步骤、截图和对应日志" />
                         </ui:StackPanel>
                     </Border>
                 </ui:StackPanel>

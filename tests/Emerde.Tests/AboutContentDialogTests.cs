@@ -53,19 +53,20 @@ public class AboutContentDialogTests
             .Last(element => element.Descendants().Attributes("Text").Any(attribute => attribute.Value == "检测间隔"));
         XElement monitorCard = document.Descendants()
             .Where(element => element.Name.LocalName == "Border")
-            .Last(element => element.Descendants().Attributes("Text").Any(attribute => attribute.Value == "监控、直播状态与连麦"));
+            .Last(element => element.Descendants().Attributes("Text").Any(attribute => attribute.Value == "监控与录制"));
         string timingText = string.Join('\n', timingCard.Descendants().Attributes("Text").Select(attribute => attribute.Value));
         string monitorText = string.Join('\n', monitorCard.Descendants().Attributes("Text").Select(attribute => attribute.Value));
 
-        Assert.Contains("退出按钮、关闭窗口与恢复", text);
+        Assert.Contains("退出与恢复", text);
         Assert.Contains("侧边栏或托盘菜单中的“退出”", text);
-        Assert.Contains("通常保持默认值即可", text);
+        Assert.Contains("默认每 5 秒一次", text);
         Assert.Contains("固定每 10 秒检查一次", timingText);
         Assert.DoesNotContain("固定每 10 秒检查一次", monitorText);
         Assert.Contains("30 分钟内固定每 10 秒检查一次", text);
-        Assert.Contains("FFmpeg 录制进程结束后", text);
-        Assert.Contains("立即刷新对应卡片的录制状态", text);
-        Assert.Contains("直播状态由下一次固定 10 秒检测更新", text);
+        Assert.Contains("TS 和 FLV 更能还原直播的原始数据", text);
+        Assert.Contains("MP4 和 MKV 会在录制结束后自动转换", text);
+        Assert.DoesNotContain("FFmpeg 录制进程结束后", text);
+        Assert.DoesNotContain("直播状态由下一次固定 10 秒检测更新", text);
         Assert.DoesNotContain("录制文件末尾可能出现几秒黑屏", text);
         Assert.DoesNotContain("每批检查 1-5 个直播间", text);
         Assert.DoesNotContain("穿插 2 次随机检测", text);
@@ -83,35 +84,52 @@ public class AboutContentDialogTests
     }
 
     [Fact]
-    public void NetworkGuidance_UsesDownloadBandwidthTerminology()
+    public void NetworkGuidance_ExplainsUserFacingCapacityLimits()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml"));
         string text = string.Join('\n', document.Descendants().Attributes("Text").Select(attribute => attribute.Value));
 
-        Assert.Contains("预留下载带宽和磁盘写入空间", text);
-        Assert.Contains("首页底部状态栏的“测速”", text);
-        Assert.Contains("预计能同时录制多少路直播", text);
-        Assert.Contains("分别检查国内和国外线路", text);
-        Assert.Contains("连续完成三轮下载并取平均值", text);
-        Assert.Contains("按当前开播房间的平台选择对应线路", text);
+        Assert.Contains("首页测速可估算当前网络适合同时录制的直播数量", text);
+        Assert.Contains("平台线路、磁盘速度和系统负载", text);
+        Assert.DoesNotContain("分别检查国内和国外线路", text);
+        Assert.DoesNotContain("连续完成三轮下载并取平均值", text);
+        Assert.DoesNotContain("按当前开播房间的平台选择对应线路", text);
         Assert.DoesNotContain("预留额外上传", text);
         Assert.DoesNotContain("同一房间每小时最多记录一次", text);
     }
 
     [Fact]
-    public void NetworkStallGuidance_ExplainsConsequencesAndRecoveryBoundaries()
+    public void NetworkStallGuidance_ExplainsUserVisibleConsequencesWithoutInternalThresholds()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml"));
         string text = string.Join('\n', document.Descendants().Attributes("Text").Select(attribute => attribute.Value));
 
-        Assert.Contains("画面冻结、音频或视频缺包", text);
-        Assert.Contains("最长 15 秒内对比所选画质与低一级画质", text);
-        Assert.Contains("偏差超过 500 毫秒并持续 5 秒", text);
-        Assert.Contains("恢复到 200 毫秒内并稳定 10 秒", text);
-        Assert.Contains("保留卡顿前后的独立片段", text);
-        Assert.Contains("不会降低最终录制画质", text);
-        Assert.Contains("不使用账户 Cookie", text);
-        Assert.Contains("短时增加低一级画质的下载带宽", text);
+        Assert.Contains("保护已经录制的内容并尝试恢复", text);
+        Assert.Contains("恢复过程中可能生成新的独立片段", text);
+        Assert.Contains("已经缺失的直播内容无法重新补录", text);
+        Assert.Contains("画面冻结、缺帧或音画异常", text);
+        Assert.DoesNotContain("最长 15 秒内对比所选画质与低一级画质", text);
+        Assert.DoesNotContain("偏差超过 500 毫秒并持续 5 秒", text);
+        Assert.DoesNotContain("恢复到 200 毫秒内并稳定 10 秒", text);
+        Assert.DoesNotContain("不使用账户 Cookie", text);
+        Assert.DoesNotContain("短时增加低一级画质的下载带宽", text);
+    }
+
+    [Fact]
+    public void FileGuidance_DistinguishesRecordingAndTranscodingAndKeepsRequiredWarnings()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml"));
+        string text = string.Join('\n', document.Descendants().Attributes("Text").Select(attribute => attribute.Value));
+
+        Assert.Contains("正在录制写入的文件不能选择或操作", text);
+        Assert.Contains("正在转码的文件不建议选择或操作", text);
+        Assert.Contains("请确认片段内容完整、播放正常后，再进行后续操作", text);
+        Assert.Contains("更新软件时，请注意不要误删录制文件", text);
+        Assert.Contains("ffmpeg、libvlc 等程序依赖文件夹", text);
+        Assert.Contains("问题现象", text);
+        Assert.Contains("对应日志", text);
+        Assert.DoesNotContain("video_thumbnails", text);
+        Assert.DoesNotContain("Emerde\\config", text);
     }
 
     [Fact]
