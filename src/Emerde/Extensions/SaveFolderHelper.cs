@@ -4,6 +4,8 @@ namespace Emerde.Extensions;
 
 internal static class SaveFolderHelper
 {
+    internal const string DefaultSaveFolderName = "EmerdeDownloads";
+
     public static string GetSaveFolder(string? settingsFolder = null)
     {
         if (TryGetSaveFolder(settingsFolder, createDirectory: true, out string folder, out Exception? error))
@@ -16,7 +18,7 @@ internal static class SaveFolderHelper
 
     internal static bool TryGetSaveFolder(string? settingsFolder, bool createDirectory, out string folder, out Exception? error)
     {
-        string path = string.IsNullOrWhiteSpace(settingsFolder) ? "downloads" : settingsFolder;
+        string path = string.IsNullOrWhiteSpace(settingsFolder) ? GetDefaultSaveFolder() : settingsFolder;
         try
         {
             folder = Path.GetFullPath(path);
@@ -70,9 +72,60 @@ internal static class SaveFolderHelper
     {
         return
         [
+            GetDefaultSaveFolder(),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), AppConfig.PackName, DefaultSaveFolderName),
             Path.Combine(AppContext.BaseDirectory, "downloads"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), AppConfig.PackName, "downloads"),
         ];
+    }
+
+    internal static string GetDefaultSaveFolder()
+    {
+        string systemRoot = Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows)) ?? string.Empty;
+        string documentsRoot = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        return SelectDefaultSaveFolder(
+            systemRoot,
+            GetFixedReadyDriveRoots(),
+            documentsRoot);
+    }
+
+    internal static string SelectDefaultSaveFolder(
+        string systemRoot,
+        IEnumerable<string> fixedReadyDriveRoots,
+        string documentsRoot)
+    {
+        string normalizedSystemRoot = NormalizeDriveRoot(systemRoot);
+        string? preferredDriveRoot = fixedReadyDriveRoots
+            .Select(NormalizeDriveRoot)
+            .Where(root => root.Length > 0 && string.CompareOrdinal(root, normalizedSystemRoot) > 0)
+            .OrderBy(root => root, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+        string root = preferredDriveRoot
+            ?? (string.IsNullOrWhiteSpace(documentsRoot) ? AppContext.BaseDirectory : documentsRoot);
+        return Path.Combine(root, DefaultSaveFolderName);
+    }
+
+    private static string[] GetFixedReadyDriveRoots()
+    {
+        List<string> roots = [];
+        foreach (DriveInfo drive in DriveInfo.GetDrives())
+        {
+            try
+            {
+                if (drive.DriveType == DriveType.Fixed && drive.IsReady)
+                {
+                    roots.Add(drive.RootDirectory.FullName);
+                }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+        return [.. roots];
+    }
+
+    private static string NormalizeDriveRoot(string root)
+    {
+        return Path.GetPathRoot(root)?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) ?? string.Empty;
     }
 
     private static bool TryGetWritableSaveFolder(string? settingsFolder, out string folder, out Exception? error)
