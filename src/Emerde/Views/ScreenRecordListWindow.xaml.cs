@@ -944,8 +944,9 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
     private readonly Dictionary<string, FileSystemWatcher> directoryWatchers = new(StringComparer.OrdinalIgnoreCase);
     private string[] watchedRoots = [];
     private int directorySnapshotDirty = 1;
-    private int operationRefreshPending;
-    private int directoryRefreshPending;
+    private int automaticRefreshPending;
+    private int automaticRefreshDeferred;
+    private int automaticRefreshSuppressionDepth;
     private bool isMonitoring;
 
     public ICollectionView Videos { get; }
@@ -1045,11 +1046,13 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
     private void DirectoryWatcherChanged(object sender, FileSystemEventArgs e)
     {
-        Interlocked.Exchange(ref directorySnapshotDirty, 1);
-        if (ShouldQueueDirectoryRefresh(e.FullPath, e.ChangeType, MediaOperationRegistry.IsPathProtected(e.FullPath)))
+        if (!ShouldQueueDirectoryRefresh(e.FullPath, e.ChangeType, MediaOperationRegistry.IsPathProtected(e.FullPath)))
         {
-            QueueDirectoryRefresh();
+            return;
         }
+
+        Interlocked.Exchange(ref directorySnapshotDirty, 1);
+        QueueAutomaticRefresh();
     }
 
     internal static bool ShouldQueueDirectoryRefresh(
@@ -1066,7 +1069,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
     private void DirectoryWatcherError(object sender, ErrorEventArgs e)
     {
         Interlocked.Exchange(ref directorySnapshotDirty, 1);
-        QueueDirectoryRefresh();
+        QueueAutomaticRefresh();
         if (e.GetException() is Exception error)
         {
             AppSessionLogger.WriteException(error);
@@ -1075,7 +1078,10 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
     private void MediaOperationRegistryOperationsChanged(object? sender, MediaOperationsChangedEventArgs e)
     {
-        Interlocked.Exchange(ref directorySnapshotDirty, 1);
+        if (!e.IsActive)
+        {
+            Interlocked.Exchange(ref directorySnapshotDirty, 1);
+        }
         Dispatcher? dispatcher = Application.Current?.Dispatcher;
         if (dispatcher == null || dispatcher.HasShutdownStarted)
         {
@@ -1091,14 +1097,16 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             VisibleItemsChanged?.Invoke(this, EventArgs.Empty);
             if (!e.IsActive)
             {
-                _ = RefreshAfterOperationAsync();
+                QueueAutomaticRefresh();
             }
         });
     }
 
-    private void QueueDirectoryRefresh()
+    private void QueueAutomaticRefresh()
     {
-        if (Interlocked.Exchange(ref directoryRefreshPending, 1) != 0)
+        Interlocked.Exchange(ref automaticRefreshDeferred, 1);
+        if (Volatile.Read(ref automaticRefreshSuppressionDepth) != 0
+            || Interlocked.Exchange(ref automaticRefreshPending, 1) != 0)
         {
             return;
         }
@@ -1106,7 +1114,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         Dispatcher? dispatcher = Application.Current?.Dispatcher;
         if (dispatcher == null || dispatcher.HasShutdownStarted)
         {
-            Interlocked.Exchange(ref directoryRefreshPending, 0);
+            Interlocked.Exchange(ref automaticRefreshPending, 0);
             return;
         }
 
@@ -1115,6 +1123,12 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             try
             {
                 await Task.Delay(180);
+                if (Volatile.Read(ref automaticRefreshSuppressionDepth) != 0)
+                {
+                    return;
+                }
+
+                Interlocked.Exchange(ref automaticRefreshDeferred, 0);
                 if (isMonitoring)
                 {
                     await RefreshForDisplayAsync();
@@ -1126,37 +1140,28 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             }
             finally
             {
-                Interlocked.Exchange(ref directoryRefreshPending, 0);
+                Interlocked.Exchange(ref automaticRefreshPending, 0);
+                if (isMonitoring
+                    && Volatile.Read(ref automaticRefreshSuppressionDepth) == 0
+                    && Volatile.Read(ref automaticRefreshDeferred) != 0)
+                {
+                    QueueAutomaticRefresh();
+                }
             }
         });
     }
 
-    private async Task RefreshAfterOperationAsync()
+    private void BeginAutomaticRefreshSuppression()
     {
-        if (Interlocked.Exchange(ref operationRefreshPending, 1) != 0)
-        {
-            return;
-        }
+        Interlocked.Increment(ref automaticRefreshSuppressionDepth);
+    }
 
-        try
+    private void EndAutomaticRefreshSuppression()
+    {
+        if (Interlocked.Decrement(ref automaticRefreshSuppressionDepth) == 0
+            && Volatile.Read(ref automaticRefreshDeferred) != 0)
         {
-            await Task.Delay(150);
-            if (isMonitoring)
-            {
-                await RefreshForDisplayAsync();
-            }
-        }
-        catch (Exception e)
-        {
-            AppSessionLogger.WriteException(e);
-        }
-        finally
-        {
-            Interlocked.Exchange(ref operationRefreshPending, 0);
-            if (isMonitoring && Volatile.Read(ref directorySnapshotDirty) != 0)
-            {
-                _ = RefreshAfterOperationAsync();
-            }
+            QueueAutomaticRefresh();
         }
     }
 
@@ -2307,6 +2312,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         int deleted = 0;
         int failed = 0;
         bool ownsOperation = false;
+        BeginAutomaticRefreshSuppression();
         try
         {
             if (!await CancelConversionsForUserOperationAsync(items))
@@ -2347,6 +2353,8 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             {
                 Toast.Warning($"有 {failed} 个视频删除失败");
             }
+            Interlocked.Exchange(ref automaticRefreshDeferred, 0);
+            Interlocked.Exchange(ref directorySnapshotDirty, 1);
             await RefreshForDisplayAsync();
         }
         finally
@@ -2357,6 +2365,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
                 OperationProgressText = string.Empty;
                 OnPropertyChanged(nameof(IsIdle));
             }
+            EndAutomaticRefreshSuppression();
         }
     }
 

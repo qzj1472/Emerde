@@ -165,6 +165,7 @@ public sealed class ScreenRecordListWindowTests
     [Theory]
     [InlineData(@"C:\videos\record.ts", WatcherChangeTypes.Deleted, false, true)]
     [InlineData(@"C:\videos\record.ts", WatcherChangeTypes.Created, true, false)]
+    [InlineData(@"C:\videos\record.ts", WatcherChangeTypes.Changed, false, false)]
     [InlineData(@"C:\videos\record.txt", WatcherChangeTypes.Created, false, false)]
     public void DirectoryRefresh_SkipsProtectedMediaChanges(
         string path,
@@ -219,6 +220,9 @@ public sealed class ScreenRecordListWindowTests
 
         Assert.Contains("await RefreshForDisplayAsync();", source);
         Assert.DoesNotContain("await RefreshAsync();", source);
+        Assert.Contains("BeginAutomaticRefreshSuppression();", source);
+        Assert.Contains("EndAutomaticRefreshSuppression();", source);
+        Assert.DoesNotContain("RefreshAfterOperationAsync", source);
     }
 
     [Fact]
