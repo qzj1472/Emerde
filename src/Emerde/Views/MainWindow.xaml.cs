@@ -2694,7 +2694,7 @@ public partial class MainWindow : FluentWindow
         }, DispatcherPriority.ContextIdle);
     }
 
-    private Task ShowStartupAboutNoticeIfNeededAsync()
+    private async Task ShowStartupAboutNoticeIfNeededAsync()
     {
         if (isStartupAboutNoticeShowing
             || Configurations.IsStartupAboutNoticeShown.Get()
@@ -2702,15 +2702,17 @@ public partial class MainWindow : FluentWindow
             || !IsVisible
             || WindowState == WindowState.Minimized)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         isStartupAboutNoticeShowing = true;
         try
         {
-            using DialogBlurScope blurScope = DialogBlurScope.ForMessageBox(this);
-            System.Windows.MessageBoxResult result = MessageBox.Information(
-                $"{AppResources.StartupAboutNoticeTitle}{Environment.NewLine}{Environment.NewLine}{AppResources.StartupAboutNoticeDescription}");
+            StartupAboutNoticeContentDialog dialog = new(
+                AppResources.StartupAboutNoticeTitle,
+                AppResources.StartupAboutNoticeDescription);
+            using DialogBlurScope blurScope = DialogBlurScope.ForDialog(this, dialog);
+            Wpf.Ui.Violeta.Controls.ContentDialogResult result = await WindowSizing.ShowContentDialogAsync(dialog, this);
             if (ShouldPersistStartupAboutNoticeAcknowledgement(result))
             {
                 Configurations.IsStartupAboutNoticeShown.Set(true);
@@ -2722,12 +2724,11 @@ public partial class MainWindow : FluentWindow
             isStartupAboutNoticeShowing = false;
         }
 
-        return Task.CompletedTask;
     }
 
-    internal static bool ShouldPersistStartupAboutNoticeAcknowledgement(System.Windows.MessageBoxResult result)
+    internal static bool ShouldPersistStartupAboutNoticeAcknowledgement(Wpf.Ui.Violeta.Controls.ContentDialogResult result)
     {
-        return result == System.Windows.MessageBoxResult.OK;
+        return result == Wpf.Ui.Violeta.Controls.ContentDialogResult.Primary;
     }
 
     private void RoomCardListPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)

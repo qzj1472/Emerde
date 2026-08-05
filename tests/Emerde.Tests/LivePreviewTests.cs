@@ -28,10 +28,10 @@ public sealed class LivePreviewTests
     }
 
     [Theory]
-    [InlineData(System.Windows.MessageBoxResult.None, false)]
-    [InlineData(System.Windows.MessageBoxResult.OK, true)]
-    [InlineData(System.Windows.MessageBoxResult.Cancel, false)]
-    public void ShouldPersistStartupAboutNoticeAcknowledgement_RequiresExplicitConfirmation(System.Windows.MessageBoxResult result, bool expected)
+    [InlineData(Wpf.Ui.Violeta.Controls.ContentDialogResult.None, false)]
+    [InlineData(Wpf.Ui.Violeta.Controls.ContentDialogResult.Primary, true)]
+    [InlineData(Wpf.Ui.Violeta.Controls.ContentDialogResult.Secondary, false)]
+    public void ShouldPersistStartupAboutNoticeAcknowledgement_RequiresExplicitConfirmation(Wpf.Ui.Violeta.Controls.ContentDialogResult result, bool expected)
     {
         Assert.Equal(expected, MainWindow.ShouldPersistStartupAboutNoticeAcknowledgement(result));
     }
