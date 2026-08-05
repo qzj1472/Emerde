@@ -1,10 +1,29 @@
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 
 namespace Emerde.Core;
 
 internal static class ExternalStreamResolver
 {
     private static readonly ConcurrentDictionary<string, string> LastErrorsByUrl = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Regex UrlCandidateRegex = new(
+        "(?:https?|rtmps?)://[^\\s<>\"'\\u2018\\u2019\\u201c\\u201d\\u3001\\u3002\\u300a\\u300b\\u3010\\u3011\\uff08\\uff09\\uff0c\\uff1a\\uff1b\\uff01\\uff1f]+",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly IReadOnlyDictionary<string, string> ShortLinkPlatforms = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["v.douyin.com"] = "Douyin",
+        ["www.iesdouyin.com"] = "Douyin",
+        ["iesdouyin.com"] = "Douyin",
+        ["vm.tiktok.com"] = "TikTok",
+        ["vt.tiktok.com"] = "TikTok",
+        ["b23.tv"] = "Bilibili",
+        ["v.kuaishou.com"] = "Kuaishou",
+        ["s.kuaishou.com"] = "Kuaishou",
+        ["xhslink.com"] = "Xiaohongshu",
+        ["slink.bigovideo.tv"] = "Bigo",
+        ["3.cn"] = "JD",
+        ["t.cn"] = "Weibo",
+    };
 
     public static string LastError { get; private set; } = string.Empty;
 
@@ -31,10 +50,25 @@ internal static class ExternalStreamResolver
 
     public static string GetPlatformName(string? url)
     {
-        string? normalizedUrl = NormalizeUrl(url);
-        string candidate = normalizedUrl ?? url?.Trim() ?? string.Empty;
-        string platformName = StreamResolver.GetPlatformName(candidate);
-        return string.IsNullOrWhiteSpace(platformName) ? Spider.GetLegacyPlatformName(candidate) : platformName;
+        foreach (string candidate in GetUrlCandidates(url))
+        {
+            string candidateWithScheme = EnsureScheme(candidate);
+            if (Uri.TryCreate(candidateWithScheme, UriKind.Absolute, out Uri? uri)
+                && GetShortLinkPlatform(uri) is string shortLinkPlatform)
+            {
+                return shortLinkPlatform;
+            }
+
+            string value = NormalizeCandidate(candidate) ?? candidate;
+            string platformName = StreamResolver.GetPlatformName(value);
+            platformName = string.IsNullOrWhiteSpace(platformName) ? Spider.GetLegacyPlatformName(value) : platformName;
+            if (!string.IsNullOrWhiteSpace(platformName))
+            {
+                return platformName;
+            }
+        }
+
+        return string.Empty;
     }
 
     public static bool HasRoomData(ISpiderResult? result)
@@ -47,26 +81,152 @@ internal static class ExternalStreamResolver
         return StreamResolver.HasConclusiveData(result);
     }
 
+    internal static bool IsSameRoom(
+        string? firstUrl,
+        string? firstPlatformName,
+        string? firstUid,
+        string? secondUrl,
+        string? secondPlatformName,
+        string? secondUid)
+    {
+        string firstNormalizedUrl = NormalizeUrl(firstUrl) ?? firstUrl?.Trim() ?? string.Empty;
+        string secondNormalizedUrl = NormalizeUrl(secondUrl) ?? secondUrl?.Trim() ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(firstNormalizedUrl)
+            && string.Equals(firstNormalizedUrl, secondNormalizedUrl, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        string firstPlatform = string.IsNullOrWhiteSpace(firstPlatformName)
+            ? GetPlatformName(firstNormalizedUrl)
+            : firstPlatformName.Trim();
+        string secondPlatform = string.IsNullOrWhiteSpace(secondPlatformName)
+            ? GetPlatformName(secondNormalizedUrl)
+            : secondPlatformName.Trim();
+        return !string.IsNullOrWhiteSpace(firstPlatform)
+            && string.Equals(firstPlatform, secondPlatform, StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(firstUid)
+            && !string.IsNullOrWhiteSpace(secondUid)
+            && string.Equals(firstUid.Trim(), secondUid.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
     public static string? NormalizeUrl(string? url, bool allowNetwork = false, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(url))
+        string[] candidates = GetUrlCandidates(url).ToArray();
+        foreach (string candidate in candidates)
+        {
+            string? normalizedUrl = NormalizeCandidate(candidate);
+            if (!string.IsNullOrWhiteSpace(normalizedUrl))
+            {
+                return normalizedUrl;
+            }
+        }
+
+        if (!allowNetwork)
         {
             return null;
         }
 
-        string value = url.Trim();
-        if (!value.Contains("://", StringComparison.Ordinal))
+        foreach (string candidate in candidates)
         {
-            value = "https://" + value;
+            string? normalizedUrl = NormalizeRedirectCandidate(candidate, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(normalizedUrl))
+            {
+                return normalizedUrl;
+            }
         }
 
-        string? resolverNormalized = StreamResolver.NormalizeUrl(value, allowNetwork, cancellationToken);
+        return null;
+    }
+
+    internal static bool IsPersistableRoomUrl(string? url)
+    {
+        string? normalizedUrl = NormalizeUrl(url);
+        return !string.IsNullOrWhiteSpace(normalizedUrl)
+            && Uri.TryCreate(normalizedUrl, UriKind.Absolute, out Uri? uri)
+            && GetShortLinkPlatform(uri) == null
+            && !StreamResolver.TryExtractDouyinReflowIdentity(uri, out _, out _);
+    }
+
+    internal static IEnumerable<string> GetUrlCandidates(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            yield break;
+        }
+
+        string value = input.Trim();
+        MatchCollection matches = UrlCandidateRegex.Matches(value);
+        if (matches.Count == 0)
+        {
+            yield return value;
+            yield break;
+        }
+
+        foreach (Match match in matches)
+        {
+            string candidate = match.Value.TrimEnd('.', ',', ';', '!', ')', ']', '}');
+            if (!string.IsNullOrWhiteSpace(candidate))
+            {
+                yield return candidate;
+            }
+        }
+    }
+
+    private static string? NormalizeCandidate(string candidate)
+    {
+        string value = EnsureScheme(candidate);
+        string? resolverNormalized = StreamResolver.NormalizeUrl(value);
         if (!string.IsNullOrWhiteSpace(resolverNormalized))
         {
             return resolverNormalized;
         }
 
         return NormalizeKnownPlatformUrl(value);
+    }
+
+    private static string? NormalizeRedirectCandidate(string candidate, CancellationToken cancellationToken)
+    {
+        string value = EnsureScheme(candidate);
+        if (!Uri.TryCreate(value, UriKind.Absolute, out Uri? uri)
+            || GetShortLinkPlatform(uri) == null
+            || !StreamResolver.CanResolveRedirect(uri)
+            || !StreamResolver.TryResolveRedirect(value, cancellationToken, out string? redirected)
+            || string.IsNullOrWhiteSpace(redirected)
+            || string.Equals(value, redirected, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return NormalizeCandidate(redirected);
+    }
+
+    private static string EnsureScheme(string value)
+    {
+        return value.Contains("://", StringComparison.Ordinal) ? value : "https://" + value;
+    }
+
+    private static string? GetShortLinkPlatform(Uri uri)
+    {
+        string host = uri.Host;
+        if (ShortLinkPlatforms.TryGetValue(host, out string? platformName))
+        {
+            return platformName;
+        }
+
+        if (host.Equals("tb.cn", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".tb.cn", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Taobao";
+        }
+
+        if (host.Equals("shp.ee", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".shp.ee", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Shopee";
+        }
+
+        return null;
     }
 
     public static ISpiderResult? GetResult(
@@ -144,8 +304,7 @@ internal static class ExternalStreamResolver
 
     private static string? NormalizeKnownPlatformUrl(string value)
     {
-        return DouyuSpider.Instance.Value.ParseUrl(value)
-            ?? TwitchSpider.Instance.Value.ParseUrl(value);
+        return Spider.ParseLegacyUrl(value);
     }
 
     private static string SetLastError(string? originalUrl, string? normalizedUrl, string error)

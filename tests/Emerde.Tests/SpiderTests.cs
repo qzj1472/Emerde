@@ -76,6 +76,144 @@ public sealed class SpiderTests
         Assert.Equal("https://live.douyin.com/123456", result);
     }
 
+    [Theory]
+    [InlineData("share https://live.douyin.com/123456 1@7.com :7pm", "https://live.douyin.com/123456")]
+    [InlineData("\u3010live\u3011 https://live.bilibili.com/654321\uff09", "https://live.bilibili.com/654321")]
+    [InlineData("https://example.test/not-supported https://live.bilibili.com/654321", "https://live.bilibili.com/654321")]
+    public void ParseUrl_WithShareText_SelectsSupportedRoomUrl(string input, string expected)
+    {
+        Assert.Equal(expected, Spider.ParseUrl(input));
+    }
+
+    [Fact]
+    public void ParseUrl_WithMultipleCandidates_PrefersSupportedUrlBeforeRedirects()
+    {
+        const string input = "share http://127.0.0.1:9/not-supported https://live.bilibili.com/654321";
+
+        Assert.Equal("https://live.bilibili.com/654321", Spider.ParseUrl(input, allowNetwork: true));
+    }
+
+    [Fact]
+    public void ParseUrl_WithCanceledShortLinkResolution_ThrowsCancellation()
+    {
+        using CancellationTokenSource cancellation = new();
+        cancellation.Cancel();
+
+        Assert.ThrowsAny<OperationCanceledException>(() => Spider.ParseUrl("https://b23.tv/17JwKLl", allowNetwork: true, cancellation.Token));
+    }
+
+    [Fact]
+    public void ParseUrl_WithUnknownPublicUrl_DoesNotEnterRedirectResolution()
+    {
+        using CancellationTokenSource cancellation = new();
+        cancellation.Cancel();
+
+        Assert.Null(Spider.ParseUrl("https://example.test/not-supported", allowNetwork: true, cancellation.Token));
+    }
+
+    [Theory]
+    [InlineData("https://b23.tv/17JwKLl", true)]
+    [InlineData("http://127.0.0.1/live", false)]
+    [InlineData("http://10.0.0.1/live", false)]
+    [InlineData("http://169.254.169.254/latest/meta-data", false)]
+    [InlineData("http://[fc00::1]/live", false)]
+    [InlineData("http://localhost/live", false)]
+    public void RedirectResolution_AllowsOnlyPublicHttpTargets(string input, bool expected)
+    {
+        Assert.True(Uri.TryCreate(input, UriKind.Absolute, out Uri? uri));
+        Assert.Equal(expected, StreamResolver.CanResolveRedirect(uri));
+    }
+
+    [Theory]
+    [InlineData("https://live.douyin.com/208698057628", true)]
+    [InlineData("https://live.bilibili.com/654321", true)]
+    [InlineData("https://v.douyin.com/Ue4EHtppmBE/", false)]
+    [InlineData("https://slink.bigovideo.tv/h5vITA", false)]
+    [InlineData("https://webcast.amemv.com/douyin/webcast/reflow/7670549959499664180?sec_user_id=MS4w.LONG-ID", false)]
+    public void PersistableRoomUrl_RejectsShortAndInternalResolverUrls(string input, bool expected)
+    {
+        Assert.Equal(expected, ExternalStreamResolver.IsPersistableRoomUrl(input));
+    }
+
+    [Fact]
+    public void RoomIdentity_WithSamePlatformUid_DetectsDifferentDouyinUrlsAsDuplicate()
+    {
+        Assert.True(ExternalStreamResolver.IsSameRoom(
+            "https://live.douyin.com/208698057628",
+            "Douyin",
+            "97587082343",
+            "https://webcast.amemv.com/douyin/webcast/reflow/7670549959499664180?sec_user_id=MS4w.LONG-ID",
+            "Douyin",
+            "97587082343"));
+    }
+
+    [Fact]
+    public void RoomIdentity_WithSameUidOnDifferentPlatforms_DoesNotMatch()
+    {
+        Assert.False(ExternalStreamResolver.IsSameRoom(
+            "https://live.douyin.com/123456",
+            "Douyin",
+            "same-user",
+            "https://live.bilibili.com/654321",
+            "Bilibili",
+            "same-user"));
+    }
+
+    [Fact]
+    public void RoomIdentity_WithEquivalentUrls_DetectsDuplicateWithoutUid()
+    {
+        Assert.True(ExternalStreamResolver.IsSameRoom(
+            "https://live.bilibili.com/654321?from=share",
+            string.Empty,
+            string.Empty,
+            "https://live.bilibili.com/654321",
+            string.Empty,
+            string.Empty));
+    }
+
+    [Theory]
+    [InlineData("share https://v.douyin.com/Ue4EHtppmBE/ 1@7.com :7pm", "https://v.douyin.com/Ue4EHtppmBE/")]
+    [InlineData("\u3010live\u3011 https://b23.tv/17JwKLl\uff09", "https://b23.tv/17JwKLl")]
+    public void GetUrlCandidates_WithMobileShareText_ExtractsUrl(string input, string expected)
+    {
+        Assert.Equal(expected, Assert.Single(ExternalStreamResolver.GetUrlCandidates(input)));
+    }
+
+    [Theory]
+    [InlineData("share https://v.douyin.com/Ue4EHtppmBE/ tail", "Douyin")]
+    [InlineData("share https://b23.tv/17JwKLl tail", "Bilibili")]
+    [InlineData("share https://v.kuaishou.com/JTHXcgdX tail", "Kuaishou")]
+    [InlineData("share https://slink.bigovideo.tv/h5vITA tail", "Bigo")]
+    [InlineData("share https://m.tb.cn/h.TWp0HTd tail", "Taobao")]
+    [InlineData("share https://sg.shp.ee/example tail", "Shopee")]
+    public void GetPlatformName_WithMobileShareText_DetectsShortLinkPlatform(string input, string expected)
+    {
+        Assert.Equal(expected, Spider.GetPlatformName(input));
+    }
+
+    [Fact]
+    public void NormalizeUrl_WithDouyinReflowUrl_PreservesReflowIdentity()
+    {
+        const string input = "https://webcast.amemv.com/douyin/webcast/reflow/7670549959499664180?u_code=test&sec_user_id=MS4w.LONG-ID&share_platform=copy";
+
+        string? normalized = StreamResolver.NormalizeUrl(input);
+
+        Assert.Equal("https://webcast.amemv.com/douyin/webcast/reflow/7670549959499664180?sec_user_id=MS4w.LONG-ID", normalized);
+        Assert.True(Uri.TryCreate(normalized, UriKind.Absolute, out Uri? uri));
+        Assert.True(StreamResolver.TryExtractDouyinReflowIdentity(uri, out string roomId, out string secUid));
+        Assert.Equal("7670549959499664180", roomId);
+        Assert.Equal("MS4w.LONG-ID", secUid);
+    }
+
+    [Theory]
+    [InlineData("https://webcast.amemv.com.evil.test/douyin/webcast/reflow/7670549959499664180?sec_user_id=test")]
+    [InlineData("https://webcast.amemv.com/douyin/webcast/reflow/not-a-room?sec_user_id=test")]
+    [InlineData("https://webcast.amemv.com/douyin/webcast/reflow/7670549959499664180")]
+    public void NormalizeUrl_WithInvalidDouyinReflowUrl_RejectsInput(string input)
+    {
+        Assert.Null(StreamResolver.NormalizeUrl(input));
+    }
+
     [Fact]
     public void ParseUrl_WithTiktokLiveUrl_NormalizesRoomUrl()
     {
@@ -697,6 +835,51 @@ public sealed class SpiderTests
         Assert.Equal("https://example.test/avatar.jpeg?x=1&y=2", result.AvatarThumbUrl);
         Assert.Equal("https://example.test/live.m3u8?token=abc&line=1", result.HlsUrl);
         Assert.Equal("https://example.test/live.flv", result.FlvUrl);
+    }
+
+    [Fact]
+    public void StreamResolverExtractDouyinData_UsesWebRidAsCanonicalRoomUrl()
+    {
+        const string reflowUrl = "https://webcast.amemv.com/douyin/webcast/reflow/7670549959499664180?sec_user_id=MS4w.LONG-ID";
+        const string html = "{\"owner\":{\"webRid\":\"208698057628\"}}";
+
+        StreamResolverResult result = StreamResolver.ExtractDouyinData(reflowUrl, html);
+
+        Assert.Equal("https://live.douyin.com/208698057628", result.RoomUrl);
+    }
+
+    [Fact]
+    public void DouyinCanonicalRoomUrl_RejectsConflictingWebRids()
+    {
+        const string html = "{\"owner\":{\"webRid\":\"208698057628\"},\"related\":{\"webRid\":\"123456\"}}";
+
+        Assert.Null(StreamResolver.ExtractDouyinCanonicalRoomUrl(html));
+    }
+
+    [Fact]
+    public void StreamResolverMergeResults_PrefersCanonicalDouyinRoomUrlOverReflowUrl()
+    {
+        const string reflowUrl = "https://webcast.amemv.com/douyin/webcast/reflow/7670549959499664180?sec_user_id=MS4w.LONG-ID";
+        StreamResolverResult resolved = new()
+        {
+            RoomUrl = "https://live.douyin.com/208698057628",
+            PlatformName = "Douyin",
+        };
+
+        StreamResolverResult result = StreamResolver.MergeResults(reflowUrl, resolved);
+
+        Assert.Equal("https://live.douyin.com/208698057628", result.RoomUrl);
+    }
+
+    [Fact]
+    public void StreamResolverExtractDouyinReflowData_UsesOwnerWebRidAsCanonicalRoomUrl()
+    {
+        const string reflowUrl = "https://webcast.amemv.com/douyin/webcast/reflow/7670549959499664180?sec_user_id=MS4w.LONG-ID";
+        const string json = "{\"data\":{\"room\":{\"owner\":{\"web_rid\":\"208698057628\",\"nickname\":\"anchor\"}}}}";
+
+        StreamResolverResult result = StreamResolver.ExtractDouyinReflowData(reflowUrl, json);
+
+        Assert.Equal("https://live.douyin.com/208698057628", result.RoomUrl);
     }
 
     [Fact]

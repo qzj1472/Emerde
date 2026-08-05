@@ -59,9 +59,9 @@ internal static class Spider
 
     public static IReadOnlyList<string> SupportedPlatformNames => Spiders.Value.Select(spider => spider.PlatformName).ToArray();
 
-    public static string? ParseUrl(string url, bool allowNetwork = false)
+    public static string? ParseUrl(string url, bool allowNetwork = false, CancellationToken cancellationToken = default)
     {
-        string? normalizedUrl = ExternalStreamResolver.NormalizeUrl(url, allowNetwork);
+        string? normalizedUrl = ExternalStreamResolver.NormalizeUrl(url, allowNetwork, cancellationToken);
         if (!string.IsNullOrWhiteSpace(normalizedUrl))
         {
             return normalizedUrl;

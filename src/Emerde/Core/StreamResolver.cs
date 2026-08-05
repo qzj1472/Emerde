@@ -80,7 +80,9 @@ internal static partial class StreamResolver
         }
 
         string host = uri.Host.ToLowerInvariant();
-        if (HostMatchesDomain(host, "douyin.com") || HostMatchesDomain(host, "iesdouyin.com"))
+        if (HostMatchesDomain(host, "douyin.com")
+            || HostMatchesDomain(host, "iesdouyin.com")
+            || TryExtractDouyinReflowIdentity(uri, out _, out _))
         {
             return "Douyin";
         }
@@ -120,8 +122,13 @@ internal static partial class StreamResolver
         if (host is "v.douyin.com" or "www.iesdouyin.com" or "iesdouyin.com")
         {
             return allowNetwork && TryResolveRedirect(trimmed, cancellationToken, out string? redirected)
-                ? NormalizeUrl(redirected ?? string.Empty, allowNetwork: false) ?? redirected
+                ? NormalizeUrl(redirected ?? string.Empty, allowNetwork: false)
                 : null;
+        }
+
+        if (TryExtractDouyinReflowIdentity(uri, out string reflowRoomId, out string reflowSecUid))
+        {
+            return BuildDouyinReflowUrl(reflowRoomId, reflowSecUid);
         }
 
         if (HostMatchesDomain(host, "douyin.com"))
@@ -133,7 +140,7 @@ internal static partial class StreamResolver
         if (host is "vm.tiktok.com" or "vt.tiktok.com")
         {
             return allowNetwork && TryResolveRedirect(trimmed, cancellationToken, out string? redirected)
-                ? NormalizeUrl(redirected ?? string.Empty, allowNetwork: false) ?? redirected
+                ? NormalizeUrl(redirected ?? string.Empty, allowNetwork: false)
                 : null;
         }
 
@@ -177,7 +184,7 @@ internal static partial class StreamResolver
             }
 
             string host = uri.Host.ToLowerInvariant();
-            if (HostMatchesDomain(host, "douyin.com"))
+            if (HostMatchesDomain(host, "douyin.com") || TryExtractDouyinReflowIdentity(uri, out _, out _))
             {
                 if (!DouyinResolverSemaphore.Wait(DouyinResolverQueueTimeoutMilliseconds, cancellationToken))
                 {
@@ -280,8 +287,8 @@ internal static partial class StreamResolver
 
         foreach (ISpiderResult result in results.OfType<ISpiderResult>())
         {
-            merged.RoomUrl = FirstNonEmpty(merged.RoomUrl, result.RoomUrl);
             merged.PlatformName = FirstNonEmpty(merged.PlatformName, result.PlatformName);
+            merged.RoomUrl = SelectResolvedRoomUrl(merged.RoomUrl, result.RoomUrl, merged.PlatformName);
             merged.IsLiveStreaming ??= result.IsLiveStreaming;
             merged.Nickname = FirstNonEmpty(merged.Nickname, result.Nickname);
             merged.AvatarThumbUrl = FirstNonEmpty(merged.AvatarThumbUrl, result.AvatarThumbUrl);
@@ -317,7 +324,7 @@ internal static partial class StreamResolver
     {
         StreamResolverResult result = new()
         {
-            RoomUrl = roomUrl,
+            RoomUrl = ExtractDouyinCanonicalRoomUrl(html) ?? roomUrl,
             PlatformName = "Douyin",
         };
 
@@ -351,7 +358,7 @@ internal static partial class StreamResolver
     {
         StreamResolverResult result = new()
         {
-            RoomUrl = roomUrl,
+            RoomUrl = ExtractDouyinCanonicalRoomUrl(json) ?? roomUrl,
             PlatformName = "Douyin",
         };
 
@@ -610,8 +617,21 @@ internal static partial class StreamResolver
         CancellationToken cancellationToken)
     {
         DouyinRoomSession session = DouyinRoomSessions.GetOrAdd(roomUrl, static _ => new DouyinRoomSession());
-        DouyinResolveRoute firstRoute = tryAllRoutes ? DouyinResolveRoute.WebEnter : session.TakeNextRoute();
-        DouyinResolveRoute[] routes = GetDouyinRouteOrder(firstRoute, tryAllRoutes);
+        string reflowRoomId = string.Empty;
+        string reflowSecUid = string.Empty;
+        bool hasReflowIdentity = Uri.TryCreate(roomUrl, UriKind.Absolute, out Uri? roomUri)
+            && TryExtractDouyinReflowIdentity(roomUri, out reflowRoomId, out reflowSecUid);
+        if (hasReflowIdentity)
+        {
+            session.UpdateIdentity(reflowRoomId, reflowSecUid);
+        }
+
+        DouyinResolveRoute firstRoute = hasReflowIdentity
+            ? DouyinResolveRoute.AppReflow
+            : tryAllRoutes ? DouyinResolveRoute.WebEnter : session.TakeNextRoute();
+        DouyinResolveRoute[] routes = hasReflowIdentity
+            ? [DouyinResolveRoute.AppReflow, DouyinResolveRoute.RoomPage]
+            : GetDouyinRouteOrder(firstRoute, tryAllRoutes);
         StreamResolverResult result = new()
         {
             RoomUrl = roomUrl,
@@ -1490,18 +1510,40 @@ internal static partial class StreamResolver
             : null;
     }
 
-    private static bool TryResolveRedirect(string url, CancellationToken cancellationToken, out string? redirected)
+    internal static bool TryResolveRedirect(string url, CancellationToken cancellationToken, out string? redirected)
     {
         redirected = null;
 
         try
         {
-            using HttpClient client = CreateHttpClient(timeoutSeconds: RedirectTimeoutSeconds);
-            using HttpRequestMessage request = new(HttpMethod.Get, url);
-            request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0");
-            using HttpResponseMessage response = client.Send(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            redirected = response.RequestMessage?.RequestUri?.ToString();
-            return !string.IsNullOrWhiteSpace(redirected);
+            if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? currentUri) || !CanResolveRedirect(currentUri))
+            {
+                return false;
+            }
+
+            using HttpClient client = CreateHttpClient(allowAutoRedirect: false, timeoutSeconds: RedirectTimeoutSeconds);
+            for (int redirectCount = 0; redirectCount <= 10; redirectCount++)
+            {
+                using HttpRequestMessage request = new(HttpMethod.Get, currentUri);
+                request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0");
+                using HttpResponseMessage response = client.Send(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                Uri? location = response.Headers.Location;
+                if ((int)response.StatusCode < 300 || (int)response.StatusCode >= 400 || location == null)
+                {
+                    redirected = currentUri.ToString();
+                    return true;
+                }
+
+                Uri nextUri = location.IsAbsoluteUri ? location : new Uri(currentUri, location);
+                if (!CanResolveRedirect(nextUri))
+                {
+                    return false;
+                }
+
+                currentUri = nextUri;
+            }
+
+            return false;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -1511,6 +1553,65 @@ internal static partial class StreamResolver
         {
             return false;
         }
+    }
+
+    internal static bool CanResolveRedirect(Uri uri)
+    {
+        if ((uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+            || !string.IsNullOrWhiteSpace(uri.UserInfo))
+        {
+            return false;
+        }
+
+        string host = uri.IdnHost.TrimEnd('.');
+        if (string.IsNullOrWhiteSpace(host)
+            || host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".local", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".internal", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".home.arpa", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!IPAddress.TryParse(host, out IPAddress? address))
+        {
+            return host.Contains('.', StringComparison.Ordinal);
+        }
+
+        if (IPAddress.IsLoopback(address)
+            || address.Equals(IPAddress.Any)
+            || address.Equals(IPAddress.None)
+            || address.Equals(IPAddress.IPv6Any)
+            || address.Equals(IPAddress.IPv6None)
+            || address.IsIPv6LinkLocal
+            || address.IsIPv6SiteLocal
+            || address.IsIPv6Multicast)
+        {
+            return false;
+        }
+
+        if (address.IsIPv4MappedToIPv6)
+        {
+            address = address.MapToIPv4();
+        }
+
+        if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+        {
+            byte[] ipv6Bytes = address.GetAddressBytes();
+            return (ipv6Bytes[0] & 0xfe) != 0xfc;
+        }
+
+        byte[] bytes = address.GetAddressBytes();
+        return bytes[0] != 0
+            && bytes[0] != 10
+            && bytes[0] != 127
+            && !(bytes[0] == 100 && bytes[1] is >= 64 and <= 127)
+            && !(bytes[0] == 169 && bytes[1] == 254)
+            && !(bytes[0] == 172 && bytes[1] is >= 16 and <= 31)
+            && !(bytes[0] == 192 && bytes[1] == 168)
+            && !(bytes[0] == 198 && bytes[1] is 18 or 19)
+            && bytes[0] < 224;
     }
 
     private static bool IsDirectStream(Uri uri)
@@ -1554,6 +1655,38 @@ internal static partial class StreamResolver
         }
 
         return null;
+    }
+
+    internal static bool TryExtractDouyinReflowIdentity(Uri uri, out string roomId, out string secUid)
+    {
+        roomId = string.Empty;
+        secUid = string.Empty;
+        if (!uri.Host.Equals("webcast.amemv.com", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        string[] segments = uri.Segments
+            .Select(segment => segment.Trim('/'))
+            .Where(segment => !string.IsNullOrWhiteSpace(segment))
+            .ToArray();
+        if (segments.Length != 4
+            || !segments[0].Equals("douyin", StringComparison.OrdinalIgnoreCase)
+            || !segments[1].Equals("webcast", StringComparison.OrdinalIgnoreCase)
+            || !segments[2].Equals("reflow", StringComparison.OrdinalIgnoreCase)
+            || !segments[3].All(char.IsDigit))
+        {
+            return false;
+        }
+
+        roomId = segments[3];
+        secUid = HttpUtility.ParseQueryString(uri.Query)["sec_user_id"]?.Trim() ?? string.Empty;
+        return !string.IsNullOrWhiteSpace(secUid);
+    }
+
+    private static string BuildDouyinReflowUrl(string roomId, string secUid)
+    {
+        return $"https://webcast.amemv.com/douyin/webcast/reflow/{roomId}?sec_user_id={Uri.EscapeDataString(secUid)}";
     }
 
     private static bool HostMatchesDomain(string host, string domain)
@@ -1823,6 +1956,46 @@ internal static partial class StreamResolver
         }
 
         return null;
+    }
+
+    internal static string? ExtractDouyinCanonicalRoomUrl(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        string[] webRids = DouyinWebRidRegex.Matches(NormalizeEscapedText(text))
+            .Cast<Match>()
+            .Select(match => FirstNonEmpty(match.Groups[1].Value, match.Groups[2].Value) ?? string.Empty)
+            .Where(IsValidDouyinRoomToken)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return webRids.Length == 1
+            ? $"https://live.douyin.com/{webRids[0]}"
+            : null;
+    }
+
+    private static string? SelectResolvedRoomUrl(string? currentUrl, string? candidateUrl, string? platformName)
+    {
+        string? current = CleanOptionalText(currentUrl);
+        string? candidate = CleanOptionalText(candidateUrl);
+        if (string.IsNullOrWhiteSpace(current) || string.IsNullOrWhiteSpace(candidate))
+        {
+            return FirstNonEmpty(current, candidate);
+        }
+
+        if (string.Equals(platformName, "Douyin", StringComparison.OrdinalIgnoreCase)
+            && Uri.TryCreate(current, UriKind.Absolute, out Uri? currentUri)
+            && TryExtractDouyinReflowIdentity(currentUri, out _, out _)
+            && Uri.TryCreate(candidate, UriKind.Absolute, out Uri? candidateUri)
+            && candidateUri.Host.Equals("live.douyin.com", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(ExtractDouyinRoomId(candidateUri)))
+        {
+            return candidate;
+        }
+
+        return current;
     }
 
     private static string? ExtractFirstAvatar(string normalizedText)
@@ -2341,6 +2514,9 @@ internal static partial class StreamResolver
 
     [GeneratedRegex("\"(?:room_id|roomId)\"\\s*:\\s*(?:\"([^\"]+)\"|([0-9]+))")]
     private static partial Regex DouyinInternalRoomIdRegex { get; }
+
+    [GeneratedRegex("\"(?:web_rid|webRid)\"\\s*:\\s*(?:\"([^\"]+)\"|([A-Za-z0-9_-]+))")]
+    private static partial Regex DouyinWebRidRegex { get; }
 
     [GeneratedRegex("/(?:aweme-)?qrcode/[^/?#]*?([0-9]{18,20})(?=~)", RegexOptions.IgnoreCase)]
     private static partial Regex DouyinQrCodeRoomIdRegex { get; }
