@@ -626,6 +626,37 @@ public sealed class FfmpegMediaEngineContractTests
     }
 
     [Fact]
+    public void MediaTimelineRecovery_DoesNotAccumulatePacketDurationRoundingIntoPeriodicAudioStalls()
+    {
+        const long videoTimestampStep = 16_667;
+        const long videoPacketDuration = 17_000;
+        const long audioTimestampStep = 21_333;
+        FfmpegMediaEngine.MediaTimelineRecovery recovery = new(
+            FfmpegMediaEngine.VideoTimelineStallThresholdMicroseconds,
+            detectAudioStalls: true);
+        long videoTimestamp = 0;
+        long audioTimestamp = 0;
+
+        while (videoTimestamp <= 151_000_000 || audioTimestamp <= 151_000_000)
+        {
+            FfmpegMediaEngine.MediaTimelineRecoveryResult result;
+            if (videoTimestamp <= audioTimestamp && videoTimestamp <= 151_000_000)
+            {
+                result = recovery.Observe(true, false, videoTimestamp, videoPacketDuration, videoTimestamp == 0);
+                videoTimestamp += videoTimestampStep;
+            }
+            else
+            {
+                result = recovery.Observe(false, true, audioTimestamp, audioTimestampStep, false);
+                audioTimestamp += audioTimestampStep;
+            }
+
+            Assert.NotEqual(FfmpegTimelineEventKind.AudioStalled, result.EventKind);
+            Assert.NotEqual(FfmpegTimelineEventKind.VideoStalled, result.EventKind);
+        }
+    }
+
+    [Fact]
     public void Remux_UsesOneReferenceClockAndWaitsForVideoRecoveryKeyframe()
     {
         string source = ReadSource();
@@ -642,7 +673,7 @@ public sealed class FfmpegMediaEngineContractTests
     }
 
     [Fact]
-    public void LiveRecording_QuarantinesVideoStallWhileCrossStreamVerificationRuns()
+    public void LiveRecording_ReportsTimelineStallsWithoutRestartingBeforeCrossStreamVerification()
     {
         string source = ReadSource();
 
@@ -661,10 +692,10 @@ public sealed class FfmpegMediaEngineContractTests
         Assert.True(remuxReport > remuxStart);
         Assert.True(remuxDiscard > remuxReport);
         Assert.True(remuxWrite > remuxDiscard);
-        Assert.Contains("timelineRecoveryResult.EventKind == FfmpegTimelineEventKind.AudioStalled", source);
+        Assert.Contains("FfmpegTimelineEventKind.AudioStalled", source);
         Assert.Contains("if (inputOptions.IsLive)", source);
         Assert.Contains("if (inputOptions?.IsLive == true)", source);
-        Assert.Contains("RequiresInputRestart: true", source);
+        Assert.DoesNotContain("return CreateLiveTimelineRestartResult", source);
     }
 
     [Fact]

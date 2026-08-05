@@ -1112,27 +1112,38 @@ public sealed class Recorder
 
     private void StartCrossStreamVerification(RecorderStartInfo startInfo, CancellationToken token)
     {
-        AppSessionLogger.Event("warn", "recorder", "record_short_stall_detected", "a short audio-video timeline stall started cross-stream verification", new
-        {
-            startInfo.RoomUrl,
-            startInfo.NickName,
-            selectedUrlAvailable = !string.IsNullOrWhiteSpace(Url),
-            referenceUrlAvailable = !string.IsNullOrWhiteSpace(startInfo.ReferenceUrl),
-        });
-        if (string.IsNullOrWhiteSpace(Url) || string.IsNullOrWhiteSpace(startInfo.ReferenceUrl))
-        {
-            AppSessionLogger.Event("warn", "recorder", "record_reference_stream_unavailable", "lower-quality reference stream is unavailable and local timeline recovery will be used", new
-            {
-                startInfo.RoomUrl,
-                startInfo.NickName,
-            });
-            return;
-        }
-
         lock (crossStreamVerificationLock)
         {
             if (crossStreamVerificationTask != null)
             {
+                return;
+            }
+
+            AppSessionLogger.Event("warn", "recorder", "record_short_stall_detected", "a short audio-video timeline stall started cross-stream verification", new
+            {
+                startInfo.RoomUrl,
+                startInfo.NickName,
+                selectedUrlAvailable = !string.IsNullOrWhiteSpace(Url),
+                referenceUrlAvailable = !string.IsNullOrWhiteSpace(startInfo.ReferenceUrl),
+            });
+            if (string.IsNullOrWhiteSpace(Url) || string.IsNullOrWhiteSpace(startInfo.ReferenceUrl))
+            {
+                crossStreamVerificationTask = Task.FromResult(new FfmpegCrossStreamAnalysisResult(
+                    true,
+                    true,
+                    0,
+                    1,
+                    "reference stream unavailable; local timeline stall requires restart",
+                    string.Empty));
+                if (crossStreamVerificationStarted.CurrentCount == 0)
+                {
+                    crossStreamVerificationStarted.Release();
+                }
+                AppSessionLogger.Event("warn", "recorder", "record_reference_stream_unavailable", "lower-quality reference stream is unavailable and local timeline recovery will be used", new
+                {
+                    startInfo.RoomUrl,
+                    startInfo.NickName,
+                });
                 return;
             }
 

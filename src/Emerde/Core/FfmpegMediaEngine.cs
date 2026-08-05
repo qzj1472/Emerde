@@ -430,12 +430,6 @@ internal static unsafe partial class FfmpegMediaEngine
                     awaitingVideoKeyframe = timelineRecoveryResult.EventKind == FfmpegTimelineEventKind.VideoStalled;
                     if (inputOptions.IsLive)
                     {
-                        if (timelineRecoveryResult.EventKind == FfmpegTimelineEventKind.AudioStalled)
-                        {
-                            ffmpeg.av_packet_unref(packet);
-                            return CreateLiveTimelineRestartResult(hadProgress, timelineRecoveryResult, onPacketProgress);
-                        }
-
                         ReportTimelineEvent(timelineRecoveryResult, onPacketProgress);
                     }
                 }
@@ -685,23 +679,6 @@ internal static unsafe partial class FfmpegMediaEngine
         return timestamp == ffmpeg.AV_NOPTS_VALUE
             ? ffmpeg.AV_NOPTS_VALUE
             : AddSaturated(timestamp, sharedCorrection);
-    }
-
-    private static FfmpegMediaRunResult CreateLiveTimelineRestartResult(
-        bool hadProgress,
-        MediaTimelineRecoveryResult recoveryResult,
-        Action<FfmpegPacketProgress>? onPacketProgress)
-    {
-        ReportTimelineEvent(recoveryResult, onPacketProgress);
-        string stalledTrack = recoveryResult.EventKind == FfmpegTimelineEventKind.AudioStalled
-            ? "audio timeline stalled while video continued"
-            : "video timeline stalled while audio continued";
-        return new FfmpegMediaRunResult(
-            1,
-            false,
-            hadProgress,
-            $"{stalledTrack} by {recoveryResult.GapMicroseconds} microseconds",
-            RequiresInputRestart: true);
     }
 
     private static void ReportTimelineEvent(
@@ -1065,12 +1042,15 @@ internal static unsafe partial class FfmpegMediaEngine
     {
         private long audioEndTimestamp = ffmpeg.AV_NOPTS_VALUE;
         private long videoEndTimestamp = ffmpeg.AV_NOPTS_VALUE;
+        private long previousAudioStartTimestamp = ffmpeg.AV_NOPTS_VALUE;
+        private long previousVideoStartTimestamp = ffmpeg.AV_NOPTS_VALUE;
         private long audioTimestampCorrection;
         private long videoTimestampCorrection = Math.Max(0, initialVideoTimestampCorrection);
         private long recoveryAnchorTimestamp = ffmpeg.AV_NOPTS_VALUE;
         private long quarantinedAudioEndTimestamp = ffmpeg.AV_NOPTS_VALUE;
         private bool awaitingRecoveryKeyframe;
         private bool awaitingRecoveryAudio;
+        private bool audioStallReported;
 
         public MediaTimelineRecoveryResult Observe(
             bool isVideo,
@@ -1108,6 +1088,7 @@ internal static unsafe partial class FfmpegMediaEngine
                 long candidateEndTimestamp = GetNormalizedTimelineEnd(
                     correctedAudioStartTimestamp,
                     duration,
+                    ref previousAudioStartTimestamp,
                     audioEndTimestamp);
                 if (videoEndTimestamp != ffmpeg.AV_NOPTS_VALUE)
                 {
@@ -1156,6 +1137,7 @@ internal static unsafe partial class FfmpegMediaEngine
             long candidateVideoEndTimestamp = GetNormalizedTimelineEnd(
                 correctedStartTimestamp,
                 duration,
+                ref previousVideoStartTimestamp,
                 videoEndTimestamp);
             if (detectAudioStalls)
             {
@@ -1165,21 +1147,40 @@ internal static unsafe partial class FfmpegMediaEngine
                     long gap = SubtractSaturated(candidateVideoEndTimestamp, comparisonTimestamp);
                     if (gap >= stallThresholdMicroseconds)
                     {
-                        return new(false, videoTimestampCorrection, FfmpegTimelineEventKind.AudioStalled, gap);
+                        videoEndTimestamp = candidateVideoEndTimestamp;
+                        if (!audioStallReported)
+                        {
+                            audioStallReported = true;
+                            return new(false, videoTimestampCorrection, FfmpegTimelineEventKind.AudioStalled, gap);
+                        }
+                        return new(false, videoTimestampCorrection, FfmpegTimelineEventKind.None, 0);
                     }
                 }
+                audioStallReported = false;
             }
 
             videoEndTimestamp = candidateVideoEndTimestamp;
             return new(false, videoTimestampCorrection, eventKind, recoveryGap);
         }
 
-        private static long GetNormalizedTimelineEnd(long startTimestamp, long duration, long previousEndTimestamp)
+        private static long GetNormalizedTimelineEnd(
+            long startTimestamp,
+            long duration,
+            ref long previousStartTimestamp,
+            long previousEndTimestamp)
         {
-            long normalizedStartTimestamp = previousEndTimestamp == ffmpeg.AV_NOPTS_VALUE
-                ? startTimestamp
-                : Math.Max(startTimestamp, previousEndTimestamp);
-            return AddSaturated(normalizedStartTimestamp, duration);
+            if (previousEndTimestamp == ffmpeg.AV_NOPTS_VALUE)
+            {
+                previousStartTimestamp = startTimestamp;
+                return AddSaturated(startTimestamp, duration);
+            }
+
+            long sourceDelta = SubtractSaturated(startTimestamp, previousStartTimestamp);
+            previousStartTimestamp = startTimestamp;
+            long timelineDelta = sourceDelta <= 0 || sourceDelta > MaximumPacketForwardGapMicroseconds
+                ? duration
+                : sourceDelta;
+            return AddSaturated(previousEndTimestamp, Math.Max(1, timelineDelta));
         }
 
         private static long GetLatestTimelineEnd(long first, long second)
@@ -1930,12 +1931,6 @@ internal static unsafe partial class FfmpegMediaEngine
                             awaitingVideoKeyframe = timelineRecoveryResult.EventKind == FfmpegTimelineEventKind.VideoStalled;
                             if (inputOptions?.IsLive == true)
                             {
-                                if (timelineRecoveryResult.EventKind == FfmpegTimelineEventKind.AudioStalled)
-                                {
-                                    ffmpeg.av_packet_unref(packet);
-                                    return CreateLiveTimelineRestartResult(hadProgress, timelineRecoveryResult, onPacketProgress);
-                                }
-
                                 ReportTimelineEvent(timelineRecoveryResult, onPacketProgress);
                             }
                         }

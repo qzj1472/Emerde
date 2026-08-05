@@ -265,6 +265,7 @@ public sealed class RecorderTests
         Assert.True(verificationStart >= 0);
         Assert.Contains("outputTask = process.StandardOutput.ReadToEndAsync();", source);
         Assert.Contains("errorTask = process.StandardError.ReadToEndAsync();", source);
+        Assert.Contains("reference stream unavailable; local timeline stall requires restart", source);
         Assert.DoesNotContain("record_quarantine_segment_discarded", source);
     }
 
