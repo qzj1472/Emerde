@@ -101,6 +101,16 @@ public sealed class SpiderTests
     }
 
     [Theory]
+    [InlineData("https://v.m.chenzhongtech.com/fw/live/KPL704668133?shareType=5")]
+    [InlineData("https://c.kuaishou.com/fw/user/KPL704668133?shareType=1")]
+    [InlineData("https://live.kuaishou.com/profile/KPL704668133")]
+    [InlineData("https://www.kuaishou.com/profile/KPL704668133")]
+    public void ParseUrl_WithKuaishouMobileUrl_NormalizesRoomUrl(string input)
+    {
+        Assert.Equal("https://live.kuaishou.com/u/KPL704668133", Spider.ParseUrl(input));
+    }
+
+    [Theory]
     [InlineData("https://www.huya.com/52333?from=test", "https://www.huya.com/52333")]
     [InlineData("https://huya.com/example_room?from=test", "https://www.huya.com/example_room")]
     public void ParseUrl_WithHuyaLiveUrl_NormalizesRoomUrl(string input, string expected)

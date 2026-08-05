@@ -18,7 +18,19 @@ public sealed partial class KuaishouSpider : ISpider, IQualitySelectableSpider
             return null;
         }
 
-        if (uri.Host != "live.kuaishou.com")
+        if (uri.Host is "v.m.chenzhongtech.com" or "livev.m.chenzhongtech.com" or "c.kuaishou.com")
+        {
+            string[] mobileSegments = uri.Segments
+                .Select(segment => segment.Trim('/'))
+                .Where(segment => !string.IsNullOrWhiteSpace(segment))
+                .ToArray();
+            int identityIndex = Array.FindIndex(mobileSegments, segment => segment is "live" or "user");
+            return identityIndex >= 0 && identityIndex < mobileSegments.Length - 1
+                ? $"https://live.kuaishou.com/u/{mobileSegments[identityIndex + 1]}"
+                : null;
+        }
+
+        if (uri.Host != "live.kuaishou.com" && uri.Host != "www.kuaishou.com")
         {
             return null;
         }
@@ -28,7 +40,7 @@ public sealed partial class KuaishouSpider : ISpider, IQualitySelectableSpider
             .Where(segment => !string.IsNullOrWhiteSpace(segment))
             .ToArray();
 
-        if (segments.Length < 2 || segments[0] != "u")
+        if (segments.Length < 2 || segments[0] is not ("u" or "profile"))
         {
             return null;
         }
