@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net9.0-windows</TargetFramework>
+        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <UseNativeAot Condition="'$(UseNativeAot)' == ''">false</UseNativeAot>
+        <PublishAot Condition="'$(UseNativeAot)' == 'true'">true</PublishAot>
+        <PublishSingleFile Condition="'$(UseNativeAot)' != 'true'">true</PublishSingleFile>
+        <EnableCompressionInSingleFile Condition="'$(UseNativeAot)' != 'true'">true</EnableCompressionInSingleFile>
+        <PublishTrimmed Condition="'$(UseNativeAot)' != 'true'">true</PublishTrimmed>
+        <TrimMode Condition="'$(UseNativeAot)' != 'true'">full</TrimMode>
+        <PublishReadyToRun>false</PublishReadyToRun>
+        <SelfContained>true</SelfContained>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <StripSymbols>true</StripSymbols>
+        <OptimizationPreference>Size</OptimizationPreference>
+        <AssemblyName>Emerde.Setup.Bootstrap</AssemblyName>
+        <RootNamespace>Emerde.Setup</RootNamespace>
+        <Product>Emerde Installer</Product>
+        <AssemblyVersion>1.6.7.0</AssemblyVersion>
+        <FileVersion>1.6.7.0</FileVersion>
+        <Version>1.6.7.0</Version>
+        <ApplicationIcon>..\Emerde\Assets\Favicon.ico</ApplicationIcon>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="..\Emerde.Setup.Common\SetupContainerFormat.cs" Link="SetupContainerFormat.cs" />
+        <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
+    </ItemGroup>
+</Project>

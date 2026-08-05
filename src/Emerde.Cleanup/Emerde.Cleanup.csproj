@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net9.0-windows7.0</TargetFramework>
+        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <SelfContained>true</SelfContained>
+        <PublishSingleFile>true</PublishSingleFile>
+        <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+        <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+        <PublishTrimmed>true</PublishTrimmed>
+        <TrimMode>full</TrimMode>
+        <PublishReadyToRun>false</PublishReadyToRun>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <StripSymbols>true</StripSymbols>
+        <OptimizationPreference>Size</OptimizationPreference>
+        <DebugType>none</DebugType>
+        <DebugSymbols>false</DebugSymbols>
+        <AssemblyName>Emerde.Cleanup</AssemblyName>
+        <RootNamespace>Emerde.Cleanup</RootNamespace>
+        <Product>Emerde Cleanup</Product>
+        <AssemblyVersion>1.6.7.0</AssemblyVersion>
+        <FileVersion>1.6.7.0</FileVersion>
+        <Version>1.6.7.0</Version>
+    </PropertyGroup>
+</Project>

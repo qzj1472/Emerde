@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net9.0-windows7.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <UseWPF>true</UseWPF>
+        <Platforms>x64</Platforms>
+        <ApplicationIcon>..\Emerde\Assets\Favicon.ico</ApplicationIcon>
+        <SelfContained>false</SelfContained>
+        <PublishTrimmed>false</PublishTrimmed>
+        <PublishSingleFile>true</PublishSingleFile>
+        <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+        <AppHostRelativeDotNet>..\runtime</AppHostRelativeDotNet>
+        <AppHostDotNetSearch>AppRelative</AppHostDotNetSearch>
+        <StripSymbols>true</StripSymbols>
+        <DebugType>none</DebugType>
+        <DebugSymbols>false</DebugSymbols>
+        <SatelliteResourceLanguages>en;zh-Hans;zh-Hant;ja</SatelliteResourceLanguages>
+        <AssemblyName>Emerde.Uninstaller</AssemblyName>
+        <RootNamespace>Emerde.Uninstaller</RootNamespace>
+        <Product>Emerde Uninstaller</Product>
+        <AssemblyVersion>1.6.7.0</AssemblyVersion>
+        <FileVersion>1.6.7.0</FileVersion>
+        <Version>1.6.7.0</Version>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <TrimMode>partial</TrimMode>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Resource Include="..\Emerde\Assets\Favicon.png" Link="Assets\Favicon.png" />
+        <PackageReference Include="WPF-UI" Version="4.0.3" />
+    </ItemGroup>
+</Project>

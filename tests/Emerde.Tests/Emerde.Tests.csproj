@@ -20,7 +20,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\..\src\Emerde.Setup.Common\SetupContainerFormat.cs" Link="SetupContainerFormat.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Emerde\Emerde.csproj" />
+    <ProjectReference Include="..\..\src\Emerde.Cleanup\Emerde.Cleanup.csproj" />
+    <ProjectReference Include="..\..\src\Emerde.Installer\Emerde.Installer.csproj" />
+    <ProjectReference Include="..\..\src\Emerde.Uninstaller\Emerde.Uninstaller.csproj" />
     <ProjectReference Include="..\..\extensions\Emerde.DouyinPublisher\Emerde.DouyinPublisher.csproj" />
   </ItemGroup>
 
