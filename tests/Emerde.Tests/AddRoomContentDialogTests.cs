@@ -54,6 +54,9 @@ public sealed class AddRoomContentDialogTests
         Assert.False(AddRoomContentDialog.CanDeferRoomInfoResolution(
             "https://www.twitch.tv/example",
             StreamResolver.DouyinTransientBlockError));
+        Assert.False(AddRoomContentDialog.CanDeferRoomInfoResolution(
+            "https://webcast.amemv.com/douyin/webcast/reflow/7670549959499664180?sec_user_id=MS4w.LONG-ID",
+            StreamResolver.DouyinTransientBlockError));
     }
 
     [Fact]

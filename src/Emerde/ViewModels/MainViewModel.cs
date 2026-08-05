@@ -327,7 +327,6 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private static Room[] NormalizeStoredRooms(Room[]? rooms)
     {
         List<Room> normalizedRooms = [];
-        HashSet<string> seenUrls = new(StringComparer.OrdinalIgnoreCase);
         bool changed = rooms == null;
 
         foreach (Room? room in rooms ?? [])
@@ -339,7 +338,14 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             }
 
             string normalizedUrl = NormalizeRoomUrl(room.RoomUrl);
-            if (string.IsNullOrWhiteSpace(normalizedUrl) || !seenUrls.Add(normalizedUrl))
+            if (string.IsNullOrWhiteSpace(normalizedUrl)
+                || normalizedRooms.Any(existing => ExternalStreamResolver.IsSameRoom(
+                    existing.RoomUrl,
+                    existing.PlatformName,
+                    existing.Uid,
+                    normalizedUrl,
+                    room.PlatformName,
+                    room.Uid)))
             {
                 changed = true;
                 continue;
@@ -2366,14 +2372,25 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     {
         RoomListHistoryState before = CaptureRoomListHistoryState();
         List<Room> rooms = [.. Configurations.Rooms.Get() ?? []];
+        string platformName = string.IsNullOrWhiteSpace(spiderResult?.PlatformName)
+            ? Spider.GetPlatformName(roomUrl)
+            : spiderResult.PlatformName;
+        string uid = spiderResult?.Uid ?? string.Empty;
 
-        rooms.RemoveAll(room => string.Equals(room.RoomUrl, roomUrl, StringComparison.OrdinalIgnoreCase));
+        rooms.RemoveAll(room => ExternalStreamResolver.IsSameRoom(
+            room.RoomUrl,
+            room.PlatformName,
+            room.Uid,
+            roomUrl,
+            platformName,
+            uid));
         Room room = new()
         {
             NickName = nickName,
             RoomUrl = roomUrl,
             AvatarThumbUrl = spiderResult?.AvatarThumbUrl ?? string.Empty,
-            PlatformName = Spider.GetPlatformName(roomUrl),
+            PlatformName = platformName,
+            Uid = uid,
             IsToNotify = isToNotify,
             IsToMonitor = isToMonitor,
             IsToRecord = isToRecord,

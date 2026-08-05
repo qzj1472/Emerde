@@ -162,7 +162,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
             string inputUrl = Url;
             using (LoadingWindow.ShowAsync())
             {
-                string? normalizedRoomUrl = await Task.Run(() => Spider.ParseUrl(inputUrl, allowNetwork: !IsForcedAdd));
+                string? normalizedRoomUrl = await Task.Run(() => Spider.ParseUrl(inputUrl, allowNetwork: !IsForcedAdd, token), token);
                 token.ThrowIfCancellationRequested();
                 if (string.IsNullOrWhiteSpace(normalizedRoomUrl))
                 {
@@ -171,7 +171,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
                     return;
                 }
 
-                if ((Configurations.Rooms.Get() ?? []).Any(room => string.Equals(room.RoomUrl, normalizedRoomUrl, StringComparison.OrdinalIgnoreCase)))
+                if (HasDuplicateRoom(normalizedRoomUrl))
                 {
                     e.Cancel = true;
                     Toast.Warning("AddRoomErrorDuplicated".Tr(normalizedRoomUrl));
@@ -180,6 +180,13 @@ public sealed partial class AddRoomContentDialog : ContentDialog
 
                 if (IsForcedAdd)
                 {
+                    if (!ExternalStreamResolver.IsPersistableRoomUrl(normalizedRoomUrl))
+                    {
+                        e.Cancel = true;
+                        Toast.Error("ErrorRoomUrl".Tr());
+                        return;
+                    }
+
                     NickName = normalizedRoomUrl;
                     RoomUrl = normalizedRoomUrl;
 
@@ -204,14 +211,16 @@ public sealed partial class AddRoomContentDialog : ContentDialog
                         return;
                     }
 
-                    if (spider == null || !HasAddableRoomInfo(spider, roomUrl))
+                    if (spider == null
+                        || !HasAddableRoomInfo(spider, roomUrl)
+                        || !ExternalStreamResolver.IsPersistableRoomUrl(roomUrl))
                     {
                         e.Cancel = true;
                         Toast.Error(GetRoomInfoErrorMessage(normalizedRoomUrl));
                         return;
                     }
 
-                    if ((Configurations.Rooms.Get() ?? []).Any(room => string.Equals(room.RoomUrl, roomUrl, StringComparison.OrdinalIgnoreCase)))
+                    if (HasDuplicateRoom(roomUrl, spider.PlatformName, spider.Uid))
                     {
                         e.Cancel = true;
                         Toast.Warning("AddRoomErrorDuplicated".Tr(GetConfirmedNickName(spider)));
@@ -294,6 +303,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
     internal static bool CanDeferRoomInfoResolution(string? roomUrl, string? error)
     {
         return !string.IsNullOrWhiteSpace(roomUrl)
+            && ExternalStreamResolver.IsPersistableRoomUrl(roomUrl)
             && string.Equals(Spider.GetPlatformName(roomUrl), "Douyin", StringComparison.OrdinalIgnoreCase)
             && StreamResolver.IsTransientDouyinFailure(error);
     }
@@ -301,5 +311,16 @@ public sealed partial class AddRoomContentDialog : ContentDialog
     internal static string GetConfirmedNickName(ISpiderResult spider)
     {
         return string.IsNullOrWhiteSpace(spider.Nickname) ? spider.RoomUrl ?? string.Empty : spider.Nickname;
+    }
+
+    private static bool HasDuplicateRoom(string roomUrl, string? platformName = null, string? uid = null)
+    {
+        return (Configurations.Rooms.Get() ?? []).Any(room => ExternalStreamResolver.IsSameRoom(
+            room.RoomUrl,
+            room.PlatformName,
+            room.Uid,
+            roomUrl,
+            platformName,
+            uid));
     }
 }
