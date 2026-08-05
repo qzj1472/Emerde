@@ -73,7 +73,16 @@ public sealed class LivePreviewPlayer : IDisposable
 
     public LivePreviewPlayer()
     {
-        LibVLCSharp.Shared.Core.Initialize();
+        string libVlcDirectory = RuntimePaths.LibVlcDirectory;
+        if (Directory.Exists(libVlcDirectory))
+        {
+            LibVLCSharp.Shared.Core.Initialize(libVlcDirectory);
+        }
+        else
+        {
+            LibVLCSharp.Shared.Core.Initialize();
+        }
+
         libVlc = new LibVLC(LibVlcOptions);
         currentSession = CreateSession(string.Empty);
         sessions.Add(currentSession);

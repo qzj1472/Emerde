@@ -69,7 +69,7 @@ internal static unsafe partial class FfmpegMediaEngine
     private static readonly object InitializeLock = new();
     private static bool initialized;
 
-    public static string LibraryDirectory => Path.Combine(AppContext.BaseDirectory, "ffmpeg");
+    public static string LibraryDirectory => RuntimePaths.FfmpegDirectory;
 
     public static bool IsAvailable => Directory.Exists(LibraryDirectory)
         && File.Exists(Path.Combine(LibraryDirectory, "avformat-61.dll"))
