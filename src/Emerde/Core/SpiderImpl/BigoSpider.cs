@@ -18,6 +18,11 @@ public sealed partial class BigoSpider : ISpider
             return null;
         }
 
+        if (uri.Host == "slink.bigovideo.tv")
+        {
+            return uri.GetLeftPart(UriPartial.Path).TrimEnd('/');
+        }
+
         if (uri.Host != "www.bigo.tv" && uri.Host != "bigo.tv")
         {
             return null;
@@ -43,6 +48,26 @@ public sealed partial class BigoSpider : ISpider
         };
 
         if (roomUrl == null)
+        {
+            return result;
+        }
+
+        if (Uri.TryCreate(roomUrl, UriKind.Absolute, out Uri? roomUri)
+            && roomUri.Host.Equals("slink.bigovideo.tv", StringComparison.OrdinalIgnoreCase))
+        {
+            string? shareHtml = SpiderRequest.Get(
+                roomUrl,
+                new Dictionary<string, string>
+                {
+                    ["User-Agent"] = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1",
+                },
+                PlatformCookieStore.GetCookie("Bigo", SecretProtector.GetOverseaCookie()));
+            string? shareRoomUrl = ExtractShareRoomUrl(shareHtml);
+            roomUrl = string.IsNullOrWhiteSpace(shareRoomUrl) ? null : ParseUrl(shareRoomUrl);
+            result.RoomUrl = roomUrl;
+        }
+
+        if (string.IsNullOrWhiteSpace(roomUrl))
         {
             return result;
         }
@@ -83,6 +108,17 @@ public sealed partial class BigoSpider : ISpider
         catch
         {
         }
+    }
+
+    internal static string? ExtractShareRoomUrl(string? html)
+    {
+        if (string.IsNullOrWhiteSpace(html))
+        {
+            return null;
+        }
+
+        Match match = ShareRoomUrlRegex.Match(html);
+        return match.Success ? WebUtility.HtmlDecode(match.Groups[1].Value) : null;
     }
 
     private static string? ExtractRoomId(Uri uri)
@@ -143,6 +179,9 @@ public sealed partial class BigoSpider : ISpider
 
     [GeneratedRegex("(?:\\?|&)h=([^&]+)", RegexOptions.IgnoreCase)]
     private static partial Regex RoomIdQueryRegex { get; }
+
+    [GeneratedRegex("data-url=\"(https?://(?:www\\.)?bigo\\.tv/[^\"]+)\"", RegexOptions.IgnoreCase)]
+    private static partial Regex ShareRoomUrlRegex { get; }
 }
 
 public sealed class BigoSpiderResult : ISpiderResult

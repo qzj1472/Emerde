@@ -149,6 +149,17 @@ public sealed class SpiderTests
         Assert.Equal(expected, result);
     }
 
+    [Fact]
+    public void BigoSharePage_ExtractsCanonicalRoomUrl()
+    {
+        const string html = "<div id=\"linkBox\" data-url=\"http://www.bigo.tv/sid/2754773469_1633341678?c=0&amp;h=Applestorequeen1\"></div>";
+
+        string? shareRoomUrl = BigoSpider.ExtractShareRoomUrl(html);
+
+        Assert.Equal("http://www.bigo.tv/sid/2754773469_1633341678?c=0&h=Applestorequeen1", shareRoomUrl);
+        Assert.Equal("https://www.bigo.tv/Applestorequeen1", BigoSpider.Instance.Value.ParseUrl(shareRoomUrl!));
+    }
+
     [Theory]
     [InlineData("https://17.live/en/live/6302408?from=test", "https://17.live/en/live/6302408")]
     [InlineData("https://www.17.live/en-US/room/3349463?from=test", "https://17.live/en/live/3349463")]
