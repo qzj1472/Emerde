@@ -10,7 +10,7 @@
                    d:DesignWidth="NaN"
                    DefaultButton="Primary"
                    FontSize="14"
-                   PrimaryButtonText="知道了"
+                   PrimaryButtonText="{I18N ButtonOfAcknowledge}"
                    SnapsToDevicePixels="True"
                    Style="{StaticResource DefaultVioletaContentDialogStyle}"
                    UseLayoutRounding="True"
