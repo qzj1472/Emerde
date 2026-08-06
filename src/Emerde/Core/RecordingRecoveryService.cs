@@ -18,6 +18,8 @@ internal static class RecordingRecoveryService
 
     private static readonly ConcurrentDictionary<string, RecoveryProcessingTask> ProcessingTasks = new(StringComparer.OrdinalIgnoreCase);
     private static readonly SemaphoreSlim PendingOptionsUpdateGate = new(1, 1);
+    private static readonly SemaphoreSlim RecoveryOperationGate = new(2, 2);
+    private static readonly object PendingMarkerMutationLock = new();
     private static readonly object StartupMaintenanceLock = new();
     private static readonly DateTime ProcessStartedAtUtc = Process.GetCurrentProcess().StartTime.ToUniversalTime();
     private static Task? startupMaintenanceTask;
@@ -102,6 +104,14 @@ internal static class RecordingRecoveryService
 
     internal static bool UpdateOptions(string path, RoomRecordingOptions options, string? roomUrl = null)
     {
+        lock (PendingMarkerMutationLock)
+        {
+            return UpdateOptionsCore(path, options, roomUrl);
+        }
+    }
+
+    private static bool UpdateOptionsCore(string path, RoomRecordingOptions options, string? roomUrl)
+    {
         string? targetFormat = Recorder.GetTargetFormat(options.RecordFormat);
         PendingRecording? item = Load(path, out _, validateAllowedDirectory: false);
         if (item == null)
@@ -148,15 +158,18 @@ internal static class RecordingRecoveryService
 
     internal static bool MarkSessionPartsAsStallSegments(string path)
     {
-        PendingRecording? item = Load(path, out _, validateAllowedDirectory: false);
-        if (item == null || !IsSessionPattern(item.SourcePattern))
+        lock (PendingMarkerMutationLock)
         {
-            return false;
-        }
+            PendingRecording? item = Load(path, out _, validateAllowedDirectory: false);
+            if (item == null || !IsSessionPattern(item.SourcePattern))
+            {
+                return false;
+            }
 
-        item.MergeSessionParts = false;
-        item.SegmentReason = VideoRecordingMetadataStore.TimelineStallSegmentReason;
-        return Save(path, item);
+            item.MergeSessionParts = false;
+            item.SegmentReason = VideoRecordingMetadataStore.TimelineStallSegmentReason;
+            return Save(path, item);
+        }
     }
 
     public static void QueueRun()
@@ -236,8 +249,21 @@ internal static class RecordingRecoveryService
 
     private static async Task ProcessPendingAsync(IEnumerable<string> paths, CancellationToken token = default)
     {
-        Task[] tasks = paths.Select(path => ProcessAsync(path, token)).ToArray();
+        Task[] tasks = paths.Select(path => ProcessWithConcurrencyLimitAsync(path, token)).ToArray();
         await Task.WhenAll(tasks);
+    }
+
+    private static async Task ProcessWithConcurrencyLimitAsync(string path, CancellationToken token)
+    {
+        await RecoveryOperationGate.WaitAsync(token);
+        try
+        {
+            await ProcessAsync(path, token);
+        }
+        finally
+        {
+            RecoveryOperationGate.Release();
+        }
     }
 
     internal static Task QueueProcessAsync(IEnumerable<string> paths)
@@ -273,7 +299,7 @@ internal static class RecordingRecoveryService
             using (operation)
             try
             {
-                await ProcessAsync(path, cancellation.Token);
+                await ProcessWithConcurrencyLimitAsync(path, cancellation.Token);
             }
             catch (OperationCanceledException)
             {
@@ -281,10 +307,6 @@ internal static class RecordingRecoveryService
             catch (Exception e)
             {
                 AppSessionLogger.WriteException(e);
-            }
-            finally
-            {
-                RecordingCleanupService.QueueRun();
             }
         });
     }
@@ -1059,7 +1081,7 @@ internal static class RecordingRecoveryService
         catch (JsonException e)
         {
             AppSessionLogger.WriteException(e);
-            invalidReason = $"JSON 语法损坏：{e.Message}";
+            invalidReason = "RecoveryJsonInvalid".Tr(e.Message);
             return null;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -1073,25 +1095,25 @@ internal static class RecordingRecoveryService
     {
         if (item == null)
         {
-            return "恢复标记为空";
+            return "RecoveryMarkerEmpty".Tr();
         }
         if (string.IsNullOrWhiteSpace(item.SourcePattern) || !Path.IsPathFullyQualified(item.SourcePattern))
         {
-            return "源文件路径不是有效的绝对路径";
+            return "RecoverySourcePathAbsoluteInvalid".Tr();
         }
         if (!MediaFileCatalog.IsMediaPath(item.SourcePattern))
         {
-            return "源文件不是受支持的媒体格式";
+            return "RecoverySourceFormatUnsupported".Tr();
         }
         if (item.SourcePattern.Contains('*') || item.SourcePattern.Contains('?'))
         {
-            return "源文件路径包含不允许的通配符";
+            return "RecoverySourceWildcardInvalid".Tr();
         }
 
         string fileName = Path.GetFileName(item.SourcePattern);
         if (fileName.Replace("%03d", string.Empty, StringComparison.Ordinal).Contains('%'))
         {
-            return "分段占位符只能使用 %03d";
+            return "RecoverySegmentPlaceholderInvalid".Tr();
         }
 
         bool targetFormatAllowed = item.MergeSessionParts || IsSessionPattern(item.SourcePattern)
@@ -1100,8 +1122,8 @@ internal static class RecordingRecoveryService
         if (!targetFormatAllowed)
         {
             return item.MergeSessionParts || IsSessionPattern(item.SourcePattern)
-                ? "目标格式只能是 MP4、MKV、TS 或 FLV"
-                : "目标格式只能是 MP4 或 MKV";
+                ? "RecoveryTargetFormatSessionInvalid".Tr()
+                : "RecoveryTargetFormatInvalid".Tr();
         }
 
         if (!string.IsNullOrWhiteSpace(item.CompletedTargetPath))
@@ -1110,7 +1132,7 @@ internal static class RecordingRecoveryService
                 || !MediaFileCatalog.IsMediaPath(item.CompletedTargetPath)
                 || !Path.GetExtension(item.CompletedTargetPath).Equals(item.TargetFormat, StringComparison.OrdinalIgnoreCase))
             {
-                return "已完成目标文件路径或格式无效";
+                return "RecoveryCompletedTargetInvalid".Tr();
             }
 
             try
@@ -1119,12 +1141,12 @@ internal static class RecordingRecoveryService
                 string targetDirectory = Path.GetDirectoryName(Path.GetFullPath(item.CompletedTargetPath)) ?? string.Empty;
                 if (!sourceDirectory.Equals(targetDirectory, StringComparison.OrdinalIgnoreCase))
                 {
-                    return "已完成目标文件不在源录制目录中";
+                    return "RecoveryCompletedTargetOutsideSource".Tr();
                 }
             }
             catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
             {
-                return $"已完成目标文件路径无效：{e.Message}";
+                return "RecoveryCompletedTargetPathInvalid".Tr(e.Message);
             }
         }
 
@@ -1137,7 +1159,7 @@ internal static class RecordingRecoveryService
                     || !Path.GetExtension(item.IntermediateTargetPath).Equals(Path.GetExtension(item.SourcePattern), StringComparison.OrdinalIgnoreCase)
                     || !(Path.GetDirectoryName(Path.GetFullPath(item.IntermediateTargetPath)) ?? string.Empty).Equals(stateDirectory, StringComparison.OrdinalIgnoreCase)))
             {
-                return "中间合并文件路径无效";
+                return "RecoveryIntermediateTargetInvalid".Tr();
             }
 
             foreach ((string completedSource, string completedTarget) in item.CompletedSources)
@@ -1148,13 +1170,13 @@ internal static class RecordingRecoveryService
                     || !(Path.GetDirectoryName(Path.GetFullPath(completedTarget)) ?? string.Empty).Equals(stateDirectory, StringComparison.OrdinalIgnoreCase)
                     || !Path.GetExtension(completedTarget).Equals(item.TargetFormat, StringComparison.OrdinalIgnoreCase))
                 {
-                    return "已完成源文件状态无效";
+                    return "RecoveryCompletedSourceStateInvalid".Tr();
                 }
             }
         }
         catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
         {
-            return $"已完成录制状态路径无效：{e.Message}";
+            return "RecoveryStatePathInvalid".Tr(e.Message);
         }
 
         string sourcePath;
@@ -1164,7 +1186,7 @@ internal static class RecordingRecoveryService
         }
         catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
         {
-            return $"源文件路径无效：{e.Message}";
+            return "RecoverySourcePathInvalid".Tr(e.Message);
         }
 
         if (!validateAllowedDirectory)
@@ -1177,7 +1199,7 @@ internal static class RecordingRecoveryService
             sourcePath,
             MediaFileCatalog.GetConfiguredSaveFolders().Concat(SaveFolderHelper.GetFallbackSaveFolders()))
             ? null
-            : "源文件不在当前配置的保存目录中";
+            : "RecoverySourceOutsideConfiguredFolders".Tr();
     }
 
     internal static bool IsRecoverySourceAllowed(string sourcePattern, string sourcePath, IEnumerable<string> allowedRoots)
@@ -1188,18 +1210,7 @@ internal static class RecordingRecoveryService
 
     internal static bool IsPathWithinRoot(string path, string root)
     {
-        try
-        {
-            string relative = Path.GetRelativePath(Path.GetFullPath(root), Path.GetFullPath(path));
-            return !Path.IsPathRooted(relative)
-                && !relative.Equals("..", StringComparison.Ordinal)
-                && !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)
-                && !relative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal);
-        }
-        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
-        {
-            return false;
-        }
+        return PathUtility.IsSameOrDescendant(path, root);
     }
 
     private static void DeleteStaleTemporaryMediaFiles()
@@ -1285,28 +1296,31 @@ internal static class RecordingRecoveryService
 
     private static bool Save(string path, PendingRecording item)
     {
-        string directory = Path.GetDirectoryName(path) ?? AppPaths.PendingRecordingsDirectory;
-        string temporaryPath = Path.Combine(directory, $".emerde-pending-{Guid.NewGuid():N}.tmp");
-        try
+        lock (PendingMarkerMutationLock)
         {
-            using (FileStream stream = new(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            using (StreamWriter writer = new(stream, new System.Text.UTF8Encoding(false)))
+            string directory = Path.GetDirectoryName(path) ?? AppPaths.PendingRecordingsDirectory;
+            string temporaryPath = Path.Combine(directory, $".emerde-pending-{Guid.NewGuid():N}.tmp");
+            try
             {
-                writer.Write(JsonSerializer.Serialize(item, JsonOptions));
-                writer.Flush();
-                stream.Flush(flushToDisk: true);
+                using (FileStream stream = new(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                using (StreamWriter writer = new(stream, new System.Text.UTF8Encoding(false)))
+                {
+                    writer.Write(JsonSerializer.Serialize(item, JsonOptions));
+                    writer.Flush();
+                    stream.Flush(flushToDisk: true);
+                }
+                File.Move(temporaryPath, path, overwrite: true);
+                return true;
             }
-            File.Move(temporaryPath, path, overwrite: true);
-            return true;
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            AppSessionLogger.WriteException(e);
-            return false;
-        }
-        finally
-        {
-            DeleteMarker(temporaryPath);
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                AppSessionLogger.WriteException(e);
+                return false;
+            }
+            finally
+            {
+                DeleteMarker(temporaryPath);
+            }
         }
     }
 
