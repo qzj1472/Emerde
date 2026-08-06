@@ -778,4 +778,427 @@
   <data name="StartupAboutNoticeTitle" xml:space="preserve"><value>使用前请先阅读说明</value></data>
   <data name="StartupAboutNoticeDescription" xml:space="preserve"><value>为了避免误操作和平台风控，首次使用前建议先打开左侧“关于”，仔细阅读监控间隔、动态检测、录制、预览与全屏等说明。理解这些规则后再添加直播间和开启监控，会更稳一些。</value></data>
   <data name="ConfigurationRecovered" xml:space="preserve"><value>配置文件无效，已保留到：{0}。Emerde 已使用默认配置启动。</value></data>
+  <data name="Unsupported" xml:space="preserve"><value>不支持</value></data>
+  <data name="SkipValidation" xml:space="preserve"><value>跳过检测</value></data>
+  <data name="FollowGlobalSettings" xml:space="preserve"><value>跟随全局设置</value></data>
+  <data name="VolumeFormat" xml:space="preserve"><value>音量 {0}%</value></data>
+  <data name="PreviewVolumeToolTipFormat" xml:space="preserve"><value>音量 {0}% (-/=)</value></data>
+  <data name="ExitFullScreenHint" xml:space="preserve"><value>按 V 或 Esc 退出全屏</value></data>
+  <data name="SelectedRoomsFormat" xml:space="preserve"><value>已选择 {0} 个直播间</value></data>
+  <data name="AllPlatforms" xml:space="preserve"><value>全部平台</value></data>
+  <data name="RecordingEngineActive" xml:space="preserve"><value>内置 FFmpeg DLL · {0} · PID {1} · 下载 {2} · 写入 {3}</value></data>
+  <data name="RecordingEngineStarting" xml:space="preserve"><value>内置 FFmpeg DLL · 工作进程启动中</value></data>
+  <data name="WaitingForData" xml:space="preserve"><value>等待数据</value></data>
+  <data name="LiveStream" xml:space="preserve"><value>直播流</value></data>
+  <data name="AutoShutdownComputerCountdown" xml:space="preserve"><value>将在 {0} 后关闭电脑</value></data>
+  <data name="AutoShutdownApplicationCountdown" xml:space="preserve"><value>将在 {0} 后关闭 Emerde</value></data>
+  <data name="Milliseconds" xml:space="preserve"><value>毫秒</value></data>
+  <data name="Days" xml:space="preserve"><value>天</value></data>
+  <data name="Weeks" xml:space="preserve"><value>周</value></data>
+  <data name="Months" xml:space="preserve"><value>月</value></data>
+  <data name="Years" xml:space="preserve"><value>年</value></data>
+  <data name="HomePage" xml:space="preserve"><value>首页</value></data>
+  <data name="Extensions" xml:space="preserve"><value>扩展</value></data>
+  <data name="Monitor" xml:space="preserve"><value>监控</value></data>
+  <data name="NavigationHomeToolTip" xml:space="preserve"><value>首页（Alt+1，Tab 向上 / CapsLock 向下）</value></data>
+  <data name="NavigationVideosToolTip" xml:space="preserve"><value>视频列表（Alt+2，Tab 向上 / CapsLock 向下）</value></data>
+  <data name="NavigationSettingsToolTip" xml:space="preserve"><value>设置（Alt+3，Tab 向上 / CapsLock 向下）</value></data>
+  <data name="NavigationExtensionsToolTip" xml:space="preserve"><value>扩展（Alt+4，Tab 向上 / CapsLock 向下）</value></data>
+  <data name="NavigationAboutToolTip" xml:space="preserve"><value>关于（Alt+5，Tab 向上 / CapsLock 向下）</value></data>
+  <data name="ExitApplicationToolTip" xml:space="preserve"><value>退出 Emerde（Ctrl+Shift+W）</value></data>
+  <data name="AddRoomToolTip" xml:space="preserve"><value>添加直播间（Ctrl+N）</value></data>
+  <data name="ToggleAllMonitorToolTip" xml:space="preserve"><value>开启或暂停全部监控（Ctrl+Shift+M）</value></data>
+  <data name="ToggleAllRecordingToolTip" xml:space="preserve"><value>开启或暂停全部录制（Ctrl+Shift+R）</value></data>
+  <data name="CardSize" xml:space="preserve"><value>卡片大小</value></data>
+  <data name="SizeLarge" xml:space="preserve"><value>大</value></data>
+  <data name="SizeMedium" xml:space="preserve"><value>中</value></data>
+  <data name="SizeSmall" xml:space="preserve"><value>小</value></data>
+  <data name="Sort" xml:space="preserve"><value>排序</value></data>
+  <data name="SortByName" xml:space="preserve"><value>按名称</value></data>
+  <data name="SortByAddedOrder" xml:space="preserve"><value>按添加顺序</value></data>
+  <data name="PlatformFilter" xml:space="preserve"><value>平台筛选</value></data>
+  <data name="LoadPlatforms" xml:space="preserve"><value>加载平台</value></data>
+  <data name="RoomInformation" xml:space="preserve"><value>直播间信息</value></data>
+  <data name="LiveTitle" xml:space="preserve"><value>标题</value></data>
+  <data name="ResolutionLabel" xml:space="preserve"><value>分辨率</value></data>
+  <data name="BitrateLabel" xml:space="preserve"><value>码率</value></data>
+  <data name="RoomAddress" xml:space="preserve"><value>房间地址</value></data>
+  <data name="RefreshCurrentRoomToolTip" xml:space="preserve"><value>刷新当前直播间（F）</value></data>
+  <data name="CopyRoomAddressToolTip" xml:space="preserve"><value>复制房间地址（C）</value></data>
+  <data name="CopyLiveStreamToolTip" xml:space="preserve"><value>复制直播流（Shift+C）</value></data>
+  <data name="PreviewCurrentRoomToolTip" xml:space="preserve"><value>预览或关闭当前直播间预览（Q）</value></data>
+  <data name="OpenCurrentRoomToolTip" xml:space="preserve"><value>打开当前直播间网页（E）</value></data>
+  <data name="ToggleCurrentMonitorToolTip" xml:space="preserve"><value>开启或暂停当前直播间监控（Shift+M）</value></data>
+  <data name="ToggleCurrentRecordingToolTip" xml:space="preserve"><value>开启或暂停当前直播间录制（Shift+R）</value></data>
+  <data name="OpenCurrentRoomSettingsToolTip" xml:space="preserve"><value>打开当前直播间设置</value></data>
+  <data name="AutoShutdownDebugSkipped" xml:space="preserve"><value>已触发关闭电脑，调试模式不会执行系统关机。</value></data>
+  <data name="CancellingTranscode" xml:space="preserve"><value>正在取消转码...</value></data>
+  <data name="ChooseLogArchivePath" xml:space="preserve"><value>选择日志压缩包保存位置</value></data>
+  <data name="ConfigAddedToRestoreList" xml:space="preserve"><value>配置已加入恢复列表，选择“导入”后生效。</value></data>
+  <data name="ConfigBackup" xml:space="preserve"><value>配置备份</value></data>
+  <data name="ConfigBackupAlreadyExists" xml:space="preserve"><value>相同配置已存在，已选中已有备份点。</value></data>
+  <data name="ConfigChangedRestartPrompt" xml:space="preserve"><value>{0}，重启后生效。{1}&#xA;&#xA;是否立即重启 Emerde？</value></data>
+  <data name="ConfigExported" xml:space="preserve"><value>配置已导出</value></data>
+  <data name="ConfigExportFailed" xml:space="preserve"><value>配置导出失败：{0}</value></data>
+  <data name="ConfigImported" xml:space="preserve"><value>配置已导入</value></data>
+  <data name="ConfigImportedUnavailableSecrets" xml:space="preserve"><value>配置已导入，但以下凭据属于其他 Windows 账户，需要重新填写：{0}</value></data>
+  <data name="ConfigImportFailed" xml:space="preserve"><value>配置导入失败：{0}</value></data>
+  <data name="ConfigReset" xml:space="preserve"><value>配置已重置</value></data>
+  <data name="ConfigResetFailed" xml:space="preserve"><value>配置重置失败：{0}</value></data>
+  <data name="ConfigResetRestartPrompt" xml:space="preserve"><value>配置已重置，重启后生效。配置备份：&#xA;{0}&#xA;&#xA;是否立即重启 Emerde？</value></data>
+  <data name="ConfigRestored" xml:space="preserve"><value>配置已恢复</value></data>
+  <data name="ConfigRestoreFailed" xml:space="preserve"><value>配置恢复失败：{0}</value></data>
+  <data name="ConfirmRemoveSelectedRooms" xml:space="preserve"><value>确定移除选中的 {0} 个直播间吗？</value></data>
+  <data name="ConfirmResetConfig" xml:space="preserve"><value>确定要重置配置文件吗？当前配置会先备份，重启后生效。</value></data>
+  <data name="CopiedVideos" xml:space="preserve"><value>已另存 {0} 个视频</value></data>
+  <data name="CurrentConfigBackup" xml:space="preserve"><value>当前配置备份：&#xA;{0}</value></data>
+  <data name="DefaultConfigDescription" xml:space="preserve"><value>删除当前配置，重启后由软件重新生成默认配置</value></data>
+  <data name="DefaultConfigTitle" xml:space="preserve"><value>默认配置（软件无配置）</value></data>
+  <data name="DeletedVideos" xml:space="preserve"><value>已删除 {0} 个视频</value></data>
+  <data name="DouyinVerificationTitle" xml:space="preserve"><value>抖音验证 - Emerde</value></data>
+  <data name="ExportAll" xml:space="preserve"><value>导出全部</value></data>
+  <data name="ExportConfigTitle" xml:space="preserve"><value>导出配置</value></data>
+  <data name="ExportLogsPrompt" xml:space="preserve"><value>选择要导出的运行日志范围。</value></data>
+  <data name="ExportLogsTitle" xml:space="preserve"><value>导出运行日志</value></data>
+  <data name="ExportToday" xml:space="preserve"><value>导出当天</value></data>
+  <data name="FolderMustBeInsideConfiguredSaveFolder" xml:space="preserve"><value>所选目录必须位于已配置的保存目录中。</value></data>
+  <data name="Import" xml:space="preserve"><value>导入</value></data>
+  <data name="ImportConfigTitle" xml:space="preserve"><value>导入配置</value></data>
+  <data name="ImportedVideos" xml:space="preserve"><value>已导入 {0} 个视频</value></data>
+  <data name="ImportingVideos" xml:space="preserve"><value>正在导入视频...</value></data>
+  <data name="InvalidVideoFileName" xml:space="preserve"><value>文件名不能为空，也不能包含路径或非法字符。</value></data>
+  <data name="LogExportFailed" xml:space="preserve"><value>日志导出失败：{0}</value></data>
+  <data name="LogsExported" xml:space="preserve"><value>日志已导出：{0}</value></data>
+  <data name="LosslessMergeIncompatible" xml:space="preserve"><value>所选视频的编码、分辨率或音轨参数不一致，无法无损合并。</value></data>
+  <data name="MergeBySegmentNumber" xml:space="preserve"><value>按分段编号合并</value></data>
+  <data name="MergeBySelectionOrder" xml:space="preserve"><value>按选中序号合并</value></data>
+  <data name="MergeReasonAtLeastTwoVideos" xml:space="preserve"><value>至少需要选择两个视频</value></data>
+  <data name="MergeReasonDifferentFormats" xml:space="preserve"><value>视频格式不一致</value></data>
+  <data name="MergeReasonDifferentResolutions" xml:space="preserve"><value>视频分辨率不一致</value></data>
+  <data name="MergeReasonDifferentStreamers" xml:space="preserve"><value>包含不同主播的视频</value></data>
+  <data name="MergeReasonNonContiguousSegments" xml:space="preserve"><value>分段编号不连续</value></data>
+  <data name="MergeReasonSeparator" xml:space="preserve"><value>；</value></data>
+  <data name="MergeValidationPassed" xml:space="preserve"><value>检查通过，将{0}。</value></data>
+  <data name="MergeValidationWarnings" xml:space="preserve"><value>{0}；将{1}。</value></data>
+  <data name="MovedVideos" xml:space="preserve"><value>已移动 {0} 个视频</value></data>
+  <data name="NetworkCapacityDetailedResult" xml:space="preserve"><value>多节点三轮实测：{0}，{1}。单路统一按 {2:0.##} Mbps 估算，不依赖当前直播流；共 {3} 个有效样本，可信度 {4}。</value></data>
+  <data name="NetworkCapacityDomesticRegion" xml:space="preserve"><value>国内</value></data>
+  <data name="NetworkCapacityDomesticShort" xml:space="preserve"><value>国内可录 {0} 路</value></data>
+  <data name="NetworkCapacityListSeparator" xml:space="preserve"><value>，</value></data>
+  <data name="NetworkCapacityOverseasRegion" xml:space="preserve"><value>国外</value></data>
+  <data name="NetworkCapacityOverseasShort" xml:space="preserve"><value>国外可录 {0} 路</value></data>
+  <data name="NetworkCapacityRegionDetail" xml:space="preserve"><value>{0} {1:0.##} Mbps，可录 {2} 路，单路 {3:0.##} Mbps</value></data>
+  <data name="NetworkCapacityRegionUnavailable" xml:space="preserve"><value>{0}未测通</value></data>
+  <data name="NoAvailableSaveFolder" xml:space="preserve"><value>没有可用的保存目录。</value></data>
+  <data name="NoConfigFilesToBackup" xml:space="preserve"><value>没有找到需要备份的配置文件。</value></data>
+  <data name="NoMeaningfulConfigBackup" xml:space="preserve"><value>当前配置只有首次启动确认等无意义内容，本次没有生成备份。</value></data>
+  <data name="OpenSaveFolderFailed" xml:space="preserve"><value>无法打开保存目录：{0}</value></data>
+  <data name="OperationFailedWithLabel" xml:space="preserve"><value>{0}失败：{1}</value></data>
+  <data name="PreparingDelete" xml:space="preserve"><value>正在准备删除...</value></data>
+  <data name="PreparingMerge" xml:space="preserve"><value>正在准备合并...</value></data>
+  <data name="Rename" xml:space="preserve"><value>重命名</value></data>
+  <data name="RenameComplete" xml:space="preserve"><value>重命名完成</value></data>
+  <data name="RenameFailed" xml:space="preserve"><value>重命名失败</value></data>
+  <data name="RenameVideo" xml:space="preserve"><value>重命名视频</value></data>
+  <data name="Reset" xml:space="preserve"><value>重置</value></data>
+  <data name="Restore" xml:space="preserve"><value>恢复</value></data>
+  <data name="RestoreConfigTitle" xml:space="preserve"><value>恢复配置</value></data>
+  <data name="SegmentDurationLabel" xml:space="preserve"><value>分段时长</value></data>
+  <data name="SegmentSizeLabel" xml:space="preserve"><value>分段大小</value></data>
+  <data name="SelectedVideos" xml:space="preserve"><value>已选择 {0} 个视频</value></data>
+  <data name="SelectSaveFolderToOpen" xml:space="preserve"><value>选择要打开的保存目录</value></data>
+  <data name="SelectVideoImportFolder" xml:space="preserve"><value>选择要导入的视频文件夹</value></data>
+  <data name="SelectVideoImportTarget" xml:space="preserve"><value>选择导入目标保存目录</value></data>
+  <data name="SelectVideosToSplit" xml:space="preserve"><value>请先选择要分割的视频。</value></data>
+  <data name="SessionLogDisabledDescription" xml:space="preserve"><value>已关闭运行日志，仅能导出已存在的历史日志。</value></data>
+  <data name="SessionLogEnabledDescription" xml:space="preserve"><value>保存本地运行日志，可导出最近或全部日志。</value></data>
+  <data name="SortAscendingDescription" xml:space="preserve"><value>当前按录制时间顺序排列，最早录制的视频在最前面。</value></data>
+  <data name="SortDescendingDescription" xml:space="preserve"><value>当前按录制时间倒序排列，最新录制的视频在最前面。</value></data>
+  <data name="SplitCompletedCount" xml:space="preserve"><value>已分割 {0} 个视频</value></data>
+  <data name="SplittingProgress" xml:space="preserve"><value>正在分割 {0}/{1}</value></data>
+  <data name="TranscodeStopCompleted" xml:space="preserve"><value>已停止未完成的转码任务，已完成的视频不会删除。</value></data>
+  <data name="TranscodeStopFailed" xml:space="preserve"><value>停止转码任务时发生错误，恢复记录已保留。</value></data>
+  <data name="TranscodeStopPending" xml:space="preserve"><value>部分转码任务尚未停止，将保留恢复记录并稍后重试。</value></data>
+  <data name="TranscodeStopping" xml:space="preserve"><value>转码正在停止，请稍后再试。</value></data>
+  <data name="UserImport" xml:space="preserve"><value>用户导入</value></data>
+  <data name="VideoDeleteFailures" xml:space="preserve"><value>有 {0} 个视频删除失败</value></data>
+  <data name="VideoFileMissing" xml:space="preserve"><value>视频文件不存在。</value></data>
+  <data name="VideoFileNameExists" xml:space="preserve"><value>同名视频已经存在。</value></data>
+  <data name="VideoImportFailures" xml:space="preserve"><value>有 {0} 个视频导入失败</value></data>
+  <data name="VideoImportManagedFolderConflict" xml:space="preserve"><value>不能从保存目录、保存目录的上级或子目录导入视频。</value></data>
+  <data name="VideoTransferFailures" xml:space="preserve"><value>有 {0} 个视频未能处理，请检查目标目录或同名文件。</value></data>
+  <data name="SelectExtensionPackage" xml:space="preserve"><value>选择 Emerde 扩展包</value></data>
+  <data name="ExtensionPackageFilter" xml:space="preserve"><value>Emerde 扩展包</value></data>
+  <data name="InstalledExtensions" xml:space="preserve"><value>已安装 {0} 个扩展</value></data>
+  <data name="NoInstallableExtensions" xml:space="preserve"><value>没有找到可安装的扩展包</value></data>
+  <data name="ExtensionDisabled" xml:space="preserve"><value>已停用</value></data>
+  <data name="ExtensionEnabled" xml:space="preserve"><value>已启用</value></data>
+  <data name="RemoveExtensionTitle" xml:space="preserve"><value>移除扩展</value></data>
+  <data name="ConfirmRemoveExtension" xml:space="preserve"><value>确定移除扩展“{0}”吗？扩展设置也会被移除。</value></data>
+  <data name="Yes" xml:space="preserve"><value>是</value></data>
+  <data name="No" xml:space="preserve"><value>否</value></data>
+  <data name="ExtensionRemoved" xml:space="preserve"><value>扩展已移除</value></data>
+  <data name="ExtensionSettingsSaved" xml:space="preserve"><value>扩展设置已保存</value></data>
+  <data name="ExtensionResponseSucceeded" xml:space="preserve"><value>扩展响应正常</value></data>
+  <data name="ExtensionDescriptionMissing" xml:space="preserve"><value>未提供扩展说明</value></data>
+  <data name="UnknownAuthor" xml:space="preserve"><value>未知作者</value></data>
+  <data name="ExtensionInProcess" xml:space="preserve"><value>应用内运行 · 高权限</value></data>
+  <data name="ExtensionSeparateProcess" xml:space="preserve"><value>独立进程 · {0}</value></data>
+  <data name="ExtensionCapabilitiesMissing" xml:space="preserve"><value>未声明能力</value></data>
+  <data name="ExtensionPermissionsMissing" xml:space="preserve"><value>未声明权限</value></data>
+  <data name="ExtensionPermissionSeparator" xml:space="preserve"><value>、</value></data>
+  <data name="Disable" xml:space="preserve"><value>停用</value></data>
+  <data name="Enable" xml:space="preserve"><value>启用</value></data>
+  <data name="CollapseDetails" xml:space="preserve"><value>收起详情</value></data>
+  <data name="Details" xml:space="preserve"><value>详细信息</value></data>
+  <data name="ExtensionManifestInvalid" xml:space="preserve"><value>清单无效</value></data>
+  <data name="ExtensionRunning" xml:space="preserve"><value>运行中</value></data>
+  <data name="StreamerNickname" xml:space="preserve"><value>主播昵称</value></data>
+  <data name="FileName" xml:space="preserve"><value>文件名</value></data>
+  <data name="Date" xml:space="preserve"><value>日期</value></data>
+  <data name="ExtensionPackageUnsupported" xml:space="preserve"><value>只支持 .emerde-extension 或 .zip 扩展包。</value></data>
+  <data name="ExtensionNotEnabled" xml:space="preserve"><value>扩展未启用。</value></data>
+  <data name="ExtensionInProcessProtocolUnsupported" xml:space="preserve"><value>应用内扩展不使用进程调用协议。</value></data>
+  <data name="ExtensionNotFound" xml:space="preserve"><value>扩展不存在：{0}</value></data>
+  <data name="ExtensionManifestMissing" xml:space="preserve"><value>扩展包缺少 extension.json。</value></data>
+  <data name="ExtensionManifestUnreadable" xml:space="preserve"><value>无法读取扩展清单。</value></data>
+  <data name="ExtensionSettingDefinitionNull" xml:space="preserve"><value>扩展设置定义不能为空。</value></data>
+  <data name="ExtensionManifestSchemaUnsupported" xml:space="preserve"><value>不支持扩展清单版本 {0}。</value></data>
+  <data name="ExtensionIdInvalid" xml:space="preserve"><value>扩展 ID 只能包含小写字母、数字、点和连字符，长度为 3 到 100。</value></data>
+  <data name="ExtensionNameInvalid" xml:space="preserve"><value>扩展名称不能为空且不能超过 80 个字符。</value></data>
+  <data name="ExtensionVersionInvalid" xml:space="preserve"><value>扩展版本必须使用语义化版本格式。</value></data>
+  <data name="ExtensionIconMissing" xml:space="preserve"><value>扩展图标不存在：{0}</value></data>
+  <data name="ExtensionIconFormatUnsupported" xml:space="preserve"><value>扩展图标仅支持 PNG、JPEG、BMP、GIF 或 ICO。</value></data>
+  <data name="ExtensionIconTooLarge" xml:space="preserve"><value>扩展图标不能超过 5 MB。</value></data>
+  <data name="ExtensionMinimumHostVersionInvalid" xml:space="preserve"><value>minimum_host_version 格式无效。</value></data>
+  <data name="ExtensionMinimumHostVersionUnsupported" xml:space="preserve"><value>扩展需要 Emerde {0} 或更高版本。</value></data>
+  <data name="ExtensionExecutionModeInvalid" xml:space="preserve"><value>execution_mode 只能是 in_process 或 process。</value></data>
+  <data name="ExtensionEntryPointMissing" xml:space="preserve"><value>扩展入口不存在：{0}</value></data>
+  <data name="ExtensionInProcessEntryInvalid" xml:space="preserve"><value>应用内扩展必须提供 DLL 入口和 entry_type。</value></data>
+  <data name="ExtensionRuntimeUnsupported" xml:space="preserve"><value>不支持该扩展运行时。</value></data>
+  <data name="ExtensionTimeoutInvalid" xml:space="preserve"><value>扩展超时时间必须在 5 到 86400 秒之间。</value></data>
+  <data name="ExtensionSettingKeyInvalid" xml:space="preserve"><value>扩展设置键无效或重复。</value></data>
+  <data name="ExtensionSettingTypeUnsupported" xml:space="preserve"><value>扩展设置包含不支持的类型。</value></data>
+  <data name="ExtensionSettingColumnInvalid" xml:space="preserve"><value>扩展设置列必须为 0 或 1。</value></data>
+  <data name="ExtensionSettingDependencyInvalid" xml:space="preserve"><value>扩展设置的条件显示依赖无效。</value></data>
+  <data name="ExtensionChoiceOptionsMissing" xml:space="preserve"><value>选择类型设置必须提供 options。</value></data>
+  <data name="ExtensionEntryTypeUnsupported" xml:space="preserve"><value>{0} 未实现 IEmerdeExtension。</value></data>
+  <data name="ExtensionEntryInstanceCreationFailed" xml:space="preserve"><value>无法创建扩展入口实例。</value></data>
+  <data name="ExtensionTaskAlreadyRunning" xml:space="preserve"><value>扩展已有任务正在运行。</value></data>
+  <data name="ExtensionProcessStartFailed" xml:space="preserve"><value>扩展进程启动失败。</value></data>
+  <data name="ExtensionResponseInvalid" xml:space="preserve"><value>扩展返回了无效响应，退出码为 {0}。</value></data>
+  <data name="ExtensionTaskCanceled" xml:space="preserve"><value>扩展任务已取消。</value></data>
+  <data name="ExtensionTaskTimedOut" xml:space="preserve"><value>扩展任务超时。</value></data>
+  <data name="ExtensionRuntimeMissing" xml:space="preserve"><value>找不到扩展运行时：{0}</value></data>
+  <data name="ExtensionPackageEntryLimitExceeded" xml:space="preserve"><value>扩展包文件数量超过限制。</value></data>
+  <data name="ExtensionPackageExpandedSizeExceeded" xml:space="preserve"><value>扩展包解压后体积超过限制。</value></data>
+  <data name="ExtensionPackagePathTraversal" xml:space="preserve"><value>扩展包包含越界路径。</value></data>
+  <data name="ExtensionPackageManifestLocationInvalid" xml:space="preserve"><value>扩展包必须在根目录或唯一的一级目录中包含 extension.json。</value></data>
+  <data name="ExtensionEntryPathInvalid" xml:space="preserve"><value>扩展入口必须是包内相对路径。</value></data>
+  <data name="ExtensionEntryOutsideDirectory" xml:space="preserve"><value>扩展入口超出扩展目录。</value></data>
+  <data name="ExtensionSettingRequired" xml:space="preserve"><value>请填写 {0}。</value></data>
+  <data name="ExtensionSettingBooleanRequired" xml:space="preserve"><value>{0} 必须是布尔值。</value></data>
+  <data name="ExtensionSettingNumberRequired" xml:space="preserve"><value>{0} 必须是数字。</value></data>
+  <data name="ExtensionSettingChoiceInvalid" xml:space="preserve"><value>{0} 的选项无效。</value></data>
+  <data name="QualityOriginal" xml:space="preserve"><value>原画</value></data>
+  <data name="QualityBlueRay" xml:space="preserve"><value>蓝光</value></data>
+  <data name="QualityUltraHigh" xml:space="preserve"><value>超清</value></data>
+  <data name="QualityHigh" xml:space="preserve"><value>高清</value></data>
+  <data name="QualityStandard" xml:space="preserve"><value>标清</value></data>
+  <data name="QualitySmooth" xml:space="preserve"><value>流畅</value></data>
+  <data name="ImportedConfigEmpty" xml:space="preserve"><value>导入的配置没有有效内容。</value></data>
+  <data name="SelectEmerdeConfigBackup" xml:space="preserve"><value>请选择 Emerde 生成的配置备份文件。</value></data>
+  <data name="ConfigFileNotFound" xml:space="preserve"><value>没有找到配置文件。</value></data>
+  <data name="YamlOnly" xml:space="preserve"><value>仅支持 YAML 配置文件。</value></data>
+  <data name="YamlSyntaxInvalid" xml:space="preserve"><value>YAML 配置文件语法无效。</value></data>
+  <data name="UnsupportedEmerdeConfig" xml:space="preserve"><value>该 YAML 文件不是 Emerde 支持的配置文件。</value></data>
+  <data name="ConfigKeyNameInvalid" xml:space="preserve"><value>配置项名称必须是有效文本。</value></data>
+  <data name="ConfigKeyTypeInvalid" xml:space="preserve"><value>配置项 {0} 的数据类型无效。</value></data>
+  <data name="ConfigRoomsRequired" xml:space="preserve"><value>配置文件必须包含 Rooms 列表。</value></data>
+  <data name="ConfigRoomUrlInvalid" xml:space="preserve"><value>Rooms 中的每个房间都必须包含有效的 RoomUrl。</value></data>
+  <data name="RoomConfigKeyNameInvalid" xml:space="preserve"><value>房间配置项名称必须是有效文本。</value></data>
+  <data name="RoomConfigKeyTypeInvalid" xml:space="preserve"><value>房间配置项 {0} 的数据类型无效。</value></data>
+  <data name="NoExportableLogFiles" xml:space="preserve"><value>没有找到可导出的日志文件。</value></data>
+  <data name="RecordingSaveFolderUnavailableTitle" xml:space="preserve"><value>保存目录不可用</value></data>
+  <data name="RecordingSaveFolderFallback" xml:space="preserve"><value>本次录制已临时保存到：{0}</value></data>
+  <data name="OriginalAudioTrack" xml:space="preserve"><value>原音频</value></data>
+  <data name="OriginalAudioTrackNumbered" xml:space="preserve"><value>原音频 {0}</value></data>
+  <data name="OptimizedAudioTrack" xml:space="preserve"><value>优化音频</value></data>
+  <data name="RecoveryJsonInvalid" xml:space="preserve"><value>JSON 语法损坏：{0}</value></data>
+  <data name="RecoveryMarkerEmpty" xml:space="preserve"><value>恢复标记为空。</value></data>
+  <data name="RecoverySourcePathAbsoluteInvalid" xml:space="preserve"><value>源文件路径不是有效的绝对路径。</value></data>
+  <data name="RecoverySourceFormatUnsupported" xml:space="preserve"><value>源文件不是受支持的媒体格式。</value></data>
+  <data name="RecoverySourceWildcardInvalid" xml:space="preserve"><value>源文件路径包含不允许的通配符。</value></data>
+  <data name="RecoverySegmentPlaceholderInvalid" xml:space="preserve"><value>分段占位符只能使用 %03d。</value></data>
+  <data name="RecoveryTargetFormatSessionInvalid" xml:space="preserve"><value>目标格式只能是 MP4、MKV、TS 或 FLV。</value></data>
+  <data name="RecoveryTargetFormatInvalid" xml:space="preserve"><value>目标格式只能是 MP4 或 MKV。</value></data>
+  <data name="RecoveryCompletedTargetInvalid" xml:space="preserve"><value>已完成目标文件路径或格式无效。</value></data>
+  <data name="RecoveryCompletedTargetOutsideSource" xml:space="preserve"><value>已完成目标文件不在源录制目录中。</value></data>
+  <data name="RecoveryCompletedTargetPathInvalid" xml:space="preserve"><value>已完成目标文件路径无效：{0}</value></data>
+  <data name="RecoveryIntermediateTargetInvalid" xml:space="preserve"><value>中间合并文件路径无效。</value></data>
+  <data name="RecoveryCompletedSourceStateInvalid" xml:space="preserve"><value>已完成源文件状态无效。</value></data>
+  <data name="RecoveryStatePathInvalid" xml:space="preserve"><value>已完成录制状态路径无效：{0}</value></data>
+  <data name="RecoverySourcePathInvalid" xml:space="preserve"><value>源文件路径无效：{0}</value></data>
+  <data name="RecoverySourceOutsideConfiguredFolders" xml:space="preserve"><value>源文件不在当前配置的保存目录中。</value></data>
+  <data name="QuestionTitle" xml:space="preserve"><value>询问</value></data>
+  <data name="ConfigRestoreDescription" xml:space="preserve"><value>选择一个配置备份点恢复，也可以导入或拖入 YAML 配置文件；确认前不会替换当前配置。</value></data>
+  <data name="ConfigRestoreBackupHint" xml:space="preserve"><value>导入、恢复、重置都会先备份有意义的当前配置，重启后生效。</value></data>
+  <data name="ClosePreviewShortcutHint" xml:space="preserve"><value>关闭预览 (Esc)</value></data>
+  <data name="RefreshPreviewShortcutHint" xml:space="preserve"><value>刷新预览 (G)</value></data>
+  <data name="RefreshVideoListShortcutHint" xml:space="preserve"><value>刷新视频列表（F5）</value></data>
+  <data name="EnterMultiSelectShortcutHint" xml:space="preserve"><value>进入多选模式（Ctrl+A 可全选）</value></data>
+  <data name="SelectAllVideosShortcutHint" xml:space="preserve"><value>全选视频（Ctrl+A）</value></data>
+  <data name="ExitMultiSelectShortcutHint" xml:space="preserve"><value>退出多选（Esc）</value></data>
+  <data name="OpenVideoShortcutHint" xml:space="preserve"><value>打开视频（Enter）</value></data>
+  <data name="RunningLogs" xml:space="preserve"><value>运行日志</value></data>
+  <data name="Retain" xml:space="preserve"><value>保留</value></data>
+  <data name="Export" xml:space="preserve"><value>导出</value></data>
+  <data name="ConfigFile" xml:space="preserve"><value>配置文件</value></data>
+  <data name="AutomaticMonitoring" xml:space="preserve"><value>自动监控</value></data>
+  <data name="AutomaticMonitoringHint" xml:space="preserve"><value>控制跟随全局设置的房间是否自动检查直播状态。</value></data>
+  <data name="MonitoringSchedule" xml:space="preserve"><value>监控计划</value></data>
+  <data name="GlobalMonitoringScheduleHint" xml:space="preserve"><value>按星期和时间段限制全局自动监控。</value></data>
+  <data name="RoomMonitoringScheduleHint" xml:space="preserve"><value>按星期和时间段限制此房间的自动监控。</value></data>
+  <data name="StreamQualityHint" xml:space="preserve"><value>按当前平台支持的档位选择直播流画质。</value></data>
+  <data name="ScheduleAlways" xml:space="preserve"><value>始终运行</value></data>
+  <data name="ScheduleAlwaysHint" xml:space="preserve"><value>周一至周日，全天运行</value></data>
+  <data name="ScheduleWeekdays" xml:space="preserve"><value>工作日运行</value></data>
+  <data name="ScheduleWeekdaysHint" xml:space="preserve"><value>周一至周五运行</value></data>
+  <data name="ScheduleWeekends" xml:space="preserve"><value>周末运行</value></data>
+  <data name="ScheduleWeekendsHint" xml:space="preserve"><value>周六、周日运行</value></data>
+  <data name="ScheduleNight" xml:space="preserve"><value>夜间运行</value></data>
+  <data name="ScheduleNightHint" xml:space="preserve"><value>每天 18:00 至次日 08:00 运行</value></data>
+  <data name="ScheduleCustom" xml:space="preserve"><value>自定义计划</value></data>
+  <data name="ScheduleCustomHint" xml:space="preserve"><value>手动选择星期和起止时间段</value></data>
+  <data name="Monday" xml:space="preserve"><value>周一</value></data>
+  <data name="Tuesday" xml:space="preserve"><value>周二</value></data>
+  <data name="Wednesday" xml:space="preserve"><value>周三</value></data>
+  <data name="Thursday" xml:space="preserve"><value>周四</value></data>
+  <data name="Friday" xml:space="preserve"><value>周五</value></data>
+  <data name="Saturday" xml:space="preserve"><value>周六</value></data>
+  <data name="Sunday" xml:space="preserve"><value>周日</value></data>
+  <data name="TimeRange" xml:space="preserve"><value>时间段</value></data>
+  <data name="To" xml:space="preserve"><value>至</value></data>
+  <data name="EnterValue" xml:space="preserve"><value>请输入</value></data>
+  <data name="InsertVariable" xml:space="preserve"><value>插入变量 {0}</value></data>
+  <data name="ManageExtensionToggle" xml:space="preserve"><value>启用或停用扩展</value></data>
+  <data name="ExecutionMode" xml:space="preserve"><value>运行方式</value></data>
+  <data name="Author" xml:space="preserve"><value>作者</value></data>
+  <data name="Capabilities" xml:space="preserve"><value>能力</value></data>
+  <data name="Permissions" xml:space="preserve"><value>权限</value></data>
+  <data name="HealthCheck" xml:space="preserve"><value>检查</value></data>
+  <data name="Remove" xml:space="preserve"><value>移除</value></data>
+  <data name="Identifier" xml:space="preserve"><value>标识</value></data>
+  <data name="Status" xml:space="preserve"><value>状态</value></data>
+  <data name="InProcessTrustWarning" xml:space="preserve"><value>应用内扩展拥有高权限，可以访问监控、录制、文件和界面。停用前请保存工作，只安装可信扩展。</value></data>
+  <data name="ExtensionSettings" xml:space="preserve"><value>扩展设置</value></data>
+  <data name="SaveSettings" xml:space="preserve"><value>保存设置</value></data>
+  <data name="ExtensionsDescription" xml:space="preserve"><value>安装、管理和撤销第三方扩展。扩展可以访问应用能力，只安装你信任的来源。</value></data>
+  <data name="OpenExtensionsFolder" xml:space="preserve"><value>打开扩展目录</value></data>
+  <data name="RefreshExtensions" xml:space="preserve"><value>刷新扩展列表</value></data>
+  <data name="InstallExtension" xml:space="preserve"><value>安装扩展</value></data>
+  <data name="InstalledExtensionSection" xml:space="preserve"><value>已安装扩展</value></data>
+  <data name="EnabledExtensionsFormat" xml:space="preserve"><value>已启用 {0}</value></data>
+  <data name="DropExtensionPackage" xml:space="preserve"><value>拖入扩展包即可安装</value></data>
+  <data name="NoExtensionsInstalled" xml:space="preserve"><value>还没有安装扩展</value></data>
+  <data name="NoExtensionsInstalledDescription" xml:space="preserve"><value>将扩展包拖到此页，或使用右上角的安装扩展。</value></data>
+  <data name="DropToInstallExtension" xml:space="preserve"><value>松开以安装扩展</value></data>
+  <data name="SupportedExtensionPackages" xml:space="preserve"><value>支持 .emerde-extension 和 .zip</value></data>
+  <data name="AboutTagline" xml:space="preserve"><value>用于多直播间监控、预览、录制和视频管理。</value></data>
+  <data name="ProjectHomepage" xml:space="preserve"><value>项目主页</value></data>
+  <data name="ReferenceRepository" xml:space="preserve"><value>参考仓库</value></data>
+  <data name="QuickStart" xml:space="preserve"><value>快速开始</value></data>
+  <data name="QuickStartDescription" xml:space="preserve"><value>完成以下设置后，即可开始监控和录制直播。</value></data>
+  <data name="AddLiveRoom" xml:space="preserve"><value>添加直播间</value></data>
+  <data name="AboutPasteRoomLink" xml:space="preserve"><value>• 粘贴直播间链接</value></data>
+  <data name="AboutConfirmPlatformStreamer" xml:space="preserve"><value>• 确认平台和主播信息</value></data>
+  <data name="EnableMonitoring" xml:space="preserve"><value>开启监控</value></data>
+  <data name="AboutMonitorDiscovers" xml:space="preserve"><value>• 自动发现开播、下播和直播状态变化</value></data>
+  <data name="AboutRecordingNeedsMonitoring" xml:space="preserve"><value>• 仅开启录制不会自动发现开播，需要同时开启监控</value></data>
+  <data name="EnableRecording" xml:space="preserve"><value>开启录制</value></data>
+  <data name="AboutAutoRecordOnStream" xml:space="preserve"><value>• 获取到可用直播流后自动开始录制</value></data>
+  <data name="AboutHomeShowsRecording" xml:space="preserve"><value>• 可在首页查看当前录制状态和时长</value></data>
+  <data name="ManageVideos" xml:space="preserve"><value>管理视频</value></data>
+  <data name="AboutVideoListProgress" xml:space="preserve"><value>• 在视频列表查看录制文件和处理进度</value></data>
+  <data name="AboutVideoOperations" xml:space="preserve"><value>• 支持转码、分割、合并、移动和删除</value></data>
+  <data name="RecordingAndDetection" xml:space="preserve"><value>录制与检测</value></data>
+  <data name="RecordingAndDetectionDescription" xml:space="preserve"><value>了解软件如何发现直播、开始录制和处理网络异常。</value></data>
+  <data name="MonitoringAndRecording" xml:space="preserve"><value>监控与录制</value></data>
+  <data name="AboutMonitorVsRecord" xml:space="preserve"><value>• 监控负责发现直播状态，录制开关决定是否保存直播</value></data>
+  <data name="AboutUnknownStatusRetry" xml:space="preserve"><value>• 直播状态暂时无法确认时，软件会继续检测，避免误判下播</value></data>
+  <data name="DetectionIntervals" xml:space="preserve"><value>检测间隔</value></data>
+  <data name="AboutOfflineInterval" xml:space="preserve"><value>• 未开播的直播间按照设置中的检测间隔检查，默认每 5 秒一次</value></data>
+  <data name="AboutLiveInterval" xml:space="preserve"><value>• 正在直播的直播间固定每 10 秒检查一次</value></data>
+  <data name="AboutRecentEndedInterval" xml:space="preserve"><value>• 直播结束后的 30 分钟内固定每 10 秒检查一次</value></data>
+  <data name="AboutTsFlvRaw" xml:space="preserve"><value>• TS 和 FLV 更能还原直播的原始数据</value></data>
+  <data name="AboutMp4MkvConvert" xml:space="preserve"><value>• MP4 和 MKV 会在录制结束后自动转换</value></data>
+  <data name="AboutDoNotExitProcessing" xml:space="preserve"><value>• 文件处理完成前，请不要强制退出软件</value></data>
+  <data name="NetworkRecovery" xml:space="preserve"><value>网络异常处理</value></data>
+  <data name="AboutNetworkRecovery" xml:space="preserve"><value>• 网络或直播源发生卡顿时，软件会保护已经录制的内容并尝试恢复</value></data>
+  <data name="AboutRecoveryNewSegment" xml:space="preserve"><value>• 为避免音画不同步，恢复过程中可能生成新的独立片段</value></data>
+  <data name="AboutCannotRecoverMissing" xml:space="preserve"><value>• 已经缺失的直播内容无法重新补录</value></data>
+  <data name="NetworkSpeedTest" xml:space="preserve"><value>网络测速</value></data>
+  <data name="AboutSpeedTestEstimate" xml:space="preserve"><value>• 首页测速可估算当前网络适合同时录制的直播数量</value></data>
+  <data name="AboutRecordingCapacityFactors" xml:space="preserve"><value>• 实际录制能力还会受到平台线路、磁盘速度和系统负载影响</value></data>
+  <data name="FilesAndData" xml:space="preserve"><value>文件与数据</value></data>
+  <data name="FilesAndDataDescription" xml:space="preserve"><value>管理录制文件、存储空间、日志和软件设置。</value></data>
+  <data name="AboutVideoListStatuses" xml:space="preserve"><value>• 显示录制文件、转码进度和其他处理状态</value></data>
+  <data name="AboutRecordingFileLocked" xml:space="preserve"><value>• 正在录制写入的文件不能选择或操作</value></data>
+  <data name="AboutTranscodingFileWarning" xml:space="preserve"><value>• 正在转码的文件不建议选择或操作</value></data>
+  <data name="AboutVerifySegment" xml:space="preserve"><value>• 请确认片段内容完整、播放正常后，再进行后续操作</value></data>
+  <data name="StorageAndCleanup" xml:space="preserve"><value>保存目录与清理</value></data>
+  <data name="AboutSaveFolderSpace" xml:space="preserve"><value>• 请将保存目录设置在空间充足的位置</value></data>
+  <data name="AboutRetentionCleanup" xml:space="preserve"><value>• 启用保留期清理后，只清理由 Emerde 管理且达到期限的录制文件</value></data>
+  <data name="AboutUpdatePreserveRecordings" xml:space="preserve"><value>• 更新软件时，请注意不要误删录制文件</value></data>
+  <data name="LogsAndSettings" xml:space="preserve"><value>日志与设置</value></data>
+  <data name="AboutExportLogs" xml:space="preserve"><value>• 遇到问题时，可以导出当天日志或全部日志</value></data>
+  <data name="AboutSettingsBackup" xml:space="preserve"><value>• 设置支持备份、恢复和重置</value></data>
+  <data name="AboutValidateImport" xml:space="preserve"><value>• 导入设置前，软件会先检查文件是否有效</value></data>
+  <data name="ExitAndRecovery" xml:space="preserve"><value>退出与恢复</value></data>
+  <data name="AboutCloseToTray" xml:space="preserve"><value>• 关闭主窗口后，软件仍会在系统托盘中运行</value></data>
+  <data name="AboutExitFromMenu" xml:space="preserve"><value>• 需要完全退出时，请使用侧边栏或托盘菜单中的“退出”</value></data>
+  <data name="AboutResumePendingTasks" xml:space="preserve"><value>• 尚未完成的收尾、分割或转码任务会在下次启动后继续处理</value></data>
+  <data name="ShortcutReference" xml:space="preserve"><value>快捷键速查</value></data>
+  <data name="ShortcutReferenceHint" xml:space="preserve"><value>快捷键仅在对应页面生效；输入框处于编辑状态时，撤销、恢复、复制和粘贴快捷键将用于文字操作。</value></data>
+  <data name="PagesAndWindows" xml:space="preserve"><value>页面与窗口</value></data>
+  <data name="NavigatePreviousPage" xml:space="preserve"><value>向上切换页面</value></data>
+  <data name="NavigateNextPage" xml:space="preserve"><value>向下切换页面</value></data>
+  <data name="NavigateDirectly" xml:space="preserve"><value>直达页面</value></data>
+  <data name="CloseWindow" xml:space="preserve"><value>关闭窗口</value></data>
+  <data name="ExitApplication" xml:space="preserve"><value>退出软件</value></data>
+  <data name="UndoText" xml:space="preserve"><value>输入框撤销文字</value></data>
+  <data name="RedoText" xml:space="preserve"><value>输入框恢复文字</value></data>
+  <data name="CopyText" xml:space="preserve"><value>输入框复制文字</value></data>
+  <data name="PasteText" xml:space="preserve"><value>输入框粘贴文字</value></data>
+  <data name="HomeLiveRooms" xml:space="preserve"><value>首页直播间</value></data>
+  <data name="FineTune" xml:space="preserve"><value>微调</value></data>
+  <data name="ToggleCurrentMonitoring" xml:space="preserve"><value>当前监控</value></data>
+  <data name="ToggleCurrentRecording" xml:space="preserve"><value>当前录制</value></data>
+  <data name="RefreshCurrent" xml:space="preserve"><value>刷新当前</value></data>
+  <data name="CopyRoomAddress" xml:space="preserve"><value>复制房间地址</value></data>
+  <data name="CopyStreamUrl" xml:space="preserve"><value>复制直播流</value></data>
+  <data name="SelectAllRooms" xml:space="preserve"><value>全选房间</value></data>
+  <data name="UndoSelectionOrListOperation" xml:space="preserve"><value>撤销选择或列表操作</value></data>
+  <data name="RedoSelectionOrListOperation" xml:space="preserve"><value>恢复选择或列表操作</value></data>
+  <data name="PreviewPlayback" xml:space="preserve"><value>预览播放</value></data>
+  <data name="PlayOrPause" xml:space="preserve"><value>播放或暂停</value></data>
+  <data name="RefreshPreview" xml:space="preserve"><value>刷新预览</value></data>
+  <data name="ToggleMute" xml:space="preserve"><value>静音或恢复声音</value></data>
+  <data name="AdjustVolumeFivePercent" xml:space="preserve"><value>音量降低或增加 5%</value></data>
+  <data name="ToggleFullscreen" xml:space="preserve"><value>全屏或退出全屏</value></data>
+  <data name="ExitFullscreenOrClosePreview" xml:space="preserve"><value>退出全屏或关闭预览</value></data>
+  <data name="GlobalActions" xml:space="preserve"><value>全局操作</value></data>
+  <data name="ToggleAllMonitoring" xml:space="preserve"><value>全部监控</value></data>
+  <data name="ToggleAllRecording" xml:space="preserve"><value>全部录制</value></data>
+  <data name="RefreshAll" xml:space="preserve"><value>刷新全部</value></data>
+  <data name="RefreshList" xml:space="preserve"><value>刷新列表</value></data>
+  <data name="ExitMultiSelect" xml:space="preserve"><value>退出多选</value></data>
+  <data name="UndoVideoSelection" xml:space="preserve"><value>撤销视频选择</value></data>
+  <data name="RedoVideoSelection" xml:space="preserve"><value>恢复视频选择</value></data>
+  <data name="ImportantNotes" xml:space="preserve"><value>重要注意事项</value></data>
+  <data name="AboutDoNotForceStopRecording" xml:space="preserve"><value>• 录制文件仍在写入时，请勿强制结束软件、断电或删除相关文件</value></data>
+  <data name="AboutKeepDependencies" xml:space="preserve"><value>• 不要删除或单独移动 ffmpeg、libvlc 等程序依赖文件夹</value></data>
+  <data name="AboutEnsureDiskSpace" xml:space="preserve"><value>• 请确保保存磁盘有足够空间，避免录制中断或文件损坏</value></data>
+  <data name="AboutStreamStallEffects" xml:space="preserve"><value>• 网络或主播推流卡顿可能造成画面冻结、缺帧或音画异常</value></data>
+  <data name="AboutFeedbackDetails" xml:space="preserve"><value>• 反馈问题时，请说明问题现象，并提供直播间链接、发生时间、操作步骤、截图和对应日志</value></data>
 </root>

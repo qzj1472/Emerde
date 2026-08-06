@@ -778,4 +778,427 @@
   <data name="StartupAboutNoticeTitle" xml:space="preserve"><value>Read before using</value></data>
   <data name="StartupAboutNoticeDescription" xml:space="preserve"><value>To avoid misconfiguration and platform risk control, open About before first use and review the monitoring interval, dynamic checks, recording, preview, and full-screen behavior. Add live rooms and enable monitoring after understanding these rules.</value></data>
   <data name="ConfigurationRecovered" xml:space="preserve"><value>The configuration file was invalid and has been preserved at: {0}. Emerde has started with default settings.</value></data>
+  <data name="Unsupported" xml:space="preserve"><value>Unsupported</value></data>
+  <data name="SkipValidation" xml:space="preserve"><value>Skip validation</value></data>
+  <data name="FollowGlobalSettings" xml:space="preserve"><value>Follow global settings</value></data>
+  <data name="VolumeFormat" xml:space="preserve"><value>Volume {0}%</value></data>
+  <data name="PreviewVolumeToolTipFormat" xml:space="preserve"><value>Volume {0}% (-/=)</value></data>
+  <data name="ExitFullScreenHint" xml:space="preserve"><value>Press V or Esc to exit full screen</value></data>
+  <data name="SelectedRoomsFormat" xml:space="preserve"><value>{0} rooms selected</value></data>
+  <data name="AllPlatforms" xml:space="preserve"><value>All platforms</value></data>
+  <data name="RecordingEngineActive" xml:space="preserve"><value>Built-in FFmpeg DLL · {0} · PID {1} · Download {2} · Write {3}</value></data>
+  <data name="RecordingEngineStarting" xml:space="preserve"><value>Built-in FFmpeg DLL · Worker starting</value></data>
+  <data name="WaitingForData" xml:space="preserve"><value>Waiting for data</value></data>
+  <data name="LiveStream" xml:space="preserve"><value>Live stream</value></data>
+  <data name="AutoShutdownComputerCountdown" xml:space="preserve"><value>Computer will shut down in {0}</value></data>
+  <data name="AutoShutdownApplicationCountdown" xml:space="preserve"><value>Emerde will close in {0}</value></data>
+  <data name="Milliseconds" xml:space="preserve"><value>Milliseconds</value></data>
+  <data name="Days" xml:space="preserve"><value>Days</value></data>
+  <data name="Weeks" xml:space="preserve"><value>Weeks</value></data>
+  <data name="Months" xml:space="preserve"><value>Months</value></data>
+  <data name="Years" xml:space="preserve"><value>Years</value></data>
+  <data name="HomePage" xml:space="preserve"><value>Home</value></data>
+  <data name="Extensions" xml:space="preserve"><value>Extensions</value></data>
+  <data name="Monitor" xml:space="preserve"><value>Monitor</value></data>
+  <data name="NavigationHomeToolTip" xml:space="preserve"><value>Home (Alt+1, Tab up / CapsLock down)</value></data>
+  <data name="NavigationVideosToolTip" xml:space="preserve"><value>Videos (Alt+2, Tab up / CapsLock down)</value></data>
+  <data name="NavigationSettingsToolTip" xml:space="preserve"><value>Settings (Alt+3, Tab up / CapsLock down)</value></data>
+  <data name="NavigationExtensionsToolTip" xml:space="preserve"><value>Extensions (Alt+4, Tab up / CapsLock down)</value></data>
+  <data name="NavigationAboutToolTip" xml:space="preserve"><value>About (Alt+5, Tab up / CapsLock down)</value></data>
+  <data name="ExitApplicationToolTip" xml:space="preserve"><value>Exit Emerde (Ctrl+Shift+W)</value></data>
+  <data name="AddRoomToolTip" xml:space="preserve"><value>Add room (Ctrl+N)</value></data>
+  <data name="ToggleAllMonitorToolTip" xml:space="preserve"><value>Start or pause all monitoring (Ctrl+Shift+M)</value></data>
+  <data name="ToggleAllRecordingToolTip" xml:space="preserve"><value>Start or pause all recording (Ctrl+Shift+R)</value></data>
+  <data name="CardSize" xml:space="preserve"><value>Card size</value></data>
+  <data name="SizeLarge" xml:space="preserve"><value>Large</value></data>
+  <data name="SizeMedium" xml:space="preserve"><value>Medium</value></data>
+  <data name="SizeSmall" xml:space="preserve"><value>Small</value></data>
+  <data name="Sort" xml:space="preserve"><value>Sort</value></data>
+  <data name="SortByName" xml:space="preserve"><value>By name</value></data>
+  <data name="SortByAddedOrder" xml:space="preserve"><value>By added order</value></data>
+  <data name="PlatformFilter" xml:space="preserve"><value>Platform filter</value></data>
+  <data name="LoadPlatforms" xml:space="preserve"><value>Loading platforms</value></data>
+  <data name="RoomInformation" xml:space="preserve"><value>Room information</value></data>
+  <data name="LiveTitle" xml:space="preserve"><value>Title</value></data>
+  <data name="ResolutionLabel" xml:space="preserve"><value>Resolution</value></data>
+  <data name="BitrateLabel" xml:space="preserve"><value>Bitrate</value></data>
+  <data name="RoomAddress" xml:space="preserve"><value>Room address</value></data>
+  <data name="RefreshCurrentRoomToolTip" xml:space="preserve"><value>Refresh current room (F)</value></data>
+  <data name="CopyRoomAddressToolTip" xml:space="preserve"><value>Copy room address (C)</value></data>
+  <data name="CopyLiveStreamToolTip" xml:space="preserve"><value>Copy live stream (Shift+C)</value></data>
+  <data name="PreviewCurrentRoomToolTip" xml:space="preserve"><value>Preview or close the current room (Q)</value></data>
+  <data name="OpenCurrentRoomToolTip" xml:space="preserve"><value>Open current room page (E)</value></data>
+  <data name="ToggleCurrentMonitorToolTip" xml:space="preserve"><value>Start or pause current room monitoring (Shift+M)</value></data>
+  <data name="ToggleCurrentRecordingToolTip" xml:space="preserve"><value>Start or pause current room recording (Shift+R)</value></data>
+  <data name="OpenCurrentRoomSettingsToolTip" xml:space="preserve"><value>Open current room settings</value></data>
+  <data name="AutoShutdownDebugSkipped" xml:space="preserve"><value>Computer shutdown was triggered. Debug mode will not shut down Windows.</value></data>
+  <data name="CancellingTranscode" xml:space="preserve"><value>Stopping transcoding...</value></data>
+  <data name="ChooseLogArchivePath" xml:space="preserve"><value>Choose where to save the log archive</value></data>
+  <data name="ConfigAddedToRestoreList" xml:space="preserve"><value>Configuration added to the restore list. Select Import to apply it.</value></data>
+  <data name="ConfigBackup" xml:space="preserve"><value>Configuration backup</value></data>
+  <data name="ConfigBackupAlreadyExists" xml:space="preserve"><value>An identical configuration already exists and has been selected.</value></data>
+  <data name="ConfigChangedRestartPrompt" xml:space="preserve"><value>{0}. The change takes effect after restart. {1}&#xA;&#xA;Restart Emerde now?</value></data>
+  <data name="ConfigExported" xml:space="preserve"><value>Configuration exported</value></data>
+  <data name="ConfigExportFailed" xml:space="preserve"><value>Failed to export configuration: {0}</value></data>
+  <data name="ConfigImported" xml:space="preserve"><value>Configuration imported</value></data>
+  <data name="ConfigImportedUnavailableSecrets" xml:space="preserve"><value>Configuration imported, but these credentials belong to another Windows account and must be entered again: {0}</value></data>
+  <data name="ConfigImportFailed" xml:space="preserve"><value>Failed to import configuration: {0}</value></data>
+  <data name="ConfigReset" xml:space="preserve"><value>Configuration reset</value></data>
+  <data name="ConfigResetFailed" xml:space="preserve"><value>Failed to reset configuration: {0}</value></data>
+  <data name="ConfigResetRestartPrompt" xml:space="preserve"><value>Configuration reset will take effect after restart. Backups:&#xA;{0}&#xA;&#xA;Restart Emerde now?</value></data>
+  <data name="ConfigRestored" xml:space="preserve"><value>Configuration restored</value></data>
+  <data name="ConfigRestoreFailed" xml:space="preserve"><value>Failed to restore configuration: {0}</value></data>
+  <data name="ConfirmRemoveSelectedRooms" xml:space="preserve"><value>Remove the selected {0} live rooms?</value></data>
+  <data name="ConfirmResetConfig" xml:space="preserve"><value>Reset the configuration file? The current configuration will be backed up and the reset will take effect after restart.</value></data>
+  <data name="CopiedVideos" xml:space="preserve"><value>Copied {0} videos</value></data>
+  <data name="CurrentConfigBackup" xml:space="preserve"><value>Current configuration backup:&#xA;{0}</value></data>
+  <data name="DefaultConfigDescription" xml:space="preserve"><value>Delete the current configuration and regenerate defaults after restart</value></data>
+  <data name="DefaultConfigTitle" xml:space="preserve"><value>Default configuration (no configuration file)</value></data>
+  <data name="DeletedVideos" xml:space="preserve"><value>Deleted {0} videos</value></data>
+  <data name="DouyinVerificationTitle" xml:space="preserve"><value>Douyin verification - Emerde</value></data>
+  <data name="ExportAll" xml:space="preserve"><value>Export all</value></data>
+  <data name="ExportConfigTitle" xml:space="preserve"><value>Export configuration</value></data>
+  <data name="ExportLogsPrompt" xml:space="preserve"><value>Select the range of runtime logs to export.</value></data>
+  <data name="ExportLogsTitle" xml:space="preserve"><value>Export runtime logs</value></data>
+  <data name="ExportToday" xml:space="preserve"><value>Export today</value></data>
+  <data name="FolderMustBeInsideConfiguredSaveFolder" xml:space="preserve"><value>The selected folder must be inside a configured save folder.</value></data>
+  <data name="Import" xml:space="preserve"><value>Import</value></data>
+  <data name="ImportConfigTitle" xml:space="preserve"><value>Import configuration</value></data>
+  <data name="ImportedVideos" xml:space="preserve"><value>Imported {0} videos</value></data>
+  <data name="ImportingVideos" xml:space="preserve"><value>Importing videos...</value></data>
+  <data name="InvalidVideoFileName" xml:space="preserve"><value>The file name cannot be empty or contain a path or invalid characters.</value></data>
+  <data name="LogExportFailed" xml:space="preserve"><value>Failed to export logs: {0}</value></data>
+  <data name="LogsExported" xml:space="preserve"><value>Logs exported: {0}</value></data>
+  <data name="LosslessMergeIncompatible" xml:space="preserve"><value>The selected videos have different codecs, resolutions, or audio tracks and cannot be merged losslessly.</value></data>
+  <data name="MergeBySegmentNumber" xml:space="preserve"><value>merge by segment number</value></data>
+  <data name="MergeBySelectionOrder" xml:space="preserve"><value>merge by selection order</value></data>
+  <data name="MergeReasonAtLeastTwoVideos" xml:space="preserve"><value>select at least two videos</value></data>
+  <data name="MergeReasonDifferentFormats" xml:space="preserve"><value>video formats differ</value></data>
+  <data name="MergeReasonDifferentResolutions" xml:space="preserve"><value>video resolutions differ</value></data>
+  <data name="MergeReasonDifferentStreamers" xml:space="preserve"><value>videos include different streamers</value></data>
+  <data name="MergeReasonNonContiguousSegments" xml:space="preserve"><value>segment numbers are not contiguous</value></data>
+  <data name="MergeReasonSeparator" xml:space="preserve"><value>; </value></data>
+  <data name="MergeValidationPassed" xml:space="preserve"><value>Validation passed; {0}.</value></data>
+  <data name="MergeValidationWarnings" xml:space="preserve"><value>{0}; {1}.</value></data>
+  <data name="MovedVideos" xml:space="preserve"><value>Moved {0} videos</value></data>
+  <data name="NetworkCapacityDetailedResult" xml:space="preserve"><value>Three-round multi-node test: {0}, {1}. Each stream is estimated at {2:0.##} Mbps without relying on the current live stream; {3} valid samples, {4} confidence.</value></data>
+  <data name="NetworkCapacityDomesticRegion" xml:space="preserve"><value>Domestic</value></data>
+  <data name="NetworkCapacityDomesticShort" xml:space="preserve"><value>Domestic: {0} streams</value></data>
+  <data name="NetworkCapacityListSeparator" xml:space="preserve"><value>, </value></data>
+  <data name="NetworkCapacityOverseasRegion" xml:space="preserve"><value>Overseas</value></data>
+  <data name="NetworkCapacityOverseasShort" xml:space="preserve"><value>Overseas: {0} streams</value></data>
+  <data name="NetworkCapacityRegionDetail" xml:space="preserve"><value>{0}: {1:0.##} Mbps, about {2} streams at {3:0.##} Mbps each</value></data>
+  <data name="NetworkCapacityRegionUnavailable" xml:space="preserve"><value>{0}: unavailable</value></data>
+  <data name="NoAvailableSaveFolder" xml:space="preserve"><value>No save folder is available.</value></data>
+  <data name="NoConfigFilesToBackup" xml:space="preserve"><value>No configuration files required backup.</value></data>
+  <data name="NoMeaningfulConfigBackup" xml:space="preserve"><value>The current configuration only contained initial startup confirmation data, so no backup was created.</value></data>
+  <data name="OpenSaveFolderFailed" xml:space="preserve"><value>Failed to open save folder: {0}</value></data>
+  <data name="OperationFailedWithLabel" xml:space="preserve"><value>{0} failed: {1}</value></data>
+  <data name="PreparingDelete" xml:space="preserve"><value>Preparing deletion...</value></data>
+  <data name="PreparingMerge" xml:space="preserve"><value>Preparing merge...</value></data>
+  <data name="Rename" xml:space="preserve"><value>Rename</value></data>
+  <data name="RenameComplete" xml:space="preserve"><value>Rename complete</value></data>
+  <data name="RenameFailed" xml:space="preserve"><value>Rename failed</value></data>
+  <data name="RenameVideo" xml:space="preserve"><value>Rename video</value></data>
+  <data name="Reset" xml:space="preserve"><value>Reset</value></data>
+  <data name="Restore" xml:space="preserve"><value>Restore</value></data>
+  <data name="RestoreConfigTitle" xml:space="preserve"><value>Restore configuration</value></data>
+  <data name="SegmentDurationLabel" xml:space="preserve"><value>Segment duration</value></data>
+  <data name="SegmentSizeLabel" xml:space="preserve"><value>Segment size</value></data>
+  <data name="SelectedVideos" xml:space="preserve"><value>{0} videos selected</value></data>
+  <data name="SelectSaveFolderToOpen" xml:space="preserve"><value>Select a save folder to open</value></data>
+  <data name="SelectVideoImportFolder" xml:space="preserve"><value>Select a video folder to import</value></data>
+  <data name="SelectVideoImportTarget" xml:space="preserve"><value>Select the import destination save folder</value></data>
+  <data name="SelectVideosToSplit" xml:space="preserve"><value>Select videos to split first.</value></data>
+  <data name="SessionLogDisabledDescription" xml:space="preserve"><value>Runtime logging is disabled; only existing historical logs can be exported.</value></data>
+  <data name="SessionLogEnabledDescription" xml:space="preserve"><value>Save runtime logs locally and export recent or all logs.</value></data>
+  <data name="SortAscendingDescription" xml:space="preserve"><value>Sorted by recording time ascending, with the earliest videos first.</value></data>
+  <data name="SortDescendingDescription" xml:space="preserve"><value>Sorted by recording time descending, with the newest videos first.</value></data>
+  <data name="SplitCompletedCount" xml:space="preserve"><value>Split {0} videos</value></data>
+  <data name="SplittingProgress" xml:space="preserve"><value>Splitting {0}/{1}</value></data>
+  <data name="TranscodeStopCompleted" xml:space="preserve"><value>Incomplete transcoding tasks were stopped. Completed videos were not deleted.</value></data>
+  <data name="TranscodeStopFailed" xml:space="preserve"><value>Failed to stop transcoding tasks. Recovery records were preserved.</value></data>
+  <data name="TranscodeStopPending" xml:space="preserve"><value>Some transcoding tasks are still stopping. Recovery records were preserved for retry.</value></data>
+  <data name="TranscodeStopping" xml:space="preserve"><value>Transcoding is stopping. Try again shortly.</value></data>
+  <data name="UserImport" xml:space="preserve"><value>User import</value></data>
+  <data name="VideoDeleteFailures" xml:space="preserve"><value>Failed to delete {0} videos</value></data>
+  <data name="VideoFileMissing" xml:space="preserve"><value>The video file does not exist.</value></data>
+  <data name="VideoFileNameExists" xml:space="preserve"><value>A video with the same name already exists.</value></data>
+  <data name="VideoImportFailures" xml:space="preserve"><value>Failed to import {0} videos</value></data>
+  <data name="VideoImportManagedFolderConflict" xml:space="preserve"><value>Videos cannot be imported from a save folder, its parent, or its child folder.</value></data>
+  <data name="VideoTransferFailures" xml:space="preserve"><value>Failed to process {0} videos. Check the destination folder and duplicate file names.</value></data>
+  <data name="SelectExtensionPackage" xml:space="preserve"><value>Select an Emerde extension package</value></data>
+  <data name="ExtensionPackageFilter" xml:space="preserve"><value>Emerde extension package</value></data>
+  <data name="InstalledExtensions" xml:space="preserve"><value>Installed {0} extensions</value></data>
+  <data name="NoInstallableExtensions" xml:space="preserve"><value>No installable extension packages found</value></data>
+  <data name="ExtensionDisabled" xml:space="preserve"><value>Disabled</value></data>
+  <data name="ExtensionEnabled" xml:space="preserve"><value>Enabled</value></data>
+  <data name="RemoveExtensionTitle" xml:space="preserve"><value>Remove extension</value></data>
+  <data name="ConfirmRemoveExtension" xml:space="preserve"><value>Remove "{0}"? Its settings will also be removed.</value></data>
+  <data name="Yes" xml:space="preserve"><value>Yes</value></data>
+  <data name="No" xml:space="preserve"><value>No</value></data>
+  <data name="ExtensionRemoved" xml:space="preserve"><value>Extension removed</value></data>
+  <data name="ExtensionSettingsSaved" xml:space="preserve"><value>Extension settings saved</value></data>
+  <data name="ExtensionResponseSucceeded" xml:space="preserve"><value>Extension responded successfully</value></data>
+  <data name="ExtensionDescriptionMissing" xml:space="preserve"><value>No extension description provided</value></data>
+  <data name="UnknownAuthor" xml:space="preserve"><value>Unknown author</value></data>
+  <data name="ExtensionInProcess" xml:space="preserve"><value>In-process · Elevated privileges</value></data>
+  <data name="ExtensionSeparateProcess" xml:space="preserve"><value>Separate process · {0}</value></data>
+  <data name="ExtensionCapabilitiesMissing" xml:space="preserve"><value>No declared capabilities</value></data>
+  <data name="ExtensionPermissionsMissing" xml:space="preserve"><value>No declared permissions</value></data>
+  <data name="ExtensionPermissionSeparator" xml:space="preserve"><value>, </value></data>
+  <data name="Disable" xml:space="preserve"><value>Disable</value></data>
+  <data name="Enable" xml:space="preserve"><value>Enable</value></data>
+  <data name="CollapseDetails" xml:space="preserve"><value>Collapse details</value></data>
+  <data name="Details" xml:space="preserve"><value>Details</value></data>
+  <data name="ExtensionManifestInvalid" xml:space="preserve"><value>Manifest invalid</value></data>
+  <data name="ExtensionRunning" xml:space="preserve"><value>Running</value></data>
+  <data name="StreamerNickname" xml:space="preserve"><value>Streamer name</value></data>
+  <data name="FileName" xml:space="preserve"><value>File name</value></data>
+  <data name="Date" xml:space="preserve"><value>Date</value></data>
+  <data name="ExtensionPackageUnsupported" xml:space="preserve"><value>Only .emerde-extension and .zip extension packages are supported.</value></data>
+  <data name="ExtensionNotEnabled" xml:space="preserve"><value>The extension is not enabled.</value></data>
+  <data name="ExtensionInProcessProtocolUnsupported" xml:space="preserve"><value>In-process extensions do not use the process invocation protocol.</value></data>
+  <data name="ExtensionNotFound" xml:space="preserve"><value>Extension not found: {0}</value></data>
+  <data name="ExtensionManifestMissing" xml:space="preserve"><value>The extension package is missing extension.json.</value></data>
+  <data name="ExtensionManifestUnreadable" xml:space="preserve"><value>Unable to read the extension manifest.</value></data>
+  <data name="ExtensionSettingDefinitionNull" xml:space="preserve"><value>Extension setting definitions cannot be null.</value></data>
+  <data name="ExtensionManifestSchemaUnsupported" xml:space="preserve"><value>Extension manifest schema version {0} is not supported.</value></data>
+  <data name="ExtensionIdInvalid" xml:space="preserve"><value>The extension ID must contain only lowercase letters, numbers, periods, and hyphens, and be 3 to 100 characters long.</value></data>
+  <data name="ExtensionNameInvalid" xml:space="preserve"><value>The extension name is required and cannot exceed 80 characters.</value></data>
+  <data name="ExtensionVersionInvalid" xml:space="preserve"><value>The extension version must use semantic versioning.</value></data>
+  <data name="ExtensionIconMissing" xml:space="preserve"><value>Extension icon not found: {0}</value></data>
+  <data name="ExtensionIconFormatUnsupported" xml:space="preserve"><value>Extension icons must be PNG, JPEG, BMP, GIF, or ICO files.</value></data>
+  <data name="ExtensionIconTooLarge" xml:space="preserve"><value>The extension icon cannot exceed 5 MB.</value></data>
+  <data name="ExtensionMinimumHostVersionInvalid" xml:space="preserve"><value>minimum_host_version is invalid.</value></data>
+  <data name="ExtensionMinimumHostVersionUnsupported" xml:space="preserve"><value>The extension requires Emerde {0} or later.</value></data>
+  <data name="ExtensionExecutionModeInvalid" xml:space="preserve"><value>execution_mode must be in_process or process.</value></data>
+  <data name="ExtensionEntryPointMissing" xml:space="preserve"><value>Extension entry point not found: {0}</value></data>
+  <data name="ExtensionInProcessEntryInvalid" xml:space="preserve"><value>In-process extensions must provide a DLL entry point and entry_type.</value></data>
+  <data name="ExtensionRuntimeUnsupported" xml:space="preserve"><value>The extension runtime is not supported.</value></data>
+  <data name="ExtensionTimeoutInvalid" xml:space="preserve"><value>The extension timeout must be between 5 and 86400 seconds.</value></data>
+  <data name="ExtensionSettingKeyInvalid" xml:space="preserve"><value>An extension setting key is invalid or duplicated.</value></data>
+  <data name="ExtensionSettingTypeUnsupported" xml:space="preserve"><value>An extension setting uses an unsupported type.</value></data>
+  <data name="ExtensionSettingColumnInvalid" xml:space="preserve"><value>Extension setting columns must be 0 or 1.</value></data>
+  <data name="ExtensionSettingDependencyInvalid" xml:space="preserve"><value>An extension setting has an invalid visibility dependency.</value></data>
+  <data name="ExtensionChoiceOptionsMissing" xml:space="preserve"><value>Choice settings must provide options.</value></data>
+  <data name="ExtensionEntryTypeUnsupported" xml:space="preserve"><value>{0} does not implement IEmerdeExtension.</value></data>
+  <data name="ExtensionEntryInstanceCreationFailed" xml:space="preserve"><value>Unable to create the extension entry instance.</value></data>
+  <data name="ExtensionTaskAlreadyRunning" xml:space="preserve"><value>The extension already has a task running.</value></data>
+  <data name="ExtensionProcessStartFailed" xml:space="preserve"><value>Failed to start the extension process.</value></data>
+  <data name="ExtensionResponseInvalid" xml:space="preserve"><value>The extension returned an invalid response. Exit code: {0}</value></data>
+  <data name="ExtensionTaskCanceled" xml:space="preserve"><value>The extension task was canceled.</value></data>
+  <data name="ExtensionTaskTimedOut" xml:space="preserve"><value>The extension task timed out.</value></data>
+  <data name="ExtensionRuntimeMissing" xml:space="preserve"><value>Extension runtime not found: {0}</value></data>
+  <data name="ExtensionPackageEntryLimitExceeded" xml:space="preserve"><value>The extension package contains too many files.</value></data>
+  <data name="ExtensionPackageExpandedSizeExceeded" xml:space="preserve"><value>The extracted extension package exceeds the size limit.</value></data>
+  <data name="ExtensionPackagePathTraversal" xml:space="preserve"><value>The extension package contains a path outside its root.</value></data>
+  <data name="ExtensionPackageManifestLocationInvalid" xml:space="preserve"><value>The extension package must contain extension.json at its root or in one unique top-level directory.</value></data>
+  <data name="ExtensionEntryPathInvalid" xml:space="preserve"><value>The extension entry point must be a relative path within the package.</value></data>
+  <data name="ExtensionEntryOutsideDirectory" xml:space="preserve"><value>The extension entry point is outside the extension directory.</value></data>
+  <data name="ExtensionSettingRequired" xml:space="preserve"><value>Enter {0}.</value></data>
+  <data name="ExtensionSettingBooleanRequired" xml:space="preserve"><value>{0} must be a Boolean value.</value></data>
+  <data name="ExtensionSettingNumberRequired" xml:space="preserve"><value>{0} must be a number.</value></data>
+  <data name="ExtensionSettingChoiceInvalid" xml:space="preserve"><value>The selected value for {0} is invalid.</value></data>
+  <data name="QualityOriginal" xml:space="preserve"><value>Original</value></data>
+  <data name="QualityBlueRay" xml:space="preserve"><value>Blu-ray</value></data>
+  <data name="QualityUltraHigh" xml:space="preserve"><value>Ultra high</value></data>
+  <data name="QualityHigh" xml:space="preserve"><value>High</value></data>
+  <data name="QualityStandard" xml:space="preserve"><value>Standard</value></data>
+  <data name="QualitySmooth" xml:space="preserve"><value>Smooth</value></data>
+  <data name="ImportedConfigEmpty" xml:space="preserve"><value>The imported configuration contains no valid data.</value></data>
+  <data name="SelectEmerdeConfigBackup" xml:space="preserve"><value>Select a configuration backup created by Emerde.</value></data>
+  <data name="ConfigFileNotFound" xml:space="preserve"><value>Configuration file not found.</value></data>
+  <data name="YamlOnly" xml:space="preserve"><value>Only YAML configuration files are supported.</value></data>
+  <data name="YamlSyntaxInvalid" xml:space="preserve"><value>The YAML configuration syntax is invalid.</value></data>
+  <data name="UnsupportedEmerdeConfig" xml:space="preserve"><value>This YAML file is not a configuration supported by Emerde.</value></data>
+  <data name="ConfigKeyNameInvalid" xml:space="preserve"><value>Configuration key names must be valid text.</value></data>
+  <data name="ConfigKeyTypeInvalid" xml:space="preserve"><value>Configuration key {0} has an invalid data type.</value></data>
+  <data name="ConfigRoomsRequired" xml:space="preserve"><value>The configuration file must contain a Rooms list.</value></data>
+  <data name="ConfigRoomUrlInvalid" xml:space="preserve"><value>Every room in Rooms must contain a valid RoomUrl.</value></data>
+  <data name="RoomConfigKeyNameInvalid" xml:space="preserve"><value>Room configuration key names must be valid text.</value></data>
+  <data name="RoomConfigKeyTypeInvalid" xml:space="preserve"><value>Room configuration key {0} has an invalid data type.</value></data>
+  <data name="NoExportableLogFiles" xml:space="preserve"><value>No log files are available to export.</value></data>
+  <data name="RecordingSaveFolderUnavailableTitle" xml:space="preserve"><value>Save folder unavailable</value></data>
+  <data name="RecordingSaveFolderFallback" xml:space="preserve"><value>This recording is being saved temporarily to: {0}</value></data>
+  <data name="OriginalAudioTrack" xml:space="preserve"><value>Original audio</value></data>
+  <data name="OriginalAudioTrackNumbered" xml:space="preserve"><value>Original audio {0}</value></data>
+  <data name="OptimizedAudioTrack" xml:space="preserve"><value>Optimized audio</value></data>
+  <data name="RecoveryJsonInvalid" xml:space="preserve"><value>Invalid JSON syntax: {0}</value></data>
+  <data name="RecoveryMarkerEmpty" xml:space="preserve"><value>The recovery marker is empty.</value></data>
+  <data name="RecoverySourcePathAbsoluteInvalid" xml:space="preserve"><value>The source path is not a valid absolute path.</value></data>
+  <data name="RecoverySourceFormatUnsupported" xml:space="preserve"><value>The source file is not a supported media format.</value></data>
+  <data name="RecoverySourceWildcardInvalid" xml:space="preserve"><value>The source path contains a disallowed wildcard.</value></data>
+  <data name="RecoverySegmentPlaceholderInvalid" xml:space="preserve"><value>Only %03d can be used as the segment placeholder.</value></data>
+  <data name="RecoveryTargetFormatSessionInvalid" xml:space="preserve"><value>The target format must be MP4, MKV, TS, or FLV.</value></data>
+  <data name="RecoveryTargetFormatInvalid" xml:space="preserve"><value>The target format must be MP4 or MKV.</value></data>
+  <data name="RecoveryCompletedTargetInvalid" xml:space="preserve"><value>The completed target path or format is invalid.</value></data>
+  <data name="RecoveryCompletedTargetOutsideSource" xml:space="preserve"><value>The completed target is not in the source recording directory.</value></data>
+  <data name="RecoveryCompletedTargetPathInvalid" xml:space="preserve"><value>The completed target path is invalid: {0}</value></data>
+  <data name="RecoveryIntermediateTargetInvalid" xml:space="preserve"><value>The intermediate merge path is invalid.</value></data>
+  <data name="RecoveryCompletedSourceStateInvalid" xml:space="preserve"><value>The completed source state is invalid.</value></data>
+  <data name="RecoveryStatePathInvalid" xml:space="preserve"><value>The completed recording state path is invalid: {0}</value></data>
+  <data name="RecoverySourcePathInvalid" xml:space="preserve"><value>The source path is invalid: {0}</value></data>
+  <data name="RecoverySourceOutsideConfiguredFolders" xml:space="preserve"><value>The source file is outside the configured save folders.</value></data>
+  <data name="QuestionTitle" xml:space="preserve"><value>Confirm</value></data>
+  <data name="ConfigRestoreDescription" xml:space="preserve"><value>Select a configuration backup to restore, or import or drop a YAML configuration file. The current configuration will not be replaced until you confirm.</value></data>
+  <data name="ConfigRestoreBackupHint" xml:space="preserve"><value>Import, restore, and reset first back up the current meaningful configuration and take effect after restart.</value></data>
+  <data name="ClosePreviewShortcutHint" xml:space="preserve"><value>Close preview (Esc)</value></data>
+  <data name="RefreshPreviewShortcutHint" xml:space="preserve"><value>Refresh preview (G)</value></data>
+  <data name="RefreshVideoListShortcutHint" xml:space="preserve"><value>Refresh video list (F5)</value></data>
+  <data name="EnterMultiSelectShortcutHint" xml:space="preserve"><value>Enter multi-select mode (Ctrl+A selects all)</value></data>
+  <data name="SelectAllVideosShortcutHint" xml:space="preserve"><value>Select all videos (Ctrl+A)</value></data>
+  <data name="ExitMultiSelectShortcutHint" xml:space="preserve"><value>Exit multi-select mode (Esc)</value></data>
+  <data name="OpenVideoShortcutHint" xml:space="preserve"><value>Open video (Enter)</value></data>
+  <data name="RunningLogs" xml:space="preserve"><value>Application logs</value></data>
+  <data name="Retain" xml:space="preserve"><value>Keep</value></data>
+  <data name="Export" xml:space="preserve"><value>Export</value></data>
+  <data name="ConfigFile" xml:space="preserve"><value>Configuration file</value></data>
+  <data name="AutomaticMonitoring" xml:space="preserve"><value>Automatic monitoring</value></data>
+  <data name="AutomaticMonitoringHint" xml:space="preserve"><value>Controls whether rooms that follow global settings automatically check their live status.</value></data>
+  <data name="MonitoringSchedule" xml:space="preserve"><value>Monitoring schedule</value></data>
+  <data name="GlobalMonitoringScheduleHint" xml:space="preserve"><value>Restrict global automatic monitoring by day and time range.</value></data>
+  <data name="RoomMonitoringScheduleHint" xml:space="preserve"><value>Restrict automatic monitoring for this room by day and time range.</value></data>
+  <data name="StreamQualityHint" xml:space="preserve"><value>Select a stream quality supported by the current platform.</value></data>
+  <data name="ScheduleAlways" xml:space="preserve"><value>Always</value></data>
+  <data name="ScheduleAlwaysHint" xml:space="preserve"><value>Run all day, Monday through Sunday</value></data>
+  <data name="ScheduleWeekdays" xml:space="preserve"><value>Weekdays</value></data>
+  <data name="ScheduleWeekdaysHint" xml:space="preserve"><value>Run Monday through Friday</value></data>
+  <data name="ScheduleWeekends" xml:space="preserve"><value>Weekends</value></data>
+  <data name="ScheduleWeekendsHint" xml:space="preserve"><value>Run Saturday and Sunday</value></data>
+  <data name="ScheduleNight" xml:space="preserve"><value>Night</value></data>
+  <data name="ScheduleNightHint" xml:space="preserve"><value>Run daily from 18:00 to 08:00 the next day</value></data>
+  <data name="ScheduleCustom" xml:space="preserve"><value>Custom schedule</value></data>
+  <data name="ScheduleCustomHint" xml:space="preserve"><value>Choose days and a start and end time manually</value></data>
+  <data name="Monday" xml:space="preserve"><value>Mon</value></data>
+  <data name="Tuesday" xml:space="preserve"><value>Tue</value></data>
+  <data name="Wednesday" xml:space="preserve"><value>Wed</value></data>
+  <data name="Thursday" xml:space="preserve"><value>Thu</value></data>
+  <data name="Friday" xml:space="preserve"><value>Fri</value></data>
+  <data name="Saturday" xml:space="preserve"><value>Sat</value></data>
+  <data name="Sunday" xml:space="preserve"><value>Sun</value></data>
+  <data name="TimeRange" xml:space="preserve"><value>Time range</value></data>
+  <data name="To" xml:space="preserve"><value>to</value></data>
+  <data name="EnterValue" xml:space="preserve"><value>Enter a value</value></data>
+  <data name="InsertVariable" xml:space="preserve"><value>Insert variable {0}</value></data>
+  <data name="ManageExtensionToggle" xml:space="preserve"><value>Enable or disable extension</value></data>
+  <data name="ExecutionMode" xml:space="preserve"><value>Execution mode</value></data>
+  <data name="Author" xml:space="preserve"><value>Author</value></data>
+  <data name="Capabilities" xml:space="preserve"><value>Capabilities</value></data>
+  <data name="Permissions" xml:space="preserve"><value>Permissions</value></data>
+  <data name="HealthCheck" xml:space="preserve"><value>Check</value></data>
+  <data name="Remove" xml:space="preserve"><value>Remove</value></data>
+  <data name="Identifier" xml:space="preserve"><value>Identifier</value></data>
+  <data name="Status" xml:space="preserve"><value>Status</value></data>
+  <data name="InProcessTrustWarning" xml:space="preserve"><value>In-process extensions have elevated access to monitoring, recording, files, and the interface. Save your work before disabling one, and install only trusted extensions.</value></data>
+  <data name="ExtensionSettings" xml:space="preserve"><value>Extension settings</value></data>
+  <data name="SaveSettings" xml:space="preserve"><value>Save settings</value></data>
+  <data name="ExtensionsDescription" xml:space="preserve"><value>Install, manage, and remove third-party extensions. Extensions can access application capabilities, so install only from sources you trust.</value></data>
+  <data name="OpenExtensionsFolder" xml:space="preserve"><value>Open extensions folder</value></data>
+  <data name="RefreshExtensions" xml:space="preserve"><value>Refresh extensions</value></data>
+  <data name="InstallExtension" xml:space="preserve"><value>Install extension</value></data>
+  <data name="InstalledExtensionSection" xml:space="preserve"><value>Installed extensions</value></data>
+  <data name="EnabledExtensionsFormat" xml:space="preserve"><value>{0} enabled</value></data>
+  <data name="DropExtensionPackage" xml:space="preserve"><value>Drop an extension package to install</value></data>
+  <data name="NoExtensionsInstalled" xml:space="preserve"><value>No extensions installed</value></data>
+  <data name="NoExtensionsInstalledDescription" xml:space="preserve"><value>Drop an extension package on this page or use Install extension in the upper-right corner.</value></data>
+  <data name="DropToInstallExtension" xml:space="preserve"><value>Release to install extension</value></data>
+  <data name="SupportedExtensionPackages" xml:space="preserve"><value>Supports .emerde-extension and .zip</value></data>
+  <data name="AboutTagline" xml:space="preserve"><value>Monitor, preview, record, and manage videos from multiple live rooms.</value></data>
+  <data name="ProjectHomepage" xml:space="preserve"><value>Project homepage</value></data>
+  <data name="ReferenceRepository" xml:space="preserve"><value>Reference repository</value></data>
+  <data name="QuickStart" xml:space="preserve"><value>Quick start</value></data>
+  <data name="QuickStartDescription" xml:space="preserve"><value>Complete these steps to start monitoring and recording live streams.</value></data>
+  <data name="AddLiveRoom" xml:space="preserve"><value>Add live room</value></data>
+  <data name="AboutPasteRoomLink" xml:space="preserve"><value>• Paste a live room link</value></data>
+  <data name="AboutConfirmPlatformStreamer" xml:space="preserve"><value>• Confirm the platform and streamer information</value></data>
+  <data name="EnableMonitoring" xml:space="preserve"><value>Enable monitoring</value></data>
+  <data name="AboutMonitorDiscovers" xml:space="preserve"><value>• Automatically detect when streams start, end, or change status</value></data>
+  <data name="AboutRecordingNeedsMonitoring" xml:space="preserve"><value>• Recording alone cannot detect when a stream starts; monitoring must also be enabled</value></data>
+  <data name="EnableRecording" xml:space="preserve"><value>Enable recording</value></data>
+  <data name="AboutAutoRecordOnStream" xml:space="preserve"><value>• Start recording automatically after a usable live stream is found</value></data>
+  <data name="AboutHomeShowsRecording" xml:space="preserve"><value>• View the current recording status and duration on the home page</value></data>
+  <data name="ManageVideos" xml:space="preserve"><value>Manage videos</value></data>
+  <data name="AboutVideoListProgress" xml:space="preserve"><value>• View recordings and processing progress in the video list</value></data>
+  <data name="AboutVideoOperations" xml:space="preserve"><value>• Transcode, split, merge, move, and delete videos</value></data>
+  <data name="RecordingAndDetection" xml:space="preserve"><value>Recording and detection</value></data>
+  <data name="RecordingAndDetectionDescription" xml:space="preserve"><value>Learn how Emerde detects streams, starts recordings, and handles network interruptions.</value></data>
+  <data name="MonitoringAndRecording" xml:space="preserve"><value>Monitoring and recording</value></data>
+  <data name="AboutMonitorVsRecord" xml:space="preserve"><value>• Monitoring detects live status; the recording switch controls whether the stream is saved</value></data>
+  <data name="AboutUnknownStatusRetry" xml:space="preserve"><value>• If live status cannot be confirmed, Emerde keeps checking to avoid a false offline result</value></data>
+  <data name="DetectionIntervals" xml:space="preserve"><value>Detection intervals</value></data>
+  <data name="AboutOfflineInterval" xml:space="preserve"><value>• Offline rooms use the interval in Settings, which defaults to every 5 seconds</value></data>
+  <data name="AboutLiveInterval" xml:space="preserve"><value>• Live rooms are checked every 10 seconds</value></data>
+  <data name="AboutRecentEndedInterval" xml:space="preserve"><value>• Rooms are checked every 10 seconds for 30 minutes after a stream ends</value></data>
+  <data name="AboutTsFlvRaw" xml:space="preserve"><value>• TS and FLV preserve the original live stream data more closely</value></data>
+  <data name="AboutMp4MkvConvert" xml:space="preserve"><value>• MP4 and MKV are converted automatically after recording ends</value></data>
+  <data name="AboutDoNotExitProcessing" xml:space="preserve"><value>• Do not force Emerde to exit before file processing is complete</value></data>
+  <data name="NetworkRecovery" xml:space="preserve"><value>Network recovery</value></data>
+  <data name="AboutNetworkRecovery" xml:space="preserve"><value>• If the network or source stalls, Emerde protects recorded content and attempts to recover</value></data>
+  <data name="AboutRecoveryNewSegment" xml:space="preserve"><value>• Recovery may create a separate segment to avoid audio and video desynchronization</value></data>
+  <data name="AboutCannotRecoverMissing" xml:space="preserve"><value>• Live content that was already missed cannot be recorded later</value></data>
+  <data name="NetworkSpeedTest" xml:space="preserve"><value>Network speed test</value></data>
+  <data name="AboutSpeedTestEstimate" xml:space="preserve"><value>• The home-page speed test estimates how many streams the current network can record at once</value></data>
+  <data name="AboutRecordingCapacityFactors" xml:space="preserve"><value>• Actual capacity also depends on platform routes, disk speed, and system load</value></data>
+  <data name="FilesAndData" xml:space="preserve"><value>Files and data</value></data>
+  <data name="FilesAndDataDescription" xml:space="preserve"><value>Manage recordings, storage, logs, and application settings.</value></data>
+  <data name="AboutVideoListStatuses" xml:space="preserve"><value>• Shows recordings, transcoding progress, and other processing states</value></data>
+  <data name="AboutRecordingFileLocked" xml:space="preserve"><value>• Files currently being recorded cannot be selected or modified</value></data>
+  <data name="AboutTranscodingFileWarning" xml:space="preserve"><value>• Avoid selecting or modifying files while they are being transcoded</value></data>
+  <data name="AboutVerifySegment" xml:space="preserve"><value>• Verify that each segment is complete and plays correctly before further operations</value></data>
+  <data name="StorageAndCleanup" xml:space="preserve"><value>Storage and cleanup</value></data>
+  <data name="AboutSaveFolderSpace" xml:space="preserve"><value>• Choose a save folder with sufficient free space</value></data>
+  <data name="AboutRetentionCleanup" xml:space="preserve"><value>• Retention cleanup only removes expired recordings managed by Emerde</value></data>
+  <data name="AboutUpdatePreserveRecordings" xml:space="preserve"><value>• Take care not to delete recordings when updating Emerde</value></data>
+  <data name="LogsAndSettings" xml:space="preserve"><value>Logs and settings</value></data>
+  <data name="AboutExportLogs" xml:space="preserve"><value>• Export today's logs or all logs when reporting a problem</value></data>
+  <data name="AboutSettingsBackup" xml:space="preserve"><value>• Settings can be backed up, restored, and reset</value></data>
+  <data name="AboutValidateImport" xml:space="preserve"><value>• Emerde validates a settings file before importing it</value></data>
+  <data name="ExitAndRecovery" xml:space="preserve"><value>Exit and recovery</value></data>
+  <data name="AboutCloseToTray" xml:space="preserve"><value>• Emerde continues running in the system tray after the main window is closed</value></data>
+  <data name="AboutExitFromMenu" xml:space="preserve"><value>• To exit completely, use Exit in the sidebar or tray menu</value></data>
+  <data name="AboutResumePendingTasks" xml:space="preserve"><value>• Unfinished finalization, split, or transcode tasks resume after the next launch</value></data>
+  <data name="ShortcutReference" xml:space="preserve"><value>Keyboard shortcuts</value></data>
+  <data name="ShortcutReferenceHint" xml:space="preserve"><value>Shortcuts apply only on their corresponding pages. While editing a text field, undo, redo, copy, and paste operate on text.</value></data>
+  <data name="PagesAndWindows" xml:space="preserve"><value>Pages and windows</value></data>
+  <data name="NavigatePreviousPage" xml:space="preserve"><value>Previous page</value></data>
+  <data name="NavigateNextPage" xml:space="preserve"><value>Next page</value></data>
+  <data name="NavigateDirectly" xml:space="preserve"><value>Go directly to page</value></data>
+  <data name="CloseWindow" xml:space="preserve"><value>Close window</value></data>
+  <data name="ExitApplication" xml:space="preserve"><value>Exit application</value></data>
+  <data name="UndoText" xml:space="preserve"><value>Undo text edit</value></data>
+  <data name="RedoText" xml:space="preserve"><value>Redo text edit</value></data>
+  <data name="CopyText" xml:space="preserve"><value>Copy text</value></data>
+  <data name="PasteText" xml:space="preserve"><value>Paste text</value></data>
+  <data name="HomeLiveRooms" xml:space="preserve"><value>Home live rooms</value></data>
+  <data name="FineTune" xml:space="preserve"><value>Fine-tune selection</value></data>
+  <data name="ToggleCurrentMonitoring" xml:space="preserve"><value>Toggle monitoring for current room</value></data>
+  <data name="ToggleCurrentRecording" xml:space="preserve"><value>Toggle recording for current room</value></data>
+  <data name="RefreshCurrent" xml:space="preserve"><value>Refresh current room</value></data>
+  <data name="CopyRoomAddress" xml:space="preserve"><value>Copy room address</value></data>
+  <data name="CopyStreamUrl" xml:space="preserve"><value>Copy stream URL</value></data>
+  <data name="SelectAllRooms" xml:space="preserve"><value>Select all rooms</value></data>
+  <data name="UndoSelectionOrListOperation" xml:space="preserve"><value>Undo selection or list operation</value></data>
+  <data name="RedoSelectionOrListOperation" xml:space="preserve"><value>Redo selection or list operation</value></data>
+  <data name="PreviewPlayback" xml:space="preserve"><value>Preview playback</value></data>
+  <data name="PlayOrPause" xml:space="preserve"><value>Play or pause</value></data>
+  <data name="RefreshPreview" xml:space="preserve"><value>Refresh preview</value></data>
+  <data name="ToggleMute" xml:space="preserve"><value>Mute or unmute</value></data>
+  <data name="AdjustVolumeFivePercent" xml:space="preserve"><value>Decrease or increase volume by 5%</value></data>
+  <data name="ToggleFullscreen" xml:space="preserve"><value>Enter or exit full screen</value></data>
+  <data name="ExitFullscreenOrClosePreview" xml:space="preserve"><value>Exit full screen or close preview</value></data>
+  <data name="GlobalActions" xml:space="preserve"><value>Global actions</value></data>
+  <data name="ToggleAllMonitoring" xml:space="preserve"><value>Toggle monitoring for all rooms</value></data>
+  <data name="ToggleAllRecording" xml:space="preserve"><value>Toggle recording for all rooms</value></data>
+  <data name="RefreshAll" xml:space="preserve"><value>Refresh all</value></data>
+  <data name="RefreshList" xml:space="preserve"><value>Refresh list</value></data>
+  <data name="ExitMultiSelect" xml:space="preserve"><value>Exit multi-select</value></data>
+  <data name="UndoVideoSelection" xml:space="preserve"><value>Undo video selection</value></data>
+  <data name="RedoVideoSelection" xml:space="preserve"><value>Redo video selection</value></data>
+  <data name="ImportantNotes" xml:space="preserve"><value>Important notes</value></data>
+  <data name="AboutDoNotForceStopRecording" xml:space="preserve"><value>• Do not force Emerde to exit, power off, or delete related files while a recording is being written</value></data>
+  <data name="AboutKeepDependencies" xml:space="preserve"><value>• Do not delete or move dependency folders such as ffmpeg or libvlc separately</value></data>
+  <data name="AboutEnsureDiskSpace" xml:space="preserve"><value>• Keep enough free disk space to avoid interrupted recordings or damaged files</value></data>
+  <data name="AboutStreamStallEffects" xml:space="preserve"><value>• Network or source stalls may cause frozen frames, dropped frames, or audio and video problems</value></data>
+  <data name="AboutFeedbackDetails" xml:space="preserve"><value>• When reporting a problem, include the symptoms, room link, time, steps, screenshots, and corresponding logs</value></data>
 </root>

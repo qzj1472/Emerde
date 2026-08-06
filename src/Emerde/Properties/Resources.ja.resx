@@ -781,4 +781,427 @@
   <data name="StartupAboutNoticeTitle" xml:space="preserve"><value>使用前に説明をお読みください</value></data>
   <data name="StartupAboutNoticeDescription" xml:space="preserve"><value>誤操作やプラットフォームのリスク制御を避けるため、初回利用前に左側の「概要」を開き、監視間隔、動的チェック、録画、プレビュー、全画面表示に関する説明を確認してください。内容を理解してから配信ルームを追加し、監視を開始することをおすすめします。</value></data>
   <data name="ConfigurationRecovered" xml:space="preserve"><value>設定ファイルが無効なため、{0} に保存しました。Emerde は既定の設定で起動しました。</value></data>
+  <data name="Unsupported" xml:space="preserve"><value>未対応</value></data>
+  <data name="SkipValidation" xml:space="preserve"><value>検証をスキップ</value></data>
+  <data name="FollowGlobalSettings" xml:space="preserve"><value>グローバル設定に従う</value></data>
+  <data name="VolumeFormat" xml:space="preserve"><value>音量 {0}%</value></data>
+  <data name="PreviewVolumeToolTipFormat" xml:space="preserve"><value>音量 {0}% (-/=)</value></data>
+  <data name="ExitFullScreenHint" xml:space="preserve"><value>V または Esc で全画面を終了</value></data>
+  <data name="SelectedRoomsFormat" xml:space="preserve"><value>{0} 件の配信ルームを選択中</value></data>
+  <data name="AllPlatforms" xml:space="preserve"><value>すべてのプラットフォーム</value></data>
+  <data name="RecordingEngineActive" xml:space="preserve"><value>内蔵 FFmpeg DLL · {0} · PID {1} · ダウンロード {2} · 書き込み {3}</value></data>
+  <data name="RecordingEngineStarting" xml:space="preserve"><value>内蔵 FFmpeg DLL · ワーカーを起動中</value></data>
+  <data name="WaitingForData" xml:space="preserve"><value>データ待機中</value></data>
+  <data name="LiveStream" xml:space="preserve"><value>ライブストリーム</value></data>
+  <data name="AutoShutdownComputerCountdown" xml:space="preserve"><value>{0} 後にコンピューターをシャットダウンします</value></data>
+  <data name="AutoShutdownApplicationCountdown" xml:space="preserve"><value>{0} 後に Emerde を終了します</value></data>
+  <data name="Milliseconds" xml:space="preserve"><value>ミリ秒</value></data>
+  <data name="Days" xml:space="preserve"><value>日</value></data>
+  <data name="Weeks" xml:space="preserve"><value>週</value></data>
+  <data name="Months" xml:space="preserve"><value>か月</value></data>
+  <data name="Years" xml:space="preserve"><value>年</value></data>
+  <data name="HomePage" xml:space="preserve"><value>ホーム</value></data>
+  <data name="Extensions" xml:space="preserve"><value>拡張機能</value></data>
+  <data name="Monitor" xml:space="preserve"><value>監視</value></data>
+  <data name="NavigationHomeToolTip" xml:space="preserve"><value>ホーム（Alt+1、Tab で上 / CapsLock で下）</value></data>
+  <data name="NavigationVideosToolTip" xml:space="preserve"><value>動画一覧（Alt+2、Tab で上 / CapsLock で下）</value></data>
+  <data name="NavigationSettingsToolTip" xml:space="preserve"><value>設定（Alt+3、Tab で上 / CapsLock で下）</value></data>
+  <data name="NavigationExtensionsToolTip" xml:space="preserve"><value>拡張機能（Alt+4、Tab で上 / CapsLock で下）</value></data>
+  <data name="NavigationAboutToolTip" xml:space="preserve"><value>概要（Alt+5、Tab で上 / CapsLock で下）</value></data>
+  <data name="ExitApplicationToolTip" xml:space="preserve"><value>Emerde を終了（Ctrl+Shift+W）</value></data>
+  <data name="AddRoomToolTip" xml:space="preserve"><value>配信ルームを追加（Ctrl+N）</value></data>
+  <data name="ToggleAllMonitorToolTip" xml:space="preserve"><value>すべての監視を開始または一時停止（Ctrl+Shift+M）</value></data>
+  <data name="ToggleAllRecordingToolTip" xml:space="preserve"><value>すべての録画を開始または一時停止（Ctrl+Shift+R）</value></data>
+  <data name="CardSize" xml:space="preserve"><value>カードサイズ</value></data>
+  <data name="SizeLarge" xml:space="preserve"><value>大</value></data>
+  <data name="SizeMedium" xml:space="preserve"><value>中</value></data>
+  <data name="SizeSmall" xml:space="preserve"><value>小</value></data>
+  <data name="Sort" xml:space="preserve"><value>並べ替え</value></data>
+  <data name="SortByName" xml:space="preserve"><value>名前順</value></data>
+  <data name="SortByAddedOrder" xml:space="preserve"><value>追加順</value></data>
+  <data name="PlatformFilter" xml:space="preserve"><value>プラットフォーム絞り込み</value></data>
+  <data name="LoadPlatforms" xml:space="preserve"><value>プラットフォームを読み込み中</value></data>
+  <data name="RoomInformation" xml:space="preserve"><value>配信ルーム情報</value></data>
+  <data name="LiveTitle" xml:space="preserve"><value>タイトル</value></data>
+  <data name="ResolutionLabel" xml:space="preserve"><value>解像度</value></data>
+  <data name="BitrateLabel" xml:space="preserve"><value>ビットレート</value></data>
+  <data name="RoomAddress" xml:space="preserve"><value>ルームアドレス</value></data>
+  <data name="RefreshCurrentRoomToolTip" xml:space="preserve"><value>現在の配信ルームを更新（F）</value></data>
+  <data name="CopyRoomAddressToolTip" xml:space="preserve"><value>ルームアドレスをコピー（C）</value></data>
+  <data name="CopyLiveStreamToolTip" xml:space="preserve"><value>ライブストリームをコピー（Shift+C）</value></data>
+  <data name="PreviewCurrentRoomToolTip" xml:space="preserve"><value>現在の配信ルームをプレビューまたは閉じる（Q）</value></data>
+  <data name="OpenCurrentRoomToolTip" xml:space="preserve"><value>現在の配信ルームページを開く（E）</value></data>
+  <data name="ToggleCurrentMonitorToolTip" xml:space="preserve"><value>現在の配信ルームの監視を開始または一時停止（Shift+M）</value></data>
+  <data name="ToggleCurrentRecordingToolTip" xml:space="preserve"><value>現在の配信ルームの録画を開始または一時停止（Shift+R）</value></data>
+  <data name="OpenCurrentRoomSettingsToolTip" xml:space="preserve"><value>現在の配信ルーム設定を開く</value></data>
+  <data name="AutoShutdownDebugSkipped" xml:space="preserve"><value>コンピューターのシャットダウンが実行されました。デバッグモードでは Windows をシャットダウンしません。</value></data>
+  <data name="CancellingTranscode" xml:space="preserve"><value>トランスコードを停止しています...</value></data>
+  <data name="ChooseLogArchivePath" xml:space="preserve"><value>ログアーカイブの保存先を選択</value></data>
+  <data name="ConfigAddedToRestoreList" xml:space="preserve"><value>設定を復元リストに追加しました。「インポート」を選択すると適用されます。</value></data>
+  <data name="ConfigBackup" xml:space="preserve"><value>設定バックアップ</value></data>
+  <data name="ConfigBackupAlreadyExists" xml:space="preserve"><value>同じ設定が既に存在するため、既存のバックアップを選択しました。</value></data>
+  <data name="ConfigChangedRestartPrompt" xml:space="preserve"><value>{0}。再起動後に反映されます。{1}&#xA;&#xA;今すぐ Emerde を再起動しますか？</value></data>
+  <data name="ConfigExported" xml:space="preserve"><value>設定をエクスポートしました</value></data>
+  <data name="ConfigExportFailed" xml:space="preserve"><value>設定のエクスポートに失敗しました: {0}</value></data>
+  <data name="ConfigImported" xml:space="preserve"><value>設定をインポートしました</value></data>
+  <data name="ConfigImportedUnavailableSecrets" xml:space="preserve"><value>設定をインポートしましたが、次の認証情報は別の Windows アカウントに属するため、再入力が必要です: {0}</value></data>
+  <data name="ConfigImportFailed" xml:space="preserve"><value>設定のインポートに失敗しました: {0}</value></data>
+  <data name="ConfigReset" xml:space="preserve"><value>設定をリセットしました</value></data>
+  <data name="ConfigResetFailed" xml:space="preserve"><value>設定のリセットに失敗しました: {0}</value></data>
+  <data name="ConfigResetRestartPrompt" xml:space="preserve"><value>設定のリセットは再起動後に反映されます。バックアップ:&#xA;{0}&#xA;&#xA;今すぐ Emerde を再起動しますか？</value></data>
+  <data name="ConfigRestored" xml:space="preserve"><value>設定を復元しました</value></data>
+  <data name="ConfigRestoreFailed" xml:space="preserve"><value>設定の復元に失敗しました: {0}</value></data>
+  <data name="ConfirmRemoveSelectedRooms" xml:space="preserve"><value>選択した {0} 件の配信ルームを削除しますか？</value></data>
+  <data name="ConfirmResetConfig" xml:space="preserve"><value>設定ファイルをリセットしますか？現在の設定をバックアップし、再起動後にリセットを適用します。</value></data>
+  <data name="CopiedVideos" xml:space="preserve"><value>{0} 本の動画をコピーしました</value></data>
+  <data name="CurrentConfigBackup" xml:space="preserve"><value>現在の設定のバックアップ:&#xA;{0}</value></data>
+  <data name="DefaultConfigDescription" xml:space="preserve"><value>現在の設定を削除し、再起動後に既定の設定を再生成します</value></data>
+  <data name="DefaultConfigTitle" xml:space="preserve"><value>既定の設定（設定ファイルなし）</value></data>
+  <data name="DeletedVideos" xml:space="preserve"><value>{0} 本の動画を削除しました</value></data>
+  <data name="DouyinVerificationTitle" xml:space="preserve"><value>Douyin 認証 - Emerde</value></data>
+  <data name="ExportAll" xml:space="preserve"><value>すべてエクスポート</value></data>
+  <data name="ExportConfigTitle" xml:space="preserve"><value>設定をエクスポート</value></data>
+  <data name="ExportLogsPrompt" xml:space="preserve"><value>エクスポートする実行ログの範囲を選択します。</value></data>
+  <data name="ExportLogsTitle" xml:space="preserve"><value>実行ログをエクスポート</value></data>
+  <data name="ExportToday" xml:space="preserve"><value>今日をエクスポート</value></data>
+  <data name="FolderMustBeInsideConfiguredSaveFolder" xml:space="preserve"><value>選択するフォルダーは設定済みの保存フォルダー内にある必要があります。</value></data>
+  <data name="Import" xml:space="preserve"><value>インポート</value></data>
+  <data name="ImportConfigTitle" xml:space="preserve"><value>設定をインポート</value></data>
+  <data name="ImportedVideos" xml:space="preserve"><value>{0} 本の動画をインポートしました</value></data>
+  <data name="ImportingVideos" xml:space="preserve"><value>動画をインポートしています...</value></data>
+  <data name="InvalidVideoFileName" xml:space="preserve"><value>ファイル名を空にしたり、パスや無効な文字を含めたりすることはできません。</value></data>
+  <data name="LogExportFailed" xml:space="preserve"><value>ログのエクスポートに失敗しました: {0}</value></data>
+  <data name="LogsExported" xml:space="preserve"><value>ログをエクスポートしました: {0}</value></data>
+  <data name="LosslessMergeIncompatible" xml:space="preserve"><value>選択した動画のコーデック、解像度、または音声トラックが異なるため、無劣化で結合できません。</value></data>
+  <data name="MergeBySegmentNumber" xml:space="preserve"><value>セグメント番号順に結合</value></data>
+  <data name="MergeBySelectionOrder" xml:space="preserve"><value>選択順に結合</value></data>
+  <data name="MergeReasonAtLeastTwoVideos" xml:space="preserve"><value>2 本以上の動画を選択してください</value></data>
+  <data name="MergeReasonDifferentFormats" xml:space="preserve"><value>動画形式が異なります</value></data>
+  <data name="MergeReasonDifferentResolutions" xml:space="preserve"><value>動画の解像度が異なります</value></data>
+  <data name="MergeReasonDifferentStreamers" xml:space="preserve"><value>異なる配信者の動画が含まれています</value></data>
+  <data name="MergeReasonNonContiguousSegments" xml:space="preserve"><value>セグメント番号が連続していません</value></data>
+  <data name="MergeReasonSeparator" xml:space="preserve"><value>、</value></data>
+  <data name="MergeValidationPassed" xml:space="preserve"><value>検証に成功しました。{0}します。</value></data>
+  <data name="MergeValidationWarnings" xml:space="preserve"><value>{0}。{1}します。</value></data>
+  <data name="MovedVideos" xml:space="preserve"><value>{0} 本の動画を移動しました</value></data>
+  <data name="NetworkCapacityDetailedResult" xml:space="preserve"><value>複数ノードで 3 回測定: {0}、{1}。現在のライブストリームに依存せず、1 ストリームあたり {2:0.##} Mbps で推定します。有効サンプル {3} 件、信頼度 {4}。</value></data>
+  <data name="NetworkCapacityDomesticRegion" xml:space="preserve"><value>国内</value></data>
+  <data name="NetworkCapacityDomesticShort" xml:space="preserve"><value>国内: {0} ストリーム</value></data>
+  <data name="NetworkCapacityListSeparator" xml:space="preserve"><value>、</value></data>
+  <data name="NetworkCapacityOverseasRegion" xml:space="preserve"><value>海外</value></data>
+  <data name="NetworkCapacityOverseasShort" xml:space="preserve"><value>海外: {0} ストリーム</value></data>
+  <data name="NetworkCapacityRegionDetail" xml:space="preserve"><value>{0}: {1:0.##} Mbps、約 {2} ストリーム、1 ストリーム {3:0.##} Mbps</value></data>
+  <data name="NetworkCapacityRegionUnavailable" xml:space="preserve"><value>{0}: 測定できません</value></data>
+  <data name="NoAvailableSaveFolder" xml:space="preserve"><value>利用可能な保存フォルダーがありません。</value></data>
+  <data name="NoConfigFilesToBackup" xml:space="preserve"><value>バックアップが必要な設定ファイルはありませんでした。</value></data>
+  <data name="NoMeaningfulConfigBackup" xml:space="preserve"><value>現在の設定には初回起動確認のみが含まれていたため、バックアップは作成されませんでした。</value></data>
+  <data name="OpenSaveFolderFailed" xml:space="preserve"><value>保存フォルダーを開けませんでした: {0}</value></data>
+  <data name="OperationFailedWithLabel" xml:space="preserve"><value>{0}に失敗しました: {1}</value></data>
+  <data name="PreparingDelete" xml:space="preserve"><value>削除を準備しています...</value></data>
+  <data name="PreparingMerge" xml:space="preserve"><value>結合を準備しています...</value></data>
+  <data name="Rename" xml:space="preserve"><value>名前を変更</value></data>
+  <data name="RenameComplete" xml:space="preserve"><value>名前を変更しました</value></data>
+  <data name="RenameFailed" xml:space="preserve"><value>名前の変更に失敗しました</value></data>
+  <data name="RenameVideo" xml:space="preserve"><value>動画の名前を変更</value></data>
+  <data name="Reset" xml:space="preserve"><value>リセット</value></data>
+  <data name="Restore" xml:space="preserve"><value>復元</value></data>
+  <data name="RestoreConfigTitle" xml:space="preserve"><value>設定を復元</value></data>
+  <data name="SegmentDurationLabel" xml:space="preserve"><value>セグメント時間</value></data>
+  <data name="SegmentSizeLabel" xml:space="preserve"><value>セグメントサイズ</value></data>
+  <data name="SelectedVideos" xml:space="preserve"><value>{0} 本の動画を選択中</value></data>
+  <data name="SelectSaveFolderToOpen" xml:space="preserve"><value>開く保存フォルダーを選択</value></data>
+  <data name="SelectVideoImportFolder" xml:space="preserve"><value>インポートする動画フォルダーを選択</value></data>
+  <data name="SelectVideoImportTarget" xml:space="preserve"><value>インポート先の保存フォルダーを選択</value></data>
+  <data name="SelectVideosToSplit" xml:space="preserve"><value>分割する動画を先に選択してください。</value></data>
+  <data name="SessionLogDisabledDescription" xml:space="preserve"><value>実行ログは無効です。既存の履歴ログのみエクスポートできます。</value></data>
+  <data name="SessionLogEnabledDescription" xml:space="preserve"><value>実行ログをローカルに保存し、最近またはすべてのログをエクスポートできます。</value></data>
+  <data name="SortAscendingDescription" xml:space="preserve"><value>録画時刻の昇順で並べ、最も古い動画を先頭に表示します。</value></data>
+  <data name="SortDescendingDescription" xml:space="preserve"><value>録画時刻の降順で並べ、最新の動画を先頭に表示します。</value></data>
+  <data name="SplitCompletedCount" xml:space="preserve"><value>{0} 本の動画を分割しました</value></data>
+  <data name="SplittingProgress" xml:space="preserve"><value>分割中 {0}/{1}</value></data>
+  <data name="TranscodeStopCompleted" xml:space="preserve"><value>未完了のトランスコードを停止しました。完了した動画は削除されません。</value></data>
+  <data name="TranscodeStopFailed" xml:space="preserve"><value>トランスコードの停止に失敗しました。復元情報は保持されています。</value></data>
+  <data name="TranscodeStopPending" xml:space="preserve"><value>一部のトランスコードはまだ停止中です。復元情報を保持して後で再試行します。</value></data>
+  <data name="TranscodeStopping" xml:space="preserve"><value>トランスコードを停止しています。しばらくしてから再試行してください。</value></data>
+  <data name="UserImport" xml:space="preserve"><value>ユーザーインポート</value></data>
+  <data name="VideoDeleteFailures" xml:space="preserve"><value>{0} 本の動画を削除できませんでした</value></data>
+  <data name="VideoFileMissing" xml:space="preserve"><value>動画ファイルが存在しません。</value></data>
+  <data name="VideoFileNameExists" xml:space="preserve"><value>同じ名前の動画が既に存在します。</value></data>
+  <data name="VideoImportFailures" xml:space="preserve"><value>{0} 本の動画をインポートできませんでした</value></data>
+  <data name="VideoImportManagedFolderConflict" xml:space="preserve"><value>保存フォルダー、その親フォルダー、または子フォルダーから動画をインポートすることはできません。</value></data>
+  <data name="VideoTransferFailures" xml:space="preserve"><value>{0} 本の動画を処理できませんでした。保存先と同名ファイルを確認してください。</value></data>
+  <data name="SelectExtensionPackage" xml:space="preserve"><value>Emerde拡張パッケージを選択</value></data>
+  <data name="ExtensionPackageFilter" xml:space="preserve"><value>Emerde拡張パッケージ</value></data>
+  <data name="InstalledExtensions" xml:space="preserve"><value>{0}個の拡張機能をインストールしました</value></data>
+  <data name="NoInstallableExtensions" xml:space="preserve"><value>インストール可能な拡張パッケージが見つかりません</value></data>
+  <data name="ExtensionDisabled" xml:space="preserve"><value>無効化済み</value></data>
+  <data name="ExtensionEnabled" xml:space="preserve"><value>有効化済み</value></data>
+  <data name="RemoveExtensionTitle" xml:space="preserve"><value>拡張機能を削除</value></data>
+  <data name="ConfirmRemoveExtension" xml:space="preserve"><value>拡張機能「{0}」を削除しますか？拡張機能の設定も削除されます。</value></data>
+  <data name="Yes" xml:space="preserve"><value>はい</value></data>
+  <data name="No" xml:space="preserve"><value>いいえ</value></data>
+  <data name="ExtensionRemoved" xml:space="preserve"><value>拡張機能を削除しました</value></data>
+  <data name="ExtensionSettingsSaved" xml:space="preserve"><value>拡張機能の設定を保存しました</value></data>
+  <data name="ExtensionResponseSucceeded" xml:space="preserve"><value>拡張機能は正常に応答しました</value></data>
+  <data name="ExtensionDescriptionMissing" xml:space="preserve"><value>拡張機能の説明はありません</value></data>
+  <data name="UnknownAuthor" xml:space="preserve"><value>不明な作成者</value></data>
+  <data name="ExtensionInProcess" xml:space="preserve"><value>アプリ内実行 · 高い権限</value></data>
+  <data name="ExtensionSeparateProcess" xml:space="preserve"><value>別プロセス · {0}</value></data>
+  <data name="ExtensionCapabilitiesMissing" xml:space="preserve"><value>機能が宣言されていません</value></data>
+  <data name="ExtensionPermissionsMissing" xml:space="preserve"><value>権限が宣言されていません</value></data>
+  <data name="ExtensionPermissionSeparator" xml:space="preserve"><value>、</value></data>
+  <data name="Disable" xml:space="preserve"><value>無効にする</value></data>
+  <data name="Enable" xml:space="preserve"><value>有効にする</value></data>
+  <data name="CollapseDetails" xml:space="preserve"><value>詳細を閉じる</value></data>
+  <data name="Details" xml:space="preserve"><value>詳細</value></data>
+  <data name="ExtensionManifestInvalid" xml:space="preserve"><value>マニフェストが無効です</value></data>
+  <data name="ExtensionRunning" xml:space="preserve"><value>実行中</value></data>
+  <data name="StreamerNickname" xml:space="preserve"><value>配信者名</value></data>
+  <data name="FileName" xml:space="preserve"><value>ファイル名</value></data>
+  <data name="Date" xml:space="preserve"><value>日付</value></data>
+  <data name="ExtensionPackageUnsupported" xml:space="preserve"><value>.emerde-extension または .zip の拡張パッケージのみ対応しています。</value></data>
+  <data name="ExtensionNotEnabled" xml:space="preserve"><value>拡張機能が有効になっていません。</value></data>
+  <data name="ExtensionInProcessProtocolUnsupported" xml:space="preserve"><value>アプリ内拡張機能はプロセス呼び出しプロトコルを使用しません。</value></data>
+  <data name="ExtensionNotFound" xml:space="preserve"><value>拡張機能が見つかりません：{0}</value></data>
+  <data name="ExtensionManifestMissing" xml:space="preserve"><value>拡張パッケージに extension.json がありません。</value></data>
+  <data name="ExtensionManifestUnreadable" xml:space="preserve"><value>拡張機能のマニフェストを読み取れません。</value></data>
+  <data name="ExtensionSettingDefinitionNull" xml:space="preserve"><value>拡張機能の設定定義を空にすることはできません。</value></data>
+  <data name="ExtensionManifestSchemaUnsupported" xml:space="preserve"><value>拡張機能のマニフェストバージョン {0} には対応していません。</value></data>
+  <data name="ExtensionIdInvalid" xml:space="preserve"><value>拡張機能 ID は小文字、数字、ピリオド、ハイフンのみを使用し、3～100文字にする必要があります。</value></data>
+  <data name="ExtensionNameInvalid" xml:space="preserve"><value>拡張機能名は必須で、80文字以内にする必要があります。</value></data>
+  <data name="ExtensionVersionInvalid" xml:space="preserve"><value>拡張機能のバージョンはセマンティックバージョニング形式にする必要があります。</value></data>
+  <data name="ExtensionIconMissing" xml:space="preserve"><value>拡張機能のアイコンが見つかりません：{0}</value></data>
+  <data name="ExtensionIconFormatUnsupported" xml:space="preserve"><value>拡張機能のアイコンは PNG、JPEG、BMP、GIF、ICO のいずれかにする必要があります。</value></data>
+  <data name="ExtensionIconTooLarge" xml:space="preserve"><value>拡張機能のアイコンは 5 MB 以下にする必要があります。</value></data>
+  <data name="ExtensionMinimumHostVersionInvalid" xml:space="preserve"><value>minimum_host_version の形式が無効です。</value></data>
+  <data name="ExtensionMinimumHostVersionUnsupported" xml:space="preserve"><value>この拡張機能には Emerde {0} 以降が必要です。</value></data>
+  <data name="ExtensionExecutionModeInvalid" xml:space="preserve"><value>execution_mode は in_process または process にする必要があります。</value></data>
+  <data name="ExtensionEntryPointMissing" xml:space="preserve"><value>拡張機能のエントリポイントが見つかりません：{0}</value></data>
+  <data name="ExtensionInProcessEntryInvalid" xml:space="preserve"><value>アプリ内拡張機能には DLL エントリポイントと entry_type が必要です。</value></data>
+  <data name="ExtensionRuntimeUnsupported" xml:space="preserve"><value>この拡張機能ランタイムには対応していません。</value></data>
+  <data name="ExtensionTimeoutInvalid" xml:space="preserve"><value>拡張機能のタイムアウトは 5～86400 秒にする必要があります。</value></data>
+  <data name="ExtensionSettingKeyInvalid" xml:space="preserve"><value>拡張機能の設定キーが無効または重複しています。</value></data>
+  <data name="ExtensionSettingTypeUnsupported" xml:space="preserve"><value>拡張機能の設定に未対応の型が含まれています。</value></data>
+  <data name="ExtensionSettingColumnInvalid" xml:space="preserve"><value>拡張機能の設定列は 0 または 1 にする必要があります。</value></data>
+  <data name="ExtensionSettingDependencyInvalid" xml:space="preserve"><value>拡張機能の設定に無効な表示条件があります。</value></data>
+  <data name="ExtensionChoiceOptionsMissing" xml:space="preserve"><value>選択型の設定には options が必要です。</value></data>
+  <data name="ExtensionEntryTypeUnsupported" xml:space="preserve"><value>{0} は IEmerdeExtension を実装していません。</value></data>
+  <data name="ExtensionEntryInstanceCreationFailed" xml:space="preserve"><value>拡張機能のエントリインスタンスを作成できません。</value></data>
+  <data name="ExtensionTaskAlreadyRunning" xml:space="preserve"><value>この拡張機能のタスクは既に実行中です。</value></data>
+  <data name="ExtensionProcessStartFailed" xml:space="preserve"><value>拡張機能のプロセスを開始できませんでした。</value></data>
+  <data name="ExtensionResponseInvalid" xml:space="preserve"><value>拡張機能から無効な応答が返されました。終了コード：{0}</value></data>
+  <data name="ExtensionTaskCanceled" xml:space="preserve"><value>拡張機能のタスクはキャンセルされました。</value></data>
+  <data name="ExtensionTaskTimedOut" xml:space="preserve"><value>拡張機能のタスクがタイムアウトしました。</value></data>
+  <data name="ExtensionRuntimeMissing" xml:space="preserve"><value>拡張機能のランタイムが見つかりません：{0}</value></data>
+  <data name="ExtensionPackageEntryLimitExceeded" xml:space="preserve"><value>拡張パッケージのファイル数が上限を超えています。</value></data>
+  <data name="ExtensionPackageExpandedSizeExceeded" xml:space="preserve"><value>展開後の拡張パッケージがサイズ上限を超えています。</value></data>
+  <data name="ExtensionPackagePathTraversal" xml:space="preserve"><value>拡張パッケージにルート外のパスが含まれています。</value></data>
+  <data name="ExtensionPackageManifestLocationInvalid" xml:space="preserve"><value>拡張パッケージのルート、または一意の直下フォルダーに extension.json が必要です。</value></data>
+  <data name="ExtensionEntryPathInvalid" xml:space="preserve"><value>拡張機能のエントリポイントはパッケージ内の相対パスにする必要があります。</value></data>
+  <data name="ExtensionEntryOutsideDirectory" xml:space="preserve"><value>拡張機能のエントリポイントが拡張機能フォルダーの外にあります。</value></data>
+  <data name="ExtensionSettingRequired" xml:space="preserve"><value>{0}を入力してください。</value></data>
+  <data name="ExtensionSettingBooleanRequired" xml:space="preserve"><value>{0}はブール値にする必要があります。</value></data>
+  <data name="ExtensionSettingNumberRequired" xml:space="preserve"><value>{0}は数値にする必要があります。</value></data>
+  <data name="ExtensionSettingChoiceInvalid" xml:space="preserve"><value>{0}の選択肢が無効です。</value></data>
+  <data name="QualityOriginal" xml:space="preserve"><value>オリジナル</value></data>
+  <data name="QualityBlueRay" xml:space="preserve"><value>ブルーレイ</value></data>
+  <data name="QualityUltraHigh" xml:space="preserve"><value>超高画質</value></data>
+  <data name="QualityHigh" xml:space="preserve"><value>高画質</value></data>
+  <data name="QualityStandard" xml:space="preserve"><value>標準画質</value></data>
+  <data name="QualitySmooth" xml:space="preserve"><value>低画質</value></data>
+  <data name="ImportedConfigEmpty" xml:space="preserve"><value>インポートした設定に有効な内容がありません。</value></data>
+  <data name="SelectEmerdeConfigBackup" xml:space="preserve"><value>Emerde が作成した設定バックアップを選択してください。</value></data>
+  <data name="ConfigFileNotFound" xml:space="preserve"><value>設定ファイルが見つかりません。</value></data>
+  <data name="YamlOnly" xml:space="preserve"><value>YAML 設定ファイルのみ対応しています。</value></data>
+  <data name="YamlSyntaxInvalid" xml:space="preserve"><value>YAML 設定ファイルの構文が無効です。</value></data>
+  <data name="UnsupportedEmerdeConfig" xml:space="preserve"><value>この YAML ファイルは Emerde が対応する設定ファイルではありません。</value></data>
+  <data name="ConfigKeyNameInvalid" xml:space="preserve"><value>設定項目名は有効な文字列にしてください。</value></data>
+  <data name="ConfigKeyTypeInvalid" xml:space="preserve"><value>設定項目 {0} のデータ型が無効です。</value></data>
+  <data name="ConfigRoomsRequired" xml:space="preserve"><value>設定ファイルに Rooms リストが必要です。</value></data>
+  <data name="ConfigRoomUrlInvalid" xml:space="preserve"><value>Rooms の各ルームには有効な RoomUrl が必要です。</value></data>
+  <data name="RoomConfigKeyNameInvalid" xml:space="preserve"><value>ルーム設定項目名は有効な文字列にしてください。</value></data>
+  <data name="RoomConfigKeyTypeInvalid" xml:space="preserve"><value>ルーム設定項目 {0} のデータ型が無効です。</value></data>
+  <data name="NoExportableLogFiles" xml:space="preserve"><value>エクスポートできるログファイルがありません。</value></data>
+  <data name="RecordingSaveFolderUnavailableTitle" xml:space="preserve"><value>保存先フォルダーを使用できません</value></data>
+  <data name="RecordingSaveFolderFallback" xml:space="preserve"><value>この録画は一時的に次へ保存されます：{0}</value></data>
+  <data name="OriginalAudioTrack" xml:space="preserve"><value>元の音声</value></data>
+  <data name="OriginalAudioTrackNumbered" xml:space="preserve"><value>元の音声 {0}</value></data>
+  <data name="OptimizedAudioTrack" xml:space="preserve"><value>最適化した音声</value></data>
+  <data name="RecoveryJsonInvalid" xml:space="preserve"><value>JSON 構文が壊れています：{0}</value></data>
+  <data name="RecoveryMarkerEmpty" xml:space="preserve"><value>復旧マーカーが空です。</value></data>
+  <data name="RecoverySourcePathAbsoluteInvalid" xml:space="preserve"><value>ソースパスが有効な絶対パスではありません。</value></data>
+  <data name="RecoverySourceFormatUnsupported" xml:space="preserve"><value>ソースファイルは対応しているメディア形式ではありません。</value></data>
+  <data name="RecoverySourceWildcardInvalid" xml:space="preserve"><value>ソースパスに使用できないワイルドカードが含まれています。</value></data>
+  <data name="RecoverySegmentPlaceholderInvalid" xml:space="preserve"><value>セグメントのプレースホルダーには %03d のみ使用できます。</value></data>
+  <data name="RecoveryTargetFormatSessionInvalid" xml:space="preserve"><value>出力形式は MP4、MKV、TS、FLV のいずれかにしてください。</value></data>
+  <data name="RecoveryTargetFormatInvalid" xml:space="preserve"><value>出力形式は MP4 または MKV にしてください。</value></data>
+  <data name="RecoveryCompletedTargetInvalid" xml:space="preserve"><value>完了した出力ファイルのパスまたは形式が無効です。</value></data>
+  <data name="RecoveryCompletedTargetOutsideSource" xml:space="preserve"><value>完了した出力ファイルがソース録画フォルダー内にありません。</value></data>
+  <data name="RecoveryCompletedTargetPathInvalid" xml:space="preserve"><value>完了した出力ファイルのパスが無効です：{0}</value></data>
+  <data name="RecoveryIntermediateTargetInvalid" xml:space="preserve"><value>中間結合ファイルのパスが無効です。</value></data>
+  <data name="RecoveryCompletedSourceStateInvalid" xml:space="preserve"><value>完了したソースファイルの状態が無効です。</value></data>
+  <data name="RecoveryStatePathInvalid" xml:space="preserve"><value>完了した録画状態のパスが無効です：{0}</value></data>
+  <data name="RecoverySourcePathInvalid" xml:space="preserve"><value>ソースファイルのパスが無効です：{0}</value></data>
+  <data name="RecoverySourceOutsideConfiguredFolders" xml:space="preserve"><value>ソースファイルが設定された保存先フォルダーの外にあります。</value></data>
+  <data name="QuestionTitle" xml:space="preserve"><value>確認</value></data>
+  <data name="ConfigRestoreDescription" xml:space="preserve"><value>復元する設定バックアップを選択するか、YAML 設定ファイルをインポートまたはドロップしてください。確認するまで現在の設定は置き換えられません。</value></data>
+  <data name="ConfigRestoreBackupHint" xml:space="preserve"><value>インポート、復元、リセットでは、意味のある現在の設定を先にバックアップし、再起動後に反映します。</value></data>
+  <data name="ClosePreviewShortcutHint" xml:space="preserve"><value>プレビューを閉じる (Esc)</value></data>
+  <data name="RefreshPreviewShortcutHint" xml:space="preserve"><value>プレビューを更新 (G)</value></data>
+  <data name="RefreshVideoListShortcutHint" xml:space="preserve"><value>動画リストを更新（F5）</value></data>
+  <data name="EnterMultiSelectShortcutHint" xml:space="preserve"><value>複数選択モードに入る（Ctrl+A ですべて選択）</value></data>
+  <data name="SelectAllVideosShortcutHint" xml:space="preserve"><value>すべての動画を選択（Ctrl+A）</value></data>
+  <data name="ExitMultiSelectShortcutHint" xml:space="preserve"><value>複数選択を終了（Esc）</value></data>
+  <data name="OpenVideoShortcutHint" xml:space="preserve"><value>動画を開く（Enter）</value></data>
+  <data name="RunningLogs" xml:space="preserve"><value>実行ログ</value></data>
+  <data name="Retain" xml:space="preserve"><value>保持</value></data>
+  <data name="Export" xml:space="preserve"><value>エクスポート</value></data>
+  <data name="ConfigFile" xml:space="preserve"><value>設定ファイル</value></data>
+  <data name="AutomaticMonitoring" xml:space="preserve"><value>自動監視</value></data>
+  <data name="AutomaticMonitoringHint" xml:space="preserve"><value>グローバル設定に従うルームの配信状態を自動的に確認するかを制御します。</value></data>
+  <data name="MonitoringSchedule" xml:space="preserve"><value>監視スケジュール</value></data>
+  <data name="GlobalMonitoringScheduleHint" xml:space="preserve"><value>曜日と時間帯でグローバル自動監視を制限します。</value></data>
+  <data name="RoomMonitoringScheduleHint" xml:space="preserve"><value>曜日と時間帯でこのルームの自動監視を制限します。</value></data>
+  <data name="StreamQualityHint" xml:space="preserve"><value>現在のプラットフォームが対応する配信画質を選択します。</value></data>
+  <data name="ScheduleAlways" xml:space="preserve"><value>常時実行</value></data>
+  <data name="ScheduleAlwaysHint" xml:space="preserve"><value>月曜日から日曜日まで終日実行</value></data>
+  <data name="ScheduleWeekdays" xml:space="preserve"><value>平日に実行</value></data>
+  <data name="ScheduleWeekdaysHint" xml:space="preserve"><value>月曜日から金曜日に実行</value></data>
+  <data name="ScheduleWeekends" xml:space="preserve"><value>週末に実行</value></data>
+  <data name="ScheduleWeekendsHint" xml:space="preserve"><value>土曜日と日曜日に実行</value></data>
+  <data name="ScheduleNight" xml:space="preserve"><value>夜間に実行</value></data>
+  <data name="ScheduleNightHint" xml:space="preserve"><value>毎日 18:00 から翌日 08:00 まで実行</value></data>
+  <data name="ScheduleCustom" xml:space="preserve"><value>カスタムスケジュール</value></data>
+  <data name="ScheduleCustomHint" xml:space="preserve"><value>曜日と開始・終了時刻を手動で選択</value></data>
+  <data name="Monday" xml:space="preserve"><value>月</value></data>
+  <data name="Tuesday" xml:space="preserve"><value>火</value></data>
+  <data name="Wednesday" xml:space="preserve"><value>水</value></data>
+  <data name="Thursday" xml:space="preserve"><value>木</value></data>
+  <data name="Friday" xml:space="preserve"><value>金</value></data>
+  <data name="Saturday" xml:space="preserve"><value>土</value></data>
+  <data name="Sunday" xml:space="preserve"><value>日</value></data>
+  <data name="TimeRange" xml:space="preserve"><value>時間帯</value></data>
+  <data name="To" xml:space="preserve"><value>から</value></data>
+  <data name="EnterValue" xml:space="preserve"><value>入力してください</value></data>
+  <data name="InsertVariable" xml:space="preserve"><value>変数 {0} を挿入</value></data>
+  <data name="ManageExtensionToggle" xml:space="preserve"><value>拡張機能を有効または無効にする</value></data>
+  <data name="ExecutionMode" xml:space="preserve"><value>実行方式</value></data>
+  <data name="Author" xml:space="preserve"><value>作成者</value></data>
+  <data name="Capabilities" xml:space="preserve"><value>機能</value></data>
+  <data name="Permissions" xml:space="preserve"><value>権限</value></data>
+  <data name="HealthCheck" xml:space="preserve"><value>確認</value></data>
+  <data name="Remove" xml:space="preserve"><value>削除</value></data>
+  <data name="Identifier" xml:space="preserve"><value>識別子</value></data>
+  <data name="Status" xml:space="preserve"><value>状態</value></data>
+  <data name="InProcessTrustWarning" xml:space="preserve"><value>アプリ内拡張機能は高い権限を持ち、監視、録画、ファイル、画面にアクセスできます。無効にする前に作業を保存し、信頼できる拡張機能のみインストールしてください。</value></data>
+  <data name="ExtensionSettings" xml:space="preserve"><value>拡張機能の設定</value></data>
+  <data name="SaveSettings" xml:space="preserve"><value>設定を保存</value></data>
+  <data name="ExtensionsDescription" xml:space="preserve"><value>サードパーティ製拡張機能をインストール、管理、削除します。拡張機能はアプリの機能にアクセスできるため、信頼できる配布元からのみインストールしてください。</value></data>
+  <data name="OpenExtensionsFolder" xml:space="preserve"><value>拡張機能フォルダーを開く</value></data>
+  <data name="RefreshExtensions" xml:space="preserve"><value>拡張機能を更新</value></data>
+  <data name="InstallExtension" xml:space="preserve"><value>拡張機能をインストール</value></data>
+  <data name="InstalledExtensionSection" xml:space="preserve"><value>インストール済み拡張機能</value></data>
+  <data name="EnabledExtensionsFormat" xml:space="preserve"><value>{0} 件有効</value></data>
+  <data name="DropExtensionPackage" xml:space="preserve"><value>拡張パッケージをドロップしてインストール</value></data>
+  <data name="NoExtensionsInstalled" xml:space="preserve"><value>拡張機能はインストールされていません</value></data>
+  <data name="NoExtensionsInstalledDescription" xml:space="preserve"><value>拡張パッケージをこのページにドロップするか、右上の「拡張機能をインストール」を使用してください。</value></data>
+  <data name="DropToInstallExtension" xml:space="preserve"><value>ドロップして拡張機能をインストール</value></data>
+  <data name="SupportedExtensionPackages" xml:space="preserve"><value>.emerde-extension と .zip に対応</value></data>
+  <data name="AboutTagline" xml:space="preserve"><value>複数のライブ配信を監視、プレビュー、録画し、動画を管理します。</value></data>
+  <data name="ProjectHomepage" xml:space="preserve"><value>プロジェクトホーム</value></data>
+  <data name="ReferenceRepository" xml:space="preserve"><value>参照リポジトリ</value></data>
+  <data name="QuickStart" xml:space="preserve"><value>クイックスタート</value></data>
+  <data name="QuickStartDescription" xml:space="preserve"><value>次の設定を完了すると、ライブ配信の監視と録画を開始できます。</value></data>
+  <data name="AddLiveRoom" xml:space="preserve"><value>ライブ配信を追加</value></data>
+  <data name="AboutPasteRoomLink" xml:space="preserve"><value>• ライブ配信のリンクを貼り付ける</value></data>
+  <data name="AboutConfirmPlatformStreamer" xml:space="preserve"><value>• プラットフォームと配信者の情報を確認する</value></data>
+  <data name="EnableMonitoring" xml:space="preserve"><value>監視を有効化</value></data>
+  <data name="AboutMonitorDiscovers" xml:space="preserve"><value>• 配信の開始、終了、状態変化を自動的に検出する</value></data>
+  <data name="AboutRecordingNeedsMonitoring" xml:space="preserve"><value>• 録画だけでは配信開始を検出できないため、監視も有効にする必要があります</value></data>
+  <data name="EnableRecording" xml:space="preserve"><value>録画を有効化</value></data>
+  <data name="AboutAutoRecordOnStream" xml:space="preserve"><value>• 利用可能な配信ストリームを取得すると自動的に録画を開始する</value></data>
+  <data name="AboutHomeShowsRecording" xml:space="preserve"><value>• ホーム画面で現在の録画状態と経過時間を確認できる</value></data>
+  <data name="ManageVideos" xml:space="preserve"><value>動画を管理</value></data>
+  <data name="AboutVideoListProgress" xml:space="preserve"><value>• 動画リストで録画ファイルと処理の進行状況を確認する</value></data>
+  <data name="AboutVideoOperations" xml:space="preserve"><value>• 変換、分割、結合、移動、削除に対応</value></data>
+  <data name="RecordingAndDetection" xml:space="preserve"><value>録画と検出</value></data>
+  <data name="RecordingAndDetectionDescription" xml:space="preserve"><value>配信の検出、録画の開始、ネットワーク障害への対応方法を説明します。</value></data>
+  <data name="MonitoringAndRecording" xml:space="preserve"><value>監視と録画</value></data>
+  <data name="AboutMonitorVsRecord" xml:space="preserve"><value>• 監視は配信状態を検出し、録画スイッチは配信を保存するかを制御します</value></data>
+  <data name="AboutUnknownStatusRetry" xml:space="preserve"><value>• 配信状態を一時的に確認できない場合も、誤って終了と判定しないよう確認を続けます</value></data>
+  <data name="DetectionIntervals" xml:space="preserve"><value>検出間隔</value></data>
+  <data name="AboutOfflineInterval" xml:space="preserve"><value>• 未配信のルームは設定した検出間隔で確認し、既定値は 5 秒です</value></data>
+  <data name="AboutLiveInterval" xml:space="preserve"><value>• 配信中のルームは 10 秒ごとに確認します</value></data>
+  <data name="AboutRecentEndedInterval" xml:space="preserve"><value>• 配信終了後 30 分間は 10 秒ごとに確認します</value></data>
+  <data name="AboutTsFlvRaw" xml:space="preserve"><value>• TS と FLV は元の配信データをより忠実に保持します</value></data>
+  <data name="AboutMp4MkvConvert" xml:space="preserve"><value>• MP4 と MKV は録画終了後に自動変換されます</value></data>
+  <data name="AboutDoNotExitProcessing" xml:space="preserve"><value>• ファイル処理が完了するまで Emerde を強制終了しないでください</value></data>
+  <data name="NetworkRecovery" xml:space="preserve"><value>ネットワーク復旧</value></data>
+  <data name="AboutNetworkRecovery" xml:space="preserve"><value>• ネットワークや配信元が停止した場合、録画済みの内容を保護して復旧を試みます</value></data>
+  <data name="AboutRecoveryNewSegment" xml:space="preserve"><value>• 音声と映像のずれを防ぐため、復旧時に新しい独立したセグメントが作成されることがあります</value></data>
+  <data name="AboutCannotRecoverMissing" xml:space="preserve"><value>• 既に欠落した配信内容を後から録画することはできません</value></data>
+  <data name="NetworkSpeedTest" xml:space="preserve"><value>ネットワーク速度テスト</value></data>
+  <data name="AboutSpeedTestEstimate" xml:space="preserve"><value>• ホーム画面の速度テストで同時録画可能な配信数を推定できます</value></data>
+  <data name="AboutRecordingCapacityFactors" xml:space="preserve"><value>• 実際の録画能力はプラットフォームの経路、ディスク速度、システム負荷にも左右されます</value></data>
+  <data name="FilesAndData" xml:space="preserve"><value>ファイルとデータ</value></data>
+  <data name="FilesAndDataDescription" xml:space="preserve"><value>録画ファイル、ストレージ、ログ、アプリ設定を管理します。</value></data>
+  <data name="AboutVideoListStatuses" xml:space="preserve"><value>• 録画ファイル、変換の進行状況、その他の処理状態を表示する</value></data>
+  <data name="AboutRecordingFileLocked" xml:space="preserve"><value>• 録画中のファイルは選択または操作できません</value></data>
+  <data name="AboutTranscodingFileWarning" xml:space="preserve"><value>• 変換中のファイルは選択または操作しないでください</value></data>
+  <data name="AboutVerifySegment" xml:space="preserve"><value>• 続けて操作する前に、各セグメントが完全で正常に再生できることを確認してください</value></data>
+  <data name="StorageAndCleanup" xml:space="preserve"><value>保存先とクリーンアップ</value></data>
+  <data name="AboutSaveFolderSpace" xml:space="preserve"><value>• 十分な空き容量がある場所を保存先に設定してください</value></data>
+  <data name="AboutRetentionCleanup" xml:space="preserve"><value>• 保持期間のクリーンアップでは、Emerde が管理する期限切れの録画のみ削除します</value></data>
+  <data name="AboutUpdatePreserveRecordings" xml:space="preserve"><value>• Emerde の更新時に録画ファイルを誤って削除しないよう注意してください</value></data>
+  <data name="LogsAndSettings" xml:space="preserve"><value>ログと設定</value></data>
+  <data name="AboutExportLogs" xml:space="preserve"><value>• 問題が発生した場合は、当日またはすべてのログをエクスポートできます</value></data>
+  <data name="AboutSettingsBackup" xml:space="preserve"><value>• 設定はバックアップ、復元、リセットできます</value></data>
+  <data name="AboutValidateImport" xml:space="preserve"><value>• 設定をインポートする前にファイルの有効性を確認します</value></data>
+  <data name="ExitAndRecovery" xml:space="preserve"><value>終了と復旧</value></data>
+  <data name="AboutCloseToTray" xml:space="preserve"><value>• メインウィンドウを閉じても Emerde はシステムトレイで動作を続けます</value></data>
+  <data name="AboutExitFromMenu" xml:space="preserve"><value>• 完全に終了するには、サイドバーまたはトレイメニューの「終了」を使用してください</value></data>
+  <data name="AboutResumePendingTasks" xml:space="preserve"><value>• 未完了の後処理、分割、変換タスクは次回起動後に再開します</value></data>
+  <data name="ShortcutReference" xml:space="preserve"><value>キーボードショートカット</value></data>
+  <data name="ShortcutReferenceHint" xml:space="preserve"><value>ショートカットは対応するページでのみ有効です。入力欄を編集中は、元に戻す、やり直し、コピー、貼り付けが文字操作に使用されます。</value></data>
+  <data name="PagesAndWindows" xml:space="preserve"><value>ページとウィンドウ</value></data>
+  <data name="NavigatePreviousPage" xml:space="preserve"><value>前のページ</value></data>
+  <data name="NavigateNextPage" xml:space="preserve"><value>次のページ</value></data>
+  <data name="NavigateDirectly" xml:space="preserve"><value>ページへ直接移動</value></data>
+  <data name="CloseWindow" xml:space="preserve"><value>ウィンドウを閉じる</value></data>
+  <data name="ExitApplication" xml:space="preserve"><value>アプリを終了</value></data>
+  <data name="UndoText" xml:space="preserve"><value>入力欄の編集を元に戻す</value></data>
+  <data name="RedoText" xml:space="preserve"><value>入力欄の編集をやり直す</value></data>
+  <data name="CopyText" xml:space="preserve"><value>入力欄の文字をコピー</value></data>
+  <data name="PasteText" xml:space="preserve"><value>入力欄に文字を貼り付け</value></data>
+  <data name="HomeLiveRooms" xml:space="preserve"><value>ホームのライブ配信</value></data>
+  <data name="FineTune" xml:space="preserve"><value>選択位置を微調整</value></data>
+  <data name="ToggleCurrentMonitoring" xml:space="preserve"><value>現在のルームの監視</value></data>
+  <data name="ToggleCurrentRecording" xml:space="preserve"><value>現在のルームの録画</value></data>
+  <data name="RefreshCurrent" xml:space="preserve"><value>現在のルームを更新</value></data>
+  <data name="CopyRoomAddress" xml:space="preserve"><value>ルームのアドレスをコピー</value></data>
+  <data name="CopyStreamUrl" xml:space="preserve"><value>配信ストリームをコピー</value></data>
+  <data name="SelectAllRooms" xml:space="preserve"><value>すべてのルームを選択</value></data>
+  <data name="UndoSelectionOrListOperation" xml:space="preserve"><value>選択またはリスト操作を元に戻す</value></data>
+  <data name="RedoSelectionOrListOperation" xml:space="preserve"><value>選択またはリスト操作をやり直す</value></data>
+  <data name="PreviewPlayback" xml:space="preserve"><value>プレビュー再生</value></data>
+  <data name="PlayOrPause" xml:space="preserve"><value>再生または一時停止</value></data>
+  <data name="RefreshPreview" xml:space="preserve"><value>プレビューを更新</value></data>
+  <data name="ToggleMute" xml:space="preserve"><value>ミュートまたは解除</value></data>
+  <data name="AdjustVolumeFivePercent" xml:space="preserve"><value>音量を 5% 下げるまたは上げる</value></data>
+  <data name="ToggleFullscreen" xml:space="preserve"><value>全画面表示を切り替える</value></data>
+  <data name="ExitFullscreenOrClosePreview" xml:space="preserve"><value>全画面表示を終了またはプレビューを閉じる</value></data>
+  <data name="GlobalActions" xml:space="preserve"><value>全体操作</value></data>
+  <data name="ToggleAllMonitoring" xml:space="preserve"><value>すべてのルームの監視</value></data>
+  <data name="ToggleAllRecording" xml:space="preserve"><value>すべてのルームの録画</value></data>
+  <data name="RefreshAll" xml:space="preserve"><value>すべて更新</value></data>
+  <data name="RefreshList" xml:space="preserve"><value>リストを更新</value></data>
+  <data name="ExitMultiSelect" xml:space="preserve"><value>複数選択を終了</value></data>
+  <data name="UndoVideoSelection" xml:space="preserve"><value>動画の選択を元に戻す</value></data>
+  <data name="RedoVideoSelection" xml:space="preserve"><value>動画の選択をやり直す</value></data>
+  <data name="ImportantNotes" xml:space="preserve"><value>重要な注意事項</value></data>
+  <data name="AboutDoNotForceStopRecording" xml:space="preserve"><value>• 録画ファイルの書き込み中は、Emerde の強制終了、電源切断、関連ファイルの削除をしないでください</value></data>
+  <data name="AboutKeepDependencies" xml:space="preserve"><value>• ffmpeg や libvlc などの依存フォルダーを削除したり、個別に移動したりしないでください</value></data>
+  <data name="AboutEnsureDiskSpace" xml:space="preserve"><value>• 録画の中断やファイル破損を防ぐため、保存先ディスクに十分な空き容量を確保してください</value></data>
+  <data name="AboutStreamStallEffects" xml:space="preserve"><value>• ネットワークや配信元の停止により、映像のフリーズ、フレーム欠落、音声と映像の異常が発生することがあります</value></data>
+  <data name="AboutFeedbackDetails" xml:space="preserve"><value>• 問題を報告する際は、症状、ルームリンク、発生時刻、操作手順、スクリーンショット、対応するログを添えてください</value></data>
 </root>

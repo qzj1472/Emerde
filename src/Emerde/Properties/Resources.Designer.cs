@@ -10,8 +10,8 @@
 
 namespace Emerde.Properties {
     using System;
-    
-    
+
+
     /// <summary>
     ///   A strongly-typed resource class, for looking up localized strings, etc.
     /// </summary>
@@ -19,19 +19,19 @@ namespace Emerde.Properties {
     // class via a tool like ResGen or Visual Studio.
     // To add or remove a member, edit your .ResX file then rerun ResGen
     // with the /str option, or rebuild your VS project.
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "17.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "4.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     public class Resources {
-        
+
         private static global::System.Resources.ResourceManager resourceMan;
-        
+
         private static global::System.Globalization.CultureInfo resourceCulture;
-        
+
         [global::System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode")]
         internal Resources() {
         }
-        
+
         /// <summary>
         ///   Returns the cached ResourceManager instance used by this class.
         /// </summary>
@@ -45,7 +45,7 @@ namespace Emerde.Properties {
                 return resourceMan;
             }
         }
-        
+
         /// <summary>
         ///   Overrides the current thread's CurrentUICulture property for all
         ///   resource lookups using this strongly typed resource class.
@@ -59,7 +59,7 @@ namespace Emerde.Properties {
                 resourceCulture = value;
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to About.
         /// </summary>
@@ -68,7 +68,367 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("About", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Start recording automatically after a usable live stream is found.
+        /// </summary>
+        public static string AboutAutoRecordOnStream {
+            get {
+                return ResourceManager.GetString("AboutAutoRecordOnStream", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Live content that was already missed cannot be recorded later.
+        /// </summary>
+        public static string AboutCannotRecoverMissing {
+            get {
+                return ResourceManager.GetString("AboutCannotRecoverMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Emerde continues running in the system tray after the main window is closed.
+        /// </summary>
+        public static string AboutCloseToTray {
+            get {
+                return ResourceManager.GetString("AboutCloseToTray", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Confirm the platform and streamer information.
+        /// </summary>
+        public static string AboutConfirmPlatformStreamer {
+            get {
+                return ResourceManager.GetString("AboutConfirmPlatformStreamer", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Do not force Emerde to exit before file processing is complete.
+        /// </summary>
+        public static string AboutDoNotExitProcessing {
+            get {
+                return ResourceManager.GetString("AboutDoNotExitProcessing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Do not force Emerde to exit, power off, or delete related files while a recording is being written.
+        /// </summary>
+        public static string AboutDoNotForceStopRecording {
+            get {
+                return ResourceManager.GetString("AboutDoNotForceStopRecording", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Keep enough free disk space to avoid interrupted recordings or damaged files.
+        /// </summary>
+        public static string AboutEnsureDiskSpace {
+            get {
+                return ResourceManager.GetString("AboutEnsureDiskSpace", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • To exit completely, use Exit in the sidebar or tray menu.
+        /// </summary>
+        public static string AboutExitFromMenu {
+            get {
+                return ResourceManager.GetString("AboutExitFromMenu", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Export today&apos;s logs or all logs when reporting a problem.
+        /// </summary>
+        public static string AboutExportLogs {
+            get {
+                return ResourceManager.GetString("AboutExportLogs", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • When reporting a problem, include the symptoms, room link, time, steps, screenshots, and corresponding logs.
+        /// </summary>
+        public static string AboutFeedbackDetails {
+            get {
+                return ResourceManager.GetString("AboutFeedbackDetails", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • View the current recording status and duration on the home page.
+        /// </summary>
+        public static string AboutHomeShowsRecording {
+            get {
+                return ResourceManager.GetString("AboutHomeShowsRecording", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Do not delete or move dependency folders such as ffmpeg or libvlc separately.
+        /// </summary>
+        public static string AboutKeepDependencies {
+            get {
+                return ResourceManager.GetString("AboutKeepDependencies", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Live rooms are checked every 10 seconds.
+        /// </summary>
+        public static string AboutLiveInterval {
+            get {
+                return ResourceManager.GetString("AboutLiveInterval", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Automatically detect when streams start, end, or change status.
+        /// </summary>
+        public static string AboutMonitorDiscovers {
+            get {
+                return ResourceManager.GetString("AboutMonitorDiscovers", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Monitoring detects live status; the recording switch controls whether the stream is saved.
+        /// </summary>
+        public static string AboutMonitorVsRecord {
+            get {
+                return ResourceManager.GetString("AboutMonitorVsRecord", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • MP4 and MKV are converted automatically after recording ends.
+        /// </summary>
+        public static string AboutMp4MkvConvert {
+            get {
+                return ResourceManager.GetString("AboutMp4MkvConvert", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • If the network or source stalls, Emerde protects recorded content and attempts to recover.
+        /// </summary>
+        public static string AboutNetworkRecovery {
+            get {
+                return ResourceManager.GetString("AboutNetworkRecovery", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Offline rooms use the interval in Settings, which defaults to every 5 seconds.
+        /// </summary>
+        public static string AboutOfflineInterval {
+            get {
+                return ResourceManager.GetString("AboutOfflineInterval", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Paste a live room link.
+        /// </summary>
+        public static string AboutPasteRoomLink {
+            get {
+                return ResourceManager.GetString("AboutPasteRoomLink", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Rooms are checked every 10 seconds for 30 minutes after a stream ends.
+        /// </summary>
+        public static string AboutRecentEndedInterval {
+            get {
+                return ResourceManager.GetString("AboutRecentEndedInterval", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Actual capacity also depends on platform routes, disk speed, and system load.
+        /// </summary>
+        public static string AboutRecordingCapacityFactors {
+            get {
+                return ResourceManager.GetString("AboutRecordingCapacityFactors", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Files currently being recorded cannot be selected or modified.
+        /// </summary>
+        public static string AboutRecordingFileLocked {
+            get {
+                return ResourceManager.GetString("AboutRecordingFileLocked", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Recording alone cannot detect when a stream starts; monitoring must also be enabled.
+        /// </summary>
+        public static string AboutRecordingNeedsMonitoring {
+            get {
+                return ResourceManager.GetString("AboutRecordingNeedsMonitoring", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Recovery may create a separate segment to avoid audio and video desynchronization.
+        /// </summary>
+        public static string AboutRecoveryNewSegment {
+            get {
+                return ResourceManager.GetString("AboutRecoveryNewSegment", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Unfinished finalization, split, or transcode tasks resume after the next launch.
+        /// </summary>
+        public static string AboutResumePendingTasks {
+            get {
+                return ResourceManager.GetString("AboutResumePendingTasks", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Retention cleanup only removes expired recordings managed by Emerde.
+        /// </summary>
+        public static string AboutRetentionCleanup {
+            get {
+                return ResourceManager.GetString("AboutRetentionCleanup", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Choose a save folder with sufficient free space.
+        /// </summary>
+        public static string AboutSaveFolderSpace {
+            get {
+                return ResourceManager.GetString("AboutSaveFolderSpace", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Settings can be backed up, restored, and reset.
+        /// </summary>
+        public static string AboutSettingsBackup {
+            get {
+                return ResourceManager.GetString("AboutSettingsBackup", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • The home-page speed test estimates how many streams the current network can record at once.
+        /// </summary>
+        public static string AboutSpeedTestEstimate {
+            get {
+                return ResourceManager.GetString("AboutSpeedTestEstimate", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Network or source stalls may cause frozen frames, dropped frames, or audio and video problems.
+        /// </summary>
+        public static string AboutStreamStallEffects {
+            get {
+                return ResourceManager.GetString("AboutStreamStallEffects", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Monitor, preview, record, and manage videos from multiple live rooms..
+        /// </summary>
+        public static string AboutTagline {
+            get {
+                return ResourceManager.GetString("AboutTagline", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Avoid selecting or modifying files while they are being transcoded.
+        /// </summary>
+        public static string AboutTranscodingFileWarning {
+            get {
+                return ResourceManager.GetString("AboutTranscodingFileWarning", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • TS and FLV preserve the original live stream data more closely.
+        /// </summary>
+        public static string AboutTsFlvRaw {
+            get {
+                return ResourceManager.GetString("AboutTsFlvRaw", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • If live status cannot be confirmed, Emerde keeps checking to avoid a false offline result.
+        /// </summary>
+        public static string AboutUnknownStatusRetry {
+            get {
+                return ResourceManager.GetString("AboutUnknownStatusRetry", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Take care not to delete recordings when updating Emerde.
+        /// </summary>
+        public static string AboutUpdatePreserveRecordings {
+            get {
+                return ResourceManager.GetString("AboutUpdatePreserveRecordings", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Emerde validates a settings file before importing it.
+        /// </summary>
+        public static string AboutValidateImport {
+            get {
+                return ResourceManager.GetString("AboutValidateImport", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Verify that each segment is complete and plays correctly before further operations.
+        /// </summary>
+        public static string AboutVerifySegment {
+            get {
+                return ResourceManager.GetString("AboutVerifySegment", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • View recordings and processing progress in the video list.
+        /// </summary>
+        public static string AboutVideoListProgress {
+            get {
+                return ResourceManager.GetString("AboutVideoListProgress", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Shows recordings, transcoding progress, and other processing states.
+        /// </summary>
+        public static string AboutVideoListStatuses {
+            get {
+                return ResourceManager.GetString("AboutVideoListStatuses", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to • Transcode, split, merge, move, and delete videos.
+        /// </summary>
+        public static string AboutVideoOperations {
+            get {
+                return ResourceManager.GetString("AboutVideoOperations", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Account.
         /// </summary>
@@ -77,7 +437,16 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("Account", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Get.
+        /// </summary>
+        public static string AcquireCookie {
+            get {
+                return ResourceManager.GetString("AcquireCookie", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Add.
         /// </summary>
@@ -86,7 +455,16 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("Add", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Add live room.
+        /// </summary>
+        public static string AddLiveRoom {
+            get {
+                return ResourceManager.GetString("AddLiveRoom", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Add Room.
         /// </summary>
@@ -95,7 +473,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("AddRoom", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to The live room {0} has been added.
         /// </summary>
@@ -104,16 +482,16 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("AddRoomErrorDuplicated", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to Add it directly without detecting validity.
+        ///   Looks up a localized string similar to Add directly without network validity check (URL format is still checked).
         /// </summary>
         public static string AddRoomForce {
             get {
                 return ResourceManager.GetString("AddRoomForce", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Successfully added {0} live room.
         /// </summary>
@@ -122,7 +500,34 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("AddRoomSucc", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Add room (Ctrl+N).
+        /// </summary>
+        public static string AddRoomToolTip {
+            get {
+                return ResourceManager.GetString("AddRoomToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Decrease or increase volume by 5%.
+        /// </summary>
+        public static string AdjustVolumeFivePercent {
+            get {
+                return ResourceManager.GetString("AdjustVolumeFivePercent", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to All platforms.
+        /// </summary>
+        public static string AllPlatforms {
+            get {
+                return ResourceManager.GetString("AllPlatforms", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Appearance Settings.
         /// </summary>
@@ -131,7 +536,34 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("AppearanceSettings", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Author.
+        /// </summary>
+        public static string Author {
+            get {
+                return ResourceManager.GetString("Author", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Automatic monitoring.
+        /// </summary>
+        public static string AutomaticMonitoring {
+            get {
+                return ResourceManager.GetString("AutomaticMonitoring", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Controls whether rooms that follow global settings automatically check their live status..
+        /// </summary>
+        public static string AutomaticMonitoringHint {
+            get {
+                return ResourceManager.GetString("AutomaticMonitoringHint", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Auto Shutdown.
         /// </summary>
@@ -140,7 +572,97 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("AutoShutdown", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Close after transcoding.
+        /// </summary>
+        public static string AutoShutdownAfterTranscode {
+            get {
+                return ResourceManager.GetString("AutoShutdownAfterTranscode", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Close after transcoding.
+        /// </summary>
+        public static string AutoShutdownAfterTranscodeNow {
+            get {
+                return ResourceManager.GetString("AutoShutdownAfterTranscodeNow", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Emerde will close in {0}.
+        /// </summary>
+        public static string AutoShutdownApplicationCountdown {
+            get {
+                return ResourceManager.GetString("AutoShutdownApplicationCountdown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Recording has stopped. Only Emerde will close at the scheduled time; the computer will remain on. To wait for all conversions, choose close after transcoding or enable that option in settings..
+        /// </summary>
+        public static string AutoShutdownApplicationDescription {
+            get {
+                return ResourceManager.GetString("AutoShutdownApplicationDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Cancel close.
+        /// </summary>
+        public static string AutoShutdownCancel {
+            get {
+                return ResourceManager.GetString("AutoShutdownCancel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Shut down computer.
+        /// </summary>
+        public static string AutoShutdownComputer {
+            get {
+                return ResourceManager.GetString("AutoShutdownComputer", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Computer will shut down in {0}.
+        /// </summary>
+        public static string AutoShutdownComputerCountdown {
+            get {
+                return ResourceManager.GetString("AutoShutdownComputerCountdown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Recording has stopped. The computer will shut down at the scheduled time. To wait for all conversions, choose close after transcoding or enable that option in settings..
+        /// </summary>
+        public static string AutoShutdownComputerDescription {
+            get {
+                return ResourceManager.GetString("AutoShutdownComputerDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The system shutdown request failed. Check permissions or shut down the computer manually..
+        /// </summary>
+        public static string AutoShutdownComputerFailed {
+            get {
+                return ResourceManager.GetString("AutoShutdownComputerFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Computer shutdown was triggered. Debug mode will not shut down Windows..
+        /// </summary>
+        public static string AutoShutdownDebugSkipped {
+            get {
+                return ResourceManager.GetString("AutoShutdownDebugSkipped", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Auto shutdown when unrecording.
         /// </summary>
@@ -149,7 +671,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("AutoShutdownHint", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to System will be auto shutdown in 1 minute.
         /// </summary>
@@ -158,7 +680,16 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("AutoShutdownInTime", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Close now.
+        /// </summary>
+        public static string AutoShutdownNow {
+            get {
+                return ResourceManager.GetString("AutoShutdownNow", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Auto Shutdown Time (HH:MM).
         /// </summary>
@@ -168,42 +699,6 @@ namespace Emerde.Properties {
             }
         }
 
-        public static string AutoShutdownAfterTranscode {
-            get { return ResourceManager.GetString("AutoShutdownAfterTranscode", resourceCulture); }
-        }
-
-        public static string AutoShutdownComputer {
-            get { return ResourceManager.GetString("AutoShutdownComputer", resourceCulture); }
-        }
-
-        public static string AutoShutdownCancel {
-            get { return ResourceManager.GetString("AutoShutdownCancel", resourceCulture); }
-        }
-
-        public static string AutoShutdownNow {
-            get { return ResourceManager.GetString("AutoShutdownNow", resourceCulture); }
-        }
-
-        public static string AutoShutdownAfterTranscodeNow {
-            get { return ResourceManager.GetString("AutoShutdownAfterTranscodeNow", resourceCulture); }
-        }
-
-        public static string ButtonOfAcknowledge {
-            get { return ResourceManager.GetString("ButtonOfAcknowledge", resourceCulture); }
-        }
-
-        public static string AutoShutdownComputerDescription {
-            get { return ResourceManager.GetString("AutoShutdownComputerDescription", resourceCulture); }
-        }
-
-        public static string AutoShutdownApplicationDescription {
-            get { return ResourceManager.GetString("AutoShutdownApplicationDescription", resourceCulture); }
-        }
-
-        public static string AutoShutdownComputerFailed {
-            get { return ResourceManager.GetString("AutoShutdownComputerFailed", resourceCulture); }
-        }
-        
         /// <summary>
         ///   Looks up a localized string similar to Avatar.
         /// </summary>
@@ -212,7 +707,34 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("Avatar", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Bitrate {0}.
+        /// </summary>
+        public static string BitrateChip {
+            get {
+                return ResourceManager.GetString("BitrateChip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Bitrate.
+        /// </summary>
+        public static string BitrateLabel {
+            get {
+                return ResourceManager.GetString("BitrateLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Got it.
+        /// </summary>
+        public static string ButtonOfAcknowledge {
+            get {
+                return ResourceManager.GetString("ButtonOfAcknowledge", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Add.
         /// </summary>
@@ -221,7 +743,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("ButtonOfAdd", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Cancel.
         /// </summary>
@@ -230,7 +752,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("ButtonOfCancel", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Close.
         /// </summary>
@@ -239,7 +761,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("ButtonOfClose", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Create Now.
         /// </summary>
@@ -248,7 +770,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("ButtonOfCreateNow", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Goto.
         /// </summary>
@@ -257,7 +779,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("ButtonOfGoto", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Don’t show again.
         /// </summary>
@@ -266,7 +788,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("ButtonOfOffRemind", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Play.
         /// </summary>
@@ -275,7 +797,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("ButtonOfPlay", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Settings.
         /// </summary>
@@ -284,7 +806,34 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("ButtonOfSettings", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Stopping transcoding....
+        /// </summary>
+        public static string CancellingTranscode {
+            get {
+                return ResourceManager.GetString("CancellingTranscode", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Capabilities.
+        /// </summary>
+        public static string Capabilities {
+            get {
+                return ResourceManager.GetString("Capabilities", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Card size.
+        /// </summary>
+        public static string CardSize {
+            get {
+                return ResourceManager.GetString("CardSize", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Check.
         /// </summary>
@@ -293,7 +842,34 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("CheckConnectivity", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Choose where to save the log archive.
+        /// </summary>
+        public static string ChooseLogArchivePath {
+            get {
+                return ResourceManager.GetString("ChooseLogArchivePath", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Clear.
+        /// </summary>
+        public static string Clear {
+            get {
+                return ResourceManager.GetString("Clear", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Close preview (Esc).
+        /// </summary>
+        public static string ClosePreviewShortcutHint {
+            get {
+                return ResourceManager.GetString("ClosePreviewShortcutHint", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Running in the background.
         /// </summary>
@@ -302,7 +878,25 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("CloseToTrayHint", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Close window.
+        /// </summary>
+        public static string CloseWindow {
+            get {
+                return ResourceManager.GetString("CloseWindow", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Collapse details.
+        /// </summary>
+        public static string CollapseDetails {
+            get {
+                return ResourceManager.GetString("CollapseDetails", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Coming soon.
         /// </summary>
@@ -311,7 +905,444 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("ComingSoon", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unknown.
+        /// </summary>
+        public static string CommonUnknown {
+            get {
+                return ResourceManager.GetString("CommonUnknown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Configuration added to the restore list. Select Import to apply it..
+        /// </summary>
+        public static string ConfigAddedToRestoreList {
+            get {
+                return ResourceManager.GetString("ConfigAddedToRestoreList", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Configuration backup.
+        /// </summary>
+        public static string ConfigBackup {
+            get {
+                return ResourceManager.GetString("ConfigBackup", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to An identical configuration already exists and has been selected..
+        /// </summary>
+        public static string ConfigBackupAlreadyExists {
+            get {
+                return ResourceManager.GetString("ConfigBackupAlreadyExists", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0}. The change takes effect after restart. {1}
+        ///
+        ///Restart Emerde now?.
+        /// </summary>
+        public static string ConfigChangedRestartPrompt {
+            get {
+                return ResourceManager.GetString("ConfigChangedRestartPrompt", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Configuration exported.
+        /// </summary>
+        public static string ConfigExported {
+            get {
+                return ResourceManager.GetString("ConfigExported", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to export configuration: {0}.
+        /// </summary>
+        public static string ConfigExportFailed {
+            get {
+                return ResourceManager.GetString("ConfigExportFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Configuration file.
+        /// </summary>
+        public static string ConfigFile {
+            get {
+                return ResourceManager.GetString("ConfigFile", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Configuration file not found..
+        /// </summary>
+        public static string ConfigFileNotFound {
+            get {
+                return ResourceManager.GetString("ConfigFileNotFound", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Configuration imported.
+        /// </summary>
+        public static string ConfigImported {
+            get {
+                return ResourceManager.GetString("ConfigImported", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Configuration imported, but these credentials belong to another Windows account and must be entered again: {0}.
+        /// </summary>
+        public static string ConfigImportedUnavailableSecrets {
+            get {
+                return ResourceManager.GetString("ConfigImportedUnavailableSecrets", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to import configuration: {0}.
+        /// </summary>
+        public static string ConfigImportFailed {
+            get {
+                return ResourceManager.GetString("ConfigImportFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Configuration key names must be valid text..
+        /// </summary>
+        public static string ConfigKeyNameInvalid {
+            get {
+                return ResourceManager.GetString("ConfigKeyNameInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Configuration key {0} has an invalid data type..
+        /// </summary>
+        public static string ConfigKeyTypeInvalid {
+            get {
+                return ResourceManager.GetString("ConfigKeyTypeInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Configuration reset.
+        /// </summary>
+        public static string ConfigReset {
+            get {
+                return ResourceManager.GetString("ConfigReset", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to reset configuration: {0}.
+        /// </summary>
+        public static string ConfigResetFailed {
+            get {
+                return ResourceManager.GetString("ConfigResetFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Configuration reset will take effect after restart. Backups:
+        ///{0}
+        ///
+        ///Restart Emerde now?.
+        /// </summary>
+        public static string ConfigResetRestartPrompt {
+            get {
+                return ResourceManager.GetString("ConfigResetRestartPrompt", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Import, restore, and reset first back up the current meaningful configuration and take effect after restart..
+        /// </summary>
+        public static string ConfigRestoreBackupHint {
+            get {
+                return ResourceManager.GetString("ConfigRestoreBackupHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Configuration restored.
+        /// </summary>
+        public static string ConfigRestored {
+            get {
+                return ResourceManager.GetString("ConfigRestored", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Select a configuration backup to restore, or import or drop a YAML configuration file. The current configuration will not be replaced until you confirm..
+        /// </summary>
+        public static string ConfigRestoreDescription {
+            get {
+                return ResourceManager.GetString("ConfigRestoreDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to restore configuration: {0}.
+        /// </summary>
+        public static string ConfigRestoreFailed {
+            get {
+                return ResourceManager.GetString("ConfigRestoreFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The configuration file must contain a Rooms list..
+        /// </summary>
+        public static string ConfigRoomsRequired {
+            get {
+                return ResourceManager.GetString("ConfigRoomsRequired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Every room in Rooms must contain a valid RoomUrl..
+        /// </summary>
+        public static string ConfigRoomUrlInvalid {
+            get {
+                return ResourceManager.GetString("ConfigRoomUrlInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The configuration file was invalid and has been preserved at: {0}. Emerde has started with default settings..
+        /// </summary>
+        public static string ConfigurationRecovered {
+            get {
+                return ResourceManager.GetString("ConfigurationRecovered", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Delete {0} video files?.
+        /// </summary>
+        public static string ConfirmDeleteVideos {
+            get {
+                return ResourceManager.GetString("ConfirmDeleteVideos", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Remove &quot;{0}&quot;? Its settings will also be removed..
+        /// </summary>
+        public static string ConfirmRemoveExtension {
+            get {
+                return ResourceManager.GetString("ConfirmRemoveExtension", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Remove the selected {0} live rooms?.
+        /// </summary>
+        public static string ConfirmRemoveSelectedRooms {
+            get {
+                return ResourceManager.GetString("ConfirmRemoveSelectedRooms", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Reset the configuration file? The current configuration will be backed up and the reset will take effect after restart..
+        /// </summary>
+        public static string ConfirmResetConfig {
+            get {
+                return ResourceManager.GetString("ConfirmResetConfig", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No signed-in Cookie was found. Complete sign-in before trying again..
+        /// </summary>
+        public static string CookieLoginEmpty {
+            get {
+                return ResourceManager.GetString("CookieLoginEmpty", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Finish and get.
+        /// </summary>
+        public static string CookieLoginFinish {
+            get {
+                return ResourceManager.GetString("CookieLoginFinish", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Starting the secure login browser....
+        /// </summary>
+        public static string CookieLoginInitializing {
+            get {
+                return ResourceManager.GetString("CookieLoginInitializing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Sign in on this page, then choose Finish and get Cookie..
+        /// </summary>
+        public static string CookieLoginInstruction {
+            get {
+                return ResourceManager.GetString("CookieLoginInstruction", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Loading....
+        /// </summary>
+        public static string CookieLoginLoading {
+            get {
+                return ResourceManager.GetString("CookieLoginLoading", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The page failed to load. Check the network or proxy and retry..
+        /// </summary>
+        public static string CookieLoginNavigationFailed {
+            get {
+                return ResourceManager.GetString("CookieLoginNavigationFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unable to open the login page: {0}.
+        /// </summary>
+        public static string CookieLoginOpenFailed {
+            get {
+                return ResourceManager.GetString("CookieLoginOpenFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unable to read Cookie: {0}.
+        /// </summary>
+        public static string CookieLoginReadFailed {
+            get {
+                return ResourceManager.GetString("CookieLoginReadFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Reading this platform&apos;s login Cookie....
+        /// </summary>
+        public static string CookieLoginReading {
+            get {
+                return ResourceManager.GetString("CookieLoginReading", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Microsoft Edge WebView2 Runtime is unavailable..
+        /// </summary>
+        public static string CookieLoginRuntimeMissing {
+            get {
+                return ResourceManager.GetString("CookieLoginRuntimeMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} Cookie was acquired and saved securely..
+        /// </summary>
+        public static string CookieLoginSaved {
+            get {
+                return ResourceManager.GetString("CookieLoginSaved", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This platform does not support automatic Cookie acquisition yet..
+        /// </summary>
+        public static string CookieLoginUnsupported {
+            get {
+                return ResourceManager.GetString("CookieLoginUnsupported", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Copied {0} videos.
+        /// </summary>
+        public static string CopiedVideos {
+            get {
+                return ResourceManager.GetString("CopiedVideos", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Copy.
+        /// </summary>
+        public static string CopyButton {
+            get {
+                return ResourceManager.GetString("CopyButton", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Copying....
+        /// </summary>
+        public static string CopyingVideos {
+            get {
+                return ResourceManager.GetString("CopyingVideos", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Copy live stream (Shift+C).
+        /// </summary>
+        public static string CopyLiveStreamToolTip {
+            get {
+                return ResourceManager.GetString("CopyLiveStreamToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Copy room address.
+        /// </summary>
+        public static string CopyRoomAddress {
+            get {
+                return ResourceManager.GetString("CopyRoomAddress", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Copy room address (C).
+        /// </summary>
+        public static string CopyRoomAddressToolTip {
+            get {
+                return ResourceManager.GetString("CopyRoomAddressToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Copy stream URL.
+        /// </summary>
+        public static string CopyStreamUrl {
+            get {
+                return ResourceManager.GetString("CopyStreamUrl", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Copy text.
+        /// </summary>
+        public static string CopyText {
+            get {
+                return ResourceManager.GetString("CopyText", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Shortcut.
         /// </summary>
@@ -320,7 +1351,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("CreateDesktopShortcut", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Create Desktop Shortcut.
         /// </summary>
@@ -329,7 +1360,188 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("CreateDesktopShortcutHint", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Create optimized audio track (recommended).
+        /// </summary>
+        public static string CreateOptimizedAudioTrack {
+            get {
+                return ResourceManager.GetString("CreateOptimizedAudioTrack", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Current configuration backup:
+        ///{0}.
+        /// </summary>
+        public static string CurrentConfigBackup {
+            get {
+                return ResourceManager.GetString("CurrentConfigBackup", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Custom.
+        /// </summary>
+        public static string Custom {
+            get {
+                return ResourceManager.GetString("Custom", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Custom Rule.
+        /// </summary>
+        public static string CustomRule {
+            get {
+                return ResourceManager.GetString("CustomRule", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Auto Cleanup.
+        /// </summary>
+        public static string DataRetention {
+            get {
+                return ResourceManager.GetString("DataRetention", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to When enabled, automatically delete expired recording files in the save folder..
+        /// </summary>
+        public static string DataRetentionHint {
+            get {
+                return ResourceManager.GetString("DataRetentionHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Date.
+        /// </summary>
+        public static string Date {
+            get {
+                return ResourceManager.GetString("Date", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Days.
+        /// </summary>
+        public static string Days {
+            get {
+                return ResourceManager.GetString("Days", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Delete the current configuration and regenerate defaults after restart.
+        /// </summary>
+        public static string DefaultConfigDescription {
+            get {
+                return ResourceManager.GetString("DefaultConfigDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Default configuration (no configuration file).
+        /// </summary>
+        public static string DefaultConfigTitle {
+            get {
+                return ResourceManager.GetString("DefaultConfigTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Delete.
+        /// </summary>
+        public static string DeleteButton {
+            get {
+                return ResourceManager.GetString("DeleteButton", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Deleted {0} videos.
+        /// </summary>
+        public static string DeletedVideos {
+            get {
+                return ResourceManager.GetString("DeletedVideos", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Delete last.
+        /// </summary>
+        public static string DeleteLast {
+            get {
+                return ResourceManager.GetString("DeleteLast", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Details.
+        /// </summary>
+        public static string Details {
+            get {
+                return ResourceManager.GetString("Details", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Detection intervals.
+        /// </summary>
+        public static string DetectionIntervals {
+            get {
+                return ResourceManager.GetString("DetectionIntervals", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Disable.
+        /// </summary>
+        public static string Disable {
+            get {
+                return ResourceManager.GetString("Disable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Domestic Platforms.
+        /// </summary>
+        public static string DomesticCookiePlatforms {
+            get {
+                return ResourceManager.GetString("DomesticCookiePlatforms", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Douyin verification - Emerde.
+        /// </summary>
+        public static string DouyinVerificationTitle {
+            get {
+                return ResourceManager.GetString("DouyinVerificationTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Drop an extension package to install.
+        /// </summary>
+        public static string DropExtensionPackage {
+            get {
+                return ResourceManager.GetString("DropExtensionPackage", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Release to install extension.
+        /// </summary>
+        public static string DropToInstallExtension {
+            get {
+                return ResourceManager.GetString("DropToInstallExtension", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to No live room added~.
         /// </summary>
@@ -338,16 +1550,43 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("EmptyRoomHint", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to Enable Recording.
+        ///   Looks up a localized string similar to Enable.
+        /// </summary>
+        public static string Enable {
+            get {
+                return ResourceManager.GetString("Enable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} enabled.
+        /// </summary>
+        public static string EnabledExtensionsFormat {
+            get {
+                return ResourceManager.GetString("EnabledExtensionsFormat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enable monitoring.
+        /// </summary>
+        public static string EnableMonitoring {
+            get {
+                return ResourceManager.GetString("EnableMonitoring", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Record.
         /// </summary>
         public static string EnableRecord {
             get {
                 return ResourceManager.GetString("EnableRecord", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Indicates whether live streaming recording is enabled.
         /// </summary>
@@ -356,7 +1595,25 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("EnableRecordHint", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enable recording.
+        /// </summary>
+        public static string EnableRecording {
+            get {
+                return ResourceManager.GetString("EnableRecording", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enter multi-select mode (Ctrl+A selects all).
+        /// </summary>
+        public static string EnterMultiSelectShortcutHint {
+            get {
+                return ResourceManager.GetString("EnterMultiSelectShortcutHint", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Enter room URL.
         /// </summary>
@@ -365,7 +1622,16 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("EnterRoomUrl", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enter a value.
+        /// </summary>
+        public static string EnterValue {
+            get {
+                return ResourceManager.GetString("EnterValue", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Incorrect live room URL.
         /// </summary>
@@ -374,7 +1640,682 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("ErrorRoomUrl", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Execution mode.
+        /// </summary>
+        public static string ExecutionMode {
+            get {
+                return ResourceManager.GetString("ExecutionMode", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Exit and recovery.
+        /// </summary>
+        public static string ExitAndRecovery {
+            get {
+                return ResourceManager.GetString("ExitAndRecovery", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Exit application.
+        /// </summary>
+        public static string ExitApplication {
+            get {
+                return ResourceManager.GetString("ExitApplication", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Exit Emerde (Ctrl+Shift+W).
+        /// </summary>
+        public static string ExitApplicationToolTip {
+            get {
+                return ResourceManager.GetString("ExitApplicationToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Press V or Esc to exit full screen.
+        /// </summary>
+        public static string ExitFullScreenHint {
+            get {
+                return ResourceManager.GetString("ExitFullScreenHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Exit full screen or close preview.
+        /// </summary>
+        public static string ExitFullscreenOrClosePreview {
+            get {
+                return ResourceManager.GetString("ExitFullscreenOrClosePreview", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Exit multi-select.
+        /// </summary>
+        public static string ExitMultiSelect {
+            get {
+                return ResourceManager.GetString("ExitMultiSelect", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Exit multi-select mode (Esc).
+        /// </summary>
+        public static string ExitMultiSelectShortcutHint {
+            get {
+                return ResourceManager.GetString("ExitMultiSelectShortcutHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Export.
+        /// </summary>
+        public static string Export {
+            get {
+                return ResourceManager.GetString("Export", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Export all.
+        /// </summary>
+        public static string ExportAll {
+            get {
+                return ResourceManager.GetString("ExportAll", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Export configuration.
+        /// </summary>
+        public static string ExportConfigTitle {
+            get {
+                return ResourceManager.GetString("ExportConfigTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Select the range of runtime logs to export..
+        /// </summary>
+        public static string ExportLogsPrompt {
+            get {
+                return ResourceManager.GetString("ExportLogsPrompt", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Export runtime logs.
+        /// </summary>
+        public static string ExportLogsTitle {
+            get {
+                return ResourceManager.GetString("ExportLogsTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Export today.
+        /// </summary>
+        public static string ExportToday {
+            get {
+                return ResourceManager.GetString("ExportToday", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No declared capabilities.
+        /// </summary>
+        public static string ExtensionCapabilitiesMissing {
+            get {
+                return ResourceManager.GetString("ExtensionCapabilitiesMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Choice settings must provide options..
+        /// </summary>
+        public static string ExtensionChoiceOptionsMissing {
+            get {
+                return ResourceManager.GetString("ExtensionChoiceOptionsMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No extension description provided.
+        /// </summary>
+        public static string ExtensionDescriptionMissing {
+            get {
+                return ResourceManager.GetString("ExtensionDescriptionMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Disabled.
+        /// </summary>
+        public static string ExtensionDisabled {
+            get {
+                return ResourceManager.GetString("ExtensionDisabled", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enabled.
+        /// </summary>
+        public static string ExtensionEnabled {
+            get {
+                return ResourceManager.GetString("ExtensionEnabled", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unable to create the extension entry instance..
+        /// </summary>
+        public static string ExtensionEntryInstanceCreationFailed {
+            get {
+                return ResourceManager.GetString("ExtensionEntryInstanceCreationFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The extension entry point is outside the extension directory..
+        /// </summary>
+        public static string ExtensionEntryOutsideDirectory {
+            get {
+                return ResourceManager.GetString("ExtensionEntryOutsideDirectory", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The extension entry point must be a relative path within the package..
+        /// </summary>
+        public static string ExtensionEntryPathInvalid {
+            get {
+                return ResourceManager.GetString("ExtensionEntryPathInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Extension entry point not found: {0}.
+        /// </summary>
+        public static string ExtensionEntryPointMissing {
+            get {
+                return ResourceManager.GetString("ExtensionEntryPointMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} does not implement IEmerdeExtension..
+        /// </summary>
+        public static string ExtensionEntryTypeUnsupported {
+            get {
+                return ResourceManager.GetString("ExtensionEntryTypeUnsupported", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to execution_mode must be in_process or process..
+        /// </summary>
+        public static string ExtensionExecutionModeInvalid {
+            get {
+                return ResourceManager.GetString("ExtensionExecutionModeInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Extension icons must be PNG, JPEG, BMP, GIF, or ICO files..
+        /// </summary>
+        public static string ExtensionIconFormatUnsupported {
+            get {
+                return ResourceManager.GetString("ExtensionIconFormatUnsupported", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Extension icon not found: {0}.
+        /// </summary>
+        public static string ExtensionIconMissing {
+            get {
+                return ResourceManager.GetString("ExtensionIconMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The extension icon cannot exceed 5 MB..
+        /// </summary>
+        public static string ExtensionIconTooLarge {
+            get {
+                return ResourceManager.GetString("ExtensionIconTooLarge", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The extension ID must contain only lowercase letters, numbers, periods, and hyphens, and be 3 to 100 characters long..
+        /// </summary>
+        public static string ExtensionIdInvalid {
+            get {
+                return ResourceManager.GetString("ExtensionIdInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to In-process · Elevated privileges.
+        /// </summary>
+        public static string ExtensionInProcess {
+            get {
+                return ResourceManager.GetString("ExtensionInProcess", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to In-process extensions must provide a DLL entry point and entry_type..
+        /// </summary>
+        public static string ExtensionInProcessEntryInvalid {
+            get {
+                return ResourceManager.GetString("ExtensionInProcessEntryInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to In-process extensions do not use the process invocation protocol..
+        /// </summary>
+        public static string ExtensionInProcessProtocolUnsupported {
+            get {
+                return ResourceManager.GetString("ExtensionInProcessProtocolUnsupported", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Manifest invalid.
+        /// </summary>
+        public static string ExtensionManifestInvalid {
+            get {
+                return ResourceManager.GetString("ExtensionManifestInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The extension package is missing extension.json..
+        /// </summary>
+        public static string ExtensionManifestMissing {
+            get {
+                return ResourceManager.GetString("ExtensionManifestMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Extension manifest schema version {0} is not supported..
+        /// </summary>
+        public static string ExtensionManifestSchemaUnsupported {
+            get {
+                return ResourceManager.GetString("ExtensionManifestSchemaUnsupported", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unable to read the extension manifest..
+        /// </summary>
+        public static string ExtensionManifestUnreadable {
+            get {
+                return ResourceManager.GetString("ExtensionManifestUnreadable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to minimum_host_version is invalid..
+        /// </summary>
+        public static string ExtensionMinimumHostVersionInvalid {
+            get {
+                return ResourceManager.GetString("ExtensionMinimumHostVersionInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The extension requires Emerde {0} or later..
+        /// </summary>
+        public static string ExtensionMinimumHostVersionUnsupported {
+            get {
+                return ResourceManager.GetString("ExtensionMinimumHostVersionUnsupported", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The extension name is required and cannot exceed 80 characters..
+        /// </summary>
+        public static string ExtensionNameInvalid {
+            get {
+                return ResourceManager.GetString("ExtensionNameInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The extension is not enabled..
+        /// </summary>
+        public static string ExtensionNotEnabled {
+            get {
+                return ResourceManager.GetString("ExtensionNotEnabled", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Extension not found: {0}.
+        /// </summary>
+        public static string ExtensionNotFound {
+            get {
+                return ResourceManager.GetString("ExtensionNotFound", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The extension package contains too many files..
+        /// </summary>
+        public static string ExtensionPackageEntryLimitExceeded {
+            get {
+                return ResourceManager.GetString("ExtensionPackageEntryLimitExceeded", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The extracted extension package exceeds the size limit..
+        /// </summary>
+        public static string ExtensionPackageExpandedSizeExceeded {
+            get {
+                return ResourceManager.GetString("ExtensionPackageExpandedSizeExceeded", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Emerde extension package.
+        /// </summary>
+        public static string ExtensionPackageFilter {
+            get {
+                return ResourceManager.GetString("ExtensionPackageFilter", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The extension package must contain extension.json at its root or in one unique top-level directory..
+        /// </summary>
+        public static string ExtensionPackageManifestLocationInvalid {
+            get {
+                return ResourceManager.GetString("ExtensionPackageManifestLocationInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The extension package contains a path outside its root..
+        /// </summary>
+        public static string ExtensionPackagePathTraversal {
+            get {
+                return ResourceManager.GetString("ExtensionPackagePathTraversal", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Only .emerde-extension and .zip extension packages are supported..
+        /// </summary>
+        public static string ExtensionPackageUnsupported {
+            get {
+                return ResourceManager.GetString("ExtensionPackageUnsupported", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to , .
+        /// </summary>
+        public static string ExtensionPermissionSeparator {
+            get {
+                return ResourceManager.GetString("ExtensionPermissionSeparator", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No declared permissions.
+        /// </summary>
+        public static string ExtensionPermissionsMissing {
+            get {
+                return ResourceManager.GetString("ExtensionPermissionsMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to start the extension process..
+        /// </summary>
+        public static string ExtensionProcessStartFailed {
+            get {
+                return ResourceManager.GetString("ExtensionProcessStartFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Extension removed.
+        /// </summary>
+        public static string ExtensionRemoved {
+            get {
+                return ResourceManager.GetString("ExtensionRemoved", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The extension returned an invalid response. Exit code: {0}.
+        /// </summary>
+        public static string ExtensionResponseInvalid {
+            get {
+                return ResourceManager.GetString("ExtensionResponseInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Extension responded successfully.
+        /// </summary>
+        public static string ExtensionResponseSucceeded {
+            get {
+                return ResourceManager.GetString("ExtensionResponseSucceeded", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Running.
+        /// </summary>
+        public static string ExtensionRunning {
+            get {
+                return ResourceManager.GetString("ExtensionRunning", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Extension runtime not found: {0}.
+        /// </summary>
+        public static string ExtensionRuntimeMissing {
+            get {
+                return ResourceManager.GetString("ExtensionRuntimeMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The extension runtime is not supported..
+        /// </summary>
+        public static string ExtensionRuntimeUnsupported {
+            get {
+                return ResourceManager.GetString("ExtensionRuntimeUnsupported", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Extensions.
+        /// </summary>
+        public static string Extensions {
+            get {
+                return ResourceManager.GetString("Extensions", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Install, manage, and remove third-party extensions. Extensions can access application capabilities, so install only from sources you trust..
+        /// </summary>
+        public static string ExtensionsDescription {
+            get {
+                return ResourceManager.GetString("ExtensionsDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Separate process · {0}.
+        /// </summary>
+        public static string ExtensionSeparateProcess {
+            get {
+                return ResourceManager.GetString("ExtensionSeparateProcess", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} must be a Boolean value..
+        /// </summary>
+        public static string ExtensionSettingBooleanRequired {
+            get {
+                return ResourceManager.GetString("ExtensionSettingBooleanRequired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The selected value for {0} is invalid..
+        /// </summary>
+        public static string ExtensionSettingChoiceInvalid {
+            get {
+                return ResourceManager.GetString("ExtensionSettingChoiceInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Extension setting columns must be 0 or 1..
+        /// </summary>
+        public static string ExtensionSettingColumnInvalid {
+            get {
+                return ResourceManager.GetString("ExtensionSettingColumnInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Extension setting definitions cannot be null..
+        /// </summary>
+        public static string ExtensionSettingDefinitionNull {
+            get {
+                return ResourceManager.GetString("ExtensionSettingDefinitionNull", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to An extension setting has an invalid visibility dependency..
+        /// </summary>
+        public static string ExtensionSettingDependencyInvalid {
+            get {
+                return ResourceManager.GetString("ExtensionSettingDependencyInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to An extension setting key is invalid or duplicated..
+        /// </summary>
+        public static string ExtensionSettingKeyInvalid {
+            get {
+                return ResourceManager.GetString("ExtensionSettingKeyInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} must be a number..
+        /// </summary>
+        public static string ExtensionSettingNumberRequired {
+            get {
+                return ResourceManager.GetString("ExtensionSettingNumberRequired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enter {0}..
+        /// </summary>
+        public static string ExtensionSettingRequired {
+            get {
+                return ResourceManager.GetString("ExtensionSettingRequired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Extension settings.
+        /// </summary>
+        public static string ExtensionSettings {
+            get {
+                return ResourceManager.GetString("ExtensionSettings", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Extension settings saved.
+        /// </summary>
+        public static string ExtensionSettingsSaved {
+            get {
+                return ResourceManager.GetString("ExtensionSettingsSaved", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to An extension setting uses an unsupported type..
+        /// </summary>
+        public static string ExtensionSettingTypeUnsupported {
+            get {
+                return ResourceManager.GetString("ExtensionSettingTypeUnsupported", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The extension already has a task running..
+        /// </summary>
+        public static string ExtensionTaskAlreadyRunning {
+            get {
+                return ResourceManager.GetString("ExtensionTaskAlreadyRunning", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The extension task was canceled..
+        /// </summary>
+        public static string ExtensionTaskCanceled {
+            get {
+                return ResourceManager.GetString("ExtensionTaskCanceled", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The extension task timed out..
+        /// </summary>
+        public static string ExtensionTaskTimedOut {
+            get {
+                return ResourceManager.GetString("ExtensionTaskTimedOut", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The extension timeout must be between 5 and 86400 seconds..
+        /// </summary>
+        public static string ExtensionTimeoutInvalid {
+            get {
+                return ResourceManager.GetString("ExtensionTimeoutInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The extension version must use semantic versioning..
+        /// </summary>
+        public static string ExtensionVersionInvalid {
+            get {
+                return ResourceManager.GetString("ExtensionVersionInvalid", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Operation failed.
         /// </summary>
@@ -383,7 +2324,70 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("FailOp", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to File name.
+        /// </summary>
+        public static string FileName {
+            get {
+                return ResourceManager.GetString("FileName", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Files and data.
+        /// </summary>
+        public static string FilesAndData {
+            get {
+                return ResourceManager.GetString("FilesAndData", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Manage recordings, storage, logs, and application settings..
+        /// </summary>
+        public static string FilesAndDataDescription {
+            get {
+                return ResourceManager.GetString("FilesAndDataDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Fine-tune selection.
+        /// </summary>
+        public static string FineTune {
+            get {
+                return ResourceManager.GetString("FineTune", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The selected folder must be inside a configured save folder..
+        /// </summary>
+        public static string FolderMustBeInsideConfiguredSaveFolder {
+            get {
+                return ResourceManager.GetString("FolderMustBeInsideConfiguredSaveFolder", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Follow global settings.
+        /// </summary>
+        public static string FollowGlobalSettings {
+            get {
+                return ResourceManager.GetString("FollowGlobalSettings", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Fri.
+        /// </summary>
+        public static string Friday {
+            get {
+                return ResourceManager.GetString("Friday", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Failed to get information about the live room.
         /// </summary>
@@ -392,7 +2396,25 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("GetRoomInfoError", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Global actions.
+        /// </summary>
+        public static string GlobalActions {
+            get {
+                return ResourceManager.GetString("GlobalActions", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Restrict global automatic monitoring by day and time range..
+        /// </summary>
+        public static string GlobalMonitoringScheduleHint {
+            get {
+                return ResourceManager.GetString("GlobalMonitoringScheduleHint", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Goto Live Room.
         /// </summary>
@@ -401,7 +2423,43 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("GotoLiveRoom", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Check.
+        /// </summary>
+        public static string HealthCheck {
+            get {
+                return ResourceManager.GetString("HealthCheck", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Home live rooms.
+        /// </summary>
+        public static string HomeLiveRooms {
+            get {
+                return ResourceManager.GetString("HomeLiveRooms", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Home.
+        /// </summary>
+        public static string HomePage {
+            get {
+                return ResourceManager.GetString("HomePage", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Hours.
+        /// </summary>
+        public static string Hours {
+            get {
+                return ResourceManager.GetString("Hours", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to How to get it?.
         /// </summary>
@@ -411,84 +2469,141 @@ namespace Emerde.Properties {
             }
         }
 
-        public static string AcquireCookie {
+        /// <summary>
+        ///   Looks up a localized string similar to Identifier.
+        /// </summary>
+        public static string Identifier {
             get {
-                return ResourceManager.GetString("AcquireCookie", resourceCulture);
+                return ResourceManager.GetString("Identifier", resourceCulture);
             }
         }
 
-        public static string CookieLoginInitializing {
+        /// <summary>
+        ///   Looks up a localized string similar to Import.
+        /// </summary>
+        public static string Import {
             get {
-                return ResourceManager.GetString("CookieLoginInitializing", resourceCulture);
+                return ResourceManager.GetString("Import", resourceCulture);
             }
         }
 
-        public static string CookieLoginInstruction {
+        /// <summary>
+        ///   Looks up a localized string similar to Important notes.
+        /// </summary>
+        public static string ImportantNotes {
             get {
-                return ResourceManager.GetString("CookieLoginInstruction", resourceCulture);
+                return ResourceManager.GetString("ImportantNotes", resourceCulture);
             }
         }
 
-        public static string CookieLoginFinish {
+        /// <summary>
+        ///   Looks up a localized string similar to Import configuration.
+        /// </summary>
+        public static string ImportConfigTitle {
             get {
-                return ResourceManager.GetString("CookieLoginFinish", resourceCulture);
+                return ResourceManager.GetString("ImportConfigTitle", resourceCulture);
             }
         }
 
-        public static string CookieLoginRuntimeMissing {
+        /// <summary>
+        ///   Looks up a localized string similar to The imported configuration contains no valid data..
+        /// </summary>
+        public static string ImportedConfigEmpty {
             get {
-                return ResourceManager.GetString("CookieLoginRuntimeMissing", resourceCulture);
+                return ResourceManager.GetString("ImportedConfigEmpty", resourceCulture);
             }
         }
 
-        public static string CookieLoginOpenFailed {
+        /// <summary>
+        ///   Looks up a localized string similar to Imported {0} videos.
+        /// </summary>
+        public static string ImportedVideos {
             get {
-                return ResourceManager.GetString("CookieLoginOpenFailed", resourceCulture);
+                return ResourceManager.GetString("ImportedVideos", resourceCulture);
             }
         }
 
-        public static string CookieLoginReading {
+        /// <summary>
+        ///   Looks up a localized string similar to Import.
+        /// </summary>
+        public static string ImportFolder {
             get {
-                return ResourceManager.GetString("CookieLoginReading", resourceCulture);
+                return ResourceManager.GetString("ImportFolder", resourceCulture);
             }
         }
 
-        public static string CookieLoginEmpty {
+        /// <summary>
+        ///   Looks up a localized string similar to Importing videos....
+        /// </summary>
+        public static string ImportingVideos {
             get {
-                return ResourceManager.GetString("CookieLoginEmpty", resourceCulture);
+                return ResourceManager.GetString("ImportingVideos", resourceCulture);
             }
         }
 
-        public static string CookieLoginReadFailed {
+        /// <summary>
+        ///   Looks up a localized string similar to In-process extensions have elevated access to monitoring, recording, files, and the interface. Save your work before disabling one, and install only trusted extensions..
+        /// </summary>
+        public static string InProcessTrustWarning {
             get {
-                return ResourceManager.GetString("CookieLoginReadFailed", resourceCulture);
+                return ResourceManager.GetString("InProcessTrustWarning", resourceCulture);
             }
         }
 
-        public static string CookieLoginLoading {
+        /// <summary>
+        ///   Looks up a localized string similar to Insert variable {0}.
+        /// </summary>
+        public static string InsertVariable {
             get {
-                return ResourceManager.GetString("CookieLoginLoading", resourceCulture);
+                return ResourceManager.GetString("InsertVariable", resourceCulture);
             }
         }
 
-        public static string CookieLoginNavigationFailed {
+        /// <summary>
+        ///   Looks up a localized string similar to Installed {0} extensions.
+        /// </summary>
+        public static string InstalledExtensions {
             get {
-                return ResourceManager.GetString("CookieLoginNavigationFailed", resourceCulture);
+                return ResourceManager.GetString("InstalledExtensions", resourceCulture);
             }
         }
 
-        public static string CookieLoginUnsupported {
+        /// <summary>
+        ///   Looks up a localized string similar to Installed extensions.
+        /// </summary>
+        public static string InstalledExtensionSection {
             get {
-                return ResourceManager.GetString("CookieLoginUnsupported", resourceCulture);
+                return ResourceManager.GetString("InstalledExtensionSection", resourceCulture);
             }
         }
 
-        public static string CookieLoginSaved {
+        /// <summary>
+        ///   Looks up a localized string similar to Install extension.
+        /// </summary>
+        public static string InstallExtension {
             get {
-                return ResourceManager.GetString("CookieLoginSaved", resourceCulture);
+                return ResourceManager.GetString("InstallExtension", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to The file name cannot be empty or contain a path or invalid characters..
+        /// </summary>
+        public static string InvalidVideoFileName {
+            get {
+                return ResourceManager.GetString("InvalidVideoFileName", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Invert selection.
+        /// </summary>
+        public static string InvertSelection {
+            get {
+                return ResourceManager.GetString("InvertSelection", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Keep Windows System Awake.
         /// </summary>
@@ -497,7 +2612,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("KeepActiveHint", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Keep Awake.
         /// </summary>
@@ -506,7 +2621,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("KeepAwake", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Language.
         /// </summary>
@@ -515,7 +2630,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("Language", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Default follows the system language.
         /// </summary>
@@ -524,7 +2639,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("LanguageHint", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Live Notification.
         /// </summary>
@@ -533,7 +2648,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("LiveNotification", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Whether to notify the start of the streaming through Windows system notifications, etc.
         /// </summary>
@@ -542,7 +2657,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("LiveNotificationHint", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Auto goto Live Room.
         /// </summary>
@@ -551,7 +2666,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("LiveNotificationToGotoLiveRoom", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Auto mute.
         /// </summary>
@@ -560,7 +2675,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("LiveNotificationToGotoLiveRoomAndMute", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Notification via E-mail.
         /// </summary>
@@ -569,7 +2684,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("LiveNotificationToMail", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Notification via playing music.
         /// </summary>
@@ -578,7 +2693,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("LiveNotificationToPlayMusic", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Use built-in music or specify music file path.
         /// </summary>
@@ -587,7 +2702,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("LiveNotificationToPlayMusicPath", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Notification via Windows System.
         /// </summary>
@@ -596,7 +2711,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("LiveNotificationToSystem", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Live Preview.
         /// </summary>
@@ -605,16 +2720,16 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("LivePreview", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to Preview error.
+        ///   Looks up a localized string similar to Preview failed.
         /// </summary>
         public static string LivePreviewError {
             get {
                 return ResourceManager.GetString("LivePreviewError", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Select a live room to preview.
         /// </summary>
@@ -623,7 +2738,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("LivePreviewIdle", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Previewing.
         /// </summary>
@@ -632,7 +2747,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("LivePreviewPlaying", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Ready to preview.
         /// </summary>
@@ -641,13 +2756,670 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("LivePreviewReady", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to No live preview stream available.
+        ///   Looks up a localized string similar to No preview stream available.
         /// </summary>
         public static string LivePreviewUnavailable {
             get {
                 return ResourceManager.GetString("LivePreviewUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Live Room.
+        /// </summary>
+        public static string LiveRoom {
+            get {
+                return ResourceManager.GetString("LiveRoom", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Live stream.
+        /// </summary>
+        public static string LiveStream {
+            get {
+                return ResourceManager.GetString("LiveStream", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Title.
+        /// </summary>
+        public static string LiveTitle {
+            get {
+                return ResourceManager.GetString("LiveTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Loading platforms.
+        /// </summary>
+        public static string LoadPlatforms {
+            get {
+                return ResourceManager.GetString("LoadPlatforms", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to export logs: {0}.
+        /// </summary>
+        public static string LogExportFailed {
+            get {
+                return ResourceManager.GetString("LogExportFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Logs and settings.
+        /// </summary>
+        public static string LogsAndSettings {
+            get {
+                return ResourceManager.GetString("LogsAndSettings", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Logs exported: {0}.
+        /// </summary>
+        public static string LogsExported {
+            get {
+                return ResourceManager.GetString("LogsExported", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Long Running Settings.
+        /// </summary>
+        public static string LongRunningSettings {
+            get {
+                return ResourceManager.GetString("LongRunningSettings", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The selected videos have different codecs, resolutions, or audio tracks and cannot be merged losslessly..
+        /// </summary>
+        public static string LosslessMergeIncompatible {
+            get {
+                return ResourceManager.GetString("LosslessMergeIncompatible", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Goto {0}&apos;s live room immediately.
+        /// </summary>
+        public static string MailBodyElement {
+            get {
+                return ResourceManager.GetString("MailBodyElement", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enable or disable extension.
+        /// </summary>
+        public static string ManageExtensionToggle {
+            get {
+                return ResourceManager.GetString("ManageExtensionToggle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Manage videos.
+        /// </summary>
+        public static string ManageVideos {
+            get {
+                return ResourceManager.GetString("ManageVideos", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to merge by segment number.
+        /// </summary>
+        public static string MergeBySegmentNumber {
+            get {
+                return ResourceManager.GetString("MergeBySegmentNumber", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to merge by selection order.
+        /// </summary>
+        public static string MergeBySelectionOrder {
+            get {
+                return ResourceManager.GetString("MergeBySelectionOrder", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Merge complete.
+        /// </summary>
+        public static string MergeComplete {
+            get {
+                return ResourceManager.GetString("MergeComplete", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Merge failed.
+        /// </summary>
+        public static string MergeFailed {
+            get {
+                return ResourceManager.GetString("MergeFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Only videos with the same format can be merged.
+        /// </summary>
+        public static string MergeFormatsMustMatch {
+            get {
+                return ResourceManager.GetString("MergeFormatsMustMatch", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to select at least two videos.
+        /// </summary>
+        public static string MergeReasonAtLeastTwoVideos {
+            get {
+                return ResourceManager.GetString("MergeReasonAtLeastTwoVideos", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to video formats differ.
+        /// </summary>
+        public static string MergeReasonDifferentFormats {
+            get {
+                return ResourceManager.GetString("MergeReasonDifferentFormats", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to video resolutions differ.
+        /// </summary>
+        public static string MergeReasonDifferentResolutions {
+            get {
+                return ResourceManager.GetString("MergeReasonDifferentResolutions", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to videos include different streamers.
+        /// </summary>
+        public static string MergeReasonDifferentStreamers {
+            get {
+                return ResourceManager.GetString("MergeReasonDifferentStreamers", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to segment numbers are not contiguous.
+        /// </summary>
+        public static string MergeReasonNonContiguousSegments {
+            get {
+                return ResourceManager.GetString("MergeReasonNonContiguousSegments", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to ; .
+        /// </summary>
+        public static string MergeReasonSeparator {
+            get {
+                return ResourceManager.GetString("MergeReasonSeparator", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Validation passed; {0}..
+        /// </summary>
+        public static string MergeValidationPassed {
+            get {
+                return ResourceManager.GetString("MergeValidationPassed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0}; {1}..
+        /// </summary>
+        public static string MergeValidationWarnings {
+            get {
+                return ResourceManager.GetString("MergeValidationWarnings", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Merge.
+        /// </summary>
+        public static string MergeVideos {
+            get {
+                return ResourceManager.GetString("MergeVideos", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Merging....
+        /// </summary>
+        public static string MergingVideos {
+            get {
+                return ResourceManager.GetString("MergingVideos", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Milliseconds.
+        /// </summary>
+        public static string Milliseconds {
+            get {
+                return ResourceManager.GetString("Milliseconds", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Minutes.
+        /// </summary>
+        public static string Minutes {
+            get {
+                return ResourceManager.GetString("Minutes", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Mon.
+        /// </summary>
+        public static string Monday {
+            get {
+                return ResourceManager.GetString("Monday", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Monitor.
+        /// </summary>
+        public static string Monitor {
+            get {
+                return ResourceManager.GetString("Monitor", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Monitoring and recording.
+        /// </summary>
+        public static string MonitoringAndRecording {
+            get {
+                return ResourceManager.GetString("MonitoringAndRecording", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Monitoring schedule.
+        /// </summary>
+        public static string MonitoringSchedule {
+            get {
+                return ResourceManager.GetString("MonitoringSchedule", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Months.
+        /// </summary>
+        public static string Months {
+            get {
+                return ResourceManager.GetString("Months", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Move.
+        /// </summary>
+        public static string MoveButton {
+            get {
+                return ResourceManager.GetString("MoveButton", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Moved {0} videos.
+        /// </summary>
+        public static string MovedVideos {
+            get {
+                return ResourceManager.GetString("MovedVideos", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Moving....
+        /// </summary>
+        public static string MovingVideos {
+            get {
+                return ResourceManager.GetString("MovingVideos", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Multi-select.
+        /// </summary>
+        public static string MultiSelect {
+            get {
+                return ResourceManager.GetString("MultiSelect", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Go directly to page.
+        /// </summary>
+        public static string NavigateDirectly {
+            get {
+                return ResourceManager.GetString("NavigateDirectly", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Next page.
+        /// </summary>
+        public static string NavigateNextPage {
+            get {
+                return ResourceManager.GetString("NavigateNextPage", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Previous page.
+        /// </summary>
+        public static string NavigatePreviousPage {
+            get {
+                return ResourceManager.GetString("NavigatePreviousPage", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to About (Alt+5, Tab up / CapsLock down).
+        /// </summary>
+        public static string NavigationAboutToolTip {
+            get {
+                return ResourceManager.GetString("NavigationAboutToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Extensions (Alt+4, Tab up / CapsLock down).
+        /// </summary>
+        public static string NavigationExtensionsToolTip {
+            get {
+                return ResourceManager.GetString("NavigationExtensionsToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Home (Alt+1, Tab up / CapsLock down).
+        /// </summary>
+        public static string NavigationHomeToolTip {
+            get {
+                return ResourceManager.GetString("NavigationHomeToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Settings (Alt+3, Tab up / CapsLock down).
+        /// </summary>
+        public static string NavigationSettingsToolTip {
+            get {
+                return ResourceManager.GetString("NavigationSettingsToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Videos (Alt+2, Tab up / CapsLock down).
+        /// </summary>
+        public static string NavigationVideosToolTip {
+            get {
+                return ResourceManager.GetString("NavigationVideosToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to high.
+        /// </summary>
+        public static string NetworkCapacityConfidenceHigh {
+            get {
+                return ResourceManager.GetString("NetworkCapacityConfidenceHigh", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to low.
+        /// </summary>
+        public static string NetworkCapacityConfidenceLow {
+            get {
+                return ResourceManager.GetString("NetworkCapacityConfidenceLow", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to medium.
+        /// </summary>
+        public static string NetworkCapacityConfidenceMedium {
+            get {
+                return ResourceManager.GetString("NetworkCapacityConfidenceMedium", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Three-round multi-node test: {0}, {1}. Each stream is estimated at {2:0.##} Mbps without relying on the current live stream; {3} valid samples, {4} confidence..
+        /// </summary>
+        public static string NetworkCapacityDetailedResult {
+            get {
+                return ResourceManager.GetString("NetworkCapacityDetailedResult", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Domestic.
+        /// </summary>
+        public static string NetworkCapacityDomesticRegion {
+            get {
+                return ResourceManager.GetString("NetworkCapacityDomesticRegion", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Domestic: {0} streams.
+        /// </summary>
+        public static string NetworkCapacityDomesticShort {
+            get {
+                return ResourceManager.GetString("NetworkCapacityDomesticShort", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Network test failed.
+        /// </summary>
+        public static string NetworkCapacityFailed {
+            get {
+                return ResourceManager.GetString("NetworkCapacityFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Run three download test rounds to estimate simultaneous recording capacity.
+        /// </summary>
+        public static string NetworkCapacityHint {
+            get {
+                return ResourceManager.GetString("NetworkCapacityHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Network test.
+        /// </summary>
+        public static string NetworkCapacityIdle {
+            get {
+                return ResourceManager.GetString("NetworkCapacityIdle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to , .
+        /// </summary>
+        public static string NetworkCapacityListSeparator {
+            get {
+                return ResourceManager.GetString("NetworkCapacityListSeparator", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No live stream is available for testing.
+        /// </summary>
+        public static string NetworkCapacityNoStream {
+            get {
+                return ResourceManager.GetString("NetworkCapacityNoStream", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No stream.
+        /// </summary>
+        public static string NetworkCapacityNoStreamShort {
+            get {
+                return ResourceManager.GetString("NetworkCapacityNoStreamShort", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to not tested.
+        /// </summary>
+        public static string NetworkCapacityNotTested {
+            get {
+                return ResourceManager.GetString("NetworkCapacityNotTested", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Overseas.
+        /// </summary>
+        public static string NetworkCapacityOverseasRegion {
+            get {
+                return ResourceManager.GetString("NetworkCapacityOverseasRegion", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Overseas: {0} streams.
+        /// </summary>
+        public static string NetworkCapacityOverseasShort {
+            get {
+                return ResourceManager.GetString("NetworkCapacityOverseasShort", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0}: {1:0.##} Mbps, about {2} streams at {3:0.##} Mbps each.
+        /// </summary>
+        public static string NetworkCapacityRegionDetail {
+            get {
+                return ResourceManager.GetString("NetworkCapacityRegionDetail", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0:0.##} Mbps ({1} samples).
+        /// </summary>
+        public static string NetworkCapacityRegionMeasured {
+            get {
+                return ResourceManager.GetString("NetworkCapacityRegionMeasured", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0}: unavailable.
+        /// </summary>
+        public static string NetworkCapacityRegionUnavailable {
+            get {
+                return ResourceManager.GetString("NetworkCapacityRegionUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Multi-node three-round result {0:0.##} Mbps (domestic {4} / overseas {5}), {6} valid speed samples with {7} confidence. Estimated {1:0.##} Mbps per stream, can record about {2} streams at once from {3} live samples.
+        /// </summary>
+        public static string NetworkCapacityResultHint {
+            get {
+                return ResourceManager.GetString("NetworkCapacityResultHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} streams.
+        /// </summary>
+        public static string NetworkCapacityResultShort {
+            get {
+                return ResourceManager.GetString("NetworkCapacityResultShort", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Testing.
+        /// </summary>
+        public static string NetworkCapacityTesting {
+            get {
+                return ResourceManager.GetString("NetworkCapacityTesting", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Network recovery.
+        /// </summary>
+        public static string NetworkRecovery {
+            get {
+                return ResourceManager.GetString("NetworkRecovery", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Network Settings.
+        /// </summary>
+        public static string NetworkSettings {
+            get {
+                return ResourceManager.GetString("NetworkSettings", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Network speed test.
+        /// </summary>
+        public static string NetworkSpeedTest {
+            get {
+                return ResourceManager.GetString("NetworkSpeedTest", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No.
+        /// </summary>
+        public static string No {
+            get {
+                return ResourceManager.GetString("No", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No save folder is available..
+        /// </summary>
+        public static string NoAvailableSaveFolder {
+            get {
+                return ResourceManager.GetString("NoAvailableSaveFolder", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No configuration files required backup..
+        /// </summary>
+        public static string NoConfigFilesToBackup {
+            get {
+                return ResourceManager.GetString("NoConfigFilesToBackup", resourceCulture);
             }
         }
 
@@ -657,6 +3429,249 @@ namespace Emerde.Properties {
         public static string NoCookie {
             get {
                 return ResourceManager.GetString("NoCookie", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No-cookie Platforms.
+        /// </summary>
+        public static string NoCookiePlatforms {
+            get {
+                return ResourceManager.GetString("NoCookiePlatforms", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No log files are available to export..
+        /// </summary>
+        public static string NoExportableLogFiles {
+            get {
+                return ResourceManager.GetString("NoExportableLogFiles", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No extensions installed.
+        /// </summary>
+        public static string NoExtensionsInstalled {
+            get {
+                return ResourceManager.GetString("NoExtensionsInstalled", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Drop an extension package on this page or use Install extension in the upper-right corner..
+        /// </summary>
+        public static string NoExtensionsInstalledDescription {
+            get {
+                return ResourceManager.GetString("NoExtensionsInstalledDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No installable extension packages found.
+        /// </summary>
+        public static string NoInstallableExtensions {
+            get {
+                return ResourceManager.GetString("NoInstallableExtensions", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The current configuration only contained initial startup confirmation data, so no backup was created..
+        /// </summary>
+        public static string NoMeaningfulConfigBackup {
+            get {
+                return ResourceManager.GetString("NoMeaningfulConfigBackup", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to There are currently no recording tasks.
+        /// </summary>
+        public static string NoRecordTask {
+            get {
+                return ResourceManager.GetString("NoRecordTask", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This feature is not supported in recording mode.
+        /// </summary>
+        public static string NotSupportedOnRecording {
+            get {
+                return ResourceManager.GetString("NotSupportedOnRecording", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Open current room settings.
+        /// </summary>
+        public static string OpenCurrentRoomSettingsToolTip {
+            get {
+                return ResourceManager.GetString("OpenCurrentRoomSettingsToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Open current room page (E).
+        /// </summary>
+        public static string OpenCurrentRoomToolTip {
+            get {
+                return ResourceManager.GetString("OpenCurrentRoomToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Open extensions folder.
+        /// </summary>
+        public static string OpenExtensionsFolder {
+            get {
+                return ResourceManager.GetString("OpenExtensionsFolder", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Open Folder.
+        /// </summary>
+        public static string OpenFolder {
+            get {
+                return ResourceManager.GetString("OpenFolder", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to open save folder: {0}.
+        /// </summary>
+        public static string OpenSaveFolderFailed {
+            get {
+                return ResourceManager.GetString("OpenSaveFolderFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Open video.
+        /// </summary>
+        public static string OpenVideo {
+            get {
+                return ResourceManager.GetString("OpenVideo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to open video.
+        /// </summary>
+        public static string OpenVideoFailed {
+            get {
+                return ResourceManager.GetString("OpenVideoFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Open video (Enter).
+        /// </summary>
+        public static string OpenVideoShortcutHint {
+            get {
+                return ResourceManager.GetString("OpenVideoShortcutHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Operation.
+        /// </summary>
+        public static string Operation {
+            get {
+                return ResourceManager.GetString("Operation", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} failed: {1}.
+        /// </summary>
+        public static string OperationFailedWithLabel {
+            get {
+                return ResourceManager.GetString("OperationFailedWithLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Optimized audio.
+        /// </summary>
+        public static string OptimizedAudioTrack {
+            get {
+                return ResourceManager.GetString("OptimizedAudioTrack", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to MP4 keeps the original audio and adds an AAC track with gain, compression, and limiting..
+        /// </summary>
+        public static string OptimizedAudioTrackDescription {
+            get {
+                return ResourceManager.GetString("OptimizedAudioTrackDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Original audio.
+        /// </summary>
+        public static string OriginalAudioTrack {
+            get {
+                return ResourceManager.GetString("OriginalAudioTrack", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Original audio {0}.
+        /// </summary>
+        public static string OriginalAudioTrackNumbered {
+            get {
+                return ResourceManager.GetString("OriginalAudioTrackNumbered", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Overseas Platforms.
+        /// </summary>
+        public static string OverseasCookiePlatforms {
+            get {
+                return ResourceManager.GetString("OverseasCookiePlatforms", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Pages and windows.
+        /// </summary>
+        public static string PagesAndWindows {
+            get {
+                return ResourceManager.GetString("PagesAndWindows", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Password.
+        /// </summary>
+        public static string Password {
+            get {
+                return ResourceManager.GetString("Password", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Paste text.
+        /// </summary>
+        public static string PasteText {
+            get {
+                return ResourceManager.GetString("PasteText", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Permissions.
+        /// </summary>
+        public static string Permissions {
+            get {
+                return ResourceManager.GetString("Permissions", resourceCulture);
             }
         }
 
@@ -679,6 +3694,249 @@ namespace Emerde.Properties {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Platform filter.
+        /// </summary>
+        public static string PlatformFilter {
+            get {
+                return ResourceManager.GetString("PlatformFilter", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} rooms / {1} live / {2} platforms.
+        /// </summary>
+        public static string PlatformSummaryFormat {
+            get {
+                return ResourceManager.GetString("PlatformSummaryFormat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Player.
+        /// </summary>
+        public static string Player {
+            get {
+                return ResourceManager.GetString("Player", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No playable recording file.
+        /// </summary>
+        public static string PlayerErrorOfNoFile {
+            get {
+                return ResourceManager.GetString("PlayerErrorOfNoFile", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Built-in player.
+        /// </summary>
+        public static string PlayerInner {
+            get {
+                return ResourceManager.GetString("PlayerInner", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Use FFplay player.
+        /// </summary>
+        public static string PlayerInnerHint {
+            get {
+                return ResourceManager.GetString("PlayerInnerHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enable reacangle window.
+        /// </summary>
+        public static string PlayerInnerUseRect {
+            get {
+                return ResourceManager.GetString("PlayerInnerUseRect", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to System player.
+        /// </summary>
+        public static string PlayerSystem {
+            get {
+                return ResourceManager.GetString("PlayerSystem", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Use System player.
+        /// </summary>
+        public static string PlayerSystemHint {
+            get {
+                return ResourceManager.GetString("PlayerSystemHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Play or pause.
+        /// </summary>
+        public static string PlayOrPause {
+            get {
+                return ResourceManager.GetString("PlayOrPause", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Play Recording.
+        /// </summary>
+        public static string PlayRecord {
+            get {
+                return ResourceManager.GetString("PlayRecord", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Support to play the recording videos.
+        /// </summary>
+        public static string PlayRecordHint {
+            get {
+                return ResourceManager.GetString("PlayRecordHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Preparing deletion....
+        /// </summary>
+        public static string PreparingDelete {
+            get {
+                return ResourceManager.GetString("PreparingDelete", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Preparing merge....
+        /// </summary>
+        public static string PreparingMerge {
+            get {
+                return ResourceManager.GetString("PreparingMerge", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Preview.
+        /// </summary>
+        public static string Preview {
+            get {
+                return ResourceManager.GetString("Preview", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Using built-in player.
+        /// </summary>
+        public static string PreviewBuiltInPlayerHint {
+            get {
+                return ResourceManager.GetString("PreviewBuiltInPlayerHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Preview or close the current room (Q).
+        /// </summary>
+        public static string PreviewCurrentRoomToolTip {
+            get {
+                return ResourceManager.GetString("PreviewCurrentRoomToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Full screen.
+        /// </summary>
+        public static string PreviewFullScreen {
+            get {
+                return ResourceManager.GetString("PreviewFullScreen", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Preview.
+        /// </summary>
+        public static string PreviewLiveRoom {
+            get {
+                return ResourceManager.GetString("PreviewLiveRoom", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Mute.
+        /// </summary>
+        public static string PreviewMute {
+            get {
+                return ResourceManager.GetString("PreviewMute", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Pause.
+        /// </summary>
+        public static string PreviewPause {
+            get {
+                return ResourceManager.GetString("PreviewPause", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Preview playback.
+        /// </summary>
+        public static string PreviewPlayback {
+            get {
+                return ResourceManager.GetString("PreviewPlayback", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Preview refresh is too frequent. Please wait {0} seconds and try again..
+        /// </summary>
+        public static string PreviewRefreshTooFrequently {
+            get {
+                return ResourceManager.GetString("PreviewRefreshTooFrequently", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Exit full screen.
+        /// </summary>
+        public static string PreviewRestore {
+            get {
+                return ResourceManager.GetString("PreviewRestore", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unmute.
+        /// </summary>
+        public static string PreviewUnmute {
+            get {
+                return ResourceManager.GetString("PreviewUnmute", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Volume {0}% (-/=).
+        /// </summary>
+        public static string PreviewVolumeToolTipFormat {
+            get {
+                return ResourceManager.GetString("PreviewVolumeToolTipFormat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Project homepage.
+        /// </summary>
+        public static string ProjectHomepage {
+            get {
+                return ResourceManager.GetString("ProjectHomepage", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Proxy applies to platform requests and preview playback when enabled..
         /// </summary>
         public static string ProxyAppliesToPlatformRequests {
@@ -688,186 +3946,6 @@ namespace Emerde.Properties {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Supported.
-        /// </summary>
-        public static string Supported {
-            get {
-                return ResourceManager.GetString("Supported", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Live Room.
-        /// </summary>
-        public static string LiveRoom {
-            get {
-                return ResourceManager.GetString("LiveRoom", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Long Running Settings.
-        /// </summary>
-        public static string LongRunningSettings {
-            get {
-                return ResourceManager.GetString("LongRunningSettings", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Goto {0}&apos;s live room immediately.
-        /// </summary>
-        public static string MailBodyElement {
-            get {
-                return ResourceManager.GetString("MailBodyElement", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Network Settings.
-        /// </summary>
-        public static string NetworkSettings {
-            get {
-                return ResourceManager.GetString("NetworkSettings", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to There are currently no recording tasks.
-        /// </summary>
-        public static string NoRecordTask {
-            get {
-                return ResourceManager.GetString("NoRecordTask", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to This feature is not supported in recording mode.
-        /// </summary>
-        public static string NotSupportedOnRecording {
-            get {
-                return ResourceManager.GetString("NotSupportedOnRecording", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Open Folder.
-        /// </summary>
-        public static string OpenFolder {
-            get {
-                return ResourceManager.GetString("OpenFolder", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Operation.
-        /// </summary>
-        public static string Operation {
-            get {
-                return ResourceManager.GetString("Operation", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Password.
-        /// </summary>
-        public static string Password {
-            get {
-                return ResourceManager.GetString("Password", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Player.
-        /// </summary>
-        public static string Player {
-            get {
-                return ResourceManager.GetString("Player", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to No playable recording file.
-        /// </summary>
-        public static string PlayerErrorOfNoFile {
-            get {
-                return ResourceManager.GetString("PlayerErrorOfNoFile", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Built-in player.
-        /// </summary>
-        public static string PlayerInner {
-            get {
-                return ResourceManager.GetString("PlayerInner", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Use FFplay player.
-        /// </summary>
-        public static string PlayerInnerHint {
-            get {
-                return ResourceManager.GetString("PlayerInnerHint", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Enable reacangle window.
-        /// </summary>
-        public static string PlayerInnerUseRect {
-            get {
-                return ResourceManager.GetString("PlayerInnerUseRect", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to System player.
-        /// </summary>
-        public static string PlayerSystem {
-            get {
-                return ResourceManager.GetString("PlayerSystem", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Use System player.
-        /// </summary>
-        public static string PlayerSystemHint {
-            get {
-                return ResourceManager.GetString("PlayerSystemHint", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Play Recording.
-        /// </summary>
-        public static string PlayRecord {
-            get {
-                return ResourceManager.GetString("PlayRecord", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Support to play the recording videos.
-        /// </summary>
-        public static string PlayRecordHint {
-            get {
-                return ResourceManager.GetString("PlayRecordHint", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Preview.
-        /// </summary>
-        public static string PreviewLiveRoom {
-            get {
-                return ResourceManager.GetString("PreviewLiveRoom", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Proxy URL cannot be empty.
         /// </summary>
         public static string ProxyErrorOfEmptyUrl {
@@ -875,7 +3953,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("ProxyErrorOfEmptyUrl", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Invalid proxy or request failed: {0}.
         /// </summary>
@@ -884,7 +3962,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("ProxyErrorOfExceptionMessage", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Proxy URL is malformed.
         /// </summary>
@@ -893,7 +3971,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("ProxyErrorOfFormat", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Proxy URL host format is incorrect.
         /// </summary>
@@ -902,7 +3980,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("ProxyErrorOfHostFormatError", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Proxy URL missing hostname or port number.
         /// </summary>
@@ -911,7 +3989,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("ProxyErrorOfMissHostOrPort", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Proxy URL port number format is incorrect.
         /// </summary>
@@ -920,7 +3998,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("ProxyErrorOfPortFormatError", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Proxy URL port number out of range.
         /// </summary>
@@ -929,7 +4007,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("ProxyErrorOfPortOutOfRange", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Host name and port number.
         /// </summary>
@@ -938,7 +4016,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("ProxyHostAndPort", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Proxy available, response status code {0}.
         /// </summary>
@@ -947,7 +4025,106 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("ProxySuccOfStatusCode", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Blu-ray.
+        /// </summary>
+        public static string QualityBlueRay {
+            get {
+                return ResourceManager.GetString("QualityBlueRay", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to High.
+        /// </summary>
+        public static string QualityHigh {
+            get {
+                return ResourceManager.GetString("QualityHigh", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Quality.
+        /// </summary>
+        public static string QualityLabel {
+            get {
+                return ResourceManager.GetString("QualityLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Original.
+        /// </summary>
+        public static string QualityOriginal {
+            get {
+                return ResourceManager.GetString("QualityOriginal", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Supported platforms use the selected quality; other platforms use the highest available quality..
+        /// </summary>
+        public static string QualitySelectionHint {
+            get {
+                return ResourceManager.GetString("QualitySelectionHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Smooth.
+        /// </summary>
+        public static string QualitySmooth {
+            get {
+                return ResourceManager.GetString("QualitySmooth", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Standard.
+        /// </summary>
+        public static string QualityStandard {
+            get {
+                return ResourceManager.GetString("QualityStandard", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Ultra high.
+        /// </summary>
+        public static string QualityUltraHigh {
+            get {
+                return ResourceManager.GetString("QualityUltraHigh", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Confirm.
+        /// </summary>
+        public static string QuestionTitle {
+            get {
+                return ResourceManager.GetString("QuestionTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Quick start.
+        /// </summary>
+        public static string QuickStart {
+            get {
+                return ResourceManager.GetString("QuickStart", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Complete these steps to start monitoring and recording live streams..
+        /// </summary>
+        public static string QuickStartDescription {
+            get {
+                return ResourceManager.GetString("QuickStartDescription", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Recording Format.
         /// </summary>
@@ -956,16 +4133,16 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("RecordFormat", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to Whether to auto delete the original TS/FLV file after converting the format.
+        ///   Looks up a localized string similar to Delete source TS/FLV files after conversion.
         /// </summary>
         public static string RecordFormatAutoRemove {
             get {
                 return ResourceManager.GetString("RecordFormatAutoRemove", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to To ensure stable recording, only supports TS/FLV or will be auto converted later.
         /// </summary>
@@ -974,7 +4151,61 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("RecordFormatHint", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Recording and detection.
+        /// </summary>
+        public static string RecordingAndDetection {
+            get {
+                return ResourceManager.GetString("RecordingAndDetection", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Learn how Emerde detects streams, starts recordings, and handles network interruptions..
+        /// </summary>
+        public static string RecordingAndDetectionDescription {
+            get {
+                return ResourceManager.GetString("RecordingAndDetectionDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Built-in FFmpeg DLL · {0} · PID {1} · Download {2} · Write {3}.
+        /// </summary>
+        public static string RecordingEngineActive {
+            get {
+                return ResourceManager.GetString("RecordingEngineActive", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Built-in FFmpeg DLL · Worker starting.
+        /// </summary>
+        public static string RecordingEngineStarting {
+            get {
+                return ResourceManager.GetString("RecordingEngineStarting", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This recording is being saved temporarily to: {0}.
+        /// </summary>
+        public static string RecordingSaveFolderFallback {
+            get {
+                return ResourceManager.GetString("RecordingSaveFolderFallback", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Save folder unavailable.
+        /// </summary>
+        public static string RecordingSaveFolderUnavailableTitle {
+            get {
+                return ResourceManager.GetString("RecordingSaveFolderUnavailableTitle", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Recording Log.
         /// </summary>
@@ -983,7 +4214,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("RecordLog", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Recording Settings.
         /// </summary>
@@ -992,7 +4223,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("RecordSettings", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Recording Status.
         /// </summary>
@@ -1001,7 +4232,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("RecordStatus", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Disabled.
         /// </summary>
@@ -1010,7 +4241,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("RecordStatusOfDisabled", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Error.
         /// </summary>
@@ -1019,7 +4250,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("RecordStatusOfError", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Initialized.
         /// </summary>
@@ -1028,7 +4259,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("RecordStatusOfInitialized", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Not Recording.
         /// </summary>
@@ -1037,7 +4268,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("RecordStatusOfNotRecording", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Recording.
         /// </summary>
@@ -1046,7 +4277,16 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("RecordStatusOfRecording", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Starting.
+        /// </summary>
+        public static string RecordStatusOfStarting {
+            get {
+                return ResourceManager.GetString("RecordStatusOfStarting", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Unknown.
         /// </summary>
@@ -1055,7 +4295,295 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("RecordStatusOfUnknown", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to The completed source state is invalid..
+        /// </summary>
+        public static string RecoveryCompletedSourceStateInvalid {
+            get {
+                return ResourceManager.GetString("RecoveryCompletedSourceStateInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The completed target path or format is invalid..
+        /// </summary>
+        public static string RecoveryCompletedTargetInvalid {
+            get {
+                return ResourceManager.GetString("RecoveryCompletedTargetInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The completed target is not in the source recording directory..
+        /// </summary>
+        public static string RecoveryCompletedTargetOutsideSource {
+            get {
+                return ResourceManager.GetString("RecoveryCompletedTargetOutsideSource", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The completed target path is invalid: {0}.
+        /// </summary>
+        public static string RecoveryCompletedTargetPathInvalid {
+            get {
+                return ResourceManager.GetString("RecoveryCompletedTargetPathInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The intermediate merge path is invalid..
+        /// </summary>
+        public static string RecoveryIntermediateTargetInvalid {
+            get {
+                return ResourceManager.GetString("RecoveryIntermediateTargetInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Invalid JSON syntax: {0}.
+        /// </summary>
+        public static string RecoveryJsonInvalid {
+            get {
+                return ResourceManager.GetString("RecoveryJsonInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The recovery marker is empty..
+        /// </summary>
+        public static string RecoveryMarkerEmpty {
+            get {
+                return ResourceManager.GetString("RecoveryMarkerEmpty", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Only %03d can be used as the segment placeholder..
+        /// </summary>
+        public static string RecoverySegmentPlaceholderInvalid {
+            get {
+                return ResourceManager.GetString("RecoverySegmentPlaceholderInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The source file is not a supported media format..
+        /// </summary>
+        public static string RecoverySourceFormatUnsupported {
+            get {
+                return ResourceManager.GetString("RecoverySourceFormatUnsupported", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The source file is outside the configured save folders..
+        /// </summary>
+        public static string RecoverySourceOutsideConfiguredFolders {
+            get {
+                return ResourceManager.GetString("RecoverySourceOutsideConfiguredFolders", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The source path is not a valid absolute path..
+        /// </summary>
+        public static string RecoverySourcePathAbsoluteInvalid {
+            get {
+                return ResourceManager.GetString("RecoverySourcePathAbsoluteInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The source path is invalid: {0}.
+        /// </summary>
+        public static string RecoverySourcePathInvalid {
+            get {
+                return ResourceManager.GetString("RecoverySourcePathInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The source path contains a disallowed wildcard..
+        /// </summary>
+        public static string RecoverySourceWildcardInvalid {
+            get {
+                return ResourceManager.GetString("RecoverySourceWildcardInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The completed recording state path is invalid: {0}.
+        /// </summary>
+        public static string RecoveryStatePathInvalid {
+            get {
+                return ResourceManager.GetString("RecoveryStatePathInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The target format must be MP4 or MKV..
+        /// </summary>
+        public static string RecoveryTargetFormatInvalid {
+            get {
+                return ResourceManager.GetString("RecoveryTargetFormatInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The target format must be MP4, MKV, TS, or FLV..
+        /// </summary>
+        public static string RecoveryTargetFormatSessionInvalid {
+            get {
+                return ResourceManager.GetString("RecoveryTargetFormatSessionInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Redo selection or list operation.
+        /// </summary>
+        public static string RedoSelectionOrListOperation {
+            get {
+                return ResourceManager.GetString("RedoSelectionOrListOperation", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Redo text edit.
+        /// </summary>
+        public static string RedoText {
+            get {
+                return ResourceManager.GetString("RedoText", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Redo video selection.
+        /// </summary>
+        public static string RedoVideoSelection {
+            get {
+                return ResourceManager.GetString("RedoVideoSelection", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Reference repository.
+        /// </summary>
+        public static string ReferenceRepository {
+            get {
+                return ResourceManager.GetString("ReferenceRepository", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Refresh all.
+        /// </summary>
+        public static string RefreshAll {
+            get {
+                return ResourceManager.GetString("RefreshAll", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Refresh.
+        /// </summary>
+        public static string RefreshButton {
+            get {
+                return ResourceManager.GetString("RefreshButton", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Refresh current room.
+        /// </summary>
+        public static string RefreshCurrent {
+            get {
+                return ResourceManager.GetString("RefreshCurrent", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Refresh current room (F).
+        /// </summary>
+        public static string RefreshCurrentRoomToolTip {
+            get {
+                return ResourceManager.GetString("RefreshCurrentRoomToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Refresh extensions.
+        /// </summary>
+        public static string RefreshExtensions {
+            get {
+                return ResourceManager.GetString("RefreshExtensions", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Refresh list.
+        /// </summary>
+        public static string RefreshList {
+            get {
+                return ResourceManager.GetString("RefreshList", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Refresh preview.
+        /// </summary>
+        public static string RefreshPreview {
+            get {
+                return ResourceManager.GetString("RefreshPreview", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Refresh preview (G).
+        /// </summary>
+        public static string RefreshPreviewShortcutHint {
+            get {
+                return ResourceManager.GetString("RefreshPreviewShortcutHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Please wait 5 seconds before refreshing again..
+        /// </summary>
+        public static string RefreshTooFrequently {
+            get {
+                return ResourceManager.GetString("RefreshTooFrequently", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Refresh video list (F5).
+        /// </summary>
+        public static string RefreshVideoListShortcutHint {
+            get {
+                return ResourceManager.GetString("RefreshVideoListShortcutHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Remove.
+        /// </summary>
+        public static string Remove {
+            get {
+                return ResourceManager.GetString("Remove", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Remove extension.
+        /// </summary>
+        public static string RemoveExtensionTitle {
+            get {
+                return ResourceManager.GetString("RemoveExtensionTitle", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Remove Room.
         /// </summary>
@@ -1064,7 +4592,142 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("RemoveRoom", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Rename.
+        /// </summary>
+        public static string Rename {
+            get {
+                return ResourceManager.GetString("Rename", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Rename complete.
+        /// </summary>
+        public static string RenameComplete {
+            get {
+                return ResourceManager.GetString("RenameComplete", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Rename failed.
+        /// </summary>
+        public static string RenameFailed {
+            get {
+                return ResourceManager.GetString("RenameFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Rename video.
+        /// </summary>
+        public static string RenameVideo {
+            get {
+                return ResourceManager.GetString("RenameVideo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Reset.
+        /// </summary>
+        public static string Reset {
+            get {
+                return ResourceManager.GetString("Reset", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Resolution {0}.
+        /// </summary>
+        public static string ResolutionChip {
+            get {
+                return ResourceManager.GetString("ResolutionChip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Resolution.
+        /// </summary>
+        public static string ResolutionLabel {
+            get {
+                return ResourceManager.GetString("ResolutionLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Restore.
+        /// </summary>
+        public static string Restore {
+            get {
+                return ResourceManager.GetString("Restore", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Restore configuration.
+        /// </summary>
+        public static string RestoreConfigTitle {
+            get {
+                return ResourceManager.GetString("RestoreConfigTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Keep.
+        /// </summary>
+        public static string Retain {
+            get {
+                return ResourceManager.GetString("Retain", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Room address.
+        /// </summary>
+        public static string RoomAddress {
+            get {
+                return ResourceManager.GetString("RoomAddress", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Room configuration key names must be valid text..
+        /// </summary>
+        public static string RoomConfigKeyNameInvalid {
+            get {
+                return ResourceManager.GetString("RoomConfigKeyNameInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Room configuration key {0} has an invalid data type..
+        /// </summary>
+        public static string RoomConfigKeyTypeInvalid {
+            get {
+                return ResourceManager.GetString("RoomConfigKeyTypeInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Room information.
+        /// </summary>
+        public static string RoomInformation {
+            get {
+                return ResourceManager.GetString("RoomInformation", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Restrict automatic monitoring for this room by day and time range..
+        /// </summary>
+        public static string RoomMonitoringScheduleHint {
+            get {
+                return ResourceManager.GetString("RoomMonitoringScheduleHint", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Cycle Period.
         /// </summary>
@@ -1073,16 +4736,16 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("RoutineInterval", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to The cycle period (ms) for detecting the status and other actions.
+        ///   Looks up a localized string similar to Do not set the detection interval too low; very frequent checks can trigger platform risk control. Minimum 1 second, 5 seconds or longer recommended..
         /// </summary>
         public static string RoutineIntervalHint {
             get {
                 return ResourceManager.GetString("RoutineIntervalHint", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Move Down Room.
         /// </summary>
@@ -1091,7 +4754,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("RowDownRoom", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Move Up Room.
         /// </summary>
@@ -1100,319 +4763,22 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("RowUpRoom", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to Save Folder.
+        ///   Looks up a localized string similar to Application logs.
         /// </summary>
-        public static string SaveFolder {
+        public static string RunningLogs {
             get {
-                return ResourceManager.GetString("SaveFolder", resourceCulture);
+                return ResourceManager.GetString("RunningLogs", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to Specify the saving directory of recorded videos.
+        ///   Looks up a localized string similar to Sat.
         /// </summary>
-        public static string SaveFolderHint {
+        public static string Saturday {
             get {
-                return ResourceManager.GetString("SaveFolderHint", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Video Segment.
-        /// </summary>
-        public static string Segment {
-            get {
-                return ResourceManager.GetString("Segment", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Specifies the length of time (in seconds) for each output video.
-        /// </summary>
-        public static string SegmentHint {
-            get {
-                return ResourceManager.GetString("SegmentHint", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Video Segment Time (sec).
-        /// </summary>
-        public static string SegmentTime {
-            get {
-                return ResourceManager.GetString("SegmentTime", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Select Folder.
-        /// </summary>
-        public static string SelectFolder {
-            get {
-                return ResourceManager.GetString("SelectFolder", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Settings.
-        /// </summary>
-        public static string Settings {
-            get {
-                return ResourceManager.GetString("Settings", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Settings File.
-        /// </summary>
-        public static string SettingsFile {
-            get {
-                return ResourceManager.GetString("SettingsFile", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Single Settings.
-        /// </summary>
-        public static string SingleSettings {
-            get {
-                return ResourceManager.GetString("SingleSettings", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Disabled.
-        /// </summary>
-        public static string StatusOff {
-            get {
-                return ResourceManager.GetString("StatusOff", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Enabled.
-        /// </summary>
-        public static string StatusOn {
-            get {
-                return ResourceManager.GetString("StatusOn", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Stop Recording.
-        /// </summary>
-        public static string StopRecord {
-            get {
-                return ResourceManager.GetString("StopRecord", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Live Streaming Status.
-        /// </summary>
-        public static string StreamStatus {
-            get {
-                return ResourceManager.GetString("StreamStatus", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Disabled.
-        /// </summary>
-        public static string StreamStatusOfDisabled {
-            get {
-                return ResourceManager.GetString("StreamStatusOfDisabled", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Initialized.
-        /// </summary>
-        public static string StreamStatusOfInitialized {
-            get {
-                return ResourceManager.GetString("StreamStatusOfInitialized", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Not Streaming.
-        /// </summary>
-        public static string StreamStatusOfNotStreaming {
-            get {
-                return ResourceManager.GetString("StreamStatusOfNotStreaming", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Streaming.
-        /// </summary>
-        public static string StreamStatusOfStreaming {
-            get {
-                return ResourceManager.GetString("StreamStatusOfStreaming", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Unknown.
-        /// </summary>
-        public static string StreamStatusOfUnknown {
-            get {
-                return ResourceManager.GetString("StreamStatusOfUnknown", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Operation successful.
-        /// </summary>
-        public static string SuccOp {
-            get {
-                return ResourceManager.GetString("SuccOp", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Recording is in progress. Are you sure you want to continue your operation?.
-        /// </summary>
-        public static string SureOnRecording {
-            get {
-                return ResourceManager.GetString("SureOnRecording", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Delete {0} live room?.
-        /// </summary>
-        public static string SureRemoveRoom {
-            get {
-                return ResourceManager.GetString("SureRemoveRoom", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Does it stop the recording of {0}?.
-        /// </summary>
-        public static string SureStopRecord {
-            get {
-                return ResourceManager.GetString("SureStopRecord", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Theme Color.
-        /// </summary>
-        public static string ThemeColor {
-            get {
-                return ResourceManager.GetString("ThemeColor", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Choose a theme color you like.
-        /// </summary>
-        public static string ThemeColorHint {
-            get {
-                return ResourceManager.GetString("ThemeColorHint", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Dark.
-        /// </summary>
-        public static string ThemeOfDarkMode {
-            get {
-                return ResourceManager.GetString("ThemeOfDarkMode", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Light.
-        /// </summary>
-        public static string ThemeOfLightMode {
-            get {
-                return ResourceManager.GetString("ThemeOfLightMode", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Emerde.
-        /// </summary>
-        public static string Title {
-            get {
-                return ResourceManager.GetString("Title", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to System.
-        /// </summary>
-        public static string TrackingSystem {
-            get {
-                return ResourceManager.GetString("TrackingSystem", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Auto Run (&amp;A).
-        /// </summary>
-        public static string TrayMenuAutoRun {
-            get {
-                return ResourceManager.GetString("TrayMenuAutoRun", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Exit (&amp;E).
-        /// </summary>
-        public static string TrayMenuExit {
-            get {
-                return ResourceManager.GetString("TrayMenuExit", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Settings (&amp;S).
-        /// </summary>
-        public static string TrayMenuOpenSettings {
-            get {
-                return ResourceManager.GetString("TrayMenuOpenSettings", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Restart (&amp;R).
-        /// </summary>
-        public static string TrayMenuRestart {
-            get {
-                return ResourceManager.GetString("TrayMenuRestart", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Show (&amp;V).
-        /// </summary>
-        public static string TrayMenuShowMainWindow {
-            get {
-                return ResourceManager.GetString("TrayMenuShowMainWindow", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Tray Icon.
-        /// </summary>
-        public static string TrayStatus {
-            get {
-                return ResourceManager.GetString("TrayStatus", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Enable tray icon is following to recording status.
-        /// </summary>
-        public static string TrayStatusHint {
-            get {
-                return ResourceManager.GetString("TrayStatusHint", resourceCulture);
+                return ResourceManager.GetString("Saturday", resourceCulture);
             }
         }
 
@@ -1424,52 +4790,25 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("Save", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to Path Level.
+        ///   Looks up a localized string similar to Save Folder.
         /// </summary>
-        public static string SavePathLevel {
+        public static string SaveFolder {
             get {
-                return ResourceManager.GetString("SavePathLevel", resourceCulture);
+                return ResourceManager.GetString("SaveFolder", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to Save folder only.
+        ///   Looks up a localized string similar to Specify the saving directory of recorded videos.
         /// </summary>
-        public static string SavePathLevelRootOnly {
+        public static string SaveFolderHint {
             get {
-                return ResourceManager.GetString("SavePathLevelRootOnly", resourceCulture);
+                return ResourceManager.GetString("SaveFolderHint", resourceCulture);
             }
         }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Author.
-        /// </summary>
-        public static string SavePathLevelAuthor {
-            get {
-                return ResourceManager.GetString("SavePathLevelAuthor", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Author / Year / Month.
-        /// </summary>
-        public static string SavePathLevelAuthorYearMonth {
-            get {
-                return ResourceManager.GetString("SavePathLevelAuthorYearMonth", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Author / Year / Month / Date.
-        /// </summary>
-        public static string SavePathLevelAuthorDate {
-            get {
-                return ResourceManager.GetString("SavePathLevelAuthorDate", resourceCulture);
-            }
-        }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Naming Rule.
         /// </summary>
@@ -1480,23 +4819,14 @@ namespace Emerde.Properties {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Auto Cleanup.
+        ///   Looks up a localized string similar to Author.
         /// </summary>
-        public static string DataRetention {
+        public static string SaveNamingRuleAuthor {
             get {
-                return ResourceManager.GetString("DataRetention", resourceCulture);
+                return ResourceManager.GetString("SaveNamingRuleAuthor", resourceCulture);
             }
         }
 
-        /// <summary>
-        ///   Looks up a localized string similar to Automatically delete expired recording files in the save folder.
-        /// </summary>
-        public static string DataRetentionHint {
-            get {
-                return ResourceManager.GetString("DataRetentionHint", resourceCulture);
-            }
-        }
-        
         /// <summary>
         ///   Looks up a localized string similar to Author_Record time.
         /// </summary>
@@ -1505,25 +4835,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("SaveNamingRuleAuthorRecordTime", resourceCulture);
             }
         }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Record time_Author.
-        /// </summary>
-        public static string SaveNamingRuleRecordTimeAuthor {
-            get {
-                return ResourceManager.GetString("SaveNamingRuleRecordTimeAuthor", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Author.
-        /// </summary>
-        public static string SaveNamingRuleAuthor {
-            get {
-                return ResourceManager.GetString("SaveNamingRuleAuthor", resourceCulture);
-            }
-        }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Platform_Author_Record time.
         /// </summary>
@@ -1532,43 +4844,1051 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("SaveNamingRulePlatformAuthorRecordTime", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to Custom.
+        ///   Looks up a localized string similar to Record time_Author.
         /// </summary>
-        public static string Custom {
+        public static string SaveNamingRuleRecordTimeAuthor {
             get {
-                return ResourceManager.GetString("Custom", resourceCulture);
+                return ResourceManager.GetString("SaveNamingRuleRecordTimeAuthor", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to Custom Rule.
+        ///   Looks up a localized string similar to Path Level.
         /// </summary>
-        public static string CustomRule {
+        public static string SavePathLevel {
             get {
-                return ResourceManager.GetString("CustomRule", resourceCulture);
+                return ResourceManager.GetString("SavePathLevel", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to Delete last.
+        ///   Looks up a localized string similar to Author.
         /// </summary>
-        public static string DeleteLast {
+        public static string SavePathLevelAuthor {
             get {
-                return ResourceManager.GetString("DeleteLast", resourceCulture);
+                return ResourceManager.GetString("SavePathLevelAuthor", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to Clear.
+        ///   Looks up a localized string similar to Author / Year / Month / Date.
         /// </summary>
-        public static string Clear {
+        public static string SavePathLevelAuthorDate {
             get {
-                return ResourceManager.GetString("Clear", resourceCulture);
+                return ResourceManager.GetString("SavePathLevelAuthorDate", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Author / Year / Month.
+        /// </summary>
+        public static string SavePathLevelAuthorYearMonth {
+            get {
+                return ResourceManager.GetString("SavePathLevelAuthorYearMonth", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Save folder only.
+        /// </summary>
+        public static string SavePathLevelRootOnly {
+            get {
+                return ResourceManager.GetString("SavePathLevelRootOnly", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Save settings.
+        /// </summary>
+        public static string SaveSettings {
+            get {
+                return ResourceManager.GetString("SaveSettings", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Always.
+        /// </summary>
+        public static string ScheduleAlways {
+            get {
+                return ResourceManager.GetString("ScheduleAlways", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Run all day, Monday through Sunday.
+        /// </summary>
+        public static string ScheduleAlwaysHint {
+            get {
+                return ResourceManager.GetString("ScheduleAlwaysHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Custom schedule.
+        /// </summary>
+        public static string ScheduleCustom {
+            get {
+                return ResourceManager.GetString("ScheduleCustom", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Choose days and a start and end time manually.
+        /// </summary>
+        public static string ScheduleCustomHint {
+            get {
+                return ResourceManager.GetString("ScheduleCustomHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Night.
+        /// </summary>
+        public static string ScheduleNight {
+            get {
+                return ResourceManager.GetString("ScheduleNight", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Run daily from 18:00 to 08:00 the next day.
+        /// </summary>
+        public static string ScheduleNightHint {
+            get {
+                return ResourceManager.GetString("ScheduleNightHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Weekdays.
+        /// </summary>
+        public static string ScheduleWeekdays {
+            get {
+                return ResourceManager.GetString("ScheduleWeekdays", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Run Monday through Friday.
+        /// </summary>
+        public static string ScheduleWeekdaysHint {
+            get {
+                return ResourceManager.GetString("ScheduleWeekdaysHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Weekends.
+        /// </summary>
+        public static string ScheduleWeekends {
+            get {
+                return ResourceManager.GetString("ScheduleWeekends", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Run Saturday and Sunday.
+        /// </summary>
+        public static string ScheduleWeekendsHint {
+            get {
+                return ResourceManager.GetString("ScheduleWeekendsHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Seconds.
+        /// </summary>
+        public static string Seconds {
+            get {
+                return ResourceManager.GetString("Seconds", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Video Segment.
+        /// </summary>
+        public static string Segment {
+            get {
+                return ResourceManager.GetString("Segment", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Segment duration.
+        /// </summary>
+        public static string SegmentDurationLabel {
+            get {
+                return ResourceManager.GetString("SegmentDurationLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Specifies the length of time (in seconds) for each output video.
+        /// </summary>
+        public static string SegmentHint {
+            get {
+                return ResourceManager.GetString("SegmentHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Segment size.
+        /// </summary>
+        public static string SegmentSizeLabel {
+            get {
+                return ResourceManager.GetString("SegmentSizeLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Video Segment Time (sec).
+        /// </summary>
+        public static string SegmentTime {
+            get {
+                return ResourceManager.GetString("SegmentTime", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Select all.
+        /// </summary>
+        public static string SelectAll {
+            get {
+                return ResourceManager.GetString("SelectAll", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Select all rooms.
+        /// </summary>
+        public static string SelectAllRooms {
+            get {
+                return ResourceManager.GetString("SelectAllRooms", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Select all videos (Ctrl+A).
+        /// </summary>
+        public static string SelectAllVideosShortcutHint {
+            get {
+                return ResourceManager.GetString("SelectAllVideosShortcutHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Select at least two videos.
+        /// </summary>
+        public static string SelectAtLeastTwoVideos {
+            get {
+                return ResourceManager.GetString("SelectAtLeastTwoVideos", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} rooms selected.
+        /// </summary>
+        public static string SelectedRoomsFormat {
+            get {
+                return ResourceManager.GetString("SelectedRoomsFormat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} videos selected.
+        /// </summary>
+        public static string SelectedVideos {
+            get {
+                return ResourceManager.GetString("SelectedVideos", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Select a configuration backup created by Emerde..
+        /// </summary>
+        public static string SelectEmerdeConfigBackup {
+            get {
+                return ResourceManager.GetString("SelectEmerdeConfigBackup", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Select an Emerde extension package.
+        /// </summary>
+        public static string SelectExtensionPackage {
+            get {
+                return ResourceManager.GetString("SelectExtensionPackage", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Select Folder.
+        /// </summary>
+        public static string SelectFolder {
+            get {
+                return ResourceManager.GetString("SelectFolder", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Select a save folder to open.
+        /// </summary>
+        public static string SelectSaveFolderToOpen {
+            get {
+                return ResourceManager.GetString("SelectSaveFolderToOpen", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Select a video folder to import.
+        /// </summary>
+        public static string SelectVideoImportFolder {
+            get {
+                return ResourceManager.GetString("SelectVideoImportFolder", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Select the import destination save folder.
+        /// </summary>
+        public static string SelectVideoImportTarget {
+            get {
+                return ResourceManager.GetString("SelectVideoImportTarget", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Select videos to split first..
+        /// </summary>
+        public static string SelectVideosToSplit {
+            get {
+                return ResourceManager.GetString("SelectVideosToSplit", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Runtime logging is disabled; only existing historical logs can be exported..
+        /// </summary>
+        public static string SessionLogDisabledDescription {
+            get {
+                return ResourceManager.GetString("SessionLogDisabledDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Save runtime logs locally and export recent or all logs..
+        /// </summary>
+        public static string SessionLogEnabledDescription {
+            get {
+                return ResourceManager.GetString("SessionLogEnabledDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Settings.
+        /// </summary>
+        public static string Settings {
+            get {
+                return ResourceManager.GetString("Settings", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Settings File.
+        /// </summary>
+        public static string SettingsFile {
+            get {
+                return ResourceManager.GetString("SettingsFile", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Keyboard shortcuts.
+        /// </summary>
+        public static string ShortcutReference {
+            get {
+                return ResourceManager.GetString("ShortcutReference", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Shortcuts apply only on their corresponding pages. While editing a text field, undo, redo, copy, and paste operate on text..
+        /// </summary>
+        public static string ShortcutReferenceHint {
+            get {
+                return ResourceManager.GetString("ShortcutReferenceHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Single Settings.
+        /// </summary>
+        public static string SingleSettings {
+            get {
+                return ResourceManager.GetString("SingleSettings", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Large.
+        /// </summary>
+        public static string SizeLarge {
+            get {
+                return ResourceManager.GetString("SizeLarge", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Medium.
+        /// </summary>
+        public static string SizeMedium {
+            get {
+                return ResourceManager.GetString("SizeMedium", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Small.
+        /// </summary>
+        public static string SizeSmall {
+            get {
+                return ResourceManager.GetString("SizeSmall", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Skip validation.
+        /// </summary>
+        public static string SkipValidation {
+            get {
+                return ResourceManager.GetString("SkipValidation", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Sort.
+        /// </summary>
+        public static string Sort {
+            get {
+                return ResourceManager.GetString("Sort", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Ascending.
+        /// </summary>
+        public static string SortAscending {
+            get {
+                return ResourceManager.GetString("SortAscending", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Sorted by recording time ascending, with the earliest videos first..
+        /// </summary>
+        public static string SortAscendingDescription {
+            get {
+                return ResourceManager.GetString("SortAscendingDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to By added order.
+        /// </summary>
+        public static string SortByAddedOrder {
+            get {
+                return ResourceManager.GetString("SortByAddedOrder", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to By name.
+        /// </summary>
+        public static string SortByName {
+            get {
+                return ResourceManager.GetString("SortByName", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Descending.
+        /// </summary>
+        public static string SortDescending {
+            get {
+                return ResourceManager.GetString("SortDescending", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Sorted by recording time descending, with the newest videos first..
+        /// </summary>
+        public static string SortDescendingDescription {
+            get {
+                return ResourceManager.GetString("SortDescendingDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Split.
+        /// </summary>
+        public static string SplitButton {
+            get {
+                return ResourceManager.GetString("SplitButton", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Split complete.
+        /// </summary>
+        public static string SplitComplete {
+            get {
+                return ResourceManager.GetString("SplitComplete", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Split {0} videos.
+        /// </summary>
+        public static string SplitCompletedCount {
+            get {
+                return ResourceManager.GetString("SplitCompletedCount", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Invalid split interval.
+        /// </summary>
+        public static string SplitDurationInvalid {
+            get {
+                return ResourceManager.GetString("SplitDurationInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Split failed.
+        /// </summary>
+        public static string SplitFailed {
+            get {
+                return ResourceManager.GetString("SplitFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Split interval.
+        /// </summary>
+        public static string SplitInterval {
+            get {
+                return ResourceManager.GetString("SplitInterval", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Splitting {0}/{1}.
+        /// </summary>
+        public static string SplittingProgress {
+            get {
+                return ResourceManager.GetString("SplittingProgress", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Splitting....
+        /// </summary>
+        public static string SplittingVideo {
+            get {
+                return ResourceManager.GetString("SplittingVideo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Split video.
+        /// </summary>
+        public static string SplitVideo {
+            get {
+                return ResourceManager.GetString("SplitVideo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Stall split.
+        /// </summary>
+        public static string StallSegmentChip {
+            get {
+                return ResourceManager.GetString("StallSegmentChip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Start.
+        /// </summary>
+        public static string StartButton {
+            get {
+                return ResourceManager.GetString("StartButton", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to To avoid misconfiguration and platform risk control, open About before first use and review the monitoring interval, dynamic checks, recording, preview, and full-screen behavior. Add live rooms and enable monitoring after understanding these rules..
+        /// </summary>
+        public static string StartupAboutNoticeDescription {
+            get {
+                return ResourceManager.GetString("StartupAboutNoticeDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Read before using.
+        /// </summary>
+        public static string StartupAboutNoticeTitle {
+            get {
+                return ResourceManager.GetString("StartupAboutNoticeTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Status.
+        /// </summary>
+        public static string Status {
+            get {
+                return ResourceManager.GetString("Status", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Disabled.
+        /// </summary>
+        public static string StatusOff {
+            get {
+                return ResourceManager.GetString("StatusOff", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enabled.
+        /// </summary>
+        public static string StatusOn {
+            get {
+                return ResourceManager.GetString("StatusOn", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Stop Recording.
+        /// </summary>
+        public static string StopRecord {
+            get {
+                return ResourceManager.GetString("StopRecord", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Storage and cleanup.
+        /// </summary>
+        public static string StorageAndCleanup {
+            get {
+                return ResourceManager.GetString("StorageAndCleanup", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Streamer {0}.
+        /// </summary>
+        public static string StreamerChip {
+            get {
+                return ResourceManager.GetString("StreamerChip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Streamer.
+        /// </summary>
+        public static string StreamerLabel {
+            get {
+                return ResourceManager.GetString("StreamerLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Streamer name.
+        /// </summary>
+        public static string StreamerNickname {
+            get {
+                return ResourceManager.GetString("StreamerNickname", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Select a stream quality supported by the current platform..
+        /// </summary>
+        public static string StreamQualityHint {
+            get {
+                return ResourceManager.GetString("StreamQualityHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Live Streaming Status.
+        /// </summary>
+        public static string StreamStatus {
+            get {
+                return ResourceManager.GetString("StreamStatus", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Check failed.
+        /// </summary>
+        public static string StreamStatusOfCheckFailed {
+            get {
+                return ResourceManager.GetString("StreamStatusOfCheckFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Disabled.
+        /// </summary>
+        public static string StreamStatusOfDisabled {
+            get {
+                return ResourceManager.GetString("StreamStatusOfDisabled", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Initialized.
+        /// </summary>
+        public static string StreamStatusOfInitialized {
+            get {
+                return ResourceManager.GetString("StreamStatusOfInitialized", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Not Streaming.
+        /// </summary>
+        public static string StreamStatusOfNotStreaming {
+            get {
+                return ResourceManager.GetString("StreamStatusOfNotStreaming", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Streaming.
+        /// </summary>
+        public static string StreamStatusOfStreaming {
+            get {
+                return ResourceManager.GetString("StreamStatusOfStreaming", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unknown.
+        /// </summary>
+        public static string StreamStatusOfUnknown {
+            get {
+                return ResourceManager.GetString("StreamStatusOfUnknown", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Operation successful.
+        /// </summary>
+        public static string SuccOp {
+            get {
+                return ResourceManager.GetString("SuccOp", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Sun.
+        /// </summary>
+        public static string Sunday {
+            get {
+                return ResourceManager.GetString("Sunday", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Supported.
+        /// </summary>
+        public static string Supported {
+            get {
+                return ResourceManager.GetString("Supported", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Supports .emerde-extension and .zip.
+        /// </summary>
+        public static string SupportedExtensionPackages {
+            get {
+                return ResourceManager.GetString("SupportedExtensionPackages", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Recording or transcoding is still active. Emerde will stop current processing and resume pending conversion on the next startup. Exit now?.
+        /// </summary>
+        public static string SureOnRecording {
+            get {
+                return ResourceManager.GetString("SureOnRecording", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Delete {0} live room?.
+        /// </summary>
+        public static string SureRemoveRoom {
+            get {
+                return ResourceManager.GetString("SureRemoveRoom", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Does it stop the recording of {0}?.
+        /// </summary>
+        public static string SureStopRecord {
+            get {
+                return ResourceManager.GetString("SureStopRecord", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Target format.
+        /// </summary>
+        public static string TargetFormat {
+            get {
+                return ResourceManager.GetString("TargetFormat", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Theme Color.
+        /// </summary>
+        public static string ThemeColor {
+            get {
+                return ResourceManager.GetString("ThemeColor", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Choose a theme color you like.
+        /// </summary>
+        public static string ThemeColorHint {
+            get {
+                return ResourceManager.GetString("ThemeColorHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Dark.
+        /// </summary>
+        public static string ThemeOfDarkMode {
+            get {
+                return ResourceManager.GetString("ThemeOfDarkMode", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Light.
+        /// </summary>
+        public static string ThemeOfLightMode {
+            get {
+                return ResourceManager.GetString("ThemeOfLightMode", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Thu.
+        /// </summary>
+        public static string Thursday {
+            get {
+                return ResourceManager.GetString("Thursday", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Time range.
+        /// </summary>
+        public static string TimeRange {
+            get {
+                return ResourceManager.GetString("TimeRange", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to All time.
+        /// </summary>
+        public static string TimeRangeAll {
+            get {
+                return ResourceManager.GetString("TimeRangeAll", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Time.
+        /// </summary>
+        public static string TimeRangeLabel {
+            get {
+                return ResourceManager.GetString("TimeRangeLabel", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Last 24 hours.
+        /// </summary>
+        public static string TimeRangeLast24Hours {
+            get {
+                return ResourceManager.GetString("TimeRangeLast24Hours", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Last month.
+        /// </summary>
+        public static string TimeRangeLastMonth {
+            get {
+                return ResourceManager.GetString("TimeRangeLastMonth", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Last 3 months.
+        /// </summary>
+        public static string TimeRangeLastThreeMonths {
+            get {
+                return ResourceManager.GetString("TimeRangeLastThreeMonths", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Last week.
+        /// </summary>
+        public static string TimeRangeLastWeek {
+            get {
+                return ResourceManager.GetString("TimeRangeLastWeek", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Last year.
+        /// </summary>
+        public static string TimeRangeLastYear {
+            get {
+                return ResourceManager.GetString("TimeRangeLastYear", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Emerde.
+        /// </summary>
+        public static string Title {
+            get {
+                return ResourceManager.GetString("Title", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to to.
+        /// </summary>
+        public static string To {
+            get {
+                return ResourceManager.GetString("To", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Toggle monitoring for all rooms.
+        /// </summary>
+        public static string ToggleAllMonitoring {
+            get {
+                return ResourceManager.GetString("ToggleAllMonitoring", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Start or pause all monitoring (Ctrl+Shift+M).
+        /// </summary>
+        public static string ToggleAllMonitorToolTip {
+            get {
+                return ResourceManager.GetString("ToggleAllMonitorToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Toggle recording for all rooms.
+        /// </summary>
+        public static string ToggleAllRecording {
+            get {
+                return ResourceManager.GetString("ToggleAllRecording", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Start or pause all recording (Ctrl+Shift+R).
+        /// </summary>
+        public static string ToggleAllRecordingToolTip {
+            get {
+                return ResourceManager.GetString("ToggleAllRecordingToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Toggle monitoring for current room.
+        /// </summary>
+        public static string ToggleCurrentMonitoring {
+            get {
+                return ResourceManager.GetString("ToggleCurrentMonitoring", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Start or pause current room monitoring (Shift+M).
+        /// </summary>
+        public static string ToggleCurrentMonitorToolTip {
+            get {
+                return ResourceManager.GetString("ToggleCurrentMonitorToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Toggle recording for current room.
+        /// </summary>
+        public static string ToggleCurrentRecording {
+            get {
+                return ResourceManager.GetString("ToggleCurrentRecording", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Start or pause current room recording (Shift+R).
+        /// </summary>
+        public static string ToggleCurrentRecordingToolTip {
+            get {
+                return ResourceManager.GetString("ToggleCurrentRecordingToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enter or exit full screen.
+        /// </summary>
+        public static string ToggleFullscreen {
+            get {
+                return ResourceManager.GetString("ToggleFullscreen", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Mute or unmute.
+        /// </summary>
+        public static string ToggleMute {
+            get {
+                return ResourceManager.GetString("ToggleMute", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Author.
         /// </summary>
@@ -1577,16 +5897,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("TokenAuthor", resourceCulture);
             }
         }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Record time.
-        /// </summary>
-        public static string TokenRecordTime {
-            get {
-                return ResourceManager.GetString("TokenRecordTime", resourceCulture);
-            }
-        }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Date.
         /// </summary>
@@ -1595,7 +5906,16 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("TokenDate", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Record time.
+        /// </summary>
+        public static string TokenRecordTime {
+            get {
+                return ResourceManager.GetString("TokenRecordTime", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Time.
         /// </summary>
@@ -1604,61 +5924,286 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("TokenTime", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to Preview.
+        ///   Looks up a localized string similar to System.
         /// </summary>
-        public static string Preview {
+        public static string TrackingSystem {
             get {
-                return ResourceManager.GetString("Preview", resourceCulture);
+                return ResourceManager.GetString("TrackingSystem", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to Using built-in player.
+        ///   Looks up a localized string similar to Transcoding complete.
         /// </summary>
-        public static string PreviewBuiltInPlayerHint {
+        public static string TranscodeComplete {
             get {
-                return ResourceManager.GetString("PreviewBuiltInPlayerHint", resourceCulture);
+                return ResourceManager.GetString("TranscodeComplete", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to Domestic Platforms.
+        ///   Looks up a localized string similar to Transcoding failed.
         /// </summary>
-        public static string DomesticCookiePlatforms {
+        public static string TranscodeFailed {
             get {
-                return ResourceManager.GetString("DomesticCookiePlatforms", resourceCulture);
+                return ResourceManager.GetString("TranscodeFailed", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to Overseas Platforms.
+        ///   Looks up a localized string similar to Incomplete transcoding tasks were stopped. Completed videos were not deleted..
         /// </summary>
-        public static string OverseasCookiePlatforms {
+        public static string TranscodeStopCompleted {
             get {
-                return ResourceManager.GetString("OverseasCookiePlatforms", resourceCulture);
+                return ResourceManager.GetString("TranscodeStopCompleted", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to No-cookie Platforms.
+        ///   Looks up a localized string similar to Failed to stop transcoding tasks. Recovery records were preserved..
         /// </summary>
-        public static string NoCookiePlatforms {
+        public static string TranscodeStopFailed {
             get {
-                return ResourceManager.GetString("NoCookiePlatforms", resourceCulture);
+                return ResourceManager.GetString("TranscodeStopFailed", resourceCulture);
             }
         }
-        
+
         /// <summary>
-        ///   Looks up a localized string similar to {0} rooms / {1} live / {2} platforms.
+        ///   Looks up a localized string similar to Some transcoding tasks are still stopping. Recovery records were preserved for retry..
         /// </summary>
-        public static string PlatformSummaryFormat {
+        public static string TranscodeStopPending {
             get {
-                return ResourceManager.GetString("PlatformSummaryFormat", resourceCulture);
+                return ResourceManager.GetString("TranscodeStopPending", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Transcoding is stopping. Try again shortly..
+        /// </summary>
+        public static string TranscodeStopping {
+            get {
+                return ResourceManager.GetString("TranscodeStopping", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Transcode.
+        /// </summary>
+        public static string TranscodeVideo {
+            get {
+                return ResourceManager.GetString("TranscodeVideo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Transcoding.
+        /// </summary>
+        public static string TranscodingChip {
+            get {
+                return ResourceManager.GetString("TranscodingChip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Transcoding....
+        /// </summary>
+        public static string TranscodingVideo {
+            get {
+                return ResourceManager.GetString("TranscodingVideo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Auto Run (&amp;A).
+        /// </summary>
+        public static string TrayMenuAutoRun {
+            get {
+                return ResourceManager.GetString("TrayMenuAutoRun", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Exit (&amp;E).
+        /// </summary>
+        public static string TrayMenuExit {
+            get {
+                return ResourceManager.GetString("TrayMenuExit", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} live rooms online.
+        /// </summary>
+        public static string TrayMenuLiveSummary {
+            get {
+                return ResourceManager.GetString("TrayMenuLiveSummary", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Monitor.
+        /// </summary>
+        public static string TrayMenuMonitor {
+            get {
+                return ResourceManager.GetString("TrayMenuMonitor", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Monitoring is paused.
+        /// </summary>
+        public static string TrayMenuMonitorPaused {
+            get {
+                return ResourceManager.GetString("TrayMenuMonitorPaused", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Monitoring is running.
+        /// </summary>
+        public static string TrayMenuMonitorRunning {
+            get {
+                return ResourceManager.GetString("TrayMenuMonitorRunning", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Settings (&amp;S).
+        /// </summary>
+        public static string TrayMenuOpenSettings {
+            get {
+                return ResourceManager.GetString("TrayMenuOpenSettings", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Pause monitoring.
+        /// </summary>
+        public static string TrayMenuPauseMonitor {
+            get {
+                return ResourceManager.GetString("TrayMenuPauseMonitor", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Recording {0} live rooms.
+        /// </summary>
+        public static string TrayMenuRecordingSummary {
+            get {
+                return ResourceManager.GetString("TrayMenuRecordingSummary", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Restart (&amp;R).
+        /// </summary>
+        public static string TrayMenuRestart {
+            get {
+                return ResourceManager.GetString("TrayMenuRestart", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Resume monitoring.
+        /// </summary>
+        public static string TrayMenuResumeMonitor {
+            get {
+                return ResourceManager.GetString("TrayMenuResumeMonitor", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Show (&amp;V).
+        /// </summary>
+        public static string TrayMenuShowMainWindow {
+            get {
+                return ResourceManager.GetString("TrayMenuShowMainWindow", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Tray Icon.
+        /// </summary>
+        public static string TrayStatus {
+            get {
+                return ResourceManager.GetString("TrayStatus", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enable tray icon is following to recording status.
+        /// </summary>
+        public static string TrayStatusHint {
+            get {
+                return ResourceManager.GetString("TrayStatusHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Tue.
+        /// </summary>
+        public static string Tuesday {
+            get {
+                return ResourceManager.GetString("Tuesday", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Undo selection or list operation.
+        /// </summary>
+        public static string UndoSelectionOrListOperation {
+            get {
+                return ResourceManager.GetString("UndoSelectionOrListOperation", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Undo text edit.
+        /// </summary>
+        public static string UndoText {
+            get {
+                return ResourceManager.GetString("UndoText", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Undo video selection.
+        /// </summary>
+        public static string UndoVideoSelection {
+            get {
+                return ResourceManager.GetString("UndoVideoSelection", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unknown author.
+        /// </summary>
+        public static string UnknownAuthor {
+            get {
+                return ResourceManager.GetString("UnknownAuthor", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Unsupported.
+        /// </summary>
+        public static string Unsupported {
+            get {
+                return ResourceManager.GetString("Unsupported", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This YAML file is not a configuration supported by Emerde..
+        /// </summary>
+        public static string UnsupportedEmerdeConfig {
+            get {
+                return ResourceManager.GetString("UnsupportedEmerdeConfig", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Use Cookie.
         /// </summary>
@@ -1667,7 +6212,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("UseCookie", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Leave blank to send no cookies.
         /// </summary>
@@ -1676,7 +6221,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("UseCookieEnterHint", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Some platforms require cookies.
         /// </summary>
@@ -1685,7 +6230,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("UseCookieHint", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to China Cookie.
         /// </summary>
@@ -1694,7 +6239,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("UseCookieOfDouyin", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Overseas Cookie.
         /// </summary>
@@ -1703,7 +6248,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("UseCookieOfOversea", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Use Proxy.
         /// </summary>
@@ -1712,7 +6257,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("UseProxy", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Specify your web proxy URL.
         /// </summary>
@@ -1721,7 +6266,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("UseProxyHint", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Browser UserAgent.
         /// </summary>
@@ -1730,7 +6275,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("UserAgent", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to Leave blank to use the built-in browser UserAgent.
         /// </summary>
@@ -1739,7 +6284,7 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("UserAgentEnterHint", resourceCulture);
             }
         }
-        
+
         /// <summary>
         ///   Looks up a localized string similar to You can use a custom browser UserAgent.
         /// </summary>
@@ -1748,7 +6293,16 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("UserAgentHint", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to User import.
+        /// </summary>
+        public static string UserImport {
+            get {
+                return ResourceManager.GetString("UserImport", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Version.
         /// </summary>
@@ -1758,172 +6312,166 @@ namespace Emerde.Properties {
             }
         }
 
+        /// <summary>
+        ///   Looks up a localized string similar to All streamers.
+        /// </summary>
+        public static string VideoAllStreamers {
+            get {
+                return ResourceManager.GetString("VideoAllStreamers", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to delete {0} videos.
+        /// </summary>
+        public static string VideoDeleteFailures {
+            get {
+                return ResourceManager.GetString("VideoDeleteFailures", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The video file does not exist..
+        /// </summary>
+        public static string VideoFileMissing {
+            get {
+                return ResourceManager.GetString("VideoFileMissing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to A video with the same name already exists..
+        /// </summary>
+        public static string VideoFileNameExists {
+            get {
+                return ResourceManager.GetString("VideoFileNameExists", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to import {0} videos.
+        /// </summary>
+        public static string VideoImportFailures {
+            get {
+                return ResourceManager.GetString("VideoImportFailures", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Videos cannot be imported from a save folder, its parent, or its child folder..
+        /// </summary>
+        public static string VideoImportManagedFolderConflict {
+            get {
+                return ResourceManager.GetString("VideoImportManagedFolderConflict", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Video list.
+        /// </summary>
         public static string VideoListTitle {
-            get { return ResourceManager.GetString("VideoListTitle", resourceCulture); }
+            get {
+                return ResourceManager.GetString("VideoListTitle", resourceCulture);
+            }
         }
 
-        public static string RefreshButton {
-            get { return ResourceManager.GetString("RefreshButton", resourceCulture); }
+        /// <summary>
+        ///   Looks up a localized string similar to {0} selected.
+        /// </summary>
+        public static string VideoSelectedCount {
+            get {
+                return ResourceManager.GetString("VideoSelectedCount", resourceCulture);
+            }
         }
 
-        public static string ImportFolder {
-            get { return ResourceManager.GetString("ImportFolder", resourceCulture); }
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to process {0} videos. Check the destination folder and duplicate file names..
+        /// </summary>
+        public static string VideoTransferFailures {
+            get {
+                return ResourceManager.GetString("VideoTransferFailures", resourceCulture);
+            }
         }
 
-        public static string MergeVideos {
-            get { return ResourceManager.GetString("MergeVideos", resourceCulture); }
+        /// <summary>
+        ///   Looks up a localized string similar to Volume {0}%.
+        /// </summary>
+        public static string VolumeFormat {
+            get {
+                return ResourceManager.GetString("VolumeFormat", resourceCulture);
+            }
         }
 
-        public static string DeleteButton {
-            get { return ResourceManager.GetString("DeleteButton", resourceCulture); }
+        /// <summary>
+        ///   Looks up a localized string similar to Waiting for data.
+        /// </summary>
+        public static string WaitingForData {
+            get {
+                return ResourceManager.GetString("WaitingForData", resourceCulture);
+            }
         }
 
-        public static string MoveButton {
-            get { return ResourceManager.GetString("MoveButton", resourceCulture); }
+        /// <summary>
+        ///   Looks up a localized string similar to Microsoft Edge WebView2 Runtime is not installed. Basic Douyin checks remain available, but browser fallback is disabled until the runtime is installed..
+        /// </summary>
+        public static string WebView2RuntimeMissing {
+            get {
+                return ResourceManager.GetString("WebView2RuntimeMissing", resourceCulture);
+            }
         }
 
-        public static string CopyButton {
-            get { return ResourceManager.GetString("CopyButton", resourceCulture); }
+        /// <summary>
+        ///   Looks up a localized string similar to Wed.
+        /// </summary>
+        public static string Wednesday {
+            get {
+                return ResourceManager.GetString("Wednesday", resourceCulture);
+            }
         }
 
-        public static string SelectAll {
-            get { return ResourceManager.GetString("SelectAll", resourceCulture); }
+        /// <summary>
+        ///   Looks up a localized string similar to Weeks.
+        /// </summary>
+        public static string Weeks {
+            get {
+                return ResourceManager.GetString("Weeks", resourceCulture);
+            }
         }
 
-        public static string InvertSelection {
-            get { return ResourceManager.GetString("InvertSelection", resourceCulture); }
+        /// <summary>
+        ///   Looks up a localized string similar to Only YAML configuration files are supported..
+        /// </summary>
+        public static string YamlOnly {
+            get {
+                return ResourceManager.GetString("YamlOnly", resourceCulture);
+            }
         }
 
-        public static string MultiSelect {
-            get { return ResourceManager.GetString("MultiSelect", resourceCulture); }
+        /// <summary>
+        ///   Looks up a localized string similar to The YAML configuration syntax is invalid..
+        /// </summary>
+        public static string YamlSyntaxInvalid {
+            get {
+                return ResourceManager.GetString("YamlSyntaxInvalid", resourceCulture);
+            }
         }
 
-        public static string StreamerLabel {
-            get { return ResourceManager.GetString("StreamerLabel", resourceCulture); }
+        /// <summary>
+        ///   Looks up a localized string similar to Years.
+        /// </summary>
+        public static string Years {
+            get {
+                return ResourceManager.GetString("Years", resourceCulture);
+            }
         }
 
-        public static string TimeRangeLabel {
-            get { return ResourceManager.GetString("TimeRangeLabel", resourceCulture); }
-        }
-
-        public static string OpenVideo {
-            get { return ResourceManager.GetString("OpenVideo", resourceCulture); }
-        }
-
-        public static string TranscodeVideo {
-            get { return ResourceManager.GetString("TranscodeVideo", resourceCulture); }
-        }
-
-        public static string CreateOptimizedAudioTrack {
-            get { return ResourceManager.GetString("CreateOptimizedAudioTrack", resourceCulture); }
-        }
-
-        public static string OptimizedAudioTrackDescription {
-            get { return ResourceManager.GetString("OptimizedAudioTrackDescription", resourceCulture); }
-        }
-
-        public static string TranscodingChip {
-            get { return ResourceManager.GetString("TranscodingChip", resourceCulture); }
-        }
-
-        public static string StallSegmentChip {
-            get { return ResourceManager.GetString("StallSegmentChip", resourceCulture); }
-        }
-
-        public static string SplitButton {
-            get { return ResourceManager.GetString("SplitButton", resourceCulture); }
-        }
-
-        public static string SplitVideo {
-            get { return ResourceManager.GetString("SplitVideo", resourceCulture); }
-        }
-
-        public static string SplitInterval {
-            get { return ResourceManager.GetString("SplitInterval", resourceCulture); }
-        }
-
-        public static string Minutes {
-            get { return ResourceManager.GetString("Minutes", resourceCulture); }
-        }
-
-        public static string Seconds {
-            get { return ResourceManager.GetString("Seconds", resourceCulture); }
-        }
-
-        public static string Hours {
-            get { return ResourceManager.GetString("Hours", resourceCulture); }
-        }
-
-        public static string StartButton {
-            get { return ResourceManager.GetString("StartButton", resourceCulture); }
-        }
-
-        public static string QualityLabel {
-            get { return ResourceManager.GetString("QualityLabel", resourceCulture); }
-        }
-
-        public static string QualitySelectionHint {
-            get { return ResourceManager.GetString("QualitySelectionHint", resourceCulture); }
-        }
-
-        public static string PreviewPause {
-            get { return ResourceManager.GetString("PreviewPause", resourceCulture); }
-        }
-
-        public static string PreviewMute {
-            get { return ResourceManager.GetString("PreviewMute", resourceCulture); }
-        }
-
-        public static string PreviewUnmute {
-            get { return ResourceManager.GetString("PreviewUnmute", resourceCulture); }
-        }
-
-        public static string PreviewFullScreen {
-            get { return ResourceManager.GetString("PreviewFullScreen", resourceCulture); }
-        }
-
-        public static string PreviewRestore {
-            get { return ResourceManager.GetString("PreviewRestore", resourceCulture); }
-        }
-
-        public static string StartupAboutNoticeTitle {
-            get { return ResourceManager.GetString("StartupAboutNoticeTitle", resourceCulture); }
-        }
-
-        public static string StartupAboutNoticeDescription {
-            get { return ResourceManager.GetString("StartupAboutNoticeDescription", resourceCulture); }
-        }
-
-        public static string NetworkCapacityIdle {
-            get { return ResourceManager.GetString("NetworkCapacityIdle", resourceCulture); }
-        }
-
-        public static string NetworkCapacityHint {
-            get { return ResourceManager.GetString("NetworkCapacityHint", resourceCulture); }
-        }
-
-        public static string NetworkCapacityTesting {
-            get { return ResourceManager.GetString("NetworkCapacityTesting", resourceCulture); }
-        }
-
-        public static string NetworkCapacityNoStream {
-            get { return ResourceManager.GetString("NetworkCapacityNoStream", resourceCulture); }
-        }
-
-        public static string NetworkCapacityNoStreamShort {
-            get { return ResourceManager.GetString("NetworkCapacityNoStreamShort", resourceCulture); }
-        }
-
-        public static string NetworkCapacityResultShort {
-            get { return ResourceManager.GetString("NetworkCapacityResultShort", resourceCulture); }
-        }
-
-        public static string NetworkCapacityResultHint {
-            get { return ResourceManager.GetString("NetworkCapacityResultHint", resourceCulture); }
-        }
-
-        public static string NetworkCapacityFailed {
-            get { return ResourceManager.GetString("NetworkCapacityFailed", resourceCulture); }
+        /// <summary>
+        ///   Looks up a localized string similar to Yes.
+        /// </summary>
+        public static string Yes {
+            get {
+                return ResourceManager.GetString("Yes", resourceCulture);
+            }
         }
     }
 }
