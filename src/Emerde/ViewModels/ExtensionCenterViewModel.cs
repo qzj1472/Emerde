@@ -47,6 +47,8 @@ public partial class ExtensionCenterViewModel : ObservableObject, IDisposable
 
     public int EnabledExtensionCount => Extensions.Count(item => item.IsEnabled);
 
+    public string EnabledExtensionSummary => "EnabledExtensionsFormat".Tr(EnabledExtensionCount);
+
     public bool HasOperationMessage => !string.IsNullOrWhiteSpace(OperationMessage);
 
     public ExtensionCenterViewModel()
@@ -136,9 +138,9 @@ public partial class ExtensionCenterViewModel : ObservableObject, IDisposable
         {
             IsFolderPicker = false,
             Multiselect = true,
-            Title = "选择 Emerde 扩展包",
+            Title = "SelectExtensionPackage".Tr(),
         };
-        dialog.Filters.Add(new CommonFileDialogFilter("Emerde 扩展包", "*.emerde-extension;*.zip"));
+        dialog.Filters.Add(new CommonFileDialogFilter("ExtensionPackageFilter".Tr(), "*.emerde-extension;*.zip"));
         if (dialog.ShowDialog() != CommonFileDialogResult.Ok)
         {
             return;
@@ -172,7 +174,7 @@ public partial class ExtensionCenterViewModel : ObservableObject, IDisposable
             await ReloadCoreAsync();
             if (errors.Count == 0)
             {
-                SetOperationMessage(installedCount > 0 ? $"已安装 {installedCount} 个扩展" : "没有找到可安装的扩展包");
+                SetOperationMessage(installedCount > 0 ? "InstalledExtensions".Tr(installedCount) : "NoInstallableExtensions".Tr());
             }
             else
             {
@@ -221,7 +223,7 @@ public partial class ExtensionCenterViewModel : ObservableObject, IDisposable
         try
         {
             await extensionService.SetEnabledAsync(extension.Id, !extension.IsEnabled);
-            SetOperationMessage(extension.IsEnabled ? "扩展已停用" : "扩展已启用");
+            SetOperationMessage(extension.IsEnabled ? "ExtensionDisabled".Tr() : "ExtensionEnabled".Tr());
             await ReloadCoreAsync();
         }
         catch (Exception e)
@@ -245,10 +247,10 @@ public partial class ExtensionCenterViewModel : ObservableObject, IDisposable
         Window? owner = System.Windows.Application.Current?.MainWindow;
         ContentDialog dialog = new()
         {
-            Title = "移除扩展",
-            Content = $"确定移除扩展“{extension.Name}”吗？扩展设置也会被移除。",
-            PrimaryButtonText = "是",
-            CloseButtonText = "否",
+            Title = "RemoveExtensionTitle".Tr(),
+            Content = "ConfirmRemoveExtension".Tr(extension.Name),
+            PrimaryButtonText = "Yes".Tr(),
+            CloseButtonText = "No".Tr(),
             DefaultButton = ContentDialogButton.Close,
             FocusVisualStyle = null,
             Style = System.Windows.Application.Current?.TryFindResource("DefaultVioletaContentDialogStyle") as System.Windows.Style,
@@ -263,7 +265,7 @@ public partial class ExtensionCenterViewModel : ObservableObject, IDisposable
         try
         {
             await extensionService.UninstallAsync(extension.Id);
-            SetOperationMessage("扩展已移除");
+            SetOperationMessage("ExtensionRemoved".Tr());
             await ReloadCoreAsync();
         }
         catch (Exception e)
@@ -288,7 +290,7 @@ public partial class ExtensionCenterViewModel : ObservableObject, IDisposable
         try
         {
             await extensionService.SaveSettingsAsync(extension.Id, extension.Settings.ToDictionary(item => item.Key, item => item.Value, StringComparer.OrdinalIgnoreCase));
-            SetOperationMessage("扩展设置已保存");
+            SetOperationMessage("ExtensionSettingsSaved".Tr());
             await ReloadCoreAsync();
         }
         catch (Exception e)
@@ -315,7 +317,7 @@ public partial class ExtensionCenterViewModel : ObservableObject, IDisposable
             ExtensionExecutionResult result = await extensionService.ExecuteAsync(extension.Id, "health.check", new { hostVersion = extensionService.GetType().Assembly.GetName().Version?.ToString() });
             if (result.Success)
             {
-                SetOperationMessage(string.IsNullOrWhiteSpace(result.Message) ? "扩展响应正常" : result.Message);
+                SetOperationMessage(string.IsNullOrWhiteSpace(result.Message) ? "ExtensionResponseSucceeded".Tr() : result.Message);
             }
             else
             {
@@ -349,6 +351,7 @@ public partial class ExtensionCenterViewModel : ObservableObject, IDisposable
         UpdateSelectedUiContributions();
         OnPropertyChanged(nameof(HasExtensions));
         OnPropertyChanged(nameof(EnabledExtensionCount));
+        OnPropertyChanged(nameof(EnabledExtensionSummary));
     }
 
     private void UiContributionsChanged(object? sender, EventArgs e)
@@ -401,29 +404,29 @@ public partial class ExtensionCardViewModel : ObservableObject
 
     public string Version => Manifest.Version;
 
-    public string Description => string.IsNullOrWhiteSpace(Manifest.Description) ? "未提供扩展说明" : Manifest.Description;
+    public string Description => string.IsNullOrWhiteSpace(Manifest.Description) ? "ExtensionDescriptionMissing".Tr() : Manifest.Description;
 
-    public string Author => string.IsNullOrWhiteSpace(Manifest.Author) ? "未知作者" : Manifest.Author;
+    public string Author => string.IsNullOrWhiteSpace(Manifest.Author) ? "UnknownAuthor".Tr() : Manifest.Author;
 
     public ImageSource? IconSource { get; }
 
     public bool HasIcon => IconSource != null;
 
-    public string ExecutionText => Manifest.ExecutionMode.Equals("in_process", StringComparison.OrdinalIgnoreCase) ? "应用内运行 · 高权限" : $"独立进程 · {Manifest.Runtime}";
+    public string ExecutionText => Manifest.ExecutionMode.Equals("in_process", StringComparison.OrdinalIgnoreCase) ? "ExtensionInProcess".Tr() : "ExtensionSeparateProcess".Tr(Manifest.Runtime);
 
-    public string CapabilityText => Manifest.Capabilities.Length == 0 ? "未声明能力" : string.Join(" · ", Manifest.Capabilities);
+    public string CapabilityText => Manifest.Capabilities.Length == 0 ? "ExtensionCapabilitiesMissing".Tr() : string.Join(" · ", Manifest.Capabilities);
 
-    public string PermissionText => Manifest.Permissions.Length == 0 ? "未声明权限" : string.Join("、", Manifest.Permissions);
+    public string PermissionText => Manifest.Permissions.Length == 0 ? "ExtensionPermissionsMissing".Tr() : string.Join("ExtensionPermissionSeparator".Tr(), Manifest.Permissions);
 
     public bool RequiresTrustWarning => Manifest.ExecutionMode.Equals("in_process", StringComparison.OrdinalIgnoreCase);
 
     public bool CanHealthCheck => Manifest.ExecutionMode.Equals("process", StringComparison.OrdinalIgnoreCase);
 
-    public string ToggleActionText => IsEnabled ? "停用" : "启用";
+    public string ToggleActionText => IsEnabled ? "Disable".Tr() : "Enable".Tr();
 
-    public string DetailsActionText => IsExpanded ? "收起详情" : "详细信息";
+    public string DetailsActionText => IsExpanded ? "CollapseDetails".Tr() : "Details".Tr();
 
-    public string StateText => !IsValid ? "清单无效" : IsLoaded ? "运行中" : IsEnabled ? "已启用" : "已停用";
+    public string StateText => !IsValid ? "ExtensionManifestInvalid".Tr() : IsLoaded ? "ExtensionRunning".Tr() : IsEnabled ? "ExtensionEnabled".Tr() : "ExtensionDisabled".Tr();
 
     public bool HasSettings => Settings.Count > 0;
 
@@ -641,15 +644,17 @@ public partial class ExtensionSettingViewModel : ObservableObject
 
 public sealed record ExtensionTemplateOptionViewModel(string Value, string DisplayName)
 {
-    private static readonly (string Value, string DisplayName)[] KnownOptions =
+    private static (string Value, string DisplayName)[] KnownOptions =>
     [
-        ("{title}", "直播标题"),
-        ("{nickname}", "主播昵称"),
-        ("{filename}", "文件名"),
-        ("{date}", "日期"),
+        ("{title}", "LiveTitle".Tr()),
+        ("{nickname}", "StreamerNickname".Tr()),
+        ("{filename}", "FileName".Tr()),
+        ("{date}", "Date".Tr()),
     ];
 
     public string DisplayValue => DisplayName == Value ? Value : $"{{{DisplayName}}}";
+
+    public string InsertToolTip => "InsertVariable".Tr(DisplayName);
 
     public static ExtensionTemplateOptionViewModel Create(string value)
     {
