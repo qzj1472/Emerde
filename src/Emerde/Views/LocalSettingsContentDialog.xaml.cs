@@ -37,19 +37,19 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
 
     public sealed record UnitOption(int Value, string DisplayName);
 
-    public IReadOnlyList<UnitOption> TimeUnitOptions { get; } =
+    public IReadOnlyList<UnitOption> TimeUnitOptions =>
     [
-        new(Seconds, "秒"),
-        new(Minutes, "分钟"),
-        new(Hours, "小时"),
+        new(Seconds, "Seconds".Tr()),
+        new(Minutes, "Minutes".Tr()),
+        new(Hours, "Hours".Tr()),
     ];
 
-    public IReadOnlyList<UnitOption> SegmentUnitOptions { get; } =
+    public IReadOnlyList<UnitOption> SegmentUnitOptions =>
     [
-        new(SegmentTimeUnitHelper.Milliseconds, "毫秒"),
-        new(SegmentTimeUnitHelper.Seconds, "秒"),
-        new(SegmentTimeUnitHelper.Minutes, "分钟"),
-        new(SegmentTimeUnitHelper.Hours, "小时"),
+        new(SegmentTimeUnitHelper.Milliseconds, "Milliseconds".Tr()),
+        new(SegmentTimeUnitHelper.Seconds, "Seconds".Tr()),
+        new(SegmentTimeUnitHelper.Minutes, "Minutes".Tr()),
+        new(SegmentTimeUnitHelper.Hours, "Hours".Tr()),
         new(SegmentTimeUnitHelper.Megabytes, "MB"),
         new(SegmentTimeUnitHelper.Gigabytes, "GB"),
     ];
@@ -293,6 +293,25 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
 
         DataContext = this;
         InitializeComponent();
+        Loaded += LocalSettingsContentDialogLoaded;
+        Unloaded += LocalSettingsContentDialogUnloaded;
+    }
+
+    private void LocalSettingsContentDialogLoaded(object sender, RoutedEventArgs e)
+    {
+        Locale.CultureChanged -= LocaleCultureChanged;
+        Locale.CultureChanged += LocaleCultureChanged;
+    }
+
+    private void LocalSettingsContentDialogUnloaded(object sender, RoutedEventArgs e)
+    {
+        Locale.CultureChanged -= LocaleCultureChanged;
+    }
+
+    private void LocaleCultureChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(TimeUnitOptions));
+        OnPropertyChanged(nameof(SegmentUnitOptions));
     }
 
     internal void SetPlatformName(string? platformName)
@@ -631,7 +650,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             AppSessionLogger.WriteException(e);
-            Wpf.Ui.Violeta.Controls.Toast.Warning($"无法打开保存目录：{e.Message}");
+            Wpf.Ui.Violeta.Controls.Toast.Warning("OpenSaveFolderFailed".Tr(e.Message));
         }
     }
 

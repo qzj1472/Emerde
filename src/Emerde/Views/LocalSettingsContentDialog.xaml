@@ -113,7 +113,7 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <CheckBox Grid.Column="0"
-                                  Content="跟随全局设置"
+                                  Content="{I18N FollowGlobalSettings}"
                                   IsChecked="{Binding IsFollowGlobalSettings, Mode=TwoWay}" />
                         <CheckBox Grid.Column="1"
                                   HorizontalAlignment="Left"
@@ -155,7 +155,7 @@
                                         <ToggleButton Grid.Column="0"
                                                        Margin="0,0,6,0"
                                                        HorizontalAlignment="Stretch"
-                                                       Content="监控"
+                                                       Content="{I18N Monitor}"
                                                        IsChecked="{Binding IsToMonitor, Mode=TwoWay}" />
                                         <ToggleButton Grid.Column="1"
                                                        Margin="6,0,0,0"
@@ -183,11 +183,11 @@
                                                 <RowDefinition Height="Auto" />
                                                 <RowDefinition Height="Auto" />
                                             </Grid.RowDefinitions>
-                                            <TextBlock Grid.Row="0" Text="画质" />
+                                            <TextBlock Grid.Row="0" Text="{I18N QualityLabel}" />
                                             <TextBlock Grid.Row="1"
                                                        FontSize="11"
                                                        Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
-                                                       Text="按当前平台支持的档位选择直播流画质。" />
+                                                       Text="{I18N StreamQualityHint}" />
                                         </Grid>
                                         <ComboBox Grid.Column="2"
                                                   MinWidth="150"
@@ -217,21 +217,21 @@
                                                 <RowDefinition Height="Auto" />
                                                 <RowDefinition Height="Auto" />
                                             </Grid.RowDefinitions>
-                                            <TextBlock Grid.Row="0" Text="监控计划" />
+                                            <TextBlock Grid.Row="0" Text="{I18N MonitoringSchedule}" />
                                             <TextBlock Grid.Row="1"
                                                        FontSize="11"
                                                        Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
-                                                       Text="按星期和时间段限制此房间的自动监控。" />
+                                                       Text="{I18N RoomMonitoringScheduleHint}" />
                                         </Grid>
                                         <ComboBox Grid.Column="2"
                                                   MinWidth="150"
                                                   Margin="16,0,12,0"
                                                   SelectedIndex="{Binding RoutineScheduleModeIndex, Mode=TwoWay}">
-                                            <ComboBoxItem Content="始终运行" ToolTip="周一至周日，全天运行" />
-                                            <ComboBoxItem Content="工作日运行" ToolTip="周一至周五运行" />
-                                            <ComboBoxItem Content="周末运行" ToolTip="周六、周日运行" />
-                                            <ComboBoxItem Content="夜间运行" ToolTip="每天 18:00 至次日 08:00 运行" />
-                                            <ComboBoxItem Content="自定义计划" ToolTip="手动选择星期和起止时间段" />
+                                            <ComboBoxItem Content="{I18N ScheduleAlways}" ToolTip="{I18N ScheduleAlwaysHint}" />
+                                            <ComboBoxItem Content="{I18N ScheduleWeekdays}" ToolTip="{I18N ScheduleWeekdaysHint}" />
+                                            <ComboBoxItem Content="{I18N ScheduleWeekends}" ToolTip="{I18N ScheduleWeekendsHint}" />
+                                            <ComboBoxItem Content="{I18N ScheduleNight}" ToolTip="{I18N ScheduleNightHint}" />
+                                            <ComboBoxItem Content="{I18N ScheduleCustom}" ToolTip="{I18N ScheduleCustomHint}" />
                                         </ComboBox>
                                     </Grid>
                                 </ui:Card>
@@ -256,33 +256,33 @@
                                                     <RowDefinition Height="Auto" />
                                                     <RowDefinition Height="Auto" />
                                                 </Grid.RowDefinitions>
-                                                <TextBlock Grid.Row="0" Text="监控计划" />
+                                                <TextBlock Grid.Row="0" Text="{I18N MonitoringSchedule}" />
                                                 <TextBlock Grid.Row="1"
                                                            FontSize="11"
                                                            Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
-                                                           Text="按星期和时间段限制此房间的自动监控。" />
+                                                           Text="{I18N RoomMonitoringScheduleHint}" />
                                             </Grid>
                                             <ComboBox Grid.Column="2"
                                                       MinWidth="150"
                                                       Margin="0,0,12,0"
                                                       SelectedIndex="{Binding RoutineScheduleModeIndex, Mode=TwoWay}">
-                                                <ComboBoxItem Content="始终运行" ToolTip="周一至周日，全天运行" />
-                                                <ComboBoxItem Content="工作日运行" ToolTip="周一至周五运行" />
-                                                <ComboBoxItem Content="周末运行" ToolTip="周六、周日运行" />
-                                                <ComboBoxItem Content="夜间运行" ToolTip="每天 18:00 至次日 08:00 运行" />
-                                                <ComboBoxItem Content="自定义计划" ToolTip="手动选择星期和起止时间段" />
+                                                <ComboBoxItem Content="{I18N ScheduleAlways}" ToolTip="{I18N ScheduleAlwaysHint}" />
+                                                <ComboBoxItem Content="{I18N ScheduleWeekdays}" ToolTip="{I18N ScheduleWeekdaysHint}" />
+                                                <ComboBoxItem Content="{I18N ScheduleWeekends}" ToolTip="{I18N ScheduleWeekendsHint}" />
+                                                <ComboBoxItem Content="{I18N ScheduleNight}" ToolTip="{I18N ScheduleNightHint}" />
+                                                <ComboBoxItem Content="{I18N ScheduleCustom}" ToolTip="{I18N ScheduleCustomHint}" />
                                             </ComboBox>
                                         </Grid>
                                     </ui:CardExpander.Header>
                                     <ui:StackPanel Margin="42,0,28,0" Spacing="12">
                                         <UniformGrid Columns="7">
-                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周一" IsChecked="{Binding RoutineScheduleMonday, Mode=TwoWay}" />
-                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周二" IsChecked="{Binding RoutineScheduleTuesday, Mode=TwoWay}" />
-                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周三" IsChecked="{Binding RoutineScheduleWednesday, Mode=TwoWay}" />
-                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周四" IsChecked="{Binding RoutineScheduleThursday, Mode=TwoWay}" />
-                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周五" IsChecked="{Binding RoutineScheduleFriday, Mode=TwoWay}" />
-                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周六" IsChecked="{Binding RoutineScheduleSaturday, Mode=TwoWay}" />
-                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="周日" IsChecked="{Binding RoutineScheduleSunday, Mode=TwoWay}" />
+                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="{I18N Monday}" IsChecked="{Binding RoutineScheduleMonday, Mode=TwoWay}" />
+                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="{I18N Tuesday}" IsChecked="{Binding RoutineScheduleTuesday, Mode=TwoWay}" />
+                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="{I18N Wednesday}" IsChecked="{Binding RoutineScheduleWednesday, Mode=TwoWay}" />
+                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="{I18N Thursday}" IsChecked="{Binding RoutineScheduleThursday, Mode=TwoWay}" />
+                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="{I18N Friday}" IsChecked="{Binding RoutineScheduleFriday, Mode=TwoWay}" />
+                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="{I18N Saturday}" IsChecked="{Binding RoutineScheduleSaturday, Mode=TwoWay}" />
+                                            <ToggleButton Margin="3,0" HorizontalAlignment="Stretch" Content="{I18N Sunday}" IsChecked="{Binding RoutineScheduleSunday, Mode=TwoWay}" />
                                         </UniformGrid>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
@@ -295,7 +295,7 @@
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="时间段" />
+                                            <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="{I18N TimeRange}" />
                                             <controls:CompactNumberBox Grid.Column="1"
                                                                        Width="112"
                                                                        Margin="12,0,0,0"
@@ -308,7 +308,7 @@
                                                                        Maximum="59"
                                                                        Minimum="0"
                                                                        Value="{Binding RoutineScheduleStartMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                            <TextBlock Grid.Column="4" Margin="12,0" VerticalAlignment="Center" Text="至" />
+                                            <TextBlock Grid.Column="4" Margin="12,0" VerticalAlignment="Center" Text="{I18N To}" />
                                             <controls:CompactNumberBox Grid.Column="5"
                                                                        Width="112"
                                                                        Maximum="23"
