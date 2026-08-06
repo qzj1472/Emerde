@@ -227,8 +227,9 @@ internal static unsafe partial class FfmpegMediaEngine
             }
             outputStream->time_base = encoderContext->time_base;
             ThrowIfError(ffmpeg.avcodec_parameters_from_context(outputStream->codecpar, encoderContext), "copy AAC parameters");
-            ffmpeg.av_dict_set(&outputStream->metadata, "title", "优化音频", 0);
-            ffmpeg.av_dict_set(&outputStream->metadata, "handler_name", "优化音频", 0);
+            string optimizedAudioTrack = "OptimizedAudioTrack".Tr();
+            ffmpeg.av_dict_set(&outputStream->metadata, "title", optimizedAudioTrack, 0);
+            ffmpeg.av_dict_set(&outputStream->metadata, "handler_name", optimizedAudioTrack, 0);
 
             if ((outputContext->oformat->flags & ffmpeg.AVFMT_NOFILE) == 0)
             {
@@ -1140,7 +1141,9 @@ internal static unsafe partial class FfmpegMediaEngine
                 {
                     AVStream* originalAudioStream = outputContext->streams[outputIndex];
                     originalAudioTrackNumber++;
-                    string originalAudioTitle = originalAudioTrackNumber == 1 ? "原音频" : $"原音频 {originalAudioTrackNumber}";
+                    string originalAudioTitle = originalAudioTrackNumber == 1
+                        ? "OriginalAudioTrack".Tr()
+                        : "OriginalAudioTrackNumbered".Tr(originalAudioTrackNumber);
                     ffmpeg.av_dict_set(&originalAudioStream->metadata, "title", originalAudioTitle, 0);
                     ffmpeg.av_dict_set(&originalAudioStream->metadata, "handler_name", originalAudioTitle, 0);
                     originalAudioStream->disposition &= ~ffmpeg.AV_DISPOSITION_DEFAULT;
@@ -1155,8 +1158,9 @@ internal static unsafe partial class FfmpegMediaEngine
             ThrowIfError(ffmpeg.avcodec_parameters_copy(optimizedOutputStream->codecpar, optimizedInputStream->codecpar), "copy optimized audio stream parameters");
             optimizedOutputStream->time_base = optimizedInputStream->time_base;
             optimizedOutputStream->codecpar->codec_tag = 0;
-            ffmpeg.av_dict_set(&optimizedOutputStream->metadata, "title", "优化音频", 0);
-            ffmpeg.av_dict_set(&optimizedOutputStream->metadata, "handler_name", "优化音频", 0);
+            string optimizedAudioTrack = "OptimizedAudioTrack".Tr();
+            ffmpeg.av_dict_set(&optimizedOutputStream->metadata, "title", optimizedAudioTrack, 0);
+            ffmpeg.av_dict_set(&optimizedOutputStream->metadata, "handler_name", optimizedAudioTrack, 0);
             optimizedOutputStream->disposition |= ffmpeg.AV_DISPOSITION_DEFAULT;
 
             if ((outputContext->oformat->flags & ffmpeg.AVFMT_NOFILE) == 0)
