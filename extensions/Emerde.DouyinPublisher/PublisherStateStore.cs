@@ -384,27 +384,25 @@ internal sealed class PublisherStateStore
 
     private PublisherState Load()
     {
+        return TryLoad(statePath) ?? TryLoad(GetBackupPath()) ?? new PublisherState();
+    }
+
+    private static PublisherState? TryLoad(string path)
+    {
         try
         {
-            if (!File.Exists(statePath))
+            if (!File.Exists(path))
             {
-                return new PublisherState();
+                return null;
             }
-            PublisherState loaded = JsonSerializer.Deserialize<PublisherState>(File.ReadAllText(statePath), JsonOptions) ?? new PublisherState();
+            PublisherState loaded = JsonSerializer.Deserialize<PublisherState>(File.ReadAllText(path), JsonOptions) ?? new PublisherState();
             loaded.Normalize();
             return loaded;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
         {
-            string invalidPath = statePath + $".invalid-{DateTime.UtcNow:yyyyMMddHHmmss}";
-            try
-            {
-                File.Move(statePath, invalidPath, overwrite: true);
-            }
-            catch (Exception moveError) when (moveError is IOException or UnauthorizedAccessException)
-            {
-            }
-            return new PublisherState();
+            QuarantineInvalidState(path);
+            return null;
         }
     }
 
@@ -417,12 +415,45 @@ internal sealed class PublisherStateStore
             {
                 await JsonSerializer.SerializeAsync(stream, value, JsonOptions, cancellationToken);
                 await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
             }
-            File.Move(temporaryPath, statePath, overwrite: true);
+            if (File.Exists(statePath))
+            {
+                File.Replace(temporaryPath, statePath, GetBackupPath(), ignoreMetadataErrors: true);
+            }
+            else
+            {
+                File.Move(temporaryPath, statePath);
+            }
         }
         finally
         {
-            File.Delete(temporaryPath);
+            try
+            {
+                File.Delete(temporaryPath);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
+    private string GetBackupPath() => statePath + ".bak";
+
+    private static void QuarantineInvalidState(string path)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return;
+            }
+
+            string invalidPath = path + $".invalid-{DateTime.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}";
+            File.Move(path, invalidPath, overwrite: false);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
         }
     }
 

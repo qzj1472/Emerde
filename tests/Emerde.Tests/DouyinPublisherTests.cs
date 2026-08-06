@@ -146,7 +146,7 @@ public sealed class DouyinPublisherTests
     {
         string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ExtensionCenterWindow.xaml"));
         int contribution = xaml.IndexOf("SelectedUiContributions", StringComparison.Ordinal);
-        int settings = xaml.IndexOf("Text=\"扩展设置\"", StringComparison.Ordinal);
+        int settings = xaml.IndexOf("Text=\"{I18N ExtensionSettings}\"", StringComparison.Ordinal);
 
         Assert.Contains("ScrollViewer.CanContentScroll\" Value=\"False\"", xaml, StringComparison.Ordinal);
         Assert.Contains("ItemsSource=\"{Binding PrimarySettings}\"", xaml, StringComparison.Ordinal);
@@ -163,6 +163,9 @@ public sealed class DouyinPublisherTests
     [Fact]
     public void ExtensionSetting_TitleTemplateAcceptsTextAndVariableOptions()
     {
+        string liveTitle = "LiveTitle".Tr();
+        string streamerNickname = "StreamerNickname".Tr();
+        string date = "Date".Tr();
         ExtensionSettingViewModel setting = new(new ExtensionSettingDefinition
         {
             Key = "title_template",
@@ -179,14 +182,14 @@ public sealed class DouyinPublisherTests
 
         Assert.True(setting.HasTemplateOptions);
         Assert.Equal("基础信息", setting.Section);
-        Assert.Equal("主播昵称", nickname.DisplayName);
-        Assert.Equal("精彩片段 {主播昵称}", setting.DisplayValue);
+        Assert.Equal(streamerNickname, nickname.DisplayName);
+        Assert.Equal($"精彩片段 {{{streamerNickname}}}", setting.DisplayValue);
         Assert.Equal("精彩片段 {nickname}", setting.Value);
 
-        setting.DisplayValue = "回放 {直播标题} {日期}";
+        setting.DisplayValue = $"回放 {{{liveTitle}}} {{{date}}}";
 
         Assert.Equal("回放 {title} {date}", setting.Value);
-        Assert.Equal("回放 {直播标题} {日期}", setting.DisplayValue);
+        Assert.Equal($"回放 {{{liveTitle}}} {{{date}}}", setting.DisplayValue);
     }
 
     [Fact]
@@ -254,6 +257,32 @@ public sealed class DouyinPublisherTests
             Assert.Equal(payload.FilePath, item.FilePath);
             Assert.Contains(roomUrl, persisted.SelectedRoomUrls);
             Assert.Contains(payload.EventId, persisted.HandledEventIds);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task StateStore_LoadsBackupWhenPrimaryStateIsCorrupt()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"Emerde.DouyinPublisher.Backup.{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            const string firstRoom = "https://live.douyin.com/100";
+            const string secondRoom = "https://live.douyin.com/200";
+            PublisherStateStore store = new(root);
+            await store.SetRoomSelectedAsync(firstRoom, true);
+            await store.SetRoomSelectedAsync(secondRoom, true);
+            await File.WriteAllTextAsync(Path.Combine(root, "publisher-state.json"), "{");
+
+            PublisherState restored = new PublisherStateStore(root).Snapshot();
+
+            Assert.Contains(firstRoom, restored.SelectedRoomUrls);
+            Assert.DoesNotContain(secondRoom, restored.SelectedRoomUrls);
+            Assert.Single(Directory.GetFiles(root, "publisher-state.json.invalid-*"));
         }
         finally
         {
