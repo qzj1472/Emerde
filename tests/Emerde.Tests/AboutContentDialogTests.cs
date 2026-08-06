@@ -1,4 +1,6 @@
+using Emerde.Properties;
 using Emerde.Views;
+using System.Globalization;
 using System.Xml.Linq;
 
 namespace Emerde.Tests;
@@ -47,15 +49,15 @@ public class AboutContentDialogTests
     public void OperationalGuidance_IncludesExitAndUserFacingMonitorTiming()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml"));
-        string text = string.Join('\n', document.Descendants().Attributes("Text").Select(attribute => attribute.Value));
+        string text = string.Join('\n', GetTextValues(document));
         XElement timingCard = document.Descendants()
             .Where(element => element.Name.LocalName == "Border")
-            .Last(element => element.Descendants().Attributes("Text").Any(attribute => attribute.Value == "检测间隔"));
+            .Last(element => GetTextValues(element).Contains("检测间隔", StringComparer.Ordinal));
         XElement monitorCard = document.Descendants()
             .Where(element => element.Name.LocalName == "Border")
-            .Last(element => element.Descendants().Attributes("Text").Any(attribute => attribute.Value == "监控与录制"));
-        string timingText = string.Join('\n', timingCard.Descendants().Attributes("Text").Select(attribute => attribute.Value));
-        string monitorText = string.Join('\n', monitorCard.Descendants().Attributes("Text").Select(attribute => attribute.Value));
+            .Last(element => GetTextValues(element).Contains("监控与录制", StringComparer.Ordinal));
+        string timingText = string.Join('\n', GetTextValues(timingCard));
+        string monitorText = string.Join('\n', GetTextValues(monitorCard));
 
         Assert.Contains("退出与恢复", text);
         Assert.Contains("侧边栏或托盘菜单中的“退出”", text);
@@ -87,7 +89,7 @@ public class AboutContentDialogTests
     public void NetworkGuidance_ExplainsUserFacingCapacityLimits()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml"));
-        string text = string.Join('\n', document.Descendants().Attributes("Text").Select(attribute => attribute.Value));
+        string text = string.Join('\n', GetTextValues(document));
 
         Assert.Contains("首页测速可估算当前网络适合同时录制的直播数量", text);
         Assert.Contains("平台线路、磁盘速度和系统负载", text);
@@ -102,7 +104,7 @@ public class AboutContentDialogTests
     public void NetworkStallGuidance_ExplainsUserVisibleConsequencesWithoutInternalThresholds()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml"));
-        string text = string.Join('\n', document.Descendants().Attributes("Text").Select(attribute => attribute.Value));
+        string text = string.Join('\n', GetTextValues(document));
 
         Assert.Contains("保护已经录制的内容并尝试恢复", text);
         Assert.Contains("恢复过程中可能生成新的独立片段", text);
@@ -119,7 +121,7 @@ public class AboutContentDialogTests
     public void FileGuidance_DistinguishesRecordingAndTranscodingAndKeepsRequiredWarnings()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml"));
-        string text = string.Join('\n', document.Descendants().Attributes("Text").Select(attribute => attribute.Value));
+        string text = string.Join('\n', GetTextValues(document));
 
         Assert.Contains("正在录制写入的文件不能选择或操作", text);
         Assert.Contains("正在转码的文件不建议选择或操作", text);
@@ -136,8 +138,8 @@ public class AboutContentDialogTests
     public void ShortcutGuidance_IncludesExpandedHomeVideoAndGlobalKeys()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml"));
-        string text = string.Join('\n', document.Descendants().Attributes("Text").Select(attribute => attribute.Value));
-        string[] labels = document.Descendants().Attributes("Text").Select(attribute => attribute.Value).ToArray();
+        string text = string.Join('\n', GetTextValues(document));
+        string[] labels = GetTextValues(document).ToArray();
 
         Assert.Contains("W/A/S/D", labels);
         Assert.Contains("Shift+M", labels);
@@ -262,6 +264,23 @@ public class AboutContentDialogTests
 
         Assert.DoesNotContain(document.Descendants().Attributes("Style"), attribute => attribute.Value == "{StaticResource AboutBadgeStyle}");
         Assert.DoesNotContain(document.Descendants().Attributes(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")), attribute => attribute.Value == "AboutBadgeStyle");
+    }
+
+    private static IEnumerable<string> GetTextValues(XContainer container)
+    {
+        return container.Descendants().Attributes("Text").Select(attribute => ResolveI18n(attribute.Value));
+    }
+
+    private static string ResolveI18n(string value)
+    {
+        const string prefix = "{I18N ";
+        if (!value.StartsWith(prefix, StringComparison.Ordinal) || !value.EndsWith('}'))
+        {
+            return value;
+        }
+
+        string key = value[prefix.Length..^1];
+        return Resources.ResourceManager.GetString(key, CultureInfo.GetCultureInfo("zh-Hans")) ?? value;
     }
 
     private static string FindRepositoryFile(params string[] parts)

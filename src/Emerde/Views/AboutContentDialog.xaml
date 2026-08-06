@@ -141,11 +141,11 @@
                                 </WrapPanel>
                                 <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                            LineHeight="20"
-                                           Text="用于多直播间监控、预览、录制和视频管理。"
+                                            Text="{I18N AboutTagline}"
                                            TextWrapping="Wrap" />
                                 <WrapPanel>
                                     <ui:HyperlinkButton Command="{Binding OpenHyperlinkCommand}"
-                                                        Content="项目主页"
+                                                        Content="{I18N ProjectHomepage}"
                                                         Cursor="Hand"
                                                         Padding="0" />
                                     <TextBlock Margin="10,0"
@@ -153,7 +153,7 @@
                                                Text="·" />
                                     <ui:HyperlinkButton Command="{Binding OpenHyperlinkCommand}"
                                                         CommandParameter="https://github.com/ihmily/DouyinLiveRecorder"
-                                                        Content="参考仓库"
+                                                        Content="{I18N ReferenceRepository}"
                                                         Cursor="Hand"
                                                         Padding="0" />
                                 </WrapPanel>
@@ -162,137 +162,137 @@
                     </Border>
 
                     <ui:StackPanel Spacing="3">
-                        <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="快速开始" />
-                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="完成以下设置后，即可开始监控和录制直播。" />
+                        <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="{I18N QuickStart}" />
+                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="{I18N QuickStartDescription}" />
                     </ui:StackPanel>
                     <WrapPanel Margin="0,0,-12,0">
                         <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" Text="01" />
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="添加直播间" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 粘贴直播间链接" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 确认平台和主播信息" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N AddLiveRoom}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutPasteRoomLink}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutConfirmPlatformStreamer}" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="#168A55" Text="02" />
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="开启监控" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 自动发现开播、下播和直播状态变化" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 仅开启录制不会自动发现开播，需要同时开启监控" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N EnableMonitoring}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutMonitorDiscovers}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutRecordingNeedsMonitoring}" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="#D83B01" Text="03" />
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="开启录制" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 获取到可用直播流后自动开始录制" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 可在首页查看当前录制状态和时长" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N EnableRecording}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutAutoRecordOnStream}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutHomeShowsRecording}" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="#7A4DA0" Text="04" />
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="管理视频" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 在视频列表查看录制文件和处理进度" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 支持转码、分割、合并、移动和删除" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N ManageVideos}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutVideoListProgress}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutVideoOperations}" />
                             </ui:StackPanel>
                         </Border>
                     </WrapPanel>
 
                     <ui:StackPanel Spacing="3">
-                        <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="录制与检测" />
-                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="了解软件如何发现直播、开始录制和处理网络异常。" />
+                        <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="{I18N RecordingAndDetection}" />
+                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="{I18N RecordingAndDetectionDescription}" />
                     </ui:StackPanel>
                     <WrapPanel Margin="0,0,-12,0">
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="监控与录制" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 监控负责发现直播状态，录制开关决定是否保存直播" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 直播状态暂时无法确认时，软件会继续检测，避免误判下播" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N MonitoringAndRecording}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutMonitorVsRecord}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutUnknownStatusRetry}" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="检测间隔" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 未开播的直播间按照设置中的检测间隔检查，默认每 5 秒一次" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 正在直播的直播间固定每 10 秒检查一次" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 直播结束后的 30 分钟内固定每 10 秒检查一次" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N DetectionIntervals}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutOfflineInterval}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutLiveInterval}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutRecentEndedInterval}" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="录制格式" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• TS 和 FLV 更能还原直播的原始数据" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• MP4 和 MKV 会在录制结束后自动转换" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 文件处理完成前，请不要强制退出软件" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N RecordFormat}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutTsFlvRaw}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutMp4MkvConvert}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutDoNotExitProcessing}" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="网络异常处理" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 网络或直播源发生卡顿时，软件会保护已经录制的内容并尝试恢复" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 为避免音画不同步，恢复过程中可能生成新的独立片段" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 已经缺失的直播内容无法重新补录" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N NetworkRecovery}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutNetworkRecovery}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutRecoveryNewSegment}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutCannotRecoverMissing}" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="网络测速" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 首页测速可估算当前网络适合同时录制的直播数量" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 实际录制能力还会受到平台线路、磁盘速度和系统负载影响" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N NetworkSpeedTest}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutSpeedTestEstimate}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutRecordingCapacityFactors}" />
                             </ui:StackPanel>
                         </Border>
                     </WrapPanel>
 
                     <ui:StackPanel Spacing="3">
-                        <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="文件与数据" />
-                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="管理录制文件、存储空间、日志和软件设置。" />
+                        <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="{I18N FilesAndData}" />
+                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="{I18N FilesAndDataDescription}" />
                     </ui:StackPanel>
                     <WrapPanel Margin="0,0,-12,0">
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="视频列表" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 显示录制文件、转码进度和其他处理状态" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 正在录制写入的文件不能选择或操作" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 正在转码的文件不建议选择或操作" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 请确认片段内容完整、播放正常后，再进行后续操作" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N VideoListTitle}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutVideoListStatuses}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutRecordingFileLocked}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutTranscodingFileWarning}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutVerifySegment}" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="保存目录与清理" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 请将保存目录设置在空间充足的位置" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 启用保留期清理后，只清理由 Emerde 管理且达到期限的录制文件" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 更新软件时，请注意不要误删录制文件" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N StorageAndCleanup}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutSaveFolderSpace}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutRetentionCleanup}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutUpdatePreserveRecordings}" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="日志与设置" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 遇到问题时，可以导出当天日志或全部日志" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 设置支持备份、恢复和重置" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 导入设置前，软件会先检查文件是否有效" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N LogsAndSettings}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutExportLogs}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutSettingsBackup}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutValidateImport}" />
                             </ui:StackPanel>
                         </Border>
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="退出与恢复" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 关闭主窗口后，软件仍会在系统托盘中运行" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 需要完全退出时，请使用侧边栏或托盘菜单中的“退出”" />
-                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 尚未完成的收尾、分割或转码任务会在下次启动后继续处理" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N ExitAndRecovery}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutCloseToTray}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutExitFromMenu}" />
+                                <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutResumePendingTasks}" />
                             </ui:StackPanel>
                         </Border>
                     </WrapPanel>
 
                     <ui:StackPanel Spacing="3">
-                        <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="快捷键速查" />
-                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="快捷键仅在对应页面生效；输入框处于编辑状态时，撤销、恢复、复制和粘贴快捷键将用于文字操作。" />
+                        <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="{I18N ShortcutReference}" />
+                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="{I18N ShortcutReferenceHint}" />
                     </ui:StackPanel>
                     <WrapPanel Margin="0,0,-12,0">
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="页面与窗口" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N PagesAndWindows}" />
                                 <UniformGrid Columns="2">
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
                                         <Grid>
@@ -301,7 +301,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Tab" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="向上切换页面" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N NavigatePreviousPage}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -311,7 +311,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="CapsLock" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="向下切换页面" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N NavigateNextPage}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -321,7 +321,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Alt+1~4" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="直达页面" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N NavigateDirectly}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -331,7 +331,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+W" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="关闭窗口" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N CloseWindow}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -341,7 +341,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Shift+W" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="退出软件" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N ExitApplication}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -351,7 +351,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Z" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="输入框撤销文字" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N UndoText}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -361,7 +361,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Y" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="输入框恢复文字" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N RedoText}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -371,7 +371,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+C" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="输入框复制文字" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N CopyText}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -381,7 +381,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+V" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="输入框粘贴文字" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N PasteText}" />
                                         </Grid>
                                     </Border>
                                 </UniformGrid>
@@ -389,7 +389,7 @@
                         </Border>
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="首页直播间" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N HomeLiveRooms}" />
                                 <UniformGrid Columns="2">
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
                                         <Grid>
@@ -398,7 +398,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="↑/↓/←/→" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="微调" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N FineTune}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -408,7 +408,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="W/A/S/D" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="微调" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N FineTune}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -418,7 +418,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Q" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="预览" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N Preview}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -428,7 +428,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="E" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="进入直播间" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N GotoLiveRoom}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -438,7 +438,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Shift+M" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="当前监控" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N ToggleCurrentMonitoring}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -448,7 +448,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Shift+R" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="当前录制" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N ToggleCurrentRecording}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -458,7 +458,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="F" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="刷新当前" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N RefreshCurrent}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -468,7 +468,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="C" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="复制房间地址" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N CopyRoomAddress}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -478,7 +478,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Shift+C" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="复制直播流" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N CopyStreamUrl}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -488,7 +488,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Del" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="移除房间" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N RemoveRoom}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -498,7 +498,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+A" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="全选房间" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N SelectAllRooms}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -508,7 +508,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Z" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="撤销选择或列表操作" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N UndoSelectionOrListOperation}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -518,7 +518,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Y" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="恢复选择或列表操作" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N RedoSelectionOrListOperation}" />
                                         </Grid>
                                     </Border>
                                 </UniformGrid>
@@ -526,7 +526,7 @@
                         </Border>
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="预览播放" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N PreviewPlayback}" />
                                 <UniformGrid Columns="2">
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
                                         <Grid>
@@ -535,7 +535,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Space" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="播放或暂停" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N PlayOrPause}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -545,7 +545,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="G" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="刷新预览" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N RefreshPreview}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -555,7 +555,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="M" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="静音或恢复声音" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N ToggleMute}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -565,7 +565,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="- / =" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="音量降低或增加 5%" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N AdjustVolumeFivePercent}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -575,7 +575,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="V" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="全屏或退出全屏" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N ToggleFullscreen}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -585,7 +585,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Esc" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="退出全屏或关闭预览" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N ExitFullscreenOrClosePreview}" />
                                         </Grid>
                                     </Border>
                                 </UniformGrid>
@@ -593,7 +593,7 @@
                         </Border>
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="全局操作" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N GlobalActions}" />
                                 <UniformGrid Columns="2">
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
                                         <Grid>
@@ -602,7 +602,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+N" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="添加直播间" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N AddLiveRoom}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -612,7 +612,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+T" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="测速" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N NetworkCapacityIdle}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -622,7 +622,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Shift+M" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="全部监控" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N ToggleAllMonitoring}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -632,7 +632,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Shift+R" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="全部录制" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N ToggleAllRecording}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -642,7 +642,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+F" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="刷新全部" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N RefreshAll}" />
                                         </Grid>
                                     </Border>
                                 </UniformGrid>
@@ -650,7 +650,7 @@
                         </Border>
                         <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
-                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="视频列表" />
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N VideoListTitle}" />
                                 <UniformGrid Columns="2">
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
                                         <Grid>
@@ -659,7 +659,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="↑/↓/←/→" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="微调" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N FineTune}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -669,7 +669,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="W/A/S/D" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="微调" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N FineTune}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -679,7 +679,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Enter" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="打开视频" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N OpenVideo}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -689,7 +689,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="F5" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="刷新列表" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N RefreshList}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -699,7 +699,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+A" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="全选" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N SelectAll}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -709,7 +709,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Del" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="删除" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N DeleteButton}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -719,7 +719,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Shift+S" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="移动" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N MoveButton}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -729,7 +729,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Shift+S" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="复制" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N CopyButton}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -739,7 +739,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Esc" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="退出多选" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N ExitMultiSelect}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -749,7 +749,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Z" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="撤销视频选择" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N UndoVideoSelection}" />
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource AboutShortcutItemStyle}">
@@ -759,7 +759,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Ctrl+Y" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="恢复视频选择" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N RedoVideoSelection}" />
                                         </Grid>
                                     </Border>
                                 </UniformGrid>
@@ -775,12 +775,12 @@
                             CornerRadius="{StaticResource Win11ControlCornerRadius}">
                         <ui:StackPanel Spacing="8">
                             <TextBlock Style="{StaticResource AboutWarningTitleStyle}"
-                                       Text="重要注意事项" />
-                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 录制文件仍在写入时，请勿强制结束软件、断电或删除相关文件" />
-                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 不要删除或单独移动 ffmpeg、libvlc 等程序依赖文件夹" />
-                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 请确保保存磁盘有足够空间，避免录制中断或文件损坏" />
-                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 网络或主播推流卡顿可能造成画面冻结、缺帧或音画异常" />
-                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="• 反馈问题时，请说明问题现象，并提供直播间链接、发生时间、操作步骤、截图和对应日志" />
+                                       Text="{I18N ImportantNotes}" />
+                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutDoNotForceStopRecording}" />
+                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutKeepDependencies}" />
+                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutEnsureDiskSpace}" />
+                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutStreamStallEffects}" />
+                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutFeedbackDetails}" />
                         </ui:StackPanel>
                     </Border>
                 </ui:StackPanel>
