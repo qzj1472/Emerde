@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Emerde.Core;
 
 namespace Emerde.Tests;
@@ -39,6 +40,28 @@ public sealed class RuntimeResourceLoggerTests
 
         RuntimeResourceLogger.Start();
         RuntimeResourceLogger.Stop();
+    }
+
+    [Fact]
+    public void RegisterAndUnregister_StartsAndStopsSamplerOnDemand()
+    {
+        using Process process = Process.GetCurrentProcess();
+        try
+        {
+            RuntimeResourceLogger.Register(process, "test", "lifecycle");
+
+            Assert.True(RuntimeResourceLogger.IsRunningForTest);
+            Assert.Equal(1, RuntimeResourceLogger.RegisteredProcessCountForTest);
+
+            RuntimeResourceLogger.Unregister(process.Id);
+
+            Assert.False(RuntimeResourceLogger.IsRunningForTest);
+            Assert.Equal(0, RuntimeResourceLogger.RegisteredProcessCountForTest);
+        }
+        finally
+        {
+            RuntimeResourceLogger.Stop();
+        }
     }
 
     [Fact]

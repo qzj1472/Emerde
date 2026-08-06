@@ -15,29 +15,32 @@ internal static class RuntimeResourceLogger
     private static readonly object SyncRoot = new();
     private static CancellationTokenSource? tokenSource;
     private static Task? workerTask;
-    private static DateTime lastNetworkSampleAt = DateTime.MinValue;
+    private static long lastNetworkSampleTimestamp;
     private static long lastNetworkReceivedBytes;
     private static long lastNetworkSentBytes;
     private static DateTime lastSnapshotAt = DateTime.MinValue;
     private static string lastSnapshotProcessSignature = string.Empty;
     private static double lastSnapshotRamMb;
 
+    internal static bool IsRunningForTest
+    {
+        get
+        {
+            lock (SyncRoot)
+            {
+                return workerTask is { IsCompleted: false };
+            }
+        }
+    }
+
+    internal static int RegisteredProcessCountForTest => Processes.Count;
+
     public static void Start()
     {
-        CancellationTokenSource? completedSource = null;
         lock (SyncRoot)
         {
-            if (workerTask is { IsCompleted: false })
-            {
-                return;
-            }
-
-            completedSource = tokenSource;
-            CancellationTokenSource activeSource = new();
-            tokenSource = activeSource;
-            workerTask = Task.Run(() => RunAsync(activeSource.Token));
+            StartLocked();
         }
-        completedSource?.Dispose();
     }
 
     public static void Stop()
@@ -49,6 +52,10 @@ internal static class RuntimeResourceLogger
         {
             stoppingTokenSource = tokenSource;
             stoppingWorkerTask = workerTask;
+            tokenSource = null;
+            workerTask = null;
+            Processes.Clear();
+            ResetSamplingStateLocked();
         }
 
         stoppingTokenSource?.Cancel();
@@ -65,44 +72,11 @@ internal static class RuntimeResourceLogger
         if (!completed && stoppingWorkerTask != null)
         {
             _ = stoppingWorkerTask.ContinueWith(
-                _ => Cleanup(stoppingTokenSource, stoppingWorkerTask),
+                _ => stoppingTokenSource?.Dispose(),
                 CancellationToken.None,
                 TaskContinuationOptions.ExecuteSynchronously,
                 TaskScheduler.Default);
             return;
-        }
-
-        Cleanup(stoppingTokenSource, stoppingWorkerTask);
-    }
-
-    private static void Cleanup(CancellationTokenSource? stoppingTokenSource, Task? stoppingWorkerTask)
-    {
-        bool ownsState;
-        lock (SyncRoot)
-        {
-            ownsState = ReferenceEquals(tokenSource, stoppingTokenSource)
-                || ReferenceEquals(workerTask, stoppingWorkerTask);
-            if (!ownsState)
-            {
-                return;
-            }
-
-            if (ReferenceEquals(tokenSource, stoppingTokenSource))
-            {
-                tokenSource = null;
-            }
-            if (ReferenceEquals(workerTask, stoppingWorkerTask))
-            {
-                workerTask = null;
-            }
-
-            Processes.Clear();
-            lastNetworkSampleAt = DateTime.MinValue;
-            lastNetworkReceivedBytes = 0;
-            lastNetworkSentBytes = 0;
-            lastSnapshotAt = DateTime.MinValue;
-            lastSnapshotProcessSignature = string.Empty;
-            lastSnapshotRamMb = 0;
         }
 
         stoppingTokenSource?.Dispose();
@@ -117,6 +91,8 @@ internal static class RuntimeResourceLogger
                 return;
             }
 
+            DateTime startedAt = DateTime.Now;
+            long startedTimestamp = Stopwatch.GetTimestamp();
             RuntimeProcessContext context = new(
                 process.Id,
                 process.ProcessName,
@@ -124,10 +100,15 @@ internal static class RuntimeResourceLogger
                 purpose,
                 roomUrl,
                 nickName ?? string.Empty,
-                DateTime.Now,
+                startedAt,
+                startedTimestamp,
                 process.TotalProcessorTime,
-                DateTime.Now);
-            Processes[process.Id] = context;
+                startedTimestamp);
+            lock (SyncRoot)
+            {
+                Processes[process.Id] = context;
+                StartLocked();
+            }
             AppSessionLogger.Event("info", "runtime", "process_registered", "runtime process registered", new
             {
                 context.ProcessId,
@@ -144,13 +125,73 @@ internal static class RuntimeResourceLogger
         }
     }
 
-    private static async Task RunAsync(CancellationToken token)
+    public static void Unregister(int processId)
+    {
+        CancellationTokenSource? idleSource = null;
+        Task? idleWorker = null;
+        lock (SyncRoot)
+        {
+            _ = Processes.TryRemove(processId, out _);
+            if (!Processes.IsEmpty)
+            {
+                return;
+            }
+
+            idleSource = tokenSource;
+            idleWorker = workerTask;
+            tokenSource = null;
+            workerTask = null;
+            ResetSamplingStateLocked();
+        }
+
+        idleSource?.Cancel();
+        if (idleSource != null)
+        {
+            _ = (idleWorker ?? Task.CompletedTask).ContinueWith(
+                _ => idleSource.Dispose(),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
+    }
+
+    private static void StartLocked()
+    {
+        if (workerTask is { IsCompleted: false })
+        {
+            return;
+        }
+
+        tokenSource?.Dispose();
+        CancellationTokenSource activeSource = new();
+        tokenSource = activeSource;
+        workerTask = Task.Run(() => RunAsync(activeSource));
+    }
+
+    private static void ResetSamplingStateLocked()
+    {
+        lastNetworkSampleTimestamp = 0;
+        lastNetworkReceivedBytes = 0;
+        lastNetworkSentBytes = 0;
+        lastSnapshotAt = DateTime.MinValue;
+        lastSnapshotProcessSignature = string.Empty;
+        lastSnapshotRamMb = 0;
+    }
+
+    private static async Task RunAsync(CancellationTokenSource source)
     {
         try
         {
-            while (!token.IsCancellationRequested)
+            while (!source.IsCancellationRequested)
             {
-                await Task.Delay(SampleInterval, token);
+                await Task.Delay(SampleInterval, source.Token);
+                lock (SyncRoot)
+                {
+                    if (!ReferenceEquals(tokenSource, source))
+                    {
+                        return;
+                    }
+                }
                 try
                 {
                     Sample();
@@ -158,6 +199,12 @@ internal static class RuntimeResourceLogger
                 catch (Exception e)
                 {
                     AppSessionLogger.WriteException(e);
+                }
+
+                if (Processes.IsEmpty)
+                {
+                    Unregister(0);
+                    return;
                 }
             }
         }
@@ -189,15 +236,16 @@ internal static class RuntimeResourceLogger
                 }
 
                 DateTime now = DateTime.Now;
+                long nowTimestamp = Stopwatch.GetTimestamp();
                 TimeSpan totalCpu = process.TotalProcessorTime;
-                double elapsedSeconds = Math.Max(0.001d, (now - context.LastSampleAt).TotalSeconds);
+                double elapsedSeconds = Math.Max(0.001d, Stopwatch.GetElapsedTime(context.LastSampleTimestamp, nowTimestamp).TotalSeconds);
                 double cpuPercent = CalculateCpuPercent(totalCpu, context.LastCpuTime, elapsedSeconds, Environment.ProcessorCount);
                 double workingSetMb = Math.Round(process.WorkingSet64 / 1024d / 1024d, 2);
 
                 RuntimeProcessContext updatedContext = context with
                 {
                     LastCpuTime = totalCpu,
-                    LastSampleAt = now,
+                    LastSampleTimestamp = nowTimestamp,
                 };
                 if (!Processes.TryUpdate(context.ProcessId, updatedContext, context))
                 {
@@ -214,7 +262,7 @@ internal static class RuntimeResourceLogger
                     cpuPercent,
                     workingSetMb,
                     context.StartedAt,
-                    Math.Round((now - context.StartedAt).TotalSeconds, 1)));
+                    Math.Round(Stopwatch.GetElapsedTime(context.StartedTimestamp, nowTimestamp).TotalSeconds, 1)));
             }
             catch (Exception e) when (e is InvalidOperationException or ArgumentException or Win32Exception)
             {
@@ -337,20 +385,20 @@ internal static class RuntimeResourceLogger
                 sent += stats.BytesSent;
             }
 
-            DateTime now = DateTime.Now;
-            if (lastNetworkSampleAt == DateTime.MinValue)
+            long nowTimestamp = Stopwatch.GetTimestamp();
+            if (lastNetworkSampleTimestamp == 0)
             {
-                lastNetworkSampleAt = now;
+                lastNetworkSampleTimestamp = nowTimestamp;
                 lastNetworkReceivedBytes = received;
                 lastNetworkSentBytes = sent;
                 return NetworkSample.Empty;
             }
 
-            double seconds = Math.Max(0.001d, (now - lastNetworkSampleAt).TotalSeconds);
+            double seconds = Math.Max(0.001d, Stopwatch.GetElapsedTime(lastNetworkSampleTimestamp, nowTimestamp).TotalSeconds);
             long receivedDelta = Math.Max(0, received - lastNetworkReceivedBytes);
             long sentDelta = Math.Max(0, sent - lastNetworkSentBytes);
 
-            lastNetworkSampleAt = now;
+            lastNetworkSampleTimestamp = nowTimestamp;
             lastNetworkReceivedBytes = received;
             lastNetworkSentBytes = sent;
 
@@ -374,8 +422,9 @@ internal static class RuntimeResourceLogger
         string RoomUrl,
         string NickName,
         DateTime StartedAt,
+        long StartedTimestamp,
         TimeSpan LastCpuTime,
-        DateTime LastSampleAt);
+        long LastSampleTimestamp);
 
     private sealed record RuntimeProcessSample(
         string RoomUrl,
