@@ -16,7 +16,7 @@ internal static class LogExporter
             .ToArray();
         if (files.Length == 0)
         {
-            throw new FileNotFoundException("没有找到可导出的日志文件。");
+            throw new FileNotFoundException("NoExportableLogFiles".Tr());
         }
 
         return CreateArchive(targetDirectory, $"Emerde_logs_today_{now:yyyyMMdd_HHmmss}", files);
@@ -34,7 +34,7 @@ internal static class LogExporter
 
         if (files.Length == 0)
         {
-            throw new FileNotFoundException("没有找到可导出的日志文件。");
+            throw new FileNotFoundException("NoExportableLogFiles".Tr());
         }
 
         return CreateArchive(targetDirectory, $"Emerde_logs_all_{now:yyyyMMdd_HHmmss}", files);
@@ -102,7 +102,7 @@ internal static class LogExporter
 
             if (entryCount == 0)
             {
-                throw new FileNotFoundException("没有找到可导出的日志文件。");
+                throw new FileNotFoundException("NoExportableLogFiles".Tr());
             }
 
             File.Move(temporaryPath, archivePath);
