@@ -1159,6 +1159,63 @@ public sealed class ExtensionContractsTests
         }
     }
 
+    [Fact]
+    public async Task ExtensionService_LoadsBackupWhenPrimaryStateIsCorrupt()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"Emerde.Extension.Backup.{Guid.NewGuid():N}");
+        string extensionsDirectory = Path.Combine(root, "extensions");
+        string extensionDirectory = Path.Combine(extensionsDirectory, "sample.extension");
+        try
+        {
+            Directory.CreateDirectory(extensionDirectory);
+            await File.WriteAllTextAsync(Path.Combine(extensionDirectory, "runner.exe"), string.Empty);
+            await File.WriteAllTextAsync(Path.Combine(extensionDirectory, "extension.json"), """
+                {
+                  "schema_version": 1,
+                  "id": "sample.extension",
+                  "name": "Sample",
+                  "version": "1.0.0",
+                  "execution_mode": "process",
+                  "entry_point": "runner.exe",
+                  "runtime": "executable",
+                  "settings": [
+                    {
+                      "key": "mode",
+                      "label": "Mode",
+                      "type": "text"
+                    }
+                  ]
+                }
+                """, Encoding.UTF8);
+            await File.WriteAllTextAsync(Path.Combine(extensionsDirectory, "extensions-state.json"), "{");
+            await File.WriteAllTextAsync(Path.Combine(extensionsDirectory, "extensions-state.json.bak"), """
+                {
+                  "extensions": {
+                    "sample.extension": {
+                      "enabled": false,
+                      "settings": {
+                        "mode": "backup"
+                      }
+                    }
+                  }
+                }
+                """, Encoding.UTF8);
+            ExtensionService service = new(extensionsDirectory);
+
+            await service.InitializeAsync();
+
+            Assert.Equal("backup", (await service.GetSettingsAsync("sample.extension"))["mode"]);
+            Assert.Single(Directory.GetFiles(extensionsDirectory, "extensions-state.json.invalid-*"));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+
     private static Task RunStaAsync(Action action)
     {
         TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);

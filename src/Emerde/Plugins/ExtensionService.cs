@@ -124,7 +124,7 @@ public sealed partial class ExtensionService
         ArgumentException.ThrowIfNullOrWhiteSpace(packagePath);
         if (!IsSupportedPackage(packagePath))
         {
-            throw new InvalidDataException("只支持 .emerde-extension 或 .zip 扩展包");
+            throw new InvalidDataException("ExtensionPackageUnsupported".Tr());
         }
         await EnsureInitializedAsync(cancellationToken);
         await operationGate.WaitAsync(cancellationToken);
@@ -363,7 +363,7 @@ public sealed partial class ExtensionService
             extension = GetExtensionCore(extensionId);
             if (!extension.IsEnabled)
             {
-                return Failure("扩展未启用");
+                return Failure("ExtensionNotEnabled".Tr());
             }
             if (!extension.IsValid)
             {
@@ -371,7 +371,7 @@ public sealed partial class ExtensionService
             }
             if (!string.Equals(extension.Manifest.ExecutionMode, "process", StringComparison.OrdinalIgnoreCase))
             {
-                return Failure("应用内扩展不使用进程调用协议");
+                return Failure("ExtensionInProcessProtocolUnsupported".Tr());
             }
             settings = BuildEffectiveSettings(extension.Manifest, GetState(extensionId));
         }
@@ -427,7 +427,7 @@ public sealed partial class ExtensionService
     private InstalledExtensionInfo GetExtensionCore(string extensionId)
     {
         return GetInstalledExtensionsCore().FirstOrDefault(item => string.Equals(item.Manifest.Id, extensionId, StringComparison.OrdinalIgnoreCase))
-            ?? throw new DirectoryNotFoundException($"扩展不存在：{extensionId}");
+            ?? throw new DirectoryNotFoundException("ExtensionNotFound".Tr(extensionId));
     }
 
     private InstalledExtensionInfo CreateInstalledInfo(string installDirectory)
@@ -446,7 +446,7 @@ public sealed partial class ExtensionService
                 Id = Path.GetFileName(installDirectory),
                 Name = Path.GetFileName(installDirectory),
                 Version = "?",
-                Description = "扩展清单无效",
+                Description = "ExtensionManifestInvalid".Tr(),
             };
             validationError = e.Message;
         }
@@ -467,11 +467,11 @@ public sealed partial class ExtensionService
         string manifestPath = Path.Combine(directory, "extension.json");
         if (!File.Exists(manifestPath))
         {
-            throw new InvalidDataException("扩展包缺少 extension.json");
+            throw new InvalidDataException("ExtensionManifestMissing".Tr());
         }
         string json = File.ReadAllText(manifestPath, Encoding.UTF8);
         return JsonSerializer.Deserialize<ExtensionManifest>(json, JsonOptions)
-            ?? throw new InvalidDataException("无法读取扩展清单");
+            ?? throw new InvalidDataException("ExtensionManifestUnreadable".Tr());
     }
 
     private static void ValidateManifest(ExtensionManifest manifest, string packageRoot)
@@ -494,7 +494,7 @@ public sealed partial class ExtensionService
         manifest.Settings ??= [];
         if (manifest.Settings.Any(item => item == null))
         {
-            throw new InvalidDataException("扩展设置定义不能为空");
+            throw new InvalidDataException("ExtensionSettingDefinitionNull".Tr());
         }
         foreach (ExtensionSettingDefinition setting in manifest.Settings)
         {
@@ -510,93 +510,93 @@ public sealed partial class ExtensionService
         }
         if (manifest.SchemaVersion != CurrentSchemaVersion)
         {
-            throw new InvalidDataException($"不支持扩展清单版本 {manifest.SchemaVersion}");
+            throw new InvalidDataException("ExtensionManifestSchemaUnsupported".Tr(manifest.SchemaVersion));
         }
         if (!ExtensionIdRegex().IsMatch(manifest.Id))
         {
-            throw new InvalidDataException("扩展 ID 只能包含小写字母、数字、点和连字符，长度为 3 到 100");
+            throw new InvalidDataException("ExtensionIdInvalid".Tr());
         }
         if (string.IsNullOrWhiteSpace(manifest.Name) || manifest.Name.Length > 80)
         {
-            throw new InvalidDataException("扩展名称不能为空且不能超过 80 个字符");
+            throw new InvalidDataException("ExtensionNameInvalid".Tr());
         }
         if (!VersionRegex().IsMatch(manifest.Version))
         {
-            throw new InvalidDataException("扩展版本必须使用语义化版本格式");
+            throw new InvalidDataException("ExtensionVersionInvalid".Tr());
         }
         if (!string.IsNullOrWhiteSpace(manifest.Icon))
         {
             string iconPath = GetContainedPath(packageRoot, manifest.Icon);
             if (!File.Exists(iconPath))
             {
-                throw new InvalidDataException($"扩展图标不存在：{manifest.Icon}");
+                throw new InvalidDataException("ExtensionIconMissing".Tr(manifest.Icon));
             }
             if (!new[] { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".ico" }.Contains(Path.GetExtension(iconPath), StringComparer.OrdinalIgnoreCase))
             {
-                throw new InvalidDataException("扩展图标仅支持 PNG、JPEG、BMP、GIF 或 ICO");
+                throw new InvalidDataException("ExtensionIconFormatUnsupported".Tr());
             }
             if (new FileInfo(iconPath).Length > 5L * 1024L * 1024L)
             {
-                throw new InvalidDataException("扩展图标不能超过 5 MB");
+                throw new InvalidDataException("ExtensionIconTooLarge".Tr());
             }
         }
         if (!string.IsNullOrWhiteSpace(manifest.MinimumHostVersion)
             && !Version.TryParse(manifest.MinimumHostVersion, out _))
         {
-            throw new InvalidDataException("minimum_host_version 格式无效");
+            throw new InvalidDataException("ExtensionMinimumHostVersionInvalid".Tr());
         }
         if (Version.TryParse(manifest.MinimumHostVersion, out Version? minimumHostVersion)
             && (Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0)) < minimumHostVersion)
         {
-            throw new InvalidDataException($"扩展需要 Emerde {minimumHostVersion} 或更高版本");
+            throw new InvalidDataException("ExtensionMinimumHostVersionUnsupported".Tr(minimumHostVersion));
         }
         if (!manifest.ExecutionMode.Equals("in_process", StringComparison.OrdinalIgnoreCase)
             && !manifest.ExecutionMode.Equals("process", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidDataException("execution_mode 只能是 in_process 或 process");
+            throw new InvalidDataException("ExtensionExecutionModeInvalid".Tr());
         }
         string entryPoint = GetContainedPath(packageRoot, manifest.EntryPoint);
         if (!File.Exists(entryPoint))
         {
-            throw new InvalidDataException($"扩展入口不存在：{manifest.EntryPoint}");
+            throw new InvalidDataException("ExtensionEntryPointMissing".Tr(manifest.EntryPoint));
         }
         if (manifest.ExecutionMode.Equals("in_process", StringComparison.OrdinalIgnoreCase)
             && (string.IsNullOrWhiteSpace(manifest.EntryType) || !entryPoint.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)))
         {
-            throw new InvalidDataException("应用内扩展必须提供 DLL 入口和 entry_type");
+            throw new InvalidDataException("ExtensionInProcessEntryInvalid".Tr());
         }
         if (manifest.ExecutionMode.Equals("process", StringComparison.OrdinalIgnoreCase)
             && !new[] { "executable", "powershell", "python", "node" }.Contains(manifest.Runtime, StringComparer.OrdinalIgnoreCase))
         {
-            throw new InvalidDataException("不支持该扩展运行时");
+            throw new InvalidDataException("ExtensionRuntimeUnsupported".Tr());
         }
         if (manifest.TimeoutSeconds is < 5 or > 86400)
         {
-            throw new InvalidDataException("扩展超时时间必须在 5 到 86400 秒之间");
+            throw new InvalidDataException("ExtensionTimeoutInvalid".Tr());
         }
         string[] settingKeys = manifest.Settings.Select(item => item.Key).ToArray();
         if (settingKeys.Any(key => !SettingKeyRegex().IsMatch(key))
             || settingKeys.Distinct(StringComparer.OrdinalIgnoreCase).Count() != settingKeys.Length)
         {
-            throw new InvalidDataException("扩展设置键无效或重复");
+            throw new InvalidDataException("ExtensionSettingKeyInvalid".Tr());
         }
         if (manifest.Settings.Any(item => !new[] { "text", "password", "boolean", "number", "choice" }.Contains(item.Type, StringComparer.OrdinalIgnoreCase)))
         {
-            throw new InvalidDataException("扩展设置包含不支持的类型");
+            throw new InvalidDataException("ExtensionSettingTypeUnsupported".Tr());
         }
         if (manifest.Settings.Any(item => item.Column is < 0 or > 1))
         {
-            throw new InvalidDataException("扩展设置列必须为 0 或 1");
+            throw new InvalidDataException("ExtensionSettingColumnInvalid".Tr());
         }
         if (manifest.Settings.Any(item => !string.IsNullOrWhiteSpace(item.VisibleWhenKey)
             && (!settingKeys.Contains(item.VisibleWhenKey, StringComparer.OrdinalIgnoreCase)
                 || item.Key.Equals(item.VisibleWhenKey, StringComparison.OrdinalIgnoreCase))))
         {
-            throw new InvalidDataException("扩展设置的条件显示依赖无效");
+            throw new InvalidDataException("ExtensionSettingDependencyInvalid".Tr());
         }
         if (manifest.Settings.Any(item => item.Type.Equals("choice", StringComparison.OrdinalIgnoreCase) && item.Options.Length == 0))
         {
-            throw new InvalidDataException("选择类型设置必须提供 options");
+            throw new InvalidDataException("ExtensionChoiceOptionsMissing".Tr());
         }
     }
 
@@ -617,10 +617,10 @@ public sealed partial class ExtensionService
                 ?? throw new TypeLoadException(extension.Manifest.EntryType);
             if (!typeof(IEmerdeExtension).IsAssignableFrom(entryType))
             {
-                throw new InvalidDataException($"{extension.Manifest.EntryType} 未实现 IEmerdeExtension");
+                throw new InvalidDataException("ExtensionEntryTypeUnsupported".Tr(extension.Manifest.EntryType));
             }
             IEmerdeExtension module = (IEmerdeExtension)(Activator.CreateInstance(entryType)
-                ?? throw new InvalidOperationException("无法创建扩展入口实例"));
+                ?? throw new InvalidOperationException("ExtensionEntryInstanceCreationFailed".Tr()));
             string dataDirectory = Path.Combine(extensionsDirectory, ".data", extension.Manifest.Id);
             Directory.CreateDirectory(dataDirectory);
             context = new ExtensionContext(
@@ -682,14 +682,14 @@ public sealed partial class ExtensionService
         using Process process = new() { StartInfo = startInfo, EnableRaisingEvents = true };
         if (!runningProcesses.TryAdd(extension.Manifest.Id, process))
         {
-            return Failure("扩展已有任务正在运行");
+            return Failure("ExtensionTaskAlreadyRunning".Tr());
         }
         string requestId = Guid.NewGuid().ToString("N");
         try
         {
             if (!process.Start())
             {
-                return Failure("扩展进程启动失败");
+                return Failure("ExtensionProcessStartFailed".Tr());
             }
             ExtensionProcessRequest request = new()
             {
@@ -710,7 +710,7 @@ public sealed partial class ExtensionService
             ExtensionProcessResponse? response = ParseResponse(stdout, requestId);
             if (response == null)
             {
-                string message = string.IsNullOrWhiteSpace(stderr) ? $"扩展返回了无效响应，退出码 {process.ExitCode}" : stderr.Trim();
+                string message = string.IsNullOrWhiteSpace(stderr) ? "ExtensionResponseInvalid".Tr(process.ExitCode) : stderr.Trim();
                 return new ExtensionExecutionResult(false, message, EmptyJson(), process.ExitCode);
             }
             return new ExtensionExecutionResult(response.Success, response.Message, response.Data, process.ExitCode);
@@ -718,7 +718,7 @@ public sealed partial class ExtensionService
         catch (OperationCanceledException)
         {
             TryKill(process);
-            return Failure(cancellationToken.IsCancellationRequested ? "扩展任务已取消" : "扩展任务超时");
+            return Failure(cancellationToken.IsCancellationRequested ? "ExtensionTaskCanceled".Tr() : "ExtensionTaskTimedOut".Tr());
         }
         catch (Exception e) when (e is IOException or InvalidOperationException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
         {
@@ -798,7 +798,7 @@ public sealed partial class ExtensionService
                 return path;
             }
         }
-        throw new FileNotFoundException($"找不到扩展运行时：{string.Join(" / ", names)}");
+        throw new FileNotFoundException("ExtensionRuntimeMissing".Tr(string.Join(" / ", names)));
     }
 
     private static ExtensionProcessResponse? ParseResponse(string stdout, string requestId)
@@ -827,7 +827,7 @@ public sealed partial class ExtensionService
         using ZipArchive archive = ZipFile.OpenRead(packagePath);
         if (archive.Entries.Count > MaximumPackageEntryCount)
         {
-            throw new InvalidDataException("扩展包文件数量超过限制");
+            throw new InvalidDataException("ExtensionPackageEntryLimitExceeded".Tr());
         }
         long expandedBytes = 0;
         string root = Path.GetFullPath(stagingDirectory) + Path.DirectorySeparatorChar;
@@ -836,12 +836,12 @@ public sealed partial class ExtensionService
             expandedBytes = checked(expandedBytes + entry.Length);
             if (expandedBytes > MaximumPackageExpandedBytes)
             {
-                throw new InvalidDataException("扩展包解压后体积超过限制");
+                throw new InvalidDataException("ExtensionPackageExpandedSizeExceeded".Tr());
             }
             string destinationPath = Path.GetFullPath(Path.Combine(stagingDirectory, entry.FullName));
             if (!destinationPath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidDataException("扩展包包含越界路径");
+                throw new InvalidDataException("ExtensionPackagePathTraversal".Tr());
             }
             if (string.IsNullOrEmpty(entry.Name))
             {
@@ -864,7 +864,7 @@ public sealed partial class ExtensionService
             .ToArray();
         if (manifests.Length != 1)
         {
-            throw new InvalidDataException("扩展包必须在根目录或唯一的一级目录中包含 extension.json");
+            throw new InvalidDataException("ExtensionPackageManifestLocationInvalid".Tr());
         }
         return Path.GetDirectoryName(manifests[0])!;
     }
@@ -873,13 +873,13 @@ public sealed partial class ExtensionService
     {
         if (string.IsNullOrWhiteSpace(relativePath) || Path.IsPathRooted(relativePath))
         {
-            throw new InvalidDataException("扩展入口必须是包内相对路径");
+            throw new InvalidDataException("ExtensionEntryPathInvalid".Tr());
         }
         string root = Path.GetFullPath(rootDirectory) + Path.DirectorySeparatorChar;
         string fullPath = Path.GetFullPath(Path.Combine(rootDirectory, relativePath));
         if (!fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidDataException("扩展入口超出扩展目录");
+            throw new InvalidDataException("ExtensionEntryOutsideDirectory".Tr());
         }
         return fullPath;
     }
@@ -916,32 +916,44 @@ public sealed partial class ExtensionService
             value ??= string.Empty;
             if (definition.Required && string.IsNullOrWhiteSpace(value))
             {
-                throw new InvalidDataException($"请填写 {definition.Label}");
+                throw new InvalidDataException("ExtensionSettingRequired".Tr(definition.Label));
             }
             if (definition.Type.Equals("boolean", StringComparison.OrdinalIgnoreCase) && !bool.TryParse(value, out _))
             {
-                throw new InvalidDataException($"{definition.Label} 必须是布尔值");
+                throw new InvalidDataException("ExtensionSettingBooleanRequired".Tr(definition.Label));
             }
             if (definition.Type.Equals("number", StringComparison.OrdinalIgnoreCase) && !double.TryParse(value, out _))
             {
-                throw new InvalidDataException($"{definition.Label} 必须是数字");
+                throw new InvalidDataException("ExtensionSettingNumberRequired".Tr(definition.Label));
             }
             if (definition.Type.Equals("choice", StringComparison.OrdinalIgnoreCase) && !definition.Options.Contains(value, StringComparer.Ordinal))
             {
-                throw new InvalidDataException($"{definition.Label} 的选项无效");
+                throw new InvalidDataException("ExtensionSettingChoiceInvalid".Tr(definition.Label));
             }
         }
     }
 
     private async Task<ExtensionStateDocument> LoadStateAsync(CancellationToken cancellationToken)
     {
-        if (!File.Exists(extensionStateFilePath))
+        ExtensionStateDocument? primary = await TryLoadStateAsync(extensionStateFilePath, cancellationToken);
+        if (primary != null)
         {
-            return new ExtensionStateDocument();
+            return primary;
         }
+
+        return await TryLoadStateAsync(GetStateBackupPath(), cancellationToken) ?? new ExtensionStateDocument();
+    }
+
+    private static async Task<ExtensionStateDocument?> TryLoadStateAsync(string path, CancellationToken cancellationToken)
+    {
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
         try
         {
-            await using FileStream stream = new(extensionStateFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            await using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
             ExtensionStateDocument document = await JsonSerializer.DeserializeAsync<ExtensionStateDocument>(stream, JsonOptions, cancellationToken)
                 ?? new ExtensionStateDocument();
             Dictionary<string, ExtensionPersistedState> normalizedExtensions = new(StringComparer.OrdinalIgnoreCase);
@@ -958,7 +970,26 @@ public sealed partial class ExtensionService
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException)
         {
             AppSessionLogger.WriteException(e);
-            return new ExtensionStateDocument();
+            QuarantineInvalidStateFile(path);
+            return null;
+        }
+    }
+
+    private static void QuarantineInvalidStateFile(string path)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return;
+            }
+
+            string invalidPath = path + $".invalid-{DateTime.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}";
+            File.Move(path, invalidPath, overwrite: false);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(e);
         }
     }
 
@@ -980,31 +1011,15 @@ public sealed partial class ExtensionService
         {
             Extensions = state.Extensions.ToDictionary(pair => pair.Key, pair => ProtectState(pair.Key, pair.Value), StringComparer.OrdinalIgnoreCase),
         };
-        string temporaryPath = extensionStateFilePath + $".tmp-{Guid.NewGuid():N}";
-        try
-        {
-            await using (FileStream stream = new(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            {
-                await JsonSerializer.SerializeAsync(stream, protectedState, JsonOptions, cancellationToken);
-                await stream.FlushAsync(cancellationToken);
-            }
-            File.Move(temporaryPath, extensionStateFilePath, true);
-        }
-        finally
-        {
-            if (File.Exists(temporaryPath))
-            {
-                try
-                {
-                    File.Delete(temporaryPath);
-                }
-                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-                {
-                    AppSessionLogger.WriteException(e);
-                }
-            }
-        }
+        await AtomicFile.WriteJsonAsync(
+            extensionStateFilePath,
+            protectedState,
+            JsonOptions,
+            cancellationToken,
+            GetStateBackupPath());
     }
+
+    private string GetStateBackupPath() => extensionStateFilePath + ".bak";
 
     private ExtensionPersistedState ProtectState(string extensionId, ExtensionPersistedState source)
     {
