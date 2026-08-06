@@ -286,7 +286,7 @@ public sealed class FocusVisualTests
                 && (string?)element.Attribute("ColumnDefinitions") == "*,Auto,Auto,Auto");
         XElement sectionHeader = document.Descendants()
             .Single(element => element.Name.LocalName == "TextBlock"
-                && (string?)element.Attribute("Text") == "已安装扩展")
+                && (string?)element.Attribute("Text") == "{I18N InstalledExtensionSection}")
             .Parent!
             .Parent!;
 
@@ -546,8 +546,8 @@ public sealed class FocusVisualTests
         Assert.Equal("ContentDialog", dialog.Name.LocalName);
         Assert.Equal("{StaticResource DefaultVioletaContentDialogStyle}", (string?)dialog.Attribute("Style"));
         Assert.Equal("Primary", (string?)dialog.Attribute("DefaultButton"));
-        Assert.Equal("是", (string?)dialog.Attribute("PrimaryButtonText"));
-        Assert.Equal("否", (string?)dialog.Attribute("CloseButtonText"));
+        Assert.Equal("{I18N Yes}", (string?)dialog.Attribute("PrimaryButtonText"));
+        Assert.Equal("{I18N No}", (string?)dialog.Attribute("CloseButtonText"));
     }
 
     [Theory]

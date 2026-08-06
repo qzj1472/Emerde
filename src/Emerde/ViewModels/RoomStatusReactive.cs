@@ -212,8 +212,8 @@ public partial class RoomStatusReactive : ReactiveObject
             string readSpeedText = FormatMediaWorkerSpeed(MediaWorkerReadBytesPerSecond);
             string writeSpeedText = FormatMediaWorkerSpeed(MediaWorkerWriteBytesPerSecond);
             return MediaWorkerProcessId > 0
-                ? $"内置 FFmpeg DLL · {workerName} · PID {MediaWorkerProcessId} · 下载 {readSpeedText} · 写入 {writeSpeedText}"
-                : "内置 FFmpeg DLL · Worker 启动中";
+                ? "RecordingEngineActive".Tr(workerName, MediaWorkerProcessId, readSpeedText, writeSpeedText)
+                : "RecordingEngineStarting".Tr();
         }
     }
 
@@ -221,7 +221,7 @@ public partial class RoomStatusReactive : ReactiveObject
     {
         if (bytesPerSecond <= 0 || double.IsNaN(bytesPerSecond) || double.IsInfinity(bytesPerSecond))
         {
-            return "等待数据";
+            return "WaitingForData".Tr();
         }
 
         double megabytesPerSecond = bytesPerSecond / 1024d / 1024d;
@@ -304,7 +304,7 @@ public partial class RoomStatusReactive : ReactiveObject
                 return "RTMP";
             }
 
-            return "直播流";
+            return "LiveStream".Tr();
         }
     }
 

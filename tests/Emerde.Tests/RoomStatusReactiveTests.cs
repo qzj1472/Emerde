@@ -69,7 +69,7 @@ public sealed class RoomStatusReactiveTests
             MediaWorkerReadBytesPerSecond = 2.5 * 1024 * 1024,
         };
 
-        Assert.Equal("内置 FFmpeg DLL · Emerde · PID 1234 · 下载 2.5 MB/s · 写入 1.3 MB/s", room.RecordingEngineText);
+        Assert.Equal("RecordingEngineActive".Tr("Emerde", 1234, "2.5 MB/s", "1.3 MB/s"), room.RecordingEngineText);
     }
 
     [Fact]

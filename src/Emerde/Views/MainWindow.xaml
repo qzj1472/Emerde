@@ -604,61 +604,61 @@
                     <ToggleButton Command="{Binding ShowHomePageCommand}"
                                   IsChecked="{Binding IsHomePageSelected, Mode=OneWay}"
                                   Style="{StaticResource ShellNavButtonStyle}"
-                                  ToolTip="首页（Alt+1，Tab 向上 / CapsLock 向下）">
+                                  ToolTip="{I18N NavigationHomeToolTip}">
                         <ui:StackPanel HorizontalAlignment="Center" Spacing="4">
                             <ui:FontIcon HorizontalAlignment="Center"
                                          FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          FontSize="20"
                                          Glyph="{x:Static ui:FontSymbols.Home}" />
-                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="首页" />
+                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="{I18N HomePage}" />
                         </ui:StackPanel>
                     </ToggleButton>
                     <ToggleButton Command="{Binding OpenScreenRecordListCommand}"
                                   IsChecked="{Binding IsVideoListPageSelected, Mode=OneWay}"
                                   Style="{StaticResource ShellNavButtonStyle}"
-                                  ToolTip="视频列表（Alt+2，Tab 向上 / CapsLock 向下）">
+                                  ToolTip="{I18N NavigationVideosToolTip}">
                         <ui:StackPanel HorizontalAlignment="Center" Spacing="4">
                             <ui:FontIcon HorizontalAlignment="Center"
                                          FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          FontSize="20"
                                          Glyph="{x:Static ui:FontSymbols.Video}" />
-                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="视频列表" />
+                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="{I18N VideoListTitle}" />
                         </ui:StackPanel>
                     </ToggleButton>
                     <ToggleButton Command="{Binding OpenSettingsDialogCommand}"
                                   IsChecked="{Binding IsSettingsPageSelected, Mode=OneWay}"
                                   Style="{StaticResource ShellNavButtonStyle}"
-                                  ToolTip="设置（Alt+3，Tab 向上 / CapsLock 向下）">
+                                  ToolTip="{I18N NavigationSettingsToolTip}">
                         <ui:StackPanel HorizontalAlignment="Center" Spacing="4">
                             <ui:FontIcon HorizontalAlignment="Center"
                                          FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          FontSize="20"
                                          Glyph="{x:Static ui:FontSymbols.Settings}" />
-                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="设置" />
+                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="{I18N Settings}" />
                         </ui:StackPanel>
                     </ToggleButton>
                     <ToggleButton Command="{Binding OpenExtensionsCommand}"
                                   IsChecked="{Binding IsExtensionsPageSelected, Mode=OneWay}"
                                   Style="{StaticResource ShellNavButtonStyle}"
-                                  ToolTip="扩展（Alt+4，Tab 向上 / CapsLock 向下）">
+                                  ToolTip="{I18N NavigationExtensionsToolTip}">
                         <ui:StackPanel HorizontalAlignment="Center" Spacing="4">
                             <ui:FontIcon HorizontalAlignment="Center"
                                          FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          FontSize="20"
                                          Glyph="{x:Static ui:FontSymbols.AppIconDefault}" />
-                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="扩展" />
+                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="{I18N Extensions}" />
                         </ui:StackPanel>
                     </ToggleButton>
                     <ToggleButton Command="{Binding OpenAboutCommand}"
                                   IsChecked="{Binding IsAboutPageSelected, Mode=OneWay}"
                                   Style="{StaticResource ShellNavButtonStyle}"
-                                  ToolTip="关于（Alt+5，Tab 向上 / CapsLock 向下）">
+                                  ToolTip="{I18N NavigationAboutToolTip}">
                         <ui:StackPanel HorizontalAlignment="Center" Spacing="4">
                             <ui:FontIcon HorizontalAlignment="Center"
                                          FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          FontSize="20"
                                          Glyph="{x:Static ui:FontSymbols.Info}" />
-                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="关于" />
+                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="{I18N About}" />
                         </ui:StackPanel>
                     </ToggleButton>
                     <StackPanel x:Name="ExtensionNavigationHost" />
@@ -666,11 +666,11 @@
                     <Button Grid.Row="2"
                             Command="{Binding ExitApplicationCommand}"
                             Style="{StaticResource ShellExitButtonStyle}"
-                            ToolTip="退出软件（Ctrl+Shift+W）">
+                            ToolTip="{I18N ExitApplicationToolTip}">
                         <ui:StackPanel Orientation="Horizontal" Spacing="5">
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          Glyph="{x:Static ui:FontSymbols.PowerButton}" />
-                            <TextBlock Text="退出" />
+                            <TextBlock Text="{I18N TrayMenuExit}" />
                         </ui:StackPanel>
                     </Button>
                 </Grid>
@@ -701,7 +701,7 @@
                 <ui:StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
                     <Button MinWidth="72"
                             Command="{Binding AddRoomCommand}"
-                            ToolTip="添加直播间（Ctrl+N）">
+                            ToolTip="{I18N AddRoomToolTip}">
                         <Button.Content>
                             <ui:StackPanel Orientation="Horizontal" Spacing="8">
                                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Add}" />
@@ -713,13 +713,13 @@
                             Command="{Binding ToggleMonitorCommand}"
                             Style="{StaticResource MonitorActionButtonStyle}"
                             Tag="{Binding StatusOfIsMonitorRunning}"
-                            ToolTip="开启/暂停全部监控（Ctrl+Shift+M）">
+                            ToolTip="{I18N ToggleAllMonitorToolTip}">
                         <Button.Content>
                             <ui:StackPanel Orientation="Horizontal" Spacing="8">
                                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                              Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
                                              Glyph="{x:Static ui:FontSymbols.Radar}" />
-                                <TextBlock Text="监控" />
+                                <TextBlock Text="{I18N Monitor}" />
                             </ui:StackPanel>
                         </Button.Content>
                     </Button>
@@ -727,7 +727,7 @@
                             Command="{Binding ToggleStatusRecordCommand}"
                             Style="{StaticResource RecordActionButtonStyle}"
                             Tag="{Binding StatusOfIsToRecord}"
-                            ToolTip="开启/暂停全部录制（Ctrl+Shift+R）">
+                            ToolTip="{I18N ToggleAllRecordingToolTip}">
                         <Button.Content>
                             <ui:StackPanel Orientation="Horizontal" Spacing="8">
                                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
@@ -776,27 +776,27 @@
                         PreviewMouseRightButtonDown="RoomCardListPreviewMouseRightButtonDown">
                     <Border.ContextMenu>
                         <ContextMenu Placement="MousePoint" DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                            <MenuItem Header="刷新"
+                            <MenuItem Header="{I18N RefreshButton}"
                                       Command="{Binding RefreshRoomCardsCommand}" />
-                            <MenuItem Header="卡片大小">
-                                <MenuItem Header="大" Click="SetRoomCardLargeClick" />
-                                <MenuItem Header="中" Click="SetRoomCardMediumClick" />
-                                <MenuItem Header="小" Click="SetRoomCardSmallClick" />
+                            <MenuItem Header="{I18N CardSize}">
+                                <MenuItem Header="{I18N SizeLarge}" Click="SetRoomCardLargeClick" />
+                                <MenuItem Header="{I18N SizeMedium}" Click="SetRoomCardMediumClick" />
+                                <MenuItem Header="{I18N SizeSmall}" Click="SetRoomCardSmallClick" />
                             </MenuItem>
-                            <MenuItem Header="排序"
+                            <MenuItem Header="{I18N Sort}"
                                       SubmenuOpened="RoomSortMenuSubmenuOpened">
-                                <MenuItem Header="按名称"
+                                <MenuItem Header="{I18N SortByName}"
                                           IsCheckable="True"
                                           Click="SortRoomsByNameMenuItemClick"
                                           Style="{StaticResource SelectedContextMenuOptionStyle}" />
-                                <MenuItem Header="按添加顺序"
+                                <MenuItem Header="{I18N SortByAddedOrder}"
                                           IsCheckable="True"
                                           Click="SortRoomsByAddedAtMenuItemClick"
                                           Style="{StaticResource SelectedContextMenuOptionStyle}" />
                             </MenuItem>
-                            <MenuItem Header="平台筛选"
+                            <MenuItem Header="{I18N PlatformFilter}"
                                       SubmenuOpened="PlatformFilterMenuSubmenuOpened">
-                                <MenuItem Header="加载平台" IsEnabled="False" />
+                                <MenuItem Header="{I18N LoadPlatforms}" IsEnabled="False" />
                                 <MenuItem.Style>
                                     <Style TargetType="{x:Type MenuItem}" BasedOn="{StaticResource {x:Type MenuItem}}">
                                         <Style.Triggers>
@@ -1214,14 +1214,14 @@
                                 <TextBlock FontSize="13"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
-                                           Text="直播间信息" />
+                                           Text="{I18N RoomInformation}" />
                                 <Button Grid.Column="1"
                                         Width="28"
                                         Height="28"
                                         MinWidth="28"
                                         Padding="0"
                                         Command="{Binding RefreshSelectedRoomInfoCommand}"
-                                        ToolTip="刷新当前直播间（F）">
+                                        ToolTip="{I18N RefreshCurrentRoomToolTip}">
                                     <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                                  Glyph="{x:Static ui:FontSymbols.Sync}"
                                                  RenderTransformOrigin="0.5,0.5"
@@ -1233,7 +1233,7 @@
                                 <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N Platform}" />
                                 <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.PlatformDisplayName}" />
 
-                                <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="标题" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N LiveTitle}" />
                                 <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.LiveTitleText}" />
 
                                 <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N StreamStatus}" />
@@ -1242,19 +1242,19 @@
                                 <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N RecordStatus}" />
                                 <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.RecordStatusText}" />
 
-                                <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="录制格式" />
+                                <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N RecordFormat}" />
                                 <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding StatusOfRecordFormat}" />
 
-                                <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="画质" />
+                                <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N QualityLabel}" />
                                 <TextBlock Grid.Row="5" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.QualityText}" />
 
-                                <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="分辨率" />
+                                <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N ResolutionLabel}" />
                                 <TextBlock Grid.Row="6" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.ResolutionText}" />
 
-                                <TextBlock Grid.Row="7" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="码率" />
+                                <TextBlock Grid.Row="7" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N BitrateLabel}" />
                                 <TextBlock Grid.Row="7" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.BitrateText}" />
 
-                                <TextBlock Grid.Row="8" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="房间地址" />
+                                <TextBlock Grid.Row="8" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N RoomAddress}" />
                                 <ui:Grid Grid.Row="8" Grid.Column="1" Margin="0,0,0,6" ColumnDefinitions="*,Auto">
                                     <TextBlock Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.RoomUrl}" />
                                     <Button Grid.Column="1"
@@ -1264,12 +1264,12 @@
                                             Margin="8,0,0,0"
                                             Padding="0"
                                             Command="{Binding CopySelectedRoomUrlCommand}"
-                                            ToolTip="复制房间地址（C）">
+                                            ToolTip="{I18N CopyRoomAddressToolTip}">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Copy}" />
                                     </Button>
                                 </ui:Grid>
 
-                                <TextBlock Grid.Row="9" Grid.Column="0" Margin="0,0,12,0" Style="{StaticResource DetailLabelStyle}" Text="直播流" />
+                                <TextBlock Grid.Row="9" Grid.Column="0" Margin="0,0,12,0" Style="{StaticResource DetailLabelStyle}" Text="{I18N LiveStream}" />
                                 <ui:Grid Grid.Row="9" Grid.Column="1" ColumnDefinitions="*,Auto">
                                     <TextBlock Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.LiveStreamText}" />
                                     <Button Grid.Column="1"
@@ -1279,7 +1279,7 @@
                                             Margin="8,0,0,0"
                                             Padding="0"
                                             Command="{Binding CopySelectedPreviewUrlCommand}"
-                                            ToolTip="复制直播流（Shift+C）">
+                                            ToolTip="{I18N CopyLiveStreamToolTip}">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Copy}" />
                                     </Button>
                                 </ui:Grid>
@@ -1294,7 +1294,7 @@
                                        FontSize="13"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
-                                       Text="操作" />
+                                       Text="{I18N Operation}" />
                             <ui:Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto">
                                 <Button Grid.Row="0"
                                         Grid.Column="0"
@@ -1305,7 +1305,7 @@
                                         Command="{Binding PreviewLiveRoomCommand}"
                                         CommandParameter="{Binding SelectedItem}"
                                         IsEnabled="{Binding CanPreviewSelectedRoom}"
-                                        ToolTip="预览/关闭当前直播间预览（Q）">
+                                        ToolTip="{I18N PreviewCurrentRoomToolTip}">
                                     <ui:StackPanel Orientation="Horizontal" Spacing="6">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Play}" />
                                         <TextBlock Text="{I18N PreviewLiveRoom}" />
@@ -1318,7 +1318,7 @@
                                         Margin="4,0,0,6"
                                         HorizontalAlignment="Stretch"
                                         Command="{Binding GotoRoomUrlCommand}"
-                                        ToolTip="打开当前直播间网页（E）">
+                                        ToolTip="{I18N OpenCurrentRoomToolTip}">
                                     <ui:StackPanel Orientation="Horizontal" Spacing="6">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.OpenInNewWindow}" />
                                         <TextBlock Text="{I18N ButtonOfGoto}" />
@@ -1333,12 +1333,12 @@
                                         Command="{Binding ToggleSelectedRoomMonitorCommand}"
                                         Style="{StaticResource MonitorActionButtonStyle}"
                                         Tag="{Binding SelectedItem.EffectiveIsToMonitor}"
-                                        ToolTip="开启/暂停当前直播间监控（Shift+M）">
+                                        ToolTip="{I18N ToggleCurrentMonitorToolTip}">
                                     <ui:StackPanel Orientation="Horizontal" Spacing="6">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                                      Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
                                                      Glyph="{x:Static ui:FontSymbols.Radar}" />
-                                        <TextBlock Text="监控" />
+                                        <TextBlock Text="{I18N Monitor}" />
                                     </ui:StackPanel>
                                 </Button>
                                 <Button Grid.Row="1"
@@ -1350,7 +1350,7 @@
                                         Command="{Binding ToggleSelectedRoomRecordCommand}"
                                         Style="{StaticResource RecordActionButtonStyle}"
                                         Tag="{Binding SelectedItem.EffectiveIsToRecord}"
-                                        ToolTip="开启/暂停当前直播间录制（Shift+R）">
+                                        ToolTip="{I18N ToggleCurrentRecordingToolTip}">
                                     <ui:StackPanel Orientation="Horizontal" Spacing="6">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                                      Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
@@ -1365,10 +1365,10 @@
                                         Height="42"
                                         HorizontalAlignment="Stretch"
                                         Command="{Binding OpenLocalSettingsCommand}"
-                                        ToolTip="打开当前直播间设置">
+                                        ToolTip="{I18N OpenCurrentRoomSettingsToolTip}">
                                     <ui:StackPanel Orientation="Horizontal" Spacing="6">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Settings}" />
-                                        <TextBlock Text="设置" />
+                                        <TextBlock Text="{I18N Settings}" />
                                     </ui:StackPanel>
                                 </Button>
                             </ui:Grid>
@@ -1408,7 +1408,7 @@
                                Text="{Binding PlatformSummaryText}" />
                     <Button Command="{Binding TestNetworkCapacityCommand}"
                             Style="{StaticResource StatusTrayCapacityButtonStyle}"
-                            ToolTip="测试当前网络可同时录制的路数（Ctrl+T）">
+                            ToolTip="{I18N NetworkCapacityHint}">
                         <ui:StackPanel VerticalAlignment="Center"
                                        Orientation="Horizontal"
                                        Spacing="5">
@@ -1470,7 +1470,7 @@
                         <Button Command="{Binding ToggleMonitorCommand}"
                                 Style="{StaticResource MonitorStatusTrayButtonStyle}"
                                 Tag="{Binding StatusOfIsMonitorRunning}"
-                                ToolTip="开启/暂停全部监控（Ctrl+Shift+M）">
+                                ToolTip="{I18N ToggleAllMonitorToolTip}">
                             <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
                                          Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
                                          Glyph="{x:Static ui:FontSymbols.Radar}" />
@@ -1494,7 +1494,7 @@
                         <Button Command="{Binding ToggleStatusRecordCommand}"
                                 Style="{StaticResource RecordStatusTrayButtonStyle}"
                                 Tag="{Binding StatusOfIsToRecord}"
-                                ToolTip="开启/暂停全部录制（Ctrl+Shift+R）">
+                                ToolTip="{I18N ToggleAllRecordingToolTip}">
                             <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
                                          Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
                                          Glyph="{x:Static ui:FontSymbols.Video}" />
@@ -1533,7 +1533,7 @@
                         </Button>
                         <Button Command="{Binding ToggleStatusAutoShutdownCommand}"
                                 Style="{StaticResource StatusTrayButtonStyle}"
-                                ToolTip="定时关闭">
+                                ToolTip="{I18N AutoShutdown}">
                             <c:If Condition="{Binding StatusOfIsUseAutoShutdown, Mode=OneWay}">
                                 <c:If.TrueValue>
                                     <ui:FontIcon Style="{StaticResource StatusTrayIconStyle}"
