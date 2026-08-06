@@ -86,7 +86,7 @@ public sealed class LivePreviewPlayer : IDisposable
         libVlc = new LibVLC(LibVlcOptions);
         currentSession = CreateSession(string.Empty);
         sessions.Add(currentSession);
-        standbyTimer = new System.Threading.Timer(RemoveExpiredStandbySessions, null, 500, 500);
+        standbyTimer = new System.Threading.Timer(RemoveExpiredStandbySessions, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
     }
 
     public async Task<bool> PlayAsync(
@@ -143,6 +143,7 @@ public sealed class LivePreviewPlayer : IDisposable
                 }
 
                 currentSession.Activate(volume, muted);
+                ScheduleStandbyCleanupLocked();
             }
 
             if (frameSourceChanged)
@@ -166,6 +167,7 @@ public sealed class LivePreviewPlayer : IDisposable
                 {
                     sessions.Remove(targetSession);
                 }
+                ScheduleStandbyCleanupLocked();
             }
 
             if (!ReferenceEquals(targetSession, currentSession))
@@ -212,6 +214,7 @@ public sealed class LivePreviewPlayer : IDisposable
                 sessions.Remove(session);
             }
             QueueSessionDisposals(removedSessions);
+            ScheduleStandbyCleanupLocked();
         }
     }
 
@@ -438,6 +441,7 @@ public sealed class LivePreviewPlayer : IDisposable
             sessions.Clear();
             sessions.Add(replacement);
             currentSession = replacement;
+            ScheduleStandbyCleanupLocked();
         }
 
         FrameSourceChanged?.Invoke(this, EventArgs.Empty);
@@ -463,7 +467,24 @@ public sealed class LivePreviewPlayer : IDisposable
                 sessions.Remove(session);
             }
             QueueSessionDisposals(expired);
+            ScheduleStandbyCleanupLocked();
         }
+    }
+
+    private void ScheduleStandbyCleanupLocked()
+    {
+        DateTime? nextExpiration = sessions
+            .Where(session => !ReferenceEquals(session, currentSession) && !session.IsPinned && session.ExpiresAt != DateTime.MaxValue)
+            .Select(session => (DateTime?)session.ExpiresAt)
+            .Min();
+        if (nextExpiration is null)
+        {
+            standbyTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            return;
+        }
+
+        TimeSpan dueTime = nextExpiration.Value - DateTime.UtcNow;
+        standbyTimer.Change(dueTime > TimeSpan.Zero ? dueTime : TimeSpan.Zero, Timeout.InfiniteTimeSpan);
     }
 
     private void QueueSessionDisposals(IReadOnlyCollection<PreviewSession> removedSessions)
@@ -945,7 +966,8 @@ public sealed class LivePreviewPlayer : IDisposable
                 await Task.Delay(100, cancellationToken);
             }
 
-            string snapshotPath = Path.Combine(Path.GetTempPath(), $"Emerde-preview-{Guid.NewGuid():N}.png");
+            Directory.CreateDirectory(AppPaths.LivePreviewTemporaryDirectory);
+            string snapshotPath = Path.Combine(AppPaths.LivePreviewTemporaryDirectory, $"{Guid.NewGuid():N}.png");
             try
             {
                 bool captured = await Task.Run(() => MediaPlayer.TakeSnapshot(0, snapshotPath, 0, 0), cancellationToken);
