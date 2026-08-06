@@ -47,18 +47,19 @@ public partial class PlatformCookieLoginWindow : FluentWindow
                 return;
             }
 
-            Directory.CreateDirectory(AppPaths.PlatformLoginWebViewDataDirectory);
+            string webViewDataDirectory = AppPaths.GetPlatformLoginWebViewDataDirectory(profile.PlatformName);
+            Directory.CreateDirectory(webViewDataDirectory);
             CoreWebView2EnvironmentOptions options = new(GetBrowserArguments());
             CoreWebView2Environment environment = await CoreWebView2Environment.CreateAsync(
                 null,
-                AppPaths.PlatformLoginWebViewDataDirectory,
+                webViewDataDirectory,
                 options).WaitAsync(lifetimeToken);
             await Browser.EnsureCoreWebView2Async(environment).WaitAsync(lifetimeToken);
             lifetimeToken.ThrowIfCancellationRequested();
             ApplyProxyCredentials(Browser.CoreWebView2);
             Browser.CoreWebView2.Settings.AreDevToolsEnabled = false;
-            Browser.CoreWebView2.Settings.IsPasswordAutosaveEnabled = true;
-            Browser.CoreWebView2.Settings.IsGeneralAutofillEnabled = true;
+            Browser.CoreWebView2.Settings.IsPasswordAutosaveEnabled = false;
+            Browser.CoreWebView2.Settings.IsGeneralAutofillEnabled = false;
             Browser.CoreWebView2.NewWindowRequested += BrowserNewWindowRequested;
             CompleteButton.IsEnabled = true;
             StatusText.Text = "CookieLoginInstruction".Tr();
