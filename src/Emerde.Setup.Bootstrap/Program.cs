@@ -58,8 +58,6 @@ internal static class Program
                 throw new InvalidDataException("安装器启动层不完整。");
             }
 
-            preparationWindow.Close();
-
             ProcessStartInfo startInfo = new(installerExecutable)
             {
                 UseShellExecute = false,
@@ -78,6 +76,8 @@ internal static class Program
 
             using Process installer = Process.Start(startInfo)
                 ?? throw new InvalidOperationException("无法启动安装界面。");
+            _ = AllowSetForegroundWindow((uint)installer.Id);
+            preparationWindow.Close();
             installer.WaitForExit();
             return installer.ExitCode;
         }
@@ -156,6 +156,10 @@ internal static class Program
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int MessageBoxW(IntPtr windowHandle, string text, string caption, uint type);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool AllowSetForegroundWindow(uint processId);
 }
 
 internal sealed class BoundedReadStream : Stream

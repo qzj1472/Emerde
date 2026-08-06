@@ -89,6 +89,13 @@ public partial class MainWindow : FluentWindow
         int height,
         uint flags);
 
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(IntPtr windowHandle);
+
     private void MainWindowSourceInitialized(object? sender, EventArgs e)
     {
         RemoveWindowBorder();
@@ -104,6 +111,37 @@ public partial class MainWindow : FluentWindow
     {
         base.OnDeactivated(e);
         RemoveWindowBorder();
+    }
+
+    internal void BringToForegroundOnce()
+    {
+        if (!IsVisible)
+        {
+            return;
+        }
+
+        IntPtr windowHandle = new WindowInteropHelper(this).Handle;
+        if (windowHandle == IntPtr.Zero || GetForegroundWindow() == windowHandle)
+        {
+            return;
+        }
+
+        _ = Activate();
+        if (SetForegroundWindow(windowHandle) || GetForegroundWindow() == windowHandle)
+        {
+            return;
+        }
+
+        Topmost = true;
+        try
+        {
+            _ = Activate();
+            _ = SetForegroundWindow(windowHandle);
+        }
+        finally
+        {
+            Topmost = false;
+        }
     }
 
     private void RemoveWindowBorder()

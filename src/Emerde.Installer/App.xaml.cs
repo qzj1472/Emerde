@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Threading;
 
 namespace Emerde.Installer;
 
@@ -8,7 +9,11 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        MainWindow = new MainWindow();
-        MainWindow.Show();
+        MainWindow mainWindow = new();
+        MainWindow = mainWindow;
+        mainWindow.Show();
+        _ = mainWindow.Dispatcher.BeginInvoke(
+            mainWindow.BringToForegroundOnce,
+            DispatcherPriority.ApplicationIdle);
     }
 }
