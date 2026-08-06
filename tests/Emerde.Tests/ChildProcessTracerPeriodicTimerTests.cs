@@ -5,6 +5,12 @@ namespace Emerde.Tests;
 public sealed class ChildProcessTracerPeriodicTimerTests
 {
     [Fact]
+    public void DefaultFallbackPeriod_IsLowFrequency()
+    {
+        Assert.Equal(TimeSpan.FromSeconds(5), ChildProcessTracerPeriodicTimer.DefaultFallbackPeriod);
+    }
+
+    [Fact]
     public void Dispose_StopsAnActiveWorkerAndPreventsRestart()
     {
         for (int index = 0; index < 20; index++)
@@ -32,5 +38,20 @@ public sealed class ChildProcessTracerPeriodicTimerTests
 
         Assert.True(source.IsCancellationRequested);
         source.Token.Register(static () => { }).Dispose();
+    }
+
+    [Fact]
+    public void Stop_AllowsRestartWithAFreshCancellationSource()
+    {
+        using ChildProcessTracerPeriodicTimer timer = new(TimeSpan.FromSeconds(5));
+        timer.Start();
+        CancellationTokenSource firstSource = timer.TokenSource!;
+
+        timer.Stop();
+        timer.Start();
+
+        Assert.True(firstSource.IsCancellationRequested);
+        Assert.NotSame(firstSource, timer.TokenSource);
+        Assert.False(timer.TokenSource!.IsCancellationRequested);
     }
 }

@@ -9,7 +9,9 @@ namespace Emerde.Threading;
 
 public partial class ChildProcessTracerPeriodicTimer(TimeSpan period) : IDisposable
 {
-    public static ChildProcessTracerPeriodicTimer Default { get; } = new(TimeSpan.FromMilliseconds(500));
+    internal static readonly TimeSpan DefaultFallbackPeriod = TimeSpan.FromSeconds(5);
+
+    public static ChildProcessTracerPeriodicTimer Default { get; } = new(DefaultFallbackPeriod);
 
     public ChildProcessTracer Tracer { get; } = new ChildProcessTracer();
     public PeriodicTimer PeriodicTimer { get; } = new PeriodicTimer(period);
@@ -62,25 +64,12 @@ public partial class ChildProcessTracerPeriodicTimer(TimeSpan period) : IDisposa
                 TracedChildProcessIds.Clear();
             }
 
-            while (await PeriodicTimer.WaitForNextTickAsync(cancellationToken))
+            while (!cancellationToken.IsCancellationRequested)
             {
-                (int Id, string ProcessName)[] children = Interop.GetChildProcessIdAndName(Environment.ProcessId);
-
-                foreach ((int childId, string childProcessName) in children)
+                TraceCurrentChildProcesses();
+                if (!await PeriodicTimer.WaitForNextTickAsync(cancellationToken))
                 {
-                    if (!IsAllowedProcess(childProcessName))
-                    {
-                        continue;
-                    }
-
-                    TryTraceProcess(childId);
-                }
-
-                lock (syncRoot)
-                {
-                    TracedChildProcessIds.RemoveWhere(tracedChildProcessId =>
-                       !children.Any(child => child.Id == tracedChildProcessId)
-                    );
+                    break;
                 }
             }
         }
@@ -93,6 +82,25 @@ public partial class ChildProcessTracerPeriodicTimer(TimeSpan period) : IDisposa
         catch (Exception e)
         {
             AppSessionLogger.WriteException(e);
+        }
+    }
+
+    private void TraceCurrentChildProcesses()
+    {
+        (int Id, string ProcessName)[] children = Interop.GetChildProcessIdAndName(Environment.ProcessId);
+        HashSet<int> childProcessIds = children.Select(child => child.Id).ToHashSet();
+
+        foreach ((int childId, string childProcessName) in children)
+        {
+            if (IsAllowedProcess(childProcessName))
+            {
+                TryTraceProcess(childId);
+            }
+        }
+
+        lock (syncRoot)
+        {
+            TracedChildProcessIds.RemoveWhere(tracedChildProcessId => !childProcessIds.Contains(tracedChildProcessId));
         }
     }
 
@@ -166,12 +174,30 @@ public partial class ChildProcessTracerPeriodicTimer(TimeSpan period) : IDisposa
 
     public void Stop(bool killChildren = false)
     {
+        Task? stoppingWorker;
+        CancellationTokenSource? stoppingSource;
+        lock (syncRoot)
+        {
+            stoppingWorker = workerTask;
+            stoppingSource = TokenSource;
+        }
         try
         {
-            TokenSource?.Cancel();
+            stoppingSource?.Cancel();
         }
         catch (ObjectDisposedException)
         {
+        }
+
+        if (stoppingWorker is not null && Task.CurrentId != stoppingWorker.Id)
+        {
+            try
+            {
+                _ = stoppingWorker.Wait(TimeSpan.FromSeconds(2));
+            }
+            catch (AggregateException)
+            {
+            }
         }
 
         if (killChildren)
@@ -250,7 +276,7 @@ public partial class ChildProcessTracerPeriodicTimer(TimeSpan period) : IDisposa
         PeriodicTimer.Dispose();
         try
         {
-            _ = stoppingWorker?.Wait(TimeSpan.FromSeconds(1));
+            _ = stoppingWorker?.Wait(TimeSpan.FromSeconds(2));
         }
         catch (AggregateException)
         {
