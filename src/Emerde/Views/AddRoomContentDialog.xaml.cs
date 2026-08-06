@@ -21,7 +21,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
     partial void OnUrlChanged(string? value)
     {
         string platformName = string.IsNullOrWhiteSpace(value) ? string.Empty : Spider.GetPlatformName(value);
-        DetectedPlatformName = string.IsNullOrWhiteSpace(platformName) ? "Unsupported" : PlatformDisplayName.Get(platformName);
+        DetectedPlatformName = string.IsNullOrWhiteSpace(platformName) ? "Unsupported".Tr() : PlatformDisplayName.Get(platformName);
         SettingsEditor?.SetPlatformName(platformName);
     }
 
@@ -32,7 +32,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
     private string? nickName = null;
 
     [ObservableProperty]
-    private string detectedPlatformName = "Unsupported";
+    private string detectedPlatformName = "Unsupported".Tr();
 
     [ObservableProperty]
     private bool isFollowGlobalSettings = true;
@@ -43,6 +43,10 @@ public sealed partial class AddRoomContentDialog : ContentDialog
     }
 
     public string SupportedPlatformsText => string.Join(" / ", Spider.SupportedPlatformNames.Select(PlatformDisplayName.Get));
+
+    public string SkipValidationText => "SkipValidation".Tr();
+
+    public string FollowGlobalSettingsText => "FollowGlobalSettings".Tr();
 
     public LocalSettingsContentDialog SettingsEditor { get; }
 
@@ -266,15 +270,9 @@ public sealed partial class AddRoomContentDialog : ContentDialog
 
     internal static string GetRoomInfoErrorMessage(string? roomUrl, string? fallback = null)
     {
-        string error = string.IsNullOrWhiteSpace(roomUrl) ? string.Empty : ExternalStreamResolver.GetLastError(roomUrl);
-        if (string.IsNullOrWhiteSpace(error) && !string.IsNullOrWhiteSpace(roomUrl))
-        {
-            error = StreamResolver.GetLastError(roomUrl);
-        }
-
-        string detail = string.IsNullOrWhiteSpace(error) ? fallback ?? string.Empty : error;
-        string message = "GetRoomInfoError".Tr();
-        return string.IsNullOrWhiteSpace(detail) ? message : $"{message}: {detail}";
+        _ = roomUrl;
+        _ = fallback;
+        return "GetRoomInfoError".Tr();
     }
 
     internal static bool HasAddableRoomInfo(ISpiderResult? spider, string? roomUrl)

@@ -94,10 +94,10 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <CheckBox Grid.Column="0"
-                          Content="跳过检测"
+                          Content="{Binding SkipValidationText}"
                           IsChecked="{Binding IsForcedAdd, Mode=TwoWay}" />
                 <CheckBox Grid.Column="1"
-                          Content="跟随全局"
+                          Content="{Binding FollowGlobalSettingsText}"
                           IsChecked="{Binding IsFollowGlobalSettings, Mode=TwoWay}" />
             </Grid>
         </ui:StackPanel>

@@ -7,11 +7,12 @@ namespace Emerde.Tests;
 public sealed class AddRoomContentDialogTests
 {
     [Fact]
-    public void GetRoomInfoErrorMessage_AppendsResolverDetail()
+    public void GetRoomInfoErrorMessage_DoesNotExposeInternalResolverDetail()
     {
         string result = AddRoomContentDialog.GetRoomInfoErrorMessage(null, "resolver failed");
 
-        Assert.Contains("resolver failed", result);
+        Assert.Equal("GetRoomInfoError".Tr(), result);
+        Assert.DoesNotContain("resolver failed", result);
     }
 
     [Fact]
