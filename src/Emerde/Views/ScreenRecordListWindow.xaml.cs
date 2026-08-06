@@ -543,7 +543,7 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
                         entry.Id,
                         type = exception.GetType().FullName,
                     });
-                    Toast.Warning($"{entry.Label}失败：{exception.Message}");
+                    Toast.Warning("OperationFailedWithLabel".Tr(entry.Label, exception.Message));
                 }
             };
             contextMenu.Items.Insert(insertionIndex++, menuItem);
@@ -1175,8 +1175,8 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         : GetResourceText("SortAscending", "Ascending");
 
     public string SortDirectionToolTip => IsSortDescending
-        ? "当前按录制时间倒序排列，最新录制的视频在最前面"
-        : "当前按录制时间顺序排列，最早录制的视频在最前面";
+        ? "SortDescendingDescription".Tr()
+        : "SortAscendingDescription".Tr();
 
     [ObservableProperty]
     private string selectedStreamer = string.Empty;
@@ -1436,7 +1436,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         using CommonOpenFileDialog dialog = new()
         {
             IsFolderPicker = true,
-            Title = "选择要导入的视频文件夹",
+            Title = "SelectVideoImportFolder".Tr(),
         };
 
         if (dialog.ShowDialog() != CommonFileDialogResult.Ok || !Directory.Exists(dialog.FileName))
@@ -1454,12 +1454,12 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
                 IsSameOrAncestorDirectory(sourceFolder, configuredRoot)
                 || IsSameOrAncestorDirectory(configuredRoot, sourceFolder)))
         {
-            Toast.Warning("不能从保存目录、保存目录的上级或子目录导入视频");
+            Toast.Warning("VideoImportManagedFolderConflict".Tr());
             return;
         }
 
         IsOperating = true;
-        OperationProgressText = "正在导入视频...";
+        OperationProgressText = "ImportingVideos".Tr();
         OnPropertyChanged(nameof(IsIdle));
 
         try
@@ -1467,11 +1467,11 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             (int succeeded, int failed) = await Task.Run(() => ImportVideos(sourceFolder, root));
             if (succeeded > 0)
             {
-                Toast.Success($"已导入 {succeeded} 个视频");
+                Toast.Success("ImportedVideos".Tr(succeeded));
             }
             if (failed > 0)
             {
-                Toast.Warning($"有 {failed} 个视频导入失败");
+                Toast.Warning("VideoImportFailures".Tr(failed));
             }
             await RefreshForDisplayAsync();
         }
@@ -1487,7 +1487,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
     private async Task OpenSaveFolderAsync()
     {
         string[] roots = MediaFileCatalog.GetConfiguredSaveFolders(createDirectories: true);
-        if (!TryChooseConfiguredFolder(roots, "选择要打开的保存目录", out string root))
+        if (!TryChooseConfiguredFolder(roots, "SelectSaveFolderToOpen".Tr(), out string root))
         {
             return;
         }
@@ -1498,7 +1498,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
     private static bool TryChooseImportDestination(out string root)
     {
         string[] roots = MediaFileCatalog.GetConfiguredSaveFolders(createDirectories: true);
-        return TryChooseConfiguredFolder(roots, "选择导入目标保存目录", out root);
+        return TryChooseConfiguredFolder(roots, "SelectVideoImportTarget".Tr(), out root);
     }
 
     private static bool TryChooseConfiguredFolder(string[] roots, string title, out string root)
@@ -1506,7 +1506,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         if (roots.Length == 0)
         {
             root = string.Empty;
-            Toast.Warning("没有可用的保存目录");
+            Toast.Warning("NoAvailableSaveFolder".Tr());
             return false;
         }
         if (roots.Length == 1)
@@ -1529,7 +1529,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         }
 
         root = string.Empty;
-        Toast.Warning("所选目录必须位于已配置的保存目录中");
+        Toast.Warning("FolderMustBeInsideConfiguredSaveFolder".Tr());
         return false;
     }
 
@@ -1858,10 +1858,10 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         input.SelectAll();
         ContentDialog dialog = new()
         {
-            Title = "重命名视频",
+            Title = "RenameVideo".Tr(),
             Content = input,
-            CloseButtonText = "取消",
-            PrimaryButtonText = "重命名",
+            CloseButtonText = "ButtonOfCancel".Tr(),
+            PrimaryButtonText = "Rename".Tr(),
             DefaultButton = ContentDialogButton.Primary,
             Style = Application.Current.TryFindResource("DefaultVioletaContentDialogStyle") as Style,
         };
@@ -1876,7 +1876,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
         if (!TryBuildRenameTarget(item.FullPath, input.Text, out string targetPath))
         {
-            Toast.Warning("文件名不能为空，也不能包含路径或非法字符");
+            Toast.Warning("InvalidVideoFileName".Tr());
             return;
         }
 
@@ -1887,7 +1887,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
         if (File.Exists(targetPath))
         {
-            Toast.Warning("同名视频已经存在");
+            Toast.Warning("VideoFileNameExists".Tr());
             return;
         }
 
@@ -1895,13 +1895,13 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         {
             string sourcePath = item.FullPath;
             RenameVideoFile(sourcePath, targetPath);
-            Toast.Success("重命名完成");
+            Toast.Success("RenameComplete".Tr());
             await RefreshForDisplayAsync();
         }
         catch (Exception e)
         {
             Debug.WriteLine(e);
-            Toast.Warning("重命名失败");
+            Toast.Warning("RenameFailed".Tr());
         }
     }
 
@@ -2043,7 +2043,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
     {
         if (item == null || !CanModifyVideoForUserOperation(item) || !File.Exists(item.FullPath))
         {
-            Toast.Warning("视频文件不存在");
+            Toast.Warning("VideoFileMissing".Tr());
             return;
         }
 
@@ -2059,12 +2059,12 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         RecordedVideoItem[] selected = GetSelectedVideos();
         if (selected.Length == 0 || selected.Any(item => !CanModifyVideoForUserOperation(item)))
         {
-            Toast.Warning("请先选择要分割的视频");
+            Toast.Warning("SelectVideosToSplit".Tr());
             return;
         }
 
         splitTargetItem = null;
-        SplitTargetFileName = $"已选择 {selected.Length} 个视频";
+        SplitTargetFileName = "SelectedVideos".Tr(selected.Length);
         OperationProgressText = string.Empty;
         IsSplitPanelOpen = true;
     }
@@ -2109,7 +2109,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         RecordedVideoItem[] targets = splitTargetItem != null ? [splitTargetItem] : GetSelectedVideos();
         if (targets.Length == 0 || targets.Any(item => !CanModifyVideoForUserOperation(item)))
         {
-            Toast.Warning("请先选择要分割的视频");
+            Toast.Warning("SelectVideosToSplit".Tr());
             return;
         }
 
@@ -2136,7 +2136,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             int completed = 0;
             foreach (RecordedVideoItem target in targets)
             {
-                OperationProgressText = $"正在分割 {completed + 1}/{targets.Length}";
+                OperationProgressText = "SplittingProgress".Tr(completed + 1, targets.Length);
                 if (await SplitVideoFileAsync(target, seconds))
                 {
                     completed++;
@@ -2145,7 +2145,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
             if (completed > 0)
             {
-                Toast.Success($"已分割 {completed} 个视频");
+                Toast.Success("SplitCompletedCount".Tr(completed));
                 IsSplitPanelOpen = false;
                 await RefreshForDisplayAsync();
             }
@@ -2214,13 +2214,13 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             IsUserTranscoding = false;
             IsOperating = true;
             ownsOperation = true;
-            OperationProgressText = "正在准备合并...";
+            OperationProgressText = "PreparingMerge".Tr();
             OnPropertyChanged(nameof(IsIdle));
 
             bool streamsCompatible = await Task.Run(() => HaveCompatibleMergeStreams(selected));
             if (!streamsCompatible)
             {
-                Toast.Warning("所选视频的编码、分辨率或音轨参数不一致  无法无损合并");
+                Toast.Warning("LosslessMergeIncompatible".Tr());
                 return;
             }
 
@@ -2323,7 +2323,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             IsUserTranscoding = false;
             IsOperating = true;
             ownsOperation = true;
-            OperationProgressText = "正在准备删除...";
+            OperationProgressText = "PreparingDelete".Tr();
             OnPropertyChanged(nameof(IsIdle));
 
             foreach (RecordedVideoItem item in items)
@@ -2347,11 +2347,11 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
             if (deleted > 0)
             {
-                Toast.Success($"已删除 {deleted} 个视频");
+                Toast.Success("DeletedVideos".Tr(deleted));
             }
             if (failed > 0)
             {
-                Toast.Warning($"有 {failed} 个视频删除失败");
+                Toast.Warning("VideoDeleteFailures".Tr(failed));
             }
             Interlocked.Exchange(ref automaticRefreshDeferred, 0);
             Interlocked.Exchange(ref directorySnapshotDirty, 1);
@@ -2459,11 +2459,11 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
             if (succeeded > 0)
             {
-                Toast.Success(move ? $"已移动 {succeeded} 个视频" : $"已另存 {succeeded} 个视频");
+                Toast.Success(move ? "MovedVideos".Tr(succeeded) : "CopiedVideos".Tr(succeeded));
             }
             if (failed > 0)
             {
-                Toast.Warning($"有 {failed} 个视频未能处理，请检查目标目录或同名文件");
+                Toast.Warning("VideoTransferFailures".Tr(failed));
             }
             await RefreshForDisplayAsync();
         }
@@ -3197,7 +3197,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
     private static string GetThumbnailCacheDirectory()
     {
-        return Path.Combine(AppPaths.ConfigDirectory, "video_thumbnails");
+        return AppPaths.ThumbnailCacheDirectory;
     }
 
     internal static string GetThumbnailCachePath(string filePath)
@@ -3313,14 +3313,17 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
     {
         if (!move)
         {
-            File.Copy(sourceFilePath, targetFilePath);
+            string temporaryTargetPath = MediaFileCatalog.CreateTemporaryPath(targetFilePath, "copy");
             try
             {
+                CopyAndVerifyFile(sourceFilePath, temporaryTargetPath);
+                File.Move(temporaryTargetPath, targetFilePath, overwrite: false);
                 CopyAssociatedMetadata(sourceFilePath, targetFilePath);
                 return;
             }
             catch
             {
+                DeleteFileIfExists(temporaryTargetPath);
                 DeleteFileIfExists(targetFilePath);
                 VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(targetFilePath);
                 throw;
@@ -3433,11 +3436,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         bool targetCommitted = false;
         try
         {
-            File.Copy(sourceFilePath, temporaryTargetPath, overwrite: false);
-            if (new FileInfo(sourceFilePath).Length != new FileInfo(temporaryTargetPath).Length)
-            {
-                throw new IOException("The copied video length does not match the source.");
-            }
+            CopyAndVerifyFile(sourceFilePath, temporaryTargetPath);
 
             File.Move(temporaryTargetPath, targetFilePath, overwrite: false);
             targetCommitted = true;
@@ -3454,6 +3453,24 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
                 VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(targetFilePath);
             }
             throw;
+        }
+    }
+
+    private static void CopyAndVerifyFile(string sourceFilePath, string targetFilePath)
+    {
+        File.Copy(sourceFilePath, targetFilePath, overwrite: false);
+        using FileStream source = new(sourceFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, FileOptions.SequentialScan);
+        using FileStream target = new(targetFilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, FileOptions.SequentialScan);
+        if (source.Length != target.Length)
+        {
+            throw new IOException("The copied video length does not match the source.");
+        }
+
+        byte[] sourceHash = System.Security.Cryptography.SHA256.HashData(source);
+        byte[] targetHash = System.Security.Cryptography.SHA256.HashData(target);
+        if (!System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(sourceHash, targetHash))
+        {
+            throw new IOException("The copied video content does not match the source.");
         }
     }
 
@@ -3504,7 +3521,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             return true;
         }
 
-        OperationProgressText = "正在取消转码...";
+        OperationProgressText = "CancellingTranscode".Tr();
         bool released = await MediaOperationRegistry.WaitForPathReleaseAsync(MediaOperationKind.Conversion, paths, TimeSpan.FromSeconds(8));
         foreach (RecordedVideoItem item in items)
         {
@@ -3513,7 +3530,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
         if (!released)
         {
-            Toast.Warning("转码正在停止，请稍后再试");
+            Toast.Warning("TranscodeStopping".Tr());
             return false;
         }
 
@@ -3530,12 +3547,8 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             return fallback;
         }
 
-        string fullRoot = Path.GetFullPath(rootFolder)
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        string fullPath = Path.GetFullPath(filePath);
-        string relativePath = Path.GetRelativePath(fullRoot, fullPath);
-
-        if (relativePath == "." || relativePath.StartsWith("..", StringComparison.Ordinal))
+        if (!PathUtility.TryGetRelativePathWithinRoot(filePath, rootFolder, out string relativePath)
+            || relativePath == ".")
         {
             return fallback;
         }
@@ -3645,7 +3658,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
     internal static string GetUniquePath(string path)
     {
-        if (!File.Exists(path))
+        if (!File.Exists(path) && !Directory.Exists(path))
         {
             return path;
         }
@@ -3656,7 +3669,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         for (int index = 1; index < 10000; index++)
         {
             string candidate = Path.Combine(directory, $"{name}_{index:000}{extension}");
-            if (!File.Exists(candidate))
+            if (!File.Exists(candidate) && !Directory.Exists(candidate))
             {
                 return candidate;
             }
@@ -3667,11 +3680,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
     private static bool IsSameOrAncestorDirectory(string parent, string child)
     {
-        string normalizedParent = Path.GetFullPath(parent).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        string normalizedChild = Path.GetFullPath(child).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        return normalizedChild.Equals(normalizedParent, StringComparison.OrdinalIgnoreCase)
-            || normalizedChild.StartsWith(normalizedParent + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-            || normalizedChild.StartsWith(normalizedParent + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        return PathUtility.IsSameOrDescendant(child, parent);
     }
 
     private static bool IsVideoFile(string path)
@@ -4014,29 +4023,29 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         bool isSingleSegmentSeries = IsSingleSegmentSeries(selected);
         if (selected.Count < 2)
         {
-            reasons.Add("至少需要选择两个视频");
+            reasons.Add("MergeReasonAtLeastTwoVideos".Tr());
         }
         if (selected.Select(video => video.NickName).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
         {
-            reasons.Add("包含不同主播的视频");
+            reasons.Add("MergeReasonDifferentStreamers".Tr());
         }
         if (selected.Select(video => Path.GetExtension(video.FullPath)).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
         {
-            reasons.Add("视频格式不一致");
+            reasons.Add("MergeReasonDifferentFormats".Tr());
         }
         if (selected.Select(video => video.Resolution).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
         {
-            reasons.Add("视频分辨率不一致");
+            reasons.Add("MergeReasonDifferentResolutions".Tr());
         }
         if (isSingleSegmentSeries && !IsContinuousSegmentSelection(selected))
         {
-            reasons.Add("分段编号不连续");
+            reasons.Add("MergeReasonNonContiguousSegments".Tr());
         }
 
-        string orderText = isSingleSegmentSeries ? "按分段编号合并" : "按选中序号合并";
+        string orderText = isSingleSegmentSeries ? "MergeBySegmentNumber".Tr() : "MergeBySelectionOrder".Tr();
         return reasons.Count == 0
-            ? $"检查通过，将{orderText}。"
-            : $"{string.Join("；", reasons.Distinct())}；将{orderText}。";
+            ? "MergeValidationPassed".Tr(orderText)
+            : "MergeValidationWarnings".Tr(string.Join("MergeReasonSeparator".Tr(), reasons.Distinct()), orderText);
     }
 
     internal static IEnumerable<RecordedVideoItem> OrderVideosForMerge(IEnumerable<RecordedVideoItem> source)

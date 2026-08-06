@@ -875,6 +875,17 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
+    public void InferNickName_AcceptsFolderStartingWithTwoDotsInsideRoot()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"emerde-videos-{Guid.NewGuid():N}");
+        string filePath = Path.Combine(root, "..host", "record.mp4");
+
+        string nickName = ScreenRecordListViewModel.InferNickName(filePath, root);
+
+        Assert.Equal("..host", nickName);
+    }
+
+    [Fact]
     public void BuildDefaultOpenStartInfo_UsesSystemFileAssociation()
     {
         string filePath = Path.Combine(Path.GetTempPath(), "record.mp4");
@@ -920,6 +931,27 @@ public sealed class ScreenRecordListWindowTests
         try
         {
             File.WriteAllText(original, "video");
+
+            string result = ScreenRecordListViewModel.GetUniquePath(original);
+
+            Assert.Equal(Path.Combine(root, "record_001.mkv"), result);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void GetUniquePath_DoesNotCollideWithExistingDirectory()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"emerde-unique-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        string original = Path.Combine(root, "record.mkv");
+
+        try
+        {
+            Directory.CreateDirectory(original);
 
             string result = ScreenRecordListViewModel.GetUniquePath(original);
 
