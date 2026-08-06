@@ -211,6 +211,92 @@ public sealed class GlobalMonitorTests
         Assert.Equal(TimeSpan.FromSeconds(1), GlobalMonitor.GetRoutinePeriod());
     }
 
+    [Fact]
+    public void GetNextSchedulerDelay_WithNoRoomsUsesMaximumDormantDelay()
+    {
+        DateTime now = new(2026, 8, 6, 12, 0, 0);
+
+        Assert.Equal(TimeSpan.FromDays(1), GlobalMonitor.GetNextSchedulerDelay([], now));
+    }
+
+    [Fact]
+    public void GetNextRoutineScheduleActivation_WeekdaysSkipsWeekend()
+    {
+        DateTime saturday = new(2026, 8, 8, 12, 0, 0);
+        RoomRecordingOptions settings = new() { RoutineScheduleMode = 1 };
+
+        Assert.Equal(new DateTime(2026, 8, 10, 0, 0, 0), GlobalMonitor.GetNextRoutineScheduleActivation(saturday, settings));
+    }
+
+    [Fact]
+    public void GetNextRoutineScheduleActivation_NightModeWaitsUntilEvening()
+    {
+        DateTime noon = new(2026, 8, 6, 12, 0, 0);
+        RoomRecordingOptions settings = new() { RoutineScheduleMode = 3 };
+
+        Assert.Equal(new DateTime(2026, 8, 6, 18, 0, 0), GlobalMonitor.GetNextRoutineScheduleActivation(noon, settings));
+    }
+
+    [Fact]
+    public void GetNextRoutineScheduleActivation_OvernightCustomModeUsesEveningBoundary()
+    {
+        DateTime noon = new(2026, 8, 6, 12, 0, 0);
+        RoomRecordingOptions settings = new()
+        {
+            RoutineScheduleMode = 4,
+            RoutineScheduleDays = DayOfWeek.Thursday.ToString(),
+            RoutineScheduleStartHour = 18,
+            RoutineScheduleEndHour = 8,
+        };
+
+        Assert.Equal(new DateTime(2026, 8, 6, 18, 0, 0), GlobalMonitor.GetNextRoutineScheduleActivation(noon, settings));
+    }
+
+    [Fact]
+    public void GetNextRoutineScheduleTransition_WeekdayModeStopsAtWeekend()
+    {
+        DateTime friday = new(2026, 8, 7, 12, 0, 0);
+        RoomRecordingOptions settings = new() { RoutineScheduleMode = 1 };
+
+        Assert.Equal(new DateTime(2026, 8, 8, 0, 0, 0), GlobalMonitor.GetNextRoutineScheduleTransition(friday, settings));
+    }
+
+    [Fact]
+    public void GetNextRoutineScheduleTransition_OvernightModeUsesNextEnabledDay()
+    {
+        DateTime thursdayEvening = new(2026, 8, 6, 20, 0, 0);
+        RoomRecordingOptions settings = new()
+        {
+            RoutineScheduleMode = 4,
+            RoutineScheduleDays = $"{DayOfWeek.Thursday},{DayOfWeek.Friday}",
+            RoutineScheduleStartHour = 18,
+            RoutineScheduleEndHour = 8,
+            RoutineScheduleEndMinute = 0,
+        };
+
+        Assert.Equal(
+            new DateTime(2026, 8, 7, 8, 0, 0).AddTicks(1),
+            GlobalMonitor.GetNextRoutineScheduleTransition(thursdayEvening, settings));
+    }
+
+    [Fact]
+    public void GetNextRoutineScheduleTransition_OvernightModeStopsAtMidnightWhenNextDayIsDisabled()
+    {
+        DateTime thursdayEvening = new(2026, 8, 6, 20, 0, 0);
+        RoomRecordingOptions settings = new()
+        {
+            RoutineScheduleMode = 4,
+            RoutineScheduleDays = DayOfWeek.Thursday.ToString(),
+            RoutineScheduleStartHour = 18,
+            RoutineScheduleEndHour = 8,
+            RoutineScheduleEndMinute = 0,
+        };
+
+        Assert.Equal(
+            new DateTime(2026, 8, 7, 0, 0, 0),
+            GlobalMonitor.GetNextRoutineScheduleTransition(thursdayEvening, settings));
+    }
+
     [Theory]
     [InlineData(1, 1)]
     [InlineData(4, 4)]

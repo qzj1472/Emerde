@@ -25,6 +25,7 @@ internal static class GlobalMonitor
     private const int MaximumBatchSize = 20;
     private const int MaximumRecordingBatchSize = 10;
     private const int MaximumRecordingConcurrency = 4;
+    private static readonly TimeSpan MaximumSchedulerDelay = TimeSpan.FromDays(1);
     internal const long FixedRoomMetadataRefreshIntervalMilliseconds = 60 * 60 * 1000;
     internal const long InconclusiveLogIntervalMilliseconds = 60 * 60 * 1000;
     private static readonly TimeSpan StreamingCycleInterval = TimeSpan.FromMilliseconds(MonitorTiming.LiveRoutineIntervalMilliseconds);
@@ -86,6 +87,14 @@ internal static class GlobalMonitor
         public DateTime NextCheckAt { get; set; } = DateTime.MinValue;
         public DateTime? LastClosedAt { get; set; }
     }
+
+    private sealed record PendingRoomCheck(
+        Room Room,
+        RoomStatus RoomStatus,
+        bool ShouldNotify,
+        bool ShouldRecord,
+        RoomRecordingOptions Settings,
+        DateTime DueAt);
 
     private sealed class RoomCheckGate
     {
@@ -173,6 +182,7 @@ internal static class GlobalMonitor
         {
             if (TokenSource != null && !TokenSource.IsCancellationRequested && MonitorTask is { IsCompleted: false })
             {
+                WakeMonitorScheduler();
                 return;
             }
 
@@ -389,6 +399,7 @@ internal static class GlobalMonitor
         if (!string.IsNullOrWhiteSpace(roomUrl))
         {
             TemporaryRoomMonitorOverrides[roomUrl] = enabled;
+            WakeMonitorScheduler();
         }
     }
 
@@ -402,6 +413,7 @@ internal static class GlobalMonitor
             ResetOfflineConfirmation(roomUrl);
             _ = InconclusiveLogTimestamps.TryRemove(roomUrl, out _);
             ExternalStreamResolver.ClearRoomState(roomUrl);
+            WakeMonitorScheduler();
         }
     }
 
@@ -437,10 +449,7 @@ internal static class GlobalMonitor
 
     private static async Task StartAsync(CancellationToken token, long generation, PeriodicWait periodicWait)
     {
-        using PeriodicWait priorityPeriodicWait = new(GetRoutinePeriod(), TimeSpan.Zero);
-        await Task.WhenAll(
-            StartScheduledChecksAsync(token, generation, periodicWait, recordingLaneOnly: false),
-            StartScheduledChecksAsync(token, generation, priorityPeriodicWait, recordingLaneOnly: true));
+        await StartScheduledChecksAsync(token, generation, periodicWait);
     }
 
     private static async Task DisposeMonitorTaskAsync(Task? task, PeriodicWait? periodicWait)
@@ -486,19 +495,19 @@ internal static class GlobalMonitor
         int Priority,
         string PreferredQuality);
 
-    private static async Task StartScheduledChecksAsync(CancellationToken token, long generation, PeriodicWait periodicWait, bool recordingLaneOnly)
+    private static async Task StartScheduledChecksAsync(CancellationToken token, long generation, PeriodicWait periodicWait)
     {
         while (!token.IsCancellationRequested && generation == Volatile.Read(ref monitorGeneration))
         {
-            periodicWait.Period = GetRoutinePeriod();
-
             if (!await periodicWait.WaitForNextTickAsync(token)
                 || generation != Volatile.Read(ref monitorGeneration))
             {
                 break;
             }
 
-            await RunRoomsAsync(Configurations.Rooms.Get() ?? [], token, recordingLaneOnly: recordingLaneOnly);
+            Room[] rooms = Configurations.Rooms.Get() ?? [];
+            await RunRoomsAsync(rooms, token);
+            periodicWait.Period = GetNextSchedulerDelay(rooms, DateTime.Now);
         }
     }
 
@@ -524,7 +533,7 @@ internal static class GlobalMonitor
             bool isGlobalToNotify = Configurations.IsToNotify.Get();
             DateTime now = DateTime.Now;
 
-            List<(Room Room, RoomStatus RoomStatus, bool ShouldNotify, bool ShouldRecord, RoomRecordingOptions Settings, DateTime DueAt)> dueRooms = [];
+            List<PendingRoomCheck> dueRooms = [];
 
             foreach (Room room in DistinctRoomsByUrl(rooms))
             {
@@ -554,16 +563,24 @@ internal static class GlobalMonitor
                         continue;
                     }
 
-                    dueRooms.Add((room, roomStatus, shouldNotify, shouldRecord, settings, dueAt));
+                    dueRooms.Add(new PendingRoomCheck(room, roomStatus, shouldNotify, shouldRecord, settings, dueAt));
                 }
                 else
                 {
+                    bool stateChanged = roomStatus.RecordStatus != RecordStatus.Disabled
+                        || roomStatus.StreamStatus != StreamStatus.Disabled
+                        || roomStatus.IsStreamCheckFailed;
                     _ = RoomCheckSchedules.TryRemove(room.RoomUrl, out _);
                     StopRecordingBecauseMonitoringDisabled(room, roomStatus);
                     roomStatus.RecordStatus = RecordStatus.Disabled;
                     roomStatus.StreamStatus = StreamStatus.Disabled;
+                    roomStatus.IsStreamCheckFailed = false;
                     ResetLiveSessionMetadata(roomStatus);
                     ResetRoomCheckInconclusiveLog(room.RoomUrl);
+                    if (stateChanged)
+                    {
+                        _ = WeakReferenceMessenger.Default.Send(new RoomRecordingStateChangedMessage(room.RoomUrl));
+                    }
                 }
             }
 
@@ -572,7 +589,14 @@ internal static class GlobalMonitor
                 return;
             }
 
-            var selectedRooms = dueRooms
+            if (!force && !recordingLaneOnly.HasValue)
+            {
+                DispatchScheduledRoomChecks(SelectDueRooms(dueRooms, recordingLane: false), RoutineRoomCheckConcurrency, token);
+                DispatchScheduledRoomChecks(SelectDueRooms(dueRooms, recordingLane: true), RecordingRoomCheckConcurrency, token);
+                return;
+            }
+
+            PendingRoomCheck[] selectedRooms = dueRooms
                 .Where(item => force || !ScheduledRoomChecks.ContainsKey(item.Room.RoomUrl))
                 .OrderBy(item => GetRoomCheckPriority(item.RoomStatus.StreamStatus, item.RoomStatus.RecordStatus))
                 .ThenBy(item => item.DueAt)
@@ -584,15 +608,23 @@ internal static class GlobalMonitor
                     ? RecordingRoomCheckConcurrency
                     : RoutineRoomCheckConcurrency;
             List<Task> tasks = new(selectedRooms.Length);
-            foreach ((Room room, RoomStatus roomStatus, bool shouldNotify, bool shouldRecord, RoomRecordingOptions settings, _) in selectedRooms)
+            foreach (PendingRoomCheck pending in selectedRooms)
             {
-                if (!force && !ScheduledRoomChecks.TryAdd(room.RoomUrl, 1))
+                if (!force && !ScheduledRoomChecks.TryAdd(pending.Room.RoomUrl, 1))
                 {
                     continue;
                 }
 
-                Task task = RunRoomCheckWithSemaphoreAsync(semaphore, room, roomStatus, shouldNotify, shouldRecord, settings, force, token);
-                tasks.Add(force ? task : CompleteScheduledRoomCheckAsync(room.RoomUrl, task));
+                Task task = RunRoomCheckWithSemaphoreAsync(
+                    semaphore,
+                    pending.Room,
+                    pending.RoomStatus,
+                    pending.ShouldNotify,
+                    pending.ShouldRecord,
+                    pending.Settings,
+                    force,
+                    token);
+                tasks.Add(force ? task : CompleteScheduledRoomCheckAsync(pending.Room.RoomUrl, task));
             }
 
             if (force)
@@ -630,7 +662,46 @@ internal static class GlobalMonitor
         finally
         {
             _ = ScheduledRoomChecks.TryRemove(roomUrl, out _);
+            WakeMonitorScheduler();
         }
+    }
+
+    private static PendingRoomCheck[] SelectDueRooms(IEnumerable<PendingRoomCheck> dueRooms, bool recordingLane)
+    {
+        PendingRoomCheck[] laneRooms = dueRooms
+            .Where(item => UsesRecordingCheckLane(item.RoomStatus.RecordStatus) == recordingLane)
+            .Where(item => !ScheduledRoomChecks.ContainsKey(item.Room.RoomUrl))
+            .OrderBy(item => GetRoomCheckPriority(item.RoomStatus.StreamStatus, item.RoomStatus.RecordStatus))
+            .ThenBy(item => item.DueAt)
+            .ToArray();
+        return laneRooms
+            .Take(GetRoutineBatchSize(laneRooms.Length, force: false, recordingLane))
+            .ToArray();
+    }
+
+    private static void DispatchScheduledRoomChecks(IEnumerable<PendingRoomCheck> rooms, SemaphoreSlim semaphore, CancellationToken token)
+    {
+        List<Task> tasks = [];
+        foreach (PendingRoomCheck pending in rooms)
+        {
+            if (!ScheduledRoomChecks.TryAdd(pending.Room.RoomUrl, 1))
+            {
+                continue;
+            }
+
+            Task task = RunRoomCheckWithSemaphoreAsync(
+                semaphore,
+                pending.Room,
+                pending.RoomStatus,
+                pending.ShouldNotify,
+                pending.ShouldRecord,
+                pending.Settings,
+                force: false,
+                token);
+            tasks.Add(CompleteScheduledRoomCheckAsync(pending.Room.RoomUrl, task));
+        }
+
+        ObserveRoomCheckBatch(tasks);
     }
 
     private static void ObserveRoomCheckBatch(IEnumerable<Task> tasks)
@@ -765,8 +836,6 @@ internal static class GlobalMonitor
         await semaphore.WaitAsync(token);
         IDisposable? roomLock = null;
         StreamStatus previousStreamStatus = default;
-        RecordStatus previousRecordStatus = default;
-        bool previousStreamCheckFailed = false;
         bool ranCheck = false;
 
         try
@@ -781,8 +850,6 @@ internal static class GlobalMonitor
 
             LogRoomCheckDispatchDelay(room, dueAt, startedAt, force);
             previousStreamStatus = roomStatus.StreamStatus;
-            previousRecordStatus = roomStatus.RecordStatus;
-            previousStreamCheckFailed = roomStatus.IsStreamCheckFailed;
             ReserveRoomCheck(room.RoomUrl, settings, roomStatus.StreamStatus, startedAt);
             ranCheck = true;
             await RunRoomCheckAsync(room, roomStatus, shouldNotify, shouldRecord, settings, force, token);
@@ -804,15 +871,18 @@ internal static class GlobalMonitor
         {
             if (roomLock != null)
             {
-                if (ranCheck && GetEffectiveRoomMonitor(room) && IsCurrentRoomStatus(room.RoomUrl, roomStatus))
+                if (ranCheck && IsCurrentRoomStatus(room.RoomUrl, roomStatus))
                 {
-                    UpdateRoomCheckSchedule(room.RoomUrl, previousStreamStatus, roomStatus.StreamStatus, settings, DateTime.Now);
-                    if (previousStreamStatus != roomStatus.StreamStatus
-                        || previousRecordStatus != roomStatus.RecordStatus
-                        || previousStreamCheckFailed != roomStatus.IsStreamCheckFailed)
+                    DateTime completedAt = DateTime.Now;
+                    if (GetEffectiveRoomMonitor(room) && IsRoutineScheduleActive(completedAt, settings))
                     {
-                        _ = WeakReferenceMessenger.Default.Send(new RoomRecordingStateChangedMessage(room.RoomUrl));
+                        UpdateRoomCheckSchedule(room.RoomUrl, previousStreamStatus, roomStatus.StreamStatus, settings, completedAt);
                     }
+                    else
+                    {
+                        _ = RoomCheckSchedules.TryRemove(room.RoomUrl, out _);
+                    }
+                    _ = WeakReferenceMessenger.Default.Send(new RoomRecordingStateChangedMessage(room.RoomUrl));
                 }
                 roomLock.Dispose();
             }
@@ -848,7 +918,7 @@ internal static class GlobalMonitor
             return;
         }
 
-        if (!GetEffectiveRoomMonitor(room))
+        if (!GetEffectiveRoomMonitor(room) || !IsRoutineScheduleActive(DateTime.Now, settings))
         {
             _ = RoomCheckSchedules.TryRemove(room.RoomUrl, out _);
             StopRecordingBecauseMonitoringDisabled(room, roomStatus);
@@ -1247,8 +1317,19 @@ internal static class GlobalMonitor
 
     public static void RefreshRoutineInterval()
     {
-        RoutinePeriodicWait.Period = GetRoutinePeriod();
         RefreshRoutineSchedules(DateTime.Now);
+        WakeMonitorScheduler();
+    }
+
+    private static void WakeMonitorScheduler()
+    {
+        try
+        {
+            RoutinePeriodicWait.Wake();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
     }
 
     private static void RefreshRoutineSchedules(DateTime now)
@@ -1297,6 +1378,188 @@ internal static class GlobalMonitor
     internal static TimeSpan GetRoutinePeriod()
     {
         return TimeSpan.FromMilliseconds(Math.Min(DefaultSchedulerPeriodMilliseconds, GetEffectiveRoutineInterval()));
+    }
+
+    internal static TimeSpan GetNextSchedulerDelay(IEnumerable<Room> rooms, DateTime now)
+    {
+        DateTime? nextCheckAt = null;
+        foreach (Room room in DistinctRoomsByUrl(rooms))
+        {
+            if (!GetEffectiveRoomMonitor(room))
+            {
+                continue;
+            }
+
+            RoomRecordingOptions settings = RoomRecordingSettings.Get(room);
+            DateTime? scheduleTransition = GetNextRoutineScheduleTransition(now, settings);
+            if (scheduleTransition.HasValue
+                && (!nextCheckAt.HasValue || scheduleTransition.Value < nextCheckAt.Value))
+            {
+                nextCheckAt = scheduleTransition;
+            }
+
+            if (!IsRoutineScheduleActive(now, settings))
+            {
+                continue;
+            }
+
+            if (ScheduledRoomChecks.ContainsKey(room.RoomUrl))
+            {
+                continue;
+            }
+
+            DateTime dueAt = GetRoomCheckDueAt(room.RoomUrl, now);
+            if (!nextCheckAt.HasValue || dueAt < nextCheckAt.Value)
+            {
+                nextCheckAt = dueAt;
+            }
+        }
+
+        if (!nextCheckAt.HasValue)
+        {
+            return MaximumSchedulerDelay;
+        }
+
+        TimeSpan delay = nextCheckAt.Value - now;
+        if (delay <= TimeSpan.Zero)
+        {
+            return TimeSpan.FromMilliseconds(1);
+        }
+
+        return delay > MaximumSchedulerDelay ? MaximumSchedulerDelay : delay;
+    }
+
+    internal static DateTime? GetNextRoutineScheduleActivation(DateTime now, RoomRecordingOptions settings)
+    {
+        int mode = Math.Clamp(settings.RoutineScheduleMode, 0, 4);
+        if (mode == 0 || IsRoutineScheduleActive(now, settings))
+        {
+            return now;
+        }
+
+        if (mode is 1 or 2)
+        {
+            for (int offset = 1; offset <= 7; offset++)
+            {
+                DateTime candidate = now.Date.AddDays(offset);
+                bool enabled = mode == 1
+                    ? candidate.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday
+                    : candidate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+                if (enabled)
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        if (mode == 3)
+        {
+            DateTime evening = now.Date.AddHours(18);
+            return evening > now ? evening : evening.AddDays(1);
+        }
+
+        HashSet<string> enabledDays = settings.RoutineScheduleDays
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        TimeSpan start = new(
+            Math.Clamp(settings.RoutineScheduleStartHour, 0, 23),
+            Math.Clamp(settings.RoutineScheduleStartMinute, 0, 59),
+            0);
+        TimeSpan end = new(
+            Math.Clamp(settings.RoutineScheduleEndHour, 0, 23),
+            Math.Clamp(settings.RoutineScheduleEndMinute, 0, 59),
+            0);
+
+        for (int offset = 0; offset <= 7; offset++)
+        {
+            DateTime date = now.Date.AddDays(offset);
+            if (!enabledDays.Contains(date.DayOfWeek.ToString()))
+            {
+                continue;
+            }
+
+            if (start <= end)
+            {
+                DateTime candidate = date.Add(start);
+                if (candidate > now)
+                {
+                    return candidate;
+                }
+                continue;
+            }
+
+            if (offset > 0)
+            {
+                return date;
+            }
+
+            DateTime eveningCandidate = date.Add(start);
+            if (eveningCandidate > now)
+            {
+                return eveningCandidate;
+            }
+        }
+
+        return null;
+    }
+
+    internal static DateTime? GetNextRoutineScheduleTransition(DateTime now, RoomRecordingOptions settings)
+    {
+        int mode = Math.Clamp(settings.RoutineScheduleMode, 0, 4);
+        if (mode == 0)
+        {
+            return null;
+        }
+
+        if (!IsRoutineScheduleActive(now, settings))
+        {
+            return GetNextRoutineScheduleActivation(now, settings);
+        }
+
+        if (mode is 1 or 2)
+        {
+            for (int offset = 1; offset <= 7; offset++)
+            {
+                DateTime candidate = now.Date.AddDays(offset);
+                bool enabled = mode == 1
+                    ? candidate.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday
+                    : candidate.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+                if (!enabled)
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        if (mode == 3)
+        {
+            DateTime end = now.TimeOfDay >= TimeSpan.FromHours(18)
+                ? now.Date.AddDays(1).AddHours(8)
+                : now.Date.AddHours(8);
+            return end.AddTicks(1);
+        }
+
+        HashSet<string> enabledDays = settings.RoutineScheduleDays
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        TimeSpan start = new(
+            Math.Clamp(settings.RoutineScheduleStartHour, 0, 23),
+            Math.Clamp(settings.RoutineScheduleStartMinute, 0, 59),
+            0);
+        TimeSpan endTime = new(
+            Math.Clamp(settings.RoutineScheduleEndHour, 0, 23),
+            Math.Clamp(settings.RoutineScheduleEndMinute, 0, 59),
+            0);
+
+        if (start <= endTime || now.TimeOfDay <= endTime)
+        {
+            return now.Date.Add(endTime).AddTicks(1);
+        }
+
+        DateTime tomorrow = now.Date.AddDays(1);
+        return enabledDays.Contains(tomorrow.DayOfWeek.ToString())
+            ? tomorrow.Add(endTime).AddTicks(1)
+            : tomorrow;
     }
 
     internal static int GetEffectiveRoutineInterval()
