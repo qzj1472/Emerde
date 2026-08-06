@@ -506,6 +506,7 @@ public sealed class RecorderTests
 
         try
         {
+            Assert.Equal(AppPaths.MediaWorkerCommandDirectory, Path.GetDirectoryName(commandPath));
             using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(commandPath));
             System.Text.Json.JsonElement segmentOptions = document.RootElement.GetProperty("SegmentOptions");
 
@@ -529,6 +530,7 @@ public sealed class RecorderTests
 
         try
         {
+            Assert.Equal(AppPaths.MediaWorkerCommandDirectory, Path.GetDirectoryName(commandPath));
             using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(commandPath));
 
             Assert.Equal("https://example.test/selected.flv", document.RootElement.GetProperty("InputUrl").GetString());
@@ -559,8 +561,8 @@ public sealed class RecorderTests
         Assert.Contains("-filter_complex", arguments);
         Assert.Contains("0:a:0?", arguments);
         Assert.Contains("[aopt]", arguments);
-        Assert.Contains("title=原音频", arguments);
-        Assert.Contains("title=优化音频", arguments);
+        Assert.Contains($"title={"OriginalAudioTrack".Tr()}", arguments);
+        Assert.Contains($"title={"OptimizedAudioTrack".Tr()}", arguments);
     }
 
     [Fact]

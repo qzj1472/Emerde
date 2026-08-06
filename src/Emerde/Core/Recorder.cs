@@ -217,7 +217,7 @@ public sealed class Recorder
                 });
                 try
                 {
-                    Notifier.AddNotice("Emerde", "保存目录不可用", $"本次录制已临时保存到：{saveFolder}");
+                    Notifier.AddNotice("Emerde", "RecordingSaveFolderUnavailableTitle".Tr(), "RecordingSaveFolderFallback".Tr(saveFolder));
                 }
                 catch (Exception notificationError)
                 {
@@ -665,10 +665,6 @@ public sealed class Recorder
                     });
                     PublishLifecycle("post_processing_deferred", startInfo);
                 }
-                if (!processNow)
-                {
-                    RecordingCleanupService.QueueRun();
-                }
             }
             catch (Exception e)
             {
@@ -677,7 +673,6 @@ public sealed class Recorder
             finally
             {
                 sessionOutputReservation?.Dispose();
-                bool postProcessingQueued = false;
                 if (queuedPostProcessingPaths.Count > 0
                     && Volatile.Read(ref deferPostProcessing) == 0)
                 {
@@ -698,7 +693,6 @@ public sealed class Recorder
                             () => RecordingRecoveryService.QueueProcessAsync(pendingPaths),
                             AppSessionLogger.WriteException);
                         _ = ReleasePostProcessingHandoffAsync(dispatchTask, handoffProtection);
-                        postProcessingQueued = true;
                         PublishLifecycle("post_processing_queued", startInfo);
                     }
                     catch (Exception e)
@@ -719,10 +713,6 @@ public sealed class Recorder
                     ownsTokenSource = false;
                     activeStartInfo = null;
                     activeRecordingId = string.Empty;
-                }
-                if (!postProcessingQueued)
-                {
-                    RecordingCleanupService.QueueRun();
                 }
             }
         }
@@ -907,6 +897,13 @@ public sealed class Recorder
             });
             _ = WeakReferenceMessenger.Default.Send(new RoomRecordingStateChangedMessage(startInfo.RoomUrl));
             TryTraceProcess(process);
+            RuntimeResourceLogger.Register(
+                process,
+                "media-worker",
+                "recording",
+                startInfo.RoomUrl,
+                startInfo.NickName,
+                new { startInfo.PlatformName, outputFileName });
             progressTracker = new(DateTime.UtcNow);
             using CancellationTokenSource processCancellation = new();
             Task outputTask = ReadMediaWorkerOutputAsync(
@@ -1027,6 +1024,7 @@ public sealed class Recorder
             await CancelCrossStreamVerificationAsync();
             if (process != null)
             {
+                RuntimeResourceLogger.Unregister(process.Id);
                 KillProcessTree(process);
                 process.Dispose();
             }
@@ -2119,6 +2117,8 @@ public sealed class Recorder
 
     internal static IReadOnlyList<string> BuildAudioMappingArguments(bool useOptimizedAudio)
     {
+        string originalAudioTrack = "OriginalAudioTrack".Tr();
+        string optimizedAudioTrack = "OptimizedAudioTrack".Tr();
         return useOptimizedAudio
             ? [
                 "-filter_complex", OptimizedAudioFilter,
@@ -2128,10 +2128,10 @@ public sealed class Recorder
                 "-c:v", "copy",
                 "-c:a:0", "copy",
                 "-c:a:1", "aac",
-                "-metadata:s:a:0", "title=原音频",
-                "-metadata:s:a:0", "handler_name=原音频",
-                "-metadata:s:a:1", "title=优化音频",
-                "-metadata:s:a:1", "handler_name=优化音频",
+                "-metadata:s:a:0", $"title={originalAudioTrack}",
+                "-metadata:s:a:0", $"handler_name={originalAudioTrack}",
+                "-metadata:s:a:1", $"title={optimizedAudioTrack}",
+                "-metadata:s:a:1", $"handler_name={optimizedAudioTrack}",
             ]
             : [
                 "-map", "0",
