@@ -13,6 +13,7 @@ internal static class DouyinWebViewResolver
 {
     private static readonly TimeSpan BrowserInitializationTimeout = TimeSpan.FromSeconds(8);
     private static readonly SemaphoreSlim ResolveGate = new(1, 1);
+    private static readonly CancellationTokenSource ShutdownCancellation = new();
     private static Window? hostWindow;
     private static WebView2? browser;
     private static string browserProxyKey = string.Empty;
@@ -53,6 +54,10 @@ internal static class DouyinWebViewResolver
         {
             throw;
         }
+        catch (OperationCanceledException) when (ShutdownCancellation.IsCancellationRequested)
+        {
+            return default;
+        }
         catch (Exception e)
         {
             AppSessionLogger.Event("warn", "resolver", "douyin_webview_failed", e.Message, new
@@ -66,6 +71,7 @@ internal static class DouyinWebViewResolver
 
     public static void Shutdown()
     {
+        ShutdownCancellation.Cancel();
         allowClose = true;
         interactiveClosed?.TrySetResult();
         browser?.Dispose();
@@ -83,11 +89,15 @@ internal static class DouyinWebViewResolver
         bool allowInteractiveVerification,
         CancellationToken cancellationToken)
     {
-        await ResolveGate.WaitAsync(cancellationToken);
+        using CancellationTokenSource linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            ShutdownCancellation.Token);
+        CancellationToken token = linkedCancellation.Token;
+        await ResolveGate.WaitAsync(token);
         try
         {
             return await application.Dispatcher
-                .InvokeAsync(() => ResolveOnUiThreadAsync(roomUrl, cookie, allowInteractiveVerification, cancellationToken))
+                .InvokeAsync(() => ResolveOnUiThreadAsync(roomUrl, cookie, allowInteractiveVerification, token))
                 .Task
                 .Unwrap();
         }
@@ -174,7 +184,7 @@ internal static class DouyinWebViewResolver
             ShowInTaskbar = false,
             WindowStyle = WindowStyle.SingleBorderWindow,
             ResizeMode = ResizeMode.CanResize,
-            Title = "抖音验证 - Emerde",
+            Title = "DouyinVerificationTitle".Tr(),
         };
         WindowAppearance.EnableBorderless(createdWindow);
         createdWindow.Closing += OnHostWindowClosing;
