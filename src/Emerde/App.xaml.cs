@@ -167,7 +167,6 @@ public partial class App : Application
         {
             _ = MessageBox.Warning("WebView2RuntimeMissing".Tr());
         }
-        RuntimeResourceLogger.Start();
         TrayIconManager.Start();
         RuntimeHelper.ListenForShutdownRequest(
             AppConfig.PackName,
@@ -179,12 +178,18 @@ public partial class App : Application
     /// </summary>
     protected override void OnExit(ExitEventArgs e)
     {
-        _ = ConfigurationSaveScheduler.TrySaveNow();
         TrayIconManager.Stop();
         GlobalMonitor.Stop();
         GlobalMonitor.StopAllRecorders(deferPostProcessing: true);
         MediaOperationRegistry.CancelAll();
-        MediaOperationRegistry.WaitForCompletionAsync(TimeSpan.FromSeconds(4)).GetAwaiter().GetResult();
+        try
+        {
+            MediaOperationRegistry.WaitForCompletionAsync(TimeSpan.FromSeconds(8)).GetAwaiter().GetResult();
+        }
+        catch (Exception mediaOperationException)
+        {
+            AppSessionLogger.WriteException(mediaOperationException);
+        }
         try
         {
             using CancellationTokenSource extensionShutdown = new(TimeSpan.FromSeconds(10));
@@ -195,8 +200,12 @@ public partial class App : Application
             AppSessionLogger.WriteException(extensionException);
         }
         ChildProcessTracerPeriodicTimer.Default.Stop(killChildren: true);
-        RuntimeResourceLogger.Stop();
         DouyinWebViewResolver.Shutdown();
+        if (!ConfigurationSaveScheduler.TrySaveNow() && ConfigurationSaveScheduler.LastSaveError is { } saveError)
+        {
+            AppSessionLogger.WriteException(saveError);
+        }
+        RuntimeResourceLogger.Stop();
         AppSessionLogger.Stop();
         base.OnExit(e);
     }
