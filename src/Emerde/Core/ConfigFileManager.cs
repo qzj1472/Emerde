@@ -40,11 +40,10 @@ internal static class ConfigFileManager
 
     public static string Export(string targetPath)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(targetPath) ?? AppPaths.ConfigDirectory);
         ConfigurationSaveScheduler.ExecuteExclusive(() =>
         {
             ConfigurationSaveScheduler.SaveNow();
-            File.Copy(ConfigurationManager.FilePath, targetPath, overwrite: true);
+            AtomicFile.Copy(ConfigurationManager.FilePath, targetPath);
             return true;
         });
         return targetPath;
@@ -66,7 +65,7 @@ internal static class ConfigFileManager
                 Validate(temporaryPath, requireYamlExtension: false);
                 if (!IsMeaningfulConfigurationFile(temporaryPath))
                 {
-                    throw new InvalidDataException("导入的配置没有有效内容。");
+                    throw new InvalidDataException("ImportedConfigEmpty".Tr());
                 }
 
                 string? existingPath = FindEquivalentConfigArtifact(temporaryPath, AppPaths.ActiveConfigFilePath, includeImports: true);
@@ -129,7 +128,7 @@ internal static class ConfigFileManager
     {
         if (!IsKnownBackupPath(backupPath))
         {
-            throw new InvalidDataException("请选择 Emerde 生成的配置备份文件。");
+            throw new InvalidDataException("SelectEmerdeConfigBackup".Tr());
         }
 
         Validate(backupPath);
@@ -141,7 +140,7 @@ internal static class ConfigFileManager
     {
         if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
         {
-            throw new FileNotFoundException("没有找到配置文件。", sourcePath);
+            throw new FileNotFoundException("ConfigFileNotFound".Tr(), sourcePath);
         }
 
         string extension = Path.GetExtension(sourcePath);
@@ -149,7 +148,7 @@ internal static class ConfigFileManager
             !extension.Equals(".yaml", StringComparison.OrdinalIgnoreCase) &&
             !extension.Equals(".yml", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidDataException("仅支持 YAML 配置文件。");
+            throw new InvalidDataException("YamlOnly".Tr());
         }
 
         YamlStream yaml = new();
@@ -160,25 +159,25 @@ internal static class ConfigFileManager
         }
         catch (YamlException e)
         {
-            throw new InvalidDataException("YAML 配置文件语法无效。", e);
+            throw new InvalidDataException("YamlSyntaxInvalid".Tr(), e);
         }
 
         if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode root)
         {
-            throw new InvalidDataException("该 YAML 文件不像 Emerde 支持的配置文件。");
+            throw new InvalidDataException("UnsupportedEmerdeConfig".Tr());
         }
 
         foreach ((YamlNode keyNode, YamlNode valueNode) in root.Children)
         {
             if (keyNode is not YamlScalarNode key || string.IsNullOrWhiteSpace(key.Value))
             {
-                throw new InvalidDataException("配置项名称必须是有效文本。");
+                throw new InvalidDataException("ConfigKeyNameInvalid".Tr());
             }
 
             if (ConfigurationValueTypes.TryGetValue(key.Value, out Type? valueType) &&
                 !IsValidConfigurationValueNode(key.Value, valueNode, valueType))
             {
-                throw new InvalidDataException($"配置项 {key.Value} 的数据类型无效。");
+                throw new InvalidDataException("ConfigKeyTypeInvalid".Tr(key.Value));
             }
         }
 
@@ -187,7 +186,7 @@ internal static class ConfigFileManager
             .ToArray();
         if (roomsEntries.Length != 1 || roomsEntries[0].Value is not YamlSequenceNode rooms)
         {
-            throw new InvalidDataException("配置文件必须包含 Rooms 列表。");
+            throw new InvalidDataException("ConfigRoomsRequired".Tr());
         }
 
         foreach (YamlNode node in rooms.Children)
@@ -196,20 +195,20 @@ internal static class ConfigFileManager
                 !TryGetNonEmptyScalar(room, nameof(Room.RoomUrl), out string roomUrl) ||
                 !IsValidRoomUrl(roomUrl))
             {
-                throw new InvalidDataException("Rooms 中的每个房间都必须包含有效的 RoomUrl。");
+                throw new InvalidDataException("ConfigRoomUrlInvalid".Tr());
             }
 
             foreach ((YamlNode keyNode, YamlNode valueNode) in room.Children)
             {
                 if (keyNode is not YamlScalarNode key || string.IsNullOrWhiteSpace(key.Value))
                 {
-                    throw new InvalidDataException("房间配置项名称必须是有效文本。");
+                    throw new InvalidDataException("RoomConfigKeyNameInvalid".Tr());
                 }
 
                 if (RoomValueTypes.TryGetValue(key.Value, out Type? valueType) &&
                     !IsValidValueNode(valueNode, valueType))
                 {
-                    throw new InvalidDataException($"房间配置项 {key.Value} 的数据类型无效。");
+                    throw new InvalidDataException("RoomConfigKeyTypeInvalid".Tr(key.Value));
                 }
             }
         }
