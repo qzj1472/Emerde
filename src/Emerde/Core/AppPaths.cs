@@ -1,5 +1,7 @@
 using Fischless.Configuration;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Emerde.Core;
 
@@ -23,11 +25,26 @@ internal static class AppPaths
 
     public static string CacheDirectory => Path.Combine(ConfigDirectory, "cache");
 
+    public static string ThumbnailCacheDirectory => Path.Combine(CacheDirectory, "video_thumbnails");
+
+    public static string MediaWorkerCommandDirectory => Path.Combine(CacheDirectory, "media_worker");
+
+    public static string LivePreviewTemporaryDirectory => Path.Combine(CacheDirectory, "live_preview");
+
     public static string PendingRecordingsDirectory => Path.Combine(CacheDirectory, "pending_recordings");
+
+    public static string RecordingCleanupStateFilePath => Path.Combine(CacheDirectory, "recording-cleanup-state.json");
 
     public static string DouyinWebViewDataDirectory => Path.Combine(CacheDirectory, "douyin_webview2");
 
     public static string PlatformLoginWebViewDataDirectory => Path.Combine(CacheDirectory, "platform_login_webview2");
+
+    public static string GetPlatformLoginWebViewDataDirectory(string platformName)
+    {
+        string normalizedName = string.IsNullOrWhiteSpace(platformName) ? "unknown" : platformName.Trim().ToLowerInvariant();
+        string identifier = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalizedName)))[..16].ToLowerInvariant();
+        return Path.Combine(PlatformLoginWebViewDataDirectory, identifier);
+    }
 
     public static string ExtensionsDirectory => Path.Combine(ConfigDirectory, "extensions");
 
