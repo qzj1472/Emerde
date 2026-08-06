@@ -102,7 +102,7 @@
                        FontSize="20"
                        FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                       Text="恢复配置" />
+                       Text="{I18N RestoreConfigTitle}" />
 
             <ContentControl x:Name="RestoreContentHost"
                             Grid.Row="1"
@@ -133,7 +133,7 @@
                             MinHeight="34"
                             Style="{StaticResource ConfigRestoreFooterButtonStyle}"
                             Click="CancelButtonClick"
-                            Content="取消" />
+                            Content="{I18N ButtonOfCancel}" />
                 </Grid>
             </Border>
         </Grid>

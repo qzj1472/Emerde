@@ -84,19 +84,19 @@
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0" Margin="0,0,16,0">
                 <TextBlock Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
-                           Text="选择一个配置备份点恢复，也可以导入或拖入 YAML 配置文件；确认前不会替换当前配置。"
+                           Text="{I18N ConfigRestoreDescription}"
                            TextWrapping="Wrap" />
                 <TextBlock Margin="0,6,0,0"
                            FontSize="11"
                            Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
-                           Text="导入、恢复、重置都会先备份有意义的当前配置，重启后生效。"
+                           Text="{I18N ConfigRestoreBackupHint}"
                            TextWrapping="Wrap" />
             </StackPanel>
             <Button Grid.Column="1"
                     MinWidth="104"
                     VerticalAlignment="Top"
                     Click="ImportButtonClick"
-                    Content="导入配置" />
+                    Content="{I18N ImportConfigTitle}" />
         </Grid>
 
         <Grid x:Name="OptionsViewport"
