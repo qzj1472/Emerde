@@ -38,6 +38,8 @@ internal static class MediaWorker
         {
             AppSessionLogger.WriteException(e);
         }
+
+        CleanupStaleCommandFiles();
     }
 
     private static int Run(string commandPath)
@@ -46,6 +48,7 @@ internal static class MediaWorker
         {
             string json = File.ReadAllText(commandPath);
             MediaWorkerCommand? command = JsonSerializer.Deserialize<MediaWorkerCommand>(json, JsonOptions);
+            DeleteCommandFile(commandPath);
             if (command == null)
             {
                 Console.Error.WriteLine("media worker command is empty");
@@ -146,6 +149,10 @@ internal static class MediaWorker
             Console.Error.WriteLine(e);
             return 1;
         }
+        finally
+        {
+            DeleteCommandFile(commandPath);
+        }
     }
 
     internal static int GetProcessExitCode(FfmpegMediaRunResult result)
@@ -197,7 +204,7 @@ internal static class MediaWorker
         FfmpegInputOptions inputOptions,
         FfmpegSegmentOptions? segmentOptions)
     {
-        string path = Path.Combine(Path.GetTempPath(), $"emerde-media-worker-{Guid.NewGuid():N}.json");
+        string path = CreateCommandPath();
         MediaWorkerCommand command = new()
         {
             InputUrl = inputUrl,
@@ -209,8 +216,7 @@ internal static class MediaWorker
             HttpProxy = inputOptions.HttpProxy,
             SegmentOptions = segmentOptions,
         };
-        File.WriteAllText(path, JsonSerializer.Serialize(command, JsonOptions));
-        return path;
+        return WriteCommandFile(path, command);
     }
 
     public static string WriteCrossStreamCommand(
@@ -219,7 +225,7 @@ internal static class MediaWorker
         FfmpegInputOptions inputOptions,
         TimeSpan maximumDuration)
     {
-        string path = Path.Combine(Path.GetTempPath(), $"emerde-media-worker-{Guid.NewGuid():N}.json");
+        string path = CreateCommandPath();
         MediaWorkerCommand command = new()
         {
             InputUrl = inputUrl,
@@ -230,8 +236,69 @@ internal static class MediaWorker
             HttpProxy = inputOptions.HttpProxy,
             AnalysisDurationSeconds = Math.Clamp((int)Math.Ceiling(maximumDuration.TotalSeconds), 1, 15),
         };
-        File.WriteAllText(path, JsonSerializer.Serialize(command, JsonOptions));
-        return path;
+        return WriteCommandFile(path, command);
+    }
+
+    private static string WriteCommandFile(string path, MediaWorkerCommand command)
+    {
+        string temporaryPath = path + ".tmp";
+        try
+        {
+            using (FileStream stream = new(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            using (StreamWriter writer = new(stream, new System.Text.UTF8Encoding(false)))
+            {
+                writer.Write(JsonSerializer.Serialize(command, JsonOptions));
+                writer.Flush();
+                stream.Flush(flushToDisk: true);
+            }
+            File.Move(temporaryPath, path);
+            return path;
+        }
+        finally
+        {
+            DeleteCommandFile(temporaryPath);
+        }
+    }
+
+    private static string CreateCommandPath()
+    {
+        Directory.CreateDirectory(AppPaths.MediaWorkerCommandDirectory);
+        return Path.Combine(AppPaths.MediaWorkerCommandDirectory, $"{Guid.NewGuid():N}.json");
+    }
+
+    private static void CleanupStaleCommandFiles()
+    {
+        try
+        {
+            DateTime cutoff = DateTime.UtcNow.AddHours(-1);
+            if (!Directory.Exists(AppPaths.MediaWorkerCommandDirectory))
+            {
+                return;
+            }
+
+            foreach (string path in Directory.EnumerateFiles(AppPaths.MediaWorkerCommandDirectory, "*.json*", SearchOption.TopDirectoryOnly))
+            {
+                if (File.GetLastWriteTimeUtc(path) < cutoff)
+                {
+                    DeleteCommandFile(path);
+                }
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(e);
+        }
+    }
+
+    private static void DeleteCommandFile(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 
     internal static long GetOutputLength(string path, long fallback)
