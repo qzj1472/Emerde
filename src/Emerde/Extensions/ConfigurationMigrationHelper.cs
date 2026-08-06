@@ -8,6 +8,43 @@ internal static class ConfigurationMigrationHelper
     public static void MigrateLegacyConfiguration()
     {
         MigrateRootConfigurationFiles();
+        MigrateLegacyThumbnailCache(
+            Path.Combine(AppPaths.ConfigDirectory, "video_thumbnails"),
+            AppPaths.ThumbnailCacheDirectory);
+    }
+
+    internal static void MigrateLegacyThumbnailCache(string sourceDirectory, string targetDirectory)
+    {
+        if (!Directory.Exists(sourceDirectory)
+            || string.Equals(Path.GetFullPath(sourceDirectory), Path.GetFullPath(targetDirectory), StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(targetDirectory);
+            foreach (string sourcePath in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.TopDirectoryOnly))
+            {
+                string targetPath = Path.Combine(targetDirectory, Path.GetFileName(sourcePath));
+                if (File.Exists(targetPath) || Directory.Exists(targetPath))
+                {
+                    File.Delete(sourcePath);
+                    continue;
+                }
+
+                File.Move(sourcePath, targetPath);
+            }
+
+            if (!Directory.EnumerateFileSystemEntries(sourceDirectory).Any())
+            {
+                Directory.Delete(sourceDirectory);
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e);
+        }
     }
 
     private static void MigrateRootConfigurationFiles()
