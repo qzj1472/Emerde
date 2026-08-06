@@ -16,45 +16,27 @@ internal static class StreamQualityCatalog
     public const string Standard = "Standard";
     public const string Smooth = "Smooth";
 
-    private static readonly IReadOnlyList<StreamQualityOption> AllOptions =
+    private static IReadOnlyList<StreamQualityOption> AllOptions =>
     [
-        new(Original, "原画"),
-        new(BlueRay, "蓝光"),
-        new(UltraHigh, "超清"),
-        new(High, "高清"),
-        new(Standard, "标清"),
-        new(Smooth, "流畅"),
+        new(Original, GetLocalizedDisplayName(Original)),
+        new(BlueRay, GetLocalizedDisplayName(BlueRay)),
+        new(UltraHigh, GetLocalizedDisplayName(UltraHigh)),
+        new(High, GetLocalizedDisplayName(High)),
+        new(Standard, GetLocalizedDisplayName(Standard)),
+        new(Smooth, GetLocalizedDisplayName(Smooth)),
     ];
-
-    private static readonly IReadOnlyList<StreamQualityOption> BilibiliOptions =
-    [
-        AllOptions[0],
-        AllOptions[1],
-        AllOptions[2],
-        AllOptions[3],
-        AllOptions[5],
-    ];
-
-    private static readonly IReadOnlyList<StreamQualityOption> KuaishouOptions =
-    [
-        AllOptions[0],
-        AllOptions[3],
-        AllOptions[4],
-        AllOptions[5],
-    ];
-
-    private static readonly IReadOnlyList<StreamQualityOption> OriginalOnlyOptions = [AllOptions[0]];
 
     public static IReadOnlyList<StreamQualityOption> GlobalOptions => AllOptions;
 
     public static IReadOnlyList<StreamQualityOption> GetOptions(string? platformName)
     {
+        IReadOnlyList<StreamQualityOption> allOptions = AllOptions;
         return platformName?.Trim() switch
         {
-            "Douyin" => AllOptions,
-            "Bilibili" => BilibiliOptions,
-            "Kuaishou" => KuaishouOptions,
-            _ => OriginalOnlyOptions,
+            "Douyin" => allOptions,
+            "Bilibili" => [allOptions[0], allOptions[1], allOptions[2], allOptions[3], allOptions[5]],
+            "Kuaishou" => [allOptions[0], allOptions[3], allOptions[4], allOptions[5]],
+            _ => [allOptions[0]],
         };
     }
 
@@ -77,7 +59,13 @@ internal static class StreamQualityCatalog
             return AllOptions.First(option => option.Value.Equals(normalized, StringComparison.OrdinalIgnoreCase)).Value;
         }
 
-        return GetDisplayName(null, normalized, null) switch
+        StreamQualityOption? localizedOption = AllOptions.FirstOrDefault(option => option.DisplayName.Equals(normalized, StringComparison.CurrentCultureIgnoreCase));
+        if (localizedOption != null)
+        {
+            return localizedOption.Value;
+        }
+
+        return normalized switch
         {
             "原画" => Original,
             "蓝光" => BlueRay,
@@ -94,47 +82,61 @@ internal static class StreamQualityCatalog
         if (!string.IsNullOrWhiteSpace(quality))
         {
             string token = quality.Trim().Replace('-', '_').Replace(' ', '_').ToUpperInvariant();
-            string? mapped = platformName?.Trim() switch
+            string? mappedPreference = platformName?.Trim() switch
             {
                 "Bilibili" => token switch
                 {
-                    "30000" or "20000" or "10000" => "原画",
-                    "400" => "蓝光",
-                    "250" => "超清",
-                    "150" => "高清",
-                    "80" => "流畅",
+                    "30000" or "20000" or "10000" => Original,
+                    "400" => BlueRay,
+                    "250" => UltraHigh,
+                    "150" => High,
+                    "80" => Smooth,
                     _ => null,
                 },
                 _ => null,
             };
 
-            mapped ??= token switch
+            mappedPreference ??= token switch
             {
-                "ORIGINAL" or "ORIGIN" or "SOURCE" or "RAW" or "原画" => "原画",
-                "BLUERAY" or "BLUE_RAY" or "FULL_HD1" or "BD" or "蓝光" => "蓝光",
-                "ULTRAHIGH" or "ULTRA_HIGH" or "FULL_HD" or "UHD" or "FHD" or "SUPER" or "超清" => "超清",
-                "HIGH" or "HIGH_QUALITY" or "HD1" or "HD" or "高清" => "高清",
-                "STANDARD" or "STANDARD_DEFINITION" or "SD1" or "标清" => "标清",
-                "SMOOTH" or "LOW" or "LOW_QUALITY" or "SD2" or "SD" or "流畅" => "流畅",
+                "ORIGINAL" or "ORIGIN" or "SOURCE" or "RAW" or "原画" => Original,
+                "BLUERAY" or "BLUE_RAY" or "FULL_HD1" or "BD" or "蓝光" => BlueRay,
+                "ULTRAHIGH" or "ULTRA_HIGH" or "FULL_HD" or "UHD" or "FHD" or "SUPER" or "超清" => UltraHigh,
+                "HIGH" or "HIGH_QUALITY" or "HD1" or "HD" or "高清" => High,
+                "STANDARD" or "STANDARD_DEFINITION" or "SD1" or "标清" => Standard,
+                "SMOOTH" or "LOW" or "LOW_QUALITY" or "SD2" or "SD" or "流畅" => Smooth,
                 _ => null,
             };
 
-            if (!string.IsNullOrWhiteSpace(mapped))
+            if (!string.IsNullOrWhiteSpace(mappedPreference))
             {
-                return mapped;
+                return GetLocalizedDisplayName(mappedPreference);
             }
 
             return quality.Trim();
         }
 
         int? height = StreamMetadataParser.ParseResolutionHeight(resolution);
-        return height switch
+        string preference = height switch
         {
-            >= 1080 => "超清",
-            >= 720 => "高清",
-            >= 480 => "标清",
-            > 0 => "流畅",
-            _ => "原画",
+            >= 1080 => UltraHigh,
+            >= 720 => High,
+            >= 480 => Standard,
+            > 0 => Smooth,
+            _ => Original,
+        };
+        return GetLocalizedDisplayName(preference);
+    }
+
+    private static string GetLocalizedDisplayName(string preference)
+    {
+        return preference switch
+        {
+            BlueRay => "QualityBlueRay".Tr(),
+            UltraHigh => "QualityUltraHigh".Tr(),
+            High => "QualityHigh".Tr(),
+            Standard => "QualityStandard".Tr(),
+            Smooth => "QualitySmooth".Tr(),
+            _ => "QualityOriginal".Tr(),
         };
     }
 

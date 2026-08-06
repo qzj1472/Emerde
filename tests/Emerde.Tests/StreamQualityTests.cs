@@ -57,7 +57,7 @@ public sealed class StreamQualityTests
         Assert.Equal("https://example.test/high.flv", result.FlvUrl);
         Assert.Equal("HD1", result.Quality);
         Assert.Null(result.ReferenceUrl);
-        Assert.Equal("高清", StreamQualityCatalog.GetDisplayName("Douyin", result.Quality, null));
+        Assert.Equal("QualityHigh".Tr(), StreamQualityCatalog.GetDisplayName("Douyin", result.Quality, null));
     }
 
     [Fact]
