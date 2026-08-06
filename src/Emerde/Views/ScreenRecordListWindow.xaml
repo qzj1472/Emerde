@@ -190,7 +190,7 @@
                                 Margin="0,0,8,0"
                                 IsEnabled="{Binding IsIdle}"
                                 Style="{StaticResource VideoListToolbarButtonStyle}"
-                                ToolTip="刷新视频列表（F5）">
+                                ToolTip="{I18N RefreshVideoListShortcutHint}">
                             <StackPanel Orientation="Horizontal">
                                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                              Margin="0,0,7,0"
@@ -279,7 +279,7 @@
                         <Button Grid.Column="1"
                                 Command="{Binding BeginMultiSelectCommand}"
                                 Content="{I18N MultiSelect}"
-                                ToolTip="进入多选模式（Ctrl+A 可全选）">
+                                ToolTip="{I18N EnterMultiSelectShortcutHint}">
                             <Button.Style>
                                 <Style TargetType="{x:Type Button}" BasedOn="{StaticResource VideoListToolbarButtonStyle}">
                                     <Setter Property="Visibility" Value="Collapsed" />
@@ -318,20 +318,20 @@
                             <Button Margin="0,0,8,0"
                                     Command="{Binding SelectAllCommand}"
                                     Style="{StaticResource VideoListIconButtonStyle}"
-                                    ToolTip="全选视频（Ctrl+A）">
+                                    ToolTip="{I18N SelectAllVideosShortcutHint}">
                                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                              Glyph="{x:Static ui:FontSymbols.Accept}" />
                             </Button>
                             <Button Margin="0,0,8,0"
                                     Command="{Binding InvertSelectionCommand}"
                                     Style="{StaticResource VideoListIconButtonStyle}"
-                                    ToolTip="反选">
+                                    ToolTip="{I18N InvertSelection}">
                                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                              Glyph="{x:Static ui:FontSymbols.Switch}" />
                             </Button>
                             <Button Command="{Binding CancelMultiSelectCommand}"
                                     Style="{StaticResource VideoListIconButtonStyle}"
-                                    ToolTip="退出多选（Esc）">
+                                    ToolTip="{I18N ExitMultiSelectShortcutHint}">
                                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                              Glyph="{x:Static ui:FontSymbols.CalculatorMultiply}" />
                             </Button>
@@ -409,39 +409,39 @@
                                 Loaded="VideoCardLoaded">
                             <Border.ContextMenu>
                                 <ContextMenu DataContext="{Binding PlacementTarget, RelativeSource={RelativeSource Self}}">
-                                    <MenuItem Header="打开视频"
+                                    <MenuItem Header="{I18N OpenVideo}"
                                               Command="{Binding Tag.OpenVideoCommand}"
                                               CommandParameter="{Binding DataContext}"
                                               IsEnabled="{Binding DataContext.CanModify}" />
-                                    <MenuItem Header="打开目录"
+                                    <MenuItem Header="{I18N OpenFolder}"
                                               Command="{Binding Tag.OpenDirectoryCommand}"
                                               CommandParameter="{Binding DataContext}"
                                               IsEnabled="{Binding DataContext.CanModify}" />
-                                    <MenuItem Header="重命名"
+                                    <MenuItem Header="{I18N Rename}"
                                               Command="{Binding Tag.RenameVideoCommand}"
                                               CommandParameter="{Binding DataContext}"
                                               IsEnabled="{Binding DataContext.CanModify}" />
-                                    <MenuItem Header="转码"
+                                    <MenuItem Header="{I18N TranscodeVideo}"
                                               Command="{Binding Tag.TranscodeVideoCommand}"
                                               CommandParameter="{Binding DataContext}"
                                               IsEnabled="{Binding DataContext.CanTranscode}" />
                                     <Separator />
-                                    <MenuItem Header="合并"
+                                    <MenuItem Header="{I18N MergeVideos}"
                                               Command="{Binding Tag.OpenMergeSelectedCommand}"
                                               IsEnabled="{Binding Tag.CanMergeSelectedVideos}" />
-                                    <MenuItem Header="分割"
+                                    <MenuItem Header="{I18N SplitButton}"
                                               Command="{Binding Tag.SplitContextCommand}"
                                               CommandParameter="{Binding DataContext}"
                                               IsEnabled="{Binding DataContext.CanModify}" />
-                                    <MenuItem Header="移动"
+                                    <MenuItem Header="{I18N MoveButton}"
                                               Command="{Binding Tag.MoveContextCommand}"
                                               CommandParameter="{Binding DataContext}"
                                               IsEnabled="{Binding DataContext.CanModify}" />
-                                    <MenuItem Header="复制"
+                                    <MenuItem Header="{I18N CopyButton}"
                                               Command="{Binding Tag.CopyContextCommand}"
                                               CommandParameter="{Binding DataContext}"
                                               IsEnabled="{Binding DataContext.CanModify}" />
-                                    <MenuItem Header="删除"
+                                    <MenuItem Header="{I18N DeleteButton}"
                                               Command="{Binding Tag.DeleteContextCommand}"
                                               CommandParameter="{Binding DataContext}"
                                               IsEnabled="{Binding DataContext.CanModify}" />
@@ -626,7 +626,7 @@
                                             CommandParameter="{Binding}"
                                             Content="{I18N OpenVideo}"
                                             Style="{StaticResource VideoCardActionButtonStyle}"
-                                            ToolTip="打开视频（Enter）" />
+                                            ToolTip="{I18N OpenVideoShortcutHint}" />
                                     <Button Margin="0,0,8,0"
                                             Command="{Binding DataContext.TranscodeVideoCommand, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
                                             CommandParameter="{Binding}"
