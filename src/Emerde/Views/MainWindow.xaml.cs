@@ -230,6 +230,7 @@ public partial class MainWindow : FluentWindow
     private bool roomCardBlankPressCandidate;
     private Point roomCardBlankPressStart;
     private bool isRoomCardMarqueeSelecting;
+    private bool roomCardMarqueePreserveSelection;
     private Point roomCardMarqueeStart;
     private AdornerLayer? roomCardAdornerLayer;
     private DragPreviewAdorner? roomCardDragAdorner;
@@ -2959,6 +2960,7 @@ public partial class MainWindow : FluentWindow
 
     private void StartRoomCardMarquee(Point position)
     {
+        roomCardMarqueePreserveSelection = (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) != ModifierKeys.None;
         ViewModel.BeginRoomMultiSelect();
         isRoomCardMarqueeSelecting = true;
         roomCardMarqueeStart = position;
@@ -2978,7 +2980,9 @@ public partial class MainWindow : FluentWindow
     private void FinishRoomCardMarquee(bool commit)
     {
         Rect selection = CreateSelectionRect(roomCardMarqueeStart, Mouse.GetPosition(RoomCardList));
+        bool preserveSelection = roomCardMarqueePreserveSelection;
         isRoomCardMarqueeSelecting = false;
+        roomCardMarqueePreserveSelection = false;
         RoomCardSelectionRectangle.Visibility = Visibility.Collapsed;
         if (RoomCardList.IsMouseCaptured)
         {
@@ -3001,7 +3005,11 @@ public partial class MainWindow : FluentWindow
                 selectedRooms.Add(room);
             }
         }
-        ViewModel.SelectRooms(selectedRooms);
+        RoomStatusReactive? activeRoom = ViewModel.SelectRooms(selectedRooms, preserveSelection);
+        if (activeRoom != null)
+        {
+            RoomCardList.SelectedItem = activeRoom;
+        }
     }
 
     private static Rect CreateSelectionRect(Point start, Point end)

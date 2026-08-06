@@ -57,12 +57,24 @@ internal sealed class AutoShutdownSchedule
 
     public bool ShouldStartPrompt(DateTime now, bool enabled, string configuredTime)
     {
-        string currentTime = configuredTime ?? string.Empty;
+        DateTime? promptAt = GetNextPromptTime(now, enabled, configuredTime);
+        if (!promptAt.HasValue || now < promptAt.Value)
+        {
+            return false;
+        }
 
+        IsReady = true;
+        readyTarget = promptAt.Value.AddMinutes(1);
+        return true;
+    }
+
+    public DateTime? GetNextPromptTime(DateTime now, bool enabled, string configuredTime)
+    {
+        string currentTime = configuredTime ?? string.Empty;
         if (!enabled || !TryParseTime(currentTime, out TimeSpan targetTime))
         {
             ResetAll();
-            return false;
+            return null;
         }
 
         if (!string.Equals(scheduleTime, currentTime, StringComparison.Ordinal))
@@ -89,17 +101,15 @@ internal sealed class AutoShutdownSchedule
 
         if (cancelledTarget == targetDateTime || completedTarget == targetDateTime)
         {
-            return false;
+            targetDateTime = targetDateTime.AddDays(1);
         }
 
-        if (IsReady || now < targetDateTime.AddMinutes(-1))
+        if (IsReady)
         {
-            return false;
+            return null;
         }
 
-        IsReady = true;
-        readyTarget = targetDateTime;
-        return true;
+        return targetDateTime.AddMinutes(-1);
     }
 
     public void Cancel(DateTime now, string configuredTime)

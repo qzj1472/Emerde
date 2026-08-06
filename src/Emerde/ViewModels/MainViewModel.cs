@@ -90,6 +90,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     protected internal ForeverDispatcherTimer AutoShutdownDispatcherTimer { get; }
 
+    protected internal ForeverDispatcherTimer RecordingDurationDispatcherTimer { get; }
+
     private readonly LivePreviewPlayer livePreviewPlayer = new();
     private readonly SemaphoreSlim previewTransitionGate = new(1, 1);
     private readonly object previewTransitionSync = new();
@@ -199,7 +201,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     public string GetPlatformFilterDisplayName(string value)
     {
-        return value == AllPlatformFilter ? "全部显示" : global::Emerde.Core.PlatformDisplayName.Get(value);
+        return value == AllPlatformFilter ? "AllPlatforms".Tr() : global::Emerde.Core.PlatformDisplayName.Get(value);
     }
 
     public void EnsureSelectedPlatformFilterAvailable()
@@ -246,7 +248,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     public bool CanRedoRoomSelection => roomHistoryRedoStack.Count > 0;
 
-    public string SelectedRoomSummary => $"已选择 {SelectedRoomCount} 个直播间";
+    public string SelectedRoomSummary => "SelectedRoomsFormat".Tr(SelectedRoomCount);
 
     [ObservableProperty]
     private bool isRefreshingSelectedRoomInfo = false;
@@ -312,7 +314,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     public string PreviewMuteToolTip => $"{(IsPreviewMuted ? "PreviewUnmute".Tr() : "PreviewMute".Tr())} (M)";
 
-    public string PreviewVolumeToolTip => $"音量 {PreviewVolume}% (-/=)";
+    public string PreviewVolumeToolTip => "PreviewVolumeToolTipFormat".Tr(PreviewVolume);
 
     public string LivePreviewStatusText => LivePreviewStatus switch
     {
@@ -455,6 +457,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     partial void OnIsRecordingChanged(bool value)
     {
         TrayIconManager.GetInstance().UpdateTrayIcon();
+        UpdateRecordingDurationTimer(value);
     }
 
     [ObservableProperty]
@@ -504,8 +507,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     }
 
     public string StatusOfAutoShutdownCountdownToolTip => AutoShutdownSchedule.ResolveCloseTarget(Configurations.IsAutoShutdownComputer.Get()) == ScheduledCloseTarget.Computer
-        ? $"将在 {StatusOfAutoShutdownCountdown} 后关闭电脑"
-        : $"将在 {StatusOfAutoShutdownCountdown} 后关闭软件";
+        ? "AutoShutdownComputerCountdown".Tr(StatusOfAutoShutdownCountdown)
+        : "AutoShutdownApplicationCountdown".Tr(StatusOfAutoShutdownCountdown);
 
     [ObservableProperty]
     private string statusOfRecordFormat = Configurations.RecordFormat.Get();
@@ -556,12 +559,12 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             {
                 string testingText = "NetworkCapacityTesting".Tr();
                 return string.IsNullOrWhiteSpace(testingText) || testingText == "NetworkCapacityTesting"
-                    ? "测速中"
+                    ? "NetworkCapacityTesting".Tr()
                     : testingText;
             }
 
             return string.IsNullOrWhiteSpace(NetworkCapacityText) || NetworkCapacityText == "NetworkCapacityIdle"
-                ? "测速"
+                ? "NetworkCapacityIdle".Tr()
                 : NetworkCapacityText;
         }
     }
@@ -579,8 +582,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         livePreviewPlayer.PlaybackEnded += OnLivePreviewPlaybackEnded;
         livePreviewPlayer.FrameSourceChanged += OnLivePreviewFrameSourceChanged;
         livePreviewPlayer.FirstFramePresented += OnLivePreviewFirstFramePresented;
-        DispatcherTimer = new(TimeSpan.FromSeconds(3), ReloadRoomStatus);
-        AutoShutdownDispatcherTimer = new(TimeSpan.FromSeconds(1), UpdateOneSecondState);
+        DispatcherTimer = new(TimeSpan.FromMinutes(1), ReloadRoomStatus);
+        AutoShutdownDispatcherTimer = new(TimeSpan.FromMinutes(1), OnAutoShutdownTimerTick);
+        RecordingDurationDispatcherTimer = new(TimeSpan.FromSeconds(1), UpdateRecordingDurations);
         Room[] configuredRooms = NormalizeStoredRooms(Configurations.Rooms.Get());
         AvatarCache.Prune(configuredRooms.Select(room => room.RoomUrl));
 
@@ -630,7 +634,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             GlobalMonitor.Start();
         }
         DispatcherTimer.Start();
-        AutoShutdownDispatcherTimer.Start();
+        UpdateAutoShutdownState();
     }
 
     private void ReloadRoomStatus()
@@ -661,6 +665,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
 
         IsRecording = RoomStatuses.Any(roomStatusReactive => roomStatusReactive.IsRecording);
+        UpdateRecordingDurationTimer(IsRecording);
 
         if (refreshSelectedPreview)
         {
@@ -694,6 +699,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
 
         IsRecording = RoomStatuses.Any(room => room.IsRecording);
+        UpdateRecordingDurationTimer(IsRecording);
         if (ReferenceEquals(roomStatusReactive, SelectedItem) && previousCanPreview != roomStatusReactive.CanPreview)
         {
             OnPropertyChanged(nameof(CanPreviewSelectedRoom));
@@ -755,15 +761,36 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         {
             RefreshRoomEffectiveStates();
         }
+
+        UpdateAutoShutdownState();
     }
 
-    private void UpdateOneSecondState()
+    private void UpdateRecordingDurations()
     {
-        UpdateAutoShutdownState();
-        foreach (RoomStatusReactive roomStatus in RoomStatuses)
+        foreach (RoomStatusReactive roomStatus in RoomStatuses.Where(room => room.IsRecording))
         {
             roomStatus.RefreshDuration();
         }
+    }
+
+    private void UpdateRecordingDurationTimer(bool hasActiveRecording)
+    {
+        if (hasActiveRecording)
+        {
+            if (!RecordingDurationDispatcherTimer.IsEnabled)
+            {
+                RecordingDurationDispatcherTimer.Start();
+            }
+            return;
+        }
+
+        RecordingDurationDispatcherTimer.Stop();
+    }
+
+    private void OnAutoShutdownTimerTick()
+    {
+        AutoShutdownDispatcherTimer.Stop();
+        UpdateAutoShutdownState();
     }
 
     private void UpdateAutoShutdownState()
@@ -784,7 +811,30 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             && ShutdownCancellationTokenSource == null)
         {
             StartAutoShutdownCountdown();
+            AutoShutdownDispatcherTimer.Stop();
+            return;
         }
+
+        AutoShutdownDispatcherTimer.Stop();
+        DateTime now = DateTime.Now;
+        DateTime? nextPromptAt = autoShutdownSchedule.GetNextPromptTime(now, StatusOfIsUseAutoShutdown, StatusOfAutoShutdownTime);
+        if (nextPromptAt.HasValue)
+        {
+            TimeSpan delay = GetAutoShutdownRefreshDelay(now, nextPromptAt.Value);
+            AutoShutdownDispatcherTimer.Interval = delay < TimeSpan.FromMilliseconds(50)
+                ? TimeSpan.FromMilliseconds(50)
+                : delay;
+            AutoShutdownDispatcherTimer.Start();
+        }
+    }
+
+    internal static TimeSpan GetAutoShutdownRefreshDelay(DateTime now, DateTime nextPromptAt)
+    {
+        TimeSpan untilPrompt = nextPromptAt - now;
+        TimeSpan untilNextMinute = TimeSpan.FromMinutes(1) - TimeSpan.FromTicks(now.Ticks % TimeSpan.TicksPerMinute);
+        return untilPrompt > TimeSpan.Zero && untilPrompt < untilNextMinute
+            ? untilPrompt
+            : untilNextMinute;
     }
 
     private void StartAutoShutdownCountdown()
@@ -798,8 +848,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             waitForTranscode = Configurations.IsAutoShutdownAfterTranscode.Get(),
             closeComputer = Configurations.IsAutoShutdownComputer.Get(),
         });
-        string closeTarget = AutoShutdownSchedule.ResolveCloseTarget(Configurations.IsAutoShutdownComputer.Get()) == ScheduledCloseTarget.Computer ? "电脑" : "软件";
-        Notifier.AddNoticeWithButton("Title".Tr(), $"将在 1 分钟后关闭{closeTarget}", [
+        string countdownMessage = AutoShutdownSchedule.ResolveCloseTarget(Configurations.IsAutoShutdownComputer.Get()) == ScheduledCloseTarget.Computer
+            ? "AutoShutdownComputerCountdown".Tr("00:01")
+            : "AutoShutdownApplicationCountdown".Tr("00:01");
+        Notifier.AddNoticeWithButton("Title".Tr(), countdownMessage, [
             new ToastContentButtonOption
             {
                 Content = "ButtonOfCancel".Tr(),
@@ -827,6 +879,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 {
                     ShutdownCancellationTokenSource = null;
                     ResetAutoShutdownReadiness();
+                    UpdateAutoShutdownState();
                 }
                 cancellationTokenSource.Dispose();
             }
@@ -894,6 +947,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             {
                 ShutdownCancellationTokenSource = null;
                 ResetAutoShutdownReadiness();
+                UpdateAutoShutdownState();
             }
             source.Dispose();
         }
@@ -936,7 +990,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         if (Debugger.IsAttached)
         {
-            _ = MessageBox.Information("已触发关闭电脑  调试模式不会执行系统关机");
+            _ = MessageBox.Information("AutoShutdownDebugSkipped".Tr());
             return true;
         }
 
@@ -967,6 +1021,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         {
             StatusOfAutoShutdownTime,
         });
+        UpdateAutoShutdownState();
     }
 
     private void AbortAutoShutdownCountdown()
@@ -2327,6 +2382,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         StatusOfIsUseAutoShutdown = !StatusOfIsUseAutoShutdown;
         Configurations.IsUseAutoShutdown.Set(StatusOfIsUseAutoShutdown);
         ConfigurationSaveScheduler.Request();
+        UpdateAutoShutdownState();
     }
 
     [RelayCommand]
@@ -2470,7 +2526,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             AppSessionLogger.WriteException(e);
-            Toast.Warning($"无法打开保存目录：{e.Message}");
+            Toast.Warning("OpenSaveFolderFailed".Tr(e.Message));
         }
     }
 
@@ -2848,14 +2904,14 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         List<string> parts = [];
         if (domesticCapacity.HasValue)
         {
-            parts.Add($"国内可录 {domesticCapacity.Value} 路");
+            parts.Add("NetworkCapacityDomesticShort".Tr(domesticCapacity.Value));
         }
         if (overseasCapacity.HasValue)
         {
-            parts.Add($"国外可录 {overseasCapacity.Value} 路");
+            parts.Add("NetworkCapacityOverseasShort".Tr(overseasCapacity.Value));
         }
 
-        return parts.Count == 0 ? "测速失败" : string.Join("，", parts);
+        return parts.Count == 0 ? "NetworkCapacityFailed".Tr() : string.Join("NetworkCapacityListSeparator".Tr(), parts);
     }
 
     private void RefreshNetworkCapacityLocalization()
@@ -2889,16 +2945,21 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private static string FormatNetworkCapacityResultToolTip(NetworkCapacityPresentation result)
     {
         string domestic = FormatNetworkRegionCapacity(
-            "国内",
+            "NetworkCapacityDomesticRegion".Tr(),
             result.Measurement.Domestic,
             result.DomesticCapacity,
             result.DomesticPerRoomMbps);
         string overseas = FormatNetworkRegionCapacity(
-            "国外",
+            "NetworkCapacityOverseasRegion".Tr(),
             result.Measurement.Overseas,
             result.OverseasCapacity,
             result.OverseasPerRoomMbps);
-        return $"多节点三轮实测：{domestic}，{overseas}。单路统一按默认平均 {DefaultNetworkCapacityPerRoomMbps:0.##} Mbps 估算，不依赖当前直播流；共 {result.Measurement.SuccessfulSamples} 个有效样本，可信度 {GetNetworkMeasurementConfidenceText(result.Measurement.Confidence)}。";
+        return "NetworkCapacityDetailedResult".Tr(
+            domestic,
+            overseas,
+            DefaultNetworkCapacityPerRoomMbps,
+            result.Measurement.SuccessfulSamples,
+            GetNetworkMeasurementConfidenceText(result.Measurement.Confidence));
     }
 
     private static string FormatNetworkRegionCapacity(
@@ -2909,10 +2970,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     {
         if (measurement == null || !capacity.HasValue)
         {
-            return $"{regionName}未测通";
+            return "NetworkCapacityRegionUnavailable".Tr(regionName);
         }
 
-        return $"{regionName} {measurement.Mbps:0.##} Mbps，可录 {capacity.Value} 路，单路 {perRoomMbps:0.##} Mbps";
+        return "NetworkCapacityRegionDetail".Tr(regionName, measurement.Mbps, capacity.Value, perRoomMbps);
     }
 
     private static string GetNetworkMeasurementConfidenceText(NetworkMeasurementConfidence confidence)
@@ -3623,23 +3684,80 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         });
     }
 
-    internal void SelectRooms(IEnumerable<RoomStatusReactive> rooms)
+    internal RoomStatusReactive? SelectRooms(
+        IEnumerable<RoomStatusReactive> rooms,
+        bool preserveExistingSelection)
     {
-        RoomStatusReactive[] targets = rooms.Distinct().ToArray();
+        RoomStatusReactive[] requestedRooms = rooms.Distinct().ToArray();
+        RoomStatusReactive[] targets = ResolveMarqueeSelection(RoomStatuses, requestedRooms, preserveExistingSelection);
         if (targets.Length == 0)
         {
-            return;
+            ApplyRoomSelectionChange(() =>
+            {
+                foreach (RoomStatusReactive room in RoomStatuses)
+                {
+                    room.IsSelected = false;
+                }
+            });
+            IsRoomMultiSelectMode = false;
+            lastSelectedRoom = null;
+            IsRoomCardSelectionVisible = false;
+            RefreshRoomSelectionSummary();
+            return null;
         }
 
         BeginRoomMultiSelect();
         ApplyRoomSelectionChange(() =>
         {
-            foreach (RoomStatusReactive room in targets)
+            HashSet<RoomStatusReactive> targetSet = targets.ToHashSet();
+            foreach (RoomStatusReactive room in RoomStatuses)
             {
-                room.IsSelected = true;
+                room.IsSelected = targetSet.Contains(room);
             }
-            lastSelectedRoom = targets[^1];
         });
+        RoomStatusReactive activeRoom = requestedRooms.LastOrDefault() ?? targets[^1];
+        lastSelectedRoom = activeRoom;
+        SelectedItem = activeRoom;
+        IsRoomCardSelectionVisible = true;
+        return SelectedItem;
+    }
+
+    internal static RoomStatusReactive[] ResolveMarqueeSelection(
+        IEnumerable<RoomStatusReactive> allRooms,
+        IEnumerable<RoomStatusReactive> marqueeRooms,
+        bool preserveExistingSelection)
+    {
+        RoomStatusReactive[] requestedRooms = marqueeRooms.Distinct().ToArray();
+        if (!preserveExistingSelection)
+        {
+            return requestedRooms;
+        }
+
+        HashSet<RoomStatusReactive> selectedRooms = allRooms
+            .Where(room => room.IsSelected)
+            .ToHashSet();
+        selectedRooms.UnionWith(requestedRooms);
+        return allRooms.Where(selectedRooms.Contains).ToArray();
+    }
+
+    internal static RoomStatusReactive[] ResolveRoomRemovalTargets(
+        IEnumerable<RoomStatusReactive> rooms,
+        RoomStatusReactive? selectedItem,
+        bool allowSingleSelectionFallback = true)
+    {
+        RoomStatusReactive[] selectedRooms = rooms
+            .Where(room => room.IsSelected && !string.IsNullOrWhiteSpace(room.RoomUrl))
+            .ToArray();
+        if (selectedRooms.Length > 0)
+        {
+            return selectedRooms;
+        }
+
+        return !allowSingleSelectionFallback
+            || selectedItem == null
+            || string.IsNullOrWhiteSpace(selectedItem.RoomUrl)
+            ? []
+            : [selectedItem];
     }
 
     [RelayCommand]
@@ -4238,14 +4356,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     [RelayCommand]
     private async Task RemoveRoomUrlAsync()
     {
-        if (SelectedItem == null || string.IsNullOrWhiteSpace(SelectedItem.RoomUrl))
-        {
-            return;
-        }
-
-        RoomStatusReactive[] targets = IsRoomMultiSelectMode && SelectedItem.IsSelected
-            ? RoomStatuses.Where(room => room.IsSelected).ToArray()
-            : [SelectedItem];
+        RoomStatusReactive[] targets = ResolveRoomRemovalTargets(
+            RoomStatuses,
+            SelectedItem,
+            IsRoomCardSelectionVisible);
         if (targets.Length == 0)
         {
             return;
@@ -4253,7 +4367,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         string prompt = targets.Length == 1
             ? "SureRemoveRoom".Tr(targets[0].NickName)
-            : $"确定移除选中的 {targets.Length} 个直播间吗？";
+            : "ConfirmRemoveSelectedRooms".Tr(targets.Length);
         using DialogBlurScope blurScope = DialogBlurScope.ForMessageBox(Application.Current.MainWindow);
         MessageBoxResult result = await MessageBox.QuestionAsync(prompt);
 
@@ -4562,6 +4676,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         CancelNetworkCapacityTest();
         FlushPreviewRefreshSuppression();
         AutoShutdownDispatcherTimer.Stop();
+        RecordingDurationDispatcherTimer.Stop();
         DispatcherTimer.Stop();
         CancellationTokenSource? transitionCancellation;
         lock (previewTransitionSync)

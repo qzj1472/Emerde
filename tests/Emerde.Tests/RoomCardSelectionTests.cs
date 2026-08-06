@@ -184,6 +184,103 @@ public sealed class RoomCardSelectionTests
     }
 
     [Fact]
+    public void ResolveRoomRemovalTargets_PrefersMarqueeSelectionOverStaleClickedRoom()
+    {
+        RoomStatusReactive staleClicked = CreateRoom("stale", "Douyin");
+        RoomStatusReactive firstSelected = CreateRoom("first", "Douyin");
+        RoomStatusReactive secondSelected = CreateRoom("second", "Douyin");
+        firstSelected.IsSelected = true;
+        secondSelected.IsSelected = true;
+
+        RoomStatusReactive[] targets = MainViewModel.ResolveRoomRemovalTargets(
+            [staleClicked, firstSelected, secondSelected],
+            staleClicked);
+
+        Assert.Equal([firstSelected, secondSelected], targets);
+    }
+
+    [Fact]
+    public void ResolveRoomRemovalTargets_FallsBackToClickedRoomWithoutMarqueeSelection()
+    {
+        RoomStatusReactive selectedItem = CreateRoom("selected", "Douyin");
+
+        RoomStatusReactive[] targets = MainViewModel.ResolveRoomRemovalTargets([selectedItem], selectedItem);
+
+        Assert.Equal([selectedItem], targets);
+    }
+
+    [Fact]
+    public void ResolveMarqueeSelection_ReplacesPreviousSelectionWithoutModifier()
+    {
+        RoomStatusReactive previous = CreateRoom("previous", "Douyin");
+        RoomStatusReactive selected = CreateRoom("selected", "Douyin");
+        previous.IsSelected = true;
+
+        RoomStatusReactive[] targets = MainViewModel.ResolveMarqueeSelection(
+            [previous, selected],
+            [selected],
+            preserveExistingSelection: false);
+
+        Assert.Equal([selected], targets);
+    }
+
+    [Fact]
+    public void ResolveMarqueeSelection_AppendsPreviousSelectionWithModifier()
+    {
+        RoomStatusReactive previous = CreateRoom("previous", "Douyin");
+        RoomStatusReactive selected = CreateRoom("selected", "Douyin");
+        previous.IsSelected = true;
+
+        RoomStatusReactive[] targets = MainViewModel.ResolveMarqueeSelection(
+            [previous, selected],
+            [selected],
+            preserveExistingSelection: true);
+
+        Assert.Equal([previous, selected], targets);
+    }
+
+    [Fact]
+    public void ResolveMarqueeSelection_ClearsPreviousSelectionForEmptyPlainMarquee()
+    {
+        RoomStatusReactive previous = CreateRoom("previous", "Douyin");
+        previous.IsSelected = true;
+
+        RoomStatusReactive[] targets = MainViewModel.ResolveMarqueeSelection(
+            [previous],
+            [],
+            preserveExistingSelection: false);
+
+        Assert.Empty(targets);
+    }
+
+    [Fact]
+    public void ResolveMarqueeSelection_PreservesPreviousSelectionForEmptyModifiedMarquee()
+    {
+        RoomStatusReactive previous = CreateRoom("previous", "Douyin");
+        previous.IsSelected = true;
+
+        RoomStatusReactive[] targets = MainViewModel.ResolveMarqueeSelection(
+            [previous],
+            [],
+            preserveExistingSelection: true);
+
+        Assert.Equal([previous], targets);
+    }
+
+    [Fact]
+    public void ResolveRoomRemovalTargets_DoesNotFallbackAfterSelectionWasCleared()
+    {
+        RoomStatusReactive staleClicked = CreateRoom("stale", "Douyin");
+
+        RoomStatusReactive[] targets = MainViewModel.ResolveRoomRemovalTargets(
+            [staleClicked],
+            staleClicked,
+            allowSingleSelectionFallback: false);
+
+        Assert.Empty(targets);
+    }
+
+    [Fact]
     public void BuildPlatformFilterOptions_UsesOnlyDetectedPlatforms()
     {
         RoomStatusReactive[] rooms =

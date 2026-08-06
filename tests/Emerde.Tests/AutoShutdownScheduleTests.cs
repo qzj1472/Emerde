@@ -1,4 +1,5 @@
 using Emerde.Core;
+using Emerde.ViewModels;
 
 namespace Emerde.Tests;
 
@@ -95,6 +96,43 @@ public sealed class AutoShutdownScheduleTests
 
         Assert.True(schedule.ShouldStartPrompt(now, true, "22:00"));
         Assert.Equal(TimeSpan.FromSeconds(30), schedule.GetRemainingTime(now));
+    }
+
+    [Fact]
+    public void GetNextPromptTime_ReturnsExactMinuteBeforeTarget()
+    {
+        AutoShutdownSchedule schedule = new();
+        DateTime now = new(2026, 7, 12, 12, 0, 30);
+
+        Assert.Equal(new DateTime(2026, 7, 12, 21, 59, 0), schedule.GetNextPromptTime(now, true, "22:00"));
+    }
+
+    [Fact]
+    public void GetNextPromptTime_AfterCancellationTargetsNextDay()
+    {
+        AutoShutdownSchedule schedule = new();
+        DateTime now = new(2026, 7, 12, 21, 59, 0);
+        schedule.Cancel(now, "22:00");
+
+        Assert.Equal(new DateTime(2026, 7, 13, 21, 59, 0), schedule.GetNextPromptTime(now, true, "22:00"));
+    }
+
+    [Fact]
+    public void AutoShutdownRefreshDelay_UsesMinuteBoundaryForCountdownDisplay()
+    {
+        DateTime now = new(2026, 7, 12, 12, 0, 30);
+        DateTime promptAt = new(2026, 7, 12, 21, 59, 0);
+
+        Assert.Equal(TimeSpan.FromSeconds(30), MainViewModel.GetAutoShutdownRefreshDelay(now, promptAt));
+    }
+
+    [Fact]
+    public void AutoShutdownRefreshDelay_UsesEarlierPromptBoundary()
+    {
+        DateTime now = new(2026, 7, 12, 21, 58, 50);
+        DateTime promptAt = new(2026, 7, 12, 21, 59, 0);
+
+        Assert.Equal(TimeSpan.FromSeconds(10), MainViewModel.GetAutoShutdownRefreshDelay(now, promptAt));
     }
 
     [Fact]
