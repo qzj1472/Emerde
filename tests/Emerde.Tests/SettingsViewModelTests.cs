@@ -1,10 +1,39 @@
 using Emerde.ViewModels;
+using Emerde.Core;
+using System.Globalization;
 using System.Xml.Linq;
 
 namespace Emerde.Tests;
 
 public sealed class SettingsViewModelTests
 {
+    [Fact]
+    public void RefreshLocalizedOptions_RebuildsCachedPlatformLists()
+    {
+        CultureInfo previousCulture = Locale.Culture;
+        try
+        {
+            Locale.Culture = CultureInfo.GetCultureInfo("zh-Hans");
+            SettingsViewModel viewModel = new();
+            IReadOnlyList<PlatformCookieItem> chineseItems = viewModel.DomesticCookiePlatforms;
+            IReadOnlyList<StreamQualityOption> chineseQualityOptions = viewModel.StreamQualityOptions;
+
+            Locale.Culture = CultureInfo.GetCultureInfo("en");
+            viewModel.RefreshLocalizedOptions();
+            IReadOnlyList<PlatformCookieItem> englishItems = viewModel.DomesticCookiePlatforms;
+            IReadOnlyList<StreamQualityOption> englishQualityOptions = viewModel.StreamQualityOptions;
+
+            Assert.NotSame(chineseItems, englishItems);
+            Assert.Equal("Douyin", englishItems.Single(item => item.PlatformName == "Douyin").DisplayName);
+            Assert.Equal("高清", chineseQualityOptions.Single(item => item.Value == StreamQualityCatalog.High).DisplayName);
+            Assert.Equal("High", englishQualityOptions.Single(item => item.Value == StreamQualityCatalog.High).DisplayName);
+        }
+        finally
+        {
+            Locale.Culture = previousCulture;
+        }
+    }
+
     [Fact]
     public void PageTitle_AlignsWithSettingsCards()
     {

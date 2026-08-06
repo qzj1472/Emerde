@@ -38,31 +38,31 @@ public partial class SettingsViewModel : ReactiveObject
         ? AppPaths.ConfigFilePath
         : ConfigurationManager.FilePath;
 
-    public IReadOnlyList<UnitOption> TimeUnitOptions { get; } =
+    public IReadOnlyList<UnitOption> TimeUnitOptions =>
     [
-        new((int)TimeUnitIndexEnum.Seconds, "秒"),
-        new((int)TimeUnitIndexEnum.Minutes, "分钟"),
-        new((int)TimeUnitIndexEnum.Hours, "小时"),
+        new((int)TimeUnitIndexEnum.Seconds, "Seconds".Tr()),
+        new((int)TimeUnitIndexEnum.Minutes, "Minutes".Tr()),
+        new((int)TimeUnitIndexEnum.Hours, "Hours".Tr()),
     ];
 
-    public IReadOnlyList<UnitOption> SegmentUnitOptions { get; } =
+    public IReadOnlyList<UnitOption> SegmentUnitOptions =>
     [
-        new(SegmentTimeUnitHelper.Milliseconds, "毫秒"),
-        new(SegmentTimeUnitHelper.Seconds, "秒"),
-        new(SegmentTimeUnitHelper.Minutes, "分钟"),
-        new(SegmentTimeUnitHelper.Hours, "小时"),
+        new(SegmentTimeUnitHelper.Milliseconds, "Milliseconds".Tr()),
+        new(SegmentTimeUnitHelper.Seconds, "Seconds".Tr()),
+        new(SegmentTimeUnitHelper.Minutes, "Minutes".Tr()),
+        new(SegmentTimeUnitHelper.Hours, "Hours".Tr()),
         new(SegmentTimeUnitHelper.Megabytes, "MB"),
         new(SegmentTimeUnitHelper.Gigabytes, "GB"),
     ];
 
-    public IReadOnlyList<StreamQualityOption> StreamQualityOptions { get; } = StreamQualityCatalog.GlobalOptions;
+    public IReadOnlyList<StreamQualityOption> StreamQualityOptions => StreamQualityCatalog.GlobalOptions;
 
-    public IReadOnlyList<UnitOption> DataRetentionUnitOptions { get; } =
+    public IReadOnlyList<UnitOption> DataRetentionUnitOptions =>
     [
-        new(DataRetentionUnitHelper.Days, "天"),
-        new(DataRetentionUnitHelper.Weeks, "周"),
-        new(DataRetentionUnitHelper.Months, "月"),
-        new(DataRetentionUnitHelper.Years, "年"),
+        new(DataRetentionUnitHelper.Days, "Days".Tr()),
+        new(DataRetentionUnitHelper.Weeks, "Weeks".Tr()),
+        new(DataRetentionUnitHelper.Months, "Months".Tr()),
+        new(DataRetentionUnitHelper.Years, "Years".Tr()),
     ];
 
     private IReadOnlyList<PlatformCookieItem>? domesticCookiePlatforms;
@@ -293,8 +293,8 @@ public partial class SettingsViewModel : ReactiveObject
     }
 
     public string SessionLogStatus => IsSessionLogEnabled
-        ? "保存本地运行日志，可导出最近或全部日志。"
-        : "已关闭运行日志，仅能导出已存在的历史日志。";
+        ? "SessionLogEnabledDescription".Tr()
+        : "SessionLogDisabledDescription".Tr();
 
     [ObservableProperty]
     private double sessionLogRetentionDays = AppSessionLogger.NormalizeRetentionDays(Configurations.SessionLogRetentionDays.Get());
@@ -339,8 +339,25 @@ public partial class SettingsViewModel : ReactiveObject
             _ => new CultureInfo(language),
         };
 
+        RefreshLocalizedOptions();
+
         Configurations.Language.Set(language);
         ConfigurationSaveScheduler.Request();
+    }
+
+    internal void RefreshLocalizedOptions()
+    {
+        domesticCookiePlatforms = null;
+        overseasCookiePlatforms = null;
+        OnPropertyChanged(nameof(TimeUnitOptions));
+        OnPropertyChanged(nameof(SegmentUnitOptions));
+        OnPropertyChanged(nameof(StreamQualityOptions));
+        OnPropertyChanged(nameof(DataRetentionUnitOptions));
+        OnPropertyChanged(nameof(DomesticCookiePlatforms));
+        OnPropertyChanged(nameof(OverseasCookiePlatforms));
+        OnPropertyChanged(nameof(ChinaCookiePlatformsText));
+        OnPropertyChanged(nameof(OverseaCookiePlatformsText));
+        OnPropertyChanged(nameof(DirectStreamPlatformsText));
     }
 
     [ObservableProperty]
@@ -751,17 +768,17 @@ public partial class SettingsViewModel : ReactiveObject
             });
             if (result.Deferred > 0)
             {
-                Toast.Warning("部分转码任务尚未停止，将保留恢复记录并稍后重试");
+                Toast.Warning("TranscodeStopPending".Tr());
             }
             else if (result.Cancelled > 0)
             {
-                Toast.Information("已停止未完成的转码任务，已完成的视频不会删除");
+                Toast.Information("TranscodeStopCompleted".Tr());
             }
         }
         catch (Exception e)
         {
             AppSessionLogger.WriteException(e);
-            Toast.Warning("停止转码任务时发生错误，恢复记录已保留");
+            Toast.Warning("TranscodeStopFailed".Tr());
         }
     }
 
@@ -836,7 +853,7 @@ public partial class SettingsViewModel : ReactiveObject
     [NotifyPropertyChangedFor(nameof(SegmentTimeValueLabel))]
     private int segmentTimeUnitIndex = GetInitialSegmentTimeUnitIndex();
 
-    public string SegmentTimeValueLabel => SegmentTimeUnitHelper.IsSizeUnit(SegmentTimeUnitIndex) ? "分段大小" : "分段时长";
+    public string SegmentTimeValueLabel => SegmentTimeUnitHelper.IsSizeUnit(SegmentTimeUnitIndex) ? "SegmentSizeLabel".Tr() : "SegmentDurationLabel".Tr();
 
     partial void OnSegmentTimeUnitIndexChanged(int value)
     {
@@ -1033,7 +1050,7 @@ public partial class SettingsViewModel : ReactiveObject
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             AppSessionLogger.WriteException(e);
-            Toast.Warning($"无法打开保存目录：{e.Message}");
+            Toast.Warning("OpenSaveFolderFailed".Tr(e.Message));
         }
     }
 
@@ -1244,7 +1261,7 @@ public partial class SettingsViewModel : ReactiveObject
         string html = ResourcesProvider.GetString("pack://application:,,,/Emerde;component/Assets/GETCOOKIE_DOUYIN.html");
         string filePath = Path.GetFullPath(ConfigurationSpecialPath.GetPath("GETCOOKIE_DOUYIN.html", AppConfig.PackName));
 
-        File.WriteAllText(filePath, html);
+        AtomicFile.WriteAllText(filePath, html);
 
         // TODO: Implement for other platforms
         await Launcher.LaunchUriAsync(new Uri($"file://{filePath}"));
@@ -1300,7 +1317,7 @@ public partial class SettingsViewModel : ReactiveObject
         string html = ResourcesProvider.GetString("pack://application:,,,/Emerde;component/Assets/GETCOOKIE_TIKTOK.html");
         string filePath = Path.GetFullPath(ConfigurationSpecialPath.GetPath("GETCOOKIE_TIKTOK.html", AppConfig.PackName));
 
-        File.WriteAllText(filePath, html);
+        AtomicFile.WriteAllText(filePath, html);
 
         // TODO: Implement for other platforms
         await Launcher.LaunchUriAsync(new Uri($"file://{filePath}"));
@@ -1331,11 +1348,11 @@ public partial class SettingsViewModel : ReactiveObject
     {
         ContentDialog dialog = new()
         {
-            Title = "导出运行日志",
-            Content = "选择要导出的运行日志范围。",
-            CloseButtonText = "取消",
-            SecondaryButtonText = "导出当天",
-            PrimaryButtonText = "导出全部",
+            Title = "ExportLogsTitle".Tr(),
+            Content = "ExportLogsPrompt".Tr(),
+            CloseButtonText = "ButtonOfCancel".Tr(),
+            SecondaryButtonText = "ExportToday".Tr(),
+            PrimaryButtonText = "ExportAll".Tr(),
         };
 
         using DialogBlurScope blurScope = DialogBlurScope.ForDialog(OwnerWindow, dialog);
@@ -1356,7 +1373,7 @@ public partial class SettingsViewModel : ReactiveObject
         {
             IsFolderPicker = true,
             EnsurePathExists = true,
-            Title = "选择日志压缩包保存位置",
+            Title = "ChooseLogArchivePath".Tr(),
         };
 
         if (dialog.ShowDialog() != CommonFileDialogResult.Ok)
@@ -1371,12 +1388,12 @@ public partial class SettingsViewModel : ReactiveObject
                 ? LogExporter.ExportToday(targetDirectory)
                 : LogExporter.ExportAll(targetDirectory));
             AppSessionLogger.Write($"logs exported to {exportPath}");
-            Toast.Success($"日志已导出：{exportPath}");
+            Toast.Success("LogsExported".Tr(exportPath));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             AppSessionLogger.WriteException(e);
-            Toast.Error($"日志导出失败：{e.Message}");
+            Toast.Error("LogExportFailed".Tr(e.Message));
         }
     }
 
@@ -1405,7 +1422,7 @@ public partial class SettingsViewModel : ReactiveObject
             DefaultExtension = "yaml",
             DefaultFileName = $"config-{DateTime.Now:yyyyMMdd_HHmmss}.yaml",
             InitialDirectory = AppPaths.ActiveConfigDirectory,
-            Title = "导出配置",
+            Title = "ExportConfigTitle".Tr(),
         };
 
         dialog.Filters.Add(new CommonFileDialogFilter("YAML", "*.yaml;*.yml"));
@@ -1419,12 +1436,12 @@ public partial class SettingsViewModel : ReactiveObject
         {
             string exportPath = ConfigFileManager.Export(dialog.FileName);
             AppSessionLogger.Write($"config exported to {exportPath}");
-            Toast.Success("配置已导出");
+            Toast.Success("ConfigExported".Tr());
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             AppSessionLogger.WriteException(e);
-            Toast.Error($"配置导出失败：{e.Message}");
+            Toast.Error("ConfigExportFailed".Tr(e.Message));
         }
     }
 
@@ -1449,7 +1466,7 @@ public partial class SettingsViewModel : ReactiveObject
 
         ConfigRestoreWindow dialog = new(content, OwnerWindow)
         {
-            Title = "恢复配置",
+            Title = "RestoreConfigTitle".Tr(),
             PrimaryButtonText = GetConfigRestorePrimaryButtonText(content.SelectedOption),
         };
 
@@ -1490,13 +1507,13 @@ public partial class SettingsViewModel : ReactiveObject
         {
             string backupPath = ConfigFileManager.RestoreBackup(selected.FilePath);
             AppSessionLogger.Write($"config restored from {selected.FilePath}; backup={backupPath}");
-            Toast.Success("配置已恢复");
-            await RestartIfConfirmedAsync(BuildConfigChangedRestartMessage("配置已恢复", backupPath));
+            Toast.Success("ConfigRestored".Tr());
+            await RestartIfConfirmedAsync(BuildConfigChangedRestartMessage("ConfigRestored".Tr(), backupPath));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
         {
             AppSessionLogger.WriteException(e);
-            Toast.Error($"配置恢复失败：{e.Message}");
+            Toast.Error("ConfigRestoreFailed".Tr(e.Message));
         }
     }
 
@@ -1504,9 +1521,9 @@ public partial class SettingsViewModel : ReactiveObject
     {
         return option?.Action switch
         {
-            ConfigRestoreOptionAction.Reset => "重置",
-            ConfigRestoreOptionAction.Import => "导入",
-            _ => "恢复",
+            ConfigRestoreOptionAction.Reset => "Reset".Tr(),
+            ConfigRestoreOptionAction.Import => "Import".Tr(),
+            _ => "Restore".Tr(),
         };
     }
 
@@ -1524,20 +1541,20 @@ public partial class SettingsViewModel : ReactiveObject
             if (content.SelectOptionByFilePath(point.FilePath))
             {
                 AppSessionLogger.Write($"config import reused existing restore point from {importPath}; stored={point.FilePath}");
-                Toast.Information("相同配置已存在，已选中已有备份点");
+                Toast.Information("ConfigBackupAlreadyExists".Tr());
                 return true;
             }
 
             ConfigRestoreOption option = BuildConfigRestoreOption(point);
             content.AddOptionAndSelect(option);
             AppSessionLogger.Write($"config staged for restore import from {importPath}; stored={point.FilePath}");
-            Toast.Success("配置已加入恢复列表，点击“导入”后生效");
+            Toast.Success("ConfigAddedToRestoreList".Tr());
             return true;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
         {
             AppSessionLogger.WriteException(e);
-            Toast.Error($"配置导入失败：{e.Message}");
+            Toast.Error("ConfigImportFailed".Tr(e.Message));
             return false;
         }
     }
@@ -1548,7 +1565,7 @@ public partial class SettingsViewModel : ReactiveObject
         {
             EnsureFileExists = true,
             IsFolderPicker = false,
-            Title = "导入配置",
+            Title = "ImportConfigTitle".Tr(),
         };
 
         dialog.Filters.Add(new CommonFileDialogFilter("YAML", "*.yaml;*.yml"));
@@ -1565,18 +1582,18 @@ public partial class SettingsViewModel : ReactiveObject
             AppSessionLogger.Write($"config imported from {selected.FilePath}; backup={backupPath}");
             if (unavailableSecrets.Length == 0)
             {
-                Toast.Success("配置已导入");
+                Toast.Success("ConfigImported".Tr());
             }
             else
             {
-                Toast.Warning($"配置已导入，但以下凭据属于其他 Windows 账户，需要重新填写：{string.Join("、", unavailableSecrets)}");
+                Toast.Warning("ConfigImportedUnavailableSecrets".Tr(string.Join("、", unavailableSecrets)));
             }
-            await RestartIfConfirmedAsync(BuildConfigChangedRestartMessage("配置已导入", backupPath));
+            await RestartIfConfirmedAsync(BuildConfigChangedRestartMessage("ConfigImported".Tr(), backupPath));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
         {
             AppSessionLogger.WriteException(e);
-            Toast.Error($"配置导入失败：{e.Message}");
+            Toast.Error("ConfigImportFailed".Tr(e.Message));
         }
     }
 
@@ -1591,7 +1608,7 @@ public partial class SettingsViewModel : ReactiveObject
         using (DialogBlurScope blurScope = DialogBlurScope.ForMessageBox(OwnerWindow))
         {
             if (confirmBeforeReset &&
-                MessageBox.Question("确定要重置配置文件吗？当前配置会先备份，重启后生效。") != System.Windows.MessageBoxResult.Yes)
+                MessageBox.Question("ConfirmResetConfig".Tr()) != System.Windows.MessageBoxResult.Yes)
             {
                 return;
             }
@@ -1600,15 +1617,15 @@ public partial class SettingsViewModel : ReactiveObject
         try
         {
             string[] backupPaths = ConfigFileManager.Reset();
-            string backupText = backupPaths.Length == 0 ? "没有找到需要备份的配置文件。" : string.Join(Environment.NewLine, backupPaths);
+            string backupText = backupPaths.Length == 0 ? "NoConfigFilesToBackup".Tr() : string.Join(Environment.NewLine, backupPaths);
             AppSessionLogger.Write($"config reset; backups={string.Join("|", backupPaths)}");
-            Toast.Success("配置已重置");
-            await RestartIfConfirmedAsync($"配置已重置，重启后生效。配置备份：{Environment.NewLine}{backupText}{Environment.NewLine}{Environment.NewLine}是否立即重启软件？");
+            Toast.Success("ConfigReset".Tr());
+            await RestartIfConfirmedAsync("ConfigResetRestartPrompt".Tr(backupText));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             AppSessionLogger.WriteException(e);
-            Toast.Error($"配置重置失败：{e.Message}");
+            Toast.Error("ConfigResetFailed".Tr(e.Message));
         }
     }
 
@@ -1619,11 +1636,11 @@ public partial class SettingsViewModel : ReactiveObject
             .ToList();
 
         options.Add(new ConfigRestoreOption(
-            "默认配置（软件无配置）",
-            "删除当前配置，重启后由软件重新生成默认配置",
+            "DefaultConfigTitle".Tr(),
+            "DefaultConfigDescription".Tr(),
             AppPaths.ActiveConfigDirectory,
             string.Empty,
-            "重置",
+            "Reset".Tr(),
             ConfigRestoreOptionAction.Reset));
 
         return options;
@@ -1637,16 +1654,16 @@ public partial class SettingsViewModel : ReactiveObject
             point.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
             point.FilePath,
             point.FilePath,
-            imported ? "用户导入" : "配置备份",
+            imported ? "UserImport".Tr() : "ConfigBackup".Tr(),
             imported ? ConfigRestoreOptionAction.Import : ConfigRestoreOptionAction.Restore);
     }
 
     private static string BuildConfigChangedRestartMessage(string actionText, string backupPath)
     {
         string backupText = string.IsNullOrWhiteSpace(backupPath)
-            ? "当前配置只有首次启动确认等无意义内容，本次没有生成备份。"
-            : $"当前配置备份：{Environment.NewLine}{backupPath}";
-        return $"{actionText}，重启后生效。{backupText}{Environment.NewLine}{Environment.NewLine}是否立即重启软件？";
+            ? "NoMeaningfulConfigBackup".Tr()
+            : "CurrentConfigBackup".Tr(backupPath);
+        return "ConfigChangedRestartPrompt".Tr(actionText, backupText);
     }
 
     private static bool IsRoutineScheduleDayEnabled(DayOfWeek day)
