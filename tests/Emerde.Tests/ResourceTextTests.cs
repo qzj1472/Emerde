@@ -1,11 +1,43 @@
 using Emerde.Properties;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace Emerde.Tests;
 
 public sealed class ResourceTextTests
 {
+    [Fact]
+    public void LocalizedResourceFiles_HaveIdenticalNonEmptyKeySets()
+    {
+        string resourceDirectory = FindRepositoryDirectory("src", "Emerde", "Properties");
+        string[] fileNames =
+        [
+            "Resources.resx",
+            "Resources.zh-Hans.resx",
+            "Resources.zh-Hant.resx",
+            "Resources.ja.resx",
+        ];
+        Dictionary<string, HashSet<string>> resourceKeys = fileNames.ToDictionary(
+            fileName => fileName,
+            fileName => XDocument.Load(Path.Combine(resourceDirectory, fileName))
+                .Descendants("data")
+                .Where(element => !string.IsNullOrWhiteSpace(element.Element("value")?.Value))
+                .Select(element => (string?)element.Attribute("name"))
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => name!)
+                .ToHashSet(StringComparer.Ordinal),
+            StringComparer.Ordinal);
+        HashSet<string> expected = resourceKeys["Resources.resx"];
+
+        foreach ((string fileName, HashSet<string> keys) in resourceKeys)
+        {
+            Assert.Empty(expected.Except(keys));
+            Assert.Empty(keys.Except(expected));
+            Assert.Equal(keys.Count, XDocument.Load(Path.Combine(resourceDirectory, fileName)).Descendants("data").Count());
+        }
+    }
+
     [Fact]
     public void Translation_FallsBackToEmbeddedResourceForNewKeys()
     {
@@ -180,6 +212,53 @@ public sealed class ResourceTextTests
         foreach (string key in keys)
         {
             Assert.False(string.IsNullOrWhiteSpace(Resources.ResourceManager.GetString(key, culture)), key);
+        }
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("zh-Hans")]
+    [InlineData("zh-Hant")]
+    [InlineData("ja")]
+    public void SharedStatusAndUnitKeys_ArePresent(string cultureName)
+    {
+        CultureInfo? culture = string.IsNullOrEmpty(cultureName) ? null : new CultureInfo(cultureName);
+        string[] keys =
+        [
+            "Unsupported", "SkipValidation", "FollowGlobalSettings", "VolumeFormat",
+            "PreviewVolumeToolTipFormat", "ExitFullScreenHint", "SelectedRoomsFormat", "AllPlatforms",
+            "RecordingEngineActive", "RecordingEngineStarting", "WaitingForData", "LiveStream",
+            "AutoShutdownComputerCountdown", "AutoShutdownApplicationCountdown", "Milliseconds",
+            "Days", "Weeks", "Months", "Years",
+            "HomePage", "Extensions", "Monitor", "NavigationHomeToolTip", "NavigationVideosToolTip",
+            "NavigationSettingsToolTip", "NavigationExtensionsToolTip", "NavigationAboutToolTip",
+            "ExitApplicationToolTip", "AddRoomToolTip", "ToggleAllMonitorToolTip", "ToggleAllRecordingToolTip",
+            "CardSize", "SizeLarge", "SizeMedium", "SizeSmall", "Sort", "SortByName", "SortByAddedOrder",
+            "PlatformFilter", "LoadPlatforms", "RoomInformation", "LiveTitle", "ResolutionLabel", "BitrateLabel",
+            "RoomAddress", "RefreshCurrentRoomToolTip", "CopyRoomAddressToolTip", "CopyLiveStreamToolTip",
+            "PreviewCurrentRoomToolTip", "OpenCurrentRoomToolTip", "ToggleCurrentMonitorToolTip",
+            "ToggleCurrentRecordingToolTip", "OpenCurrentRoomSettingsToolTip",
+        ];
+
+        foreach (string key in keys)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(Resources.ResourceManager.GetString(key, culture)), key);
+        }
+    }
+
+    [Fact]
+    public void MainWindowPrimaryWorkflow_DoesNotContainHardcodedChineseLabels()
+    {
+        string source = File.ReadAllText(Path.Combine(FindRepositoryDirectory("src", "Emerde", "Views"), "MainWindow.xaml"));
+        string[] retiredLabels =
+        [
+            "Text=\"首页\"", "Text=\"视频列表\"", "Text=\"直播间信息\"", "Text=\"房间地址\"",
+            "Text=\"直播流\"", "Text=\"操作\"", "Header=\"卡片大小\"", "Header=\"平台筛选\"",
+        ];
+
+        foreach (string label in retiredLabels)
+        {
+            Assert.DoesNotContain(label, source, StringComparison.Ordinal);
         }
     }
 
