@@ -287,7 +287,7 @@
                                 IsHitTestVisible="False"
                                 Opacity="0"
                                 Style="{StaticResource PreviewControlButtonStyle}"
-                                ToolTip="关闭预览 (Esc)"
+                                ToolTip="{I18N ClosePreviewShortcutHint}"
                                 MouseEnter="PreviewControls_OnMouseEnter"
                                 MouseLeave="PreviewControls_OnMouseLeave">
                             <Button.Resources>
@@ -345,7 +345,7 @@
                                             Style="{StaticResource PreviewControlButtonStyle}"
                                             Command="{Binding RefreshPreviewCommand}"
                                             IsEnabled="{Binding IsPreviewing}"
-                                            ToolTip="刷新预览 (G)">
+                                            ToolTip="{I18N RefreshPreviewShortcutHint}">
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                                      FontSize="11"
                                                      Glyph="{x:Static ui:FontSymbols.Sync}" />

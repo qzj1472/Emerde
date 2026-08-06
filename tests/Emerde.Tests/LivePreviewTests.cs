@@ -280,15 +280,16 @@ public sealed class LivePreviewTests
     public void RoomToggleToolTips_MatchAssignedModifierCombinations()
     {
         string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        System.Globalization.CultureInfo culture = System.Globalization.CultureInfo.GetCultureInfo("zh-Hans");
 
-        Assert.Contains("当前直播间监控（Shift+M）", xaml, StringComparison.Ordinal);
-        Assert.Contains("当前直播间录制（Shift+R）", xaml, StringComparison.Ordinal);
-        Assert.Contains("全部监控（Ctrl+Shift+M）", xaml, StringComparison.Ordinal);
-        Assert.Contains("全部录制（Ctrl+Shift+R）", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("当前直播间监控（M）", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("当前直播间录制（R）", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("全部监控（Ctrl+M）", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("全部录制（Ctrl+R）", xaml, StringComparison.Ordinal);
+        Assert.Contains("ToolTip=\"{I18N ToggleCurrentMonitorToolTip}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ToolTip=\"{I18N ToggleCurrentRecordingToolTip}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ToolTip=\"{I18N ToggleAllMonitorToolTip}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ToolTip=\"{I18N ToggleAllRecordingToolTip}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Shift+M", Emerde.Properties.Resources.ResourceManager.GetString("ToggleCurrentMonitorToolTip", culture));
+        Assert.Contains("Shift+R", Emerde.Properties.Resources.ResourceManager.GetString("ToggleCurrentRecordingToolTip", culture));
+        Assert.Contains("Ctrl+Shift+M", Emerde.Properties.Resources.ResourceManager.GetString("ToggleAllMonitorToolTip", culture));
+        Assert.Contains("Ctrl+Shift+R", Emerde.Properties.Resources.ResourceManager.GetString("ToggleAllRecordingToolTip", culture));
     }
 
     [Theory]
@@ -342,17 +343,6 @@ public sealed class LivePreviewTests
         {
             File.Delete(path);
         }
-    }
-
-    [Fact]
-    public void HasPointerMoved_RequiresActualPointerMovement()
-    {
-        System.Windows.Point position = new(120, 80);
-
-        Assert.True(LivePreviewPanel.HasPointerMoved(null, position));
-        Assert.False(LivePreviewPanel.HasPointerMoved(position, position));
-        Assert.False(LivePreviewPanel.HasPointerMoved(position, new System.Windows.Point(120.5, 80.5)));
-        Assert.True(LivePreviewPanel.HasPointerMoved(position, new System.Windows.Point(121, 80)));
     }
 
     [Theory]

@@ -10,11 +10,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         typeof(LivePreviewPanel),
         new System.Windows.PropertyMetadata(false, OnIsEmbeddedModeChanged));
 
-    private readonly System.Windows.Threading.DispatcherTimer pointerTrackingTimer = new()
-    {
-        Interval = TimeSpan.FromMilliseconds(120),
-    };
-
     private readonly System.Windows.Threading.DispatcherTimer controlsIdleTimer = new()
     {
         Interval = TimeSpan.FromSeconds(2),
@@ -43,7 +38,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     private int pendingVideoLayoutRefreshes;
     private bool isVideoLayoutRefreshRunning;
     private CancellationTokenSource? videoLayoutRefreshCancellation;
-    private System.Windows.Point? lastTrackedPointerPosition;
     private System.Windows.Window? attachedWindow;
     private ViewModels.MainViewModel? attachedViewModel;
     private bool isVideoPresentationSuspended;
@@ -84,7 +78,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             ApplyFullScreenState();
             if (value && IsLoaded && attachedViewModel is { IsPreviewing: true })
             {
-                ShowTopFeedback("按 V 或 Esc 退出全屏");
+                ShowTopFeedback("ExitFullScreenHint".Tr());
             }
         }
     }
@@ -101,7 +95,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             AttachMediaPlayerEvents();
             UpdateVideoSurfaceSize();
             AttachWindowEvents();
-            pointerTrackingTimer.Start();
             HidePreviewControlsImmediately();
         };
         SizeChanged += (_, _) =>
@@ -116,11 +109,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             {
                 AttachMediaPlayerEvents();
             }
-        };
-        pointerTrackingTimer.Tick += (_, _) =>
-        {
-            UpdatePreviewControlsPlacement();
-            TrackPreviewPointer();
         };
         controlsIdleTimer.Tick += (_, _) => HidePreviewControls();
         topFeedbackTimer.Tick += (_, _) => HideFeedback(TopFeedback, topFeedbackTimer);
@@ -140,7 +128,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         };
         Unloaded += (_, _) =>
         {
-            pointerTrackingTimer.Stop();
             controlsIdleTimer.Stop();
             topFeedbackTimer.Stop();
             bottomFeedbackTimer.Stop();
@@ -148,7 +135,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             previewRoomTransitionTimeoutTimer.Stop();
             suppressNextPreviewPointerUp = false;
             CancelVideoLayoutRefresh();
-            lastTrackedPointerPosition = null;
             HidePreviewControlsImmediately();
             DetachMediaPlayerEvents();
             DetachWindowEvents();
@@ -370,7 +356,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         bool muted = normalizedVolume == 0;
         BottomVolumeFeedbackIcon.Visibility = muted ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
         BottomMutedFeedbackIcon.Visibility = muted ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
-        BottomFeedbackText.Text = $"音量 {normalizedVolume}%";
+        BottomFeedbackText.Text = "VolumeFormat".Tr(normalizedVolume);
         ShowFeedback(BottomFeedback, bottomFeedbackTimer);
     }
 
@@ -840,8 +826,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
 
     private void PreviewViewport_OnMouseActivity(object sender, System.Windows.Input.MouseEventArgs e)
     {
-        System.Windows.FrameworkElement pointerScope = GetPreviewPointerScope();
-        lastTrackedPointerPosition = System.Windows.Input.Mouse.GetPosition(pointerScope);
         ShowPreviewControls();
     }
 
@@ -1040,33 +1024,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         UpdateWindowSizeIcon();
     }
 
-    private void TrackPreviewPointer()
-    {
-        if (!CanUsePreviewControls())
-        {
-            lastTrackedPointerPosition = null;
-            HidePreviewControlsImmediately();
-            return;
-        }
-
-        System.Windows.FrameworkElement pointerScope = GetPreviewPointerScope();
-        System.Windows.Point pointerPosition = System.Windows.Input.Mouse.GetPosition(pointerScope);
-        if (!IsPointerInsideElement(pointerScope, pointerPosition))
-        {
-            lastTrackedPointerPosition = null;
-            RestorePreviewCursor();
-            return;
-        }
-
-        if (!HasPointerMoved(lastTrackedPointerPosition, pointerPosition))
-        {
-            return;
-        }
-
-        lastTrackedPointerPosition = pointerPosition;
-        ShowPreviewControls();
-    }
-
     private System.Windows.FrameworkElement GetPreviewPointerScope()
     {
         return isFullScreen ? PanelChrome : VideoSurface;
@@ -1136,13 +1093,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         }
 
         element.SetValue(System.Windows.FrameworkElement.CursorProperty, localValue);
-    }
-
-    internal static bool HasPointerMoved(System.Windows.Point? previousPosition, System.Windows.Point currentPosition)
-    {
-        return previousPosition == null
-            || Math.Abs(previousPosition.Value.X - currentPosition.X) >= 1d
-            || Math.Abs(previousPosition.Value.Y - currentPosition.Y) >= 1d;
     }
 
     private static bool IsPointerInsideElement(System.Windows.FrameworkElement element, System.Windows.Point position)
@@ -1221,7 +1171,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     private void ApplyChromeState()
     {
         bool compact = isFullScreen;
-        lastTrackedPointerPosition = null;
         RestorePreviewCursor();
 
         if (compact)
