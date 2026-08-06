@@ -54,11 +54,17 @@ internal static class VideoRecordingMetadataStore
         VideoRecordingMetadata completed = WithFileName(metadata, Path.GetFileName(mediaPath));
         if (WriteAttachedMetadata(mediaPath, completed))
         {
+            RecordingCleanupService.TrackFile(mediaPath, completed);
             return true;
         }
 
         string directory = Path.GetDirectoryName(mediaPath) ?? Environment.CurrentDirectory;
-        return WriteSidecar(directory, Path.GetFileNameWithoutExtension(mediaPath), completed) != null;
+        bool written = WriteSidecar(directory, Path.GetFileNameWithoutExtension(mediaPath), completed) != null;
+        if (written)
+        {
+            RecordingCleanupService.TrackFile(mediaPath, completed);
+        }
+        return written;
     }
 
     public static bool FinalizeSidecarForMedia(IEnumerable<string> mediaPaths, string? metadataPath)
@@ -84,6 +90,11 @@ internal static class VideoRecordingMetadataStore
             || paths.Any(path => !WriteAttachedMetadata(path, WithFileName(metadata!, Path.GetFileName(path)))))
         {
             return false;
+        }
+
+        foreach (string path in paths)
+        {
+            RecordingCleanupService.TrackFile(path, WithFileName(metadata!, Path.GetFileName(path)));
         }
 
         try
@@ -363,6 +374,17 @@ internal static class VideoRecordingMetadataStore
         }
 
         return metadata;
+    }
+
+    public static bool HasEmerdeTags(IReadOnlyDictionary<string, string> tags)
+    {
+        bool Has(string key)
+        {
+            return tags.TryGetValue(key, out string? value) && !string.IsNullOrWhiteSpace(value);
+        }
+
+        return Has("emerde_room_url")
+            || Has("emerde_recorded_at") && (Has("emerde_platform") || Has("emerde_nick_name"));
     }
 
     public static void TryDeleteSidecarIfNoSourceVideosRemain(string sourceFileName, bool sendToRecycleBin = false)

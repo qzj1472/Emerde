@@ -28,7 +28,8 @@ internal sealed record FfmpegMediaProbeResult(
     double DurationSeconds,
     long Bitrate,
     string StreamSignature,
-    VideoRecordingMetadata Metadata);
+    VideoRecordingMetadata Metadata,
+    bool HasEmerdeMetadata);
 
 internal sealed record FfmpegMediaRunResult(
     int ExitCode,
@@ -1419,7 +1420,7 @@ internal static unsafe partial class FfmpegMediaEngine
         out string error,
         CancellationToken token = default)
     {
-        result = new FfmpegMediaProbeResult(false, false, 0, 0, 0, 0, 0, 0, 0, 0, string.Empty, new VideoRecordingMetadata());
+        result = new FfmpegMediaProbeResult(false, false, 0, 0, 0, 0, 0, 0, 0, 0, string.Empty, new VideoRecordingMetadata(), false);
         error = string.Empty;
         AVFormatContext* inputContext = null;
         AVDictionary* options = null;
@@ -1484,9 +1485,8 @@ internal static unsafe partial class FfmpegMediaEngine
             double durationSeconds = inputContext->duration > 0
                 ? inputContext->duration / (double)ffmpeg.AV_TIME_BASE
                 : 0;
-            VideoRecordingMetadata metadata = VideoRecordingMetadataStore.FromTags(
-                ReadMetadataTags(inputContext->metadata),
-                Path.GetFileName(sourceFileName));
+            IReadOnlyDictionary<string, string> metadataTags = ReadMetadataTags(inputContext->metadata);
+            VideoRecordingMetadata metadata = VideoRecordingMetadataStore.FromTags(metadataTags, Path.GetFileName(sourceFileName));
             result = new FfmpegMediaProbeResult(
                 hasAudio,
                 hasVideo,
@@ -1499,7 +1499,8 @@ internal static unsafe partial class FfmpegMediaEngine
                 durationSeconds,
                 inputContext->bit_rate,
                 string.Join(";", streamSignatures.Order(StringComparer.Ordinal)),
-                metadata);
+                metadata,
+                VideoRecordingMetadataStore.HasEmerdeTags(metadataTags));
             if (!hasAudio && !hasVideo)
             {
                 error = "input contains no supported audio or video streams";

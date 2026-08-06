@@ -72,6 +72,7 @@ internal static class MediaFileCatalog
         configuredFolders.AddRange((Configurations.Rooms.Get() ?? [])
             .Where(room => !room.IsFollowGlobalSettings && !string.IsNullOrWhiteSpace(room.SaveFolder))
             .Select(room => room.SaveFolder));
+        configuredFolders.AddRange(SaveFolderHelper.GetFallbackSaveFolders().Where(Directory.Exists));
 
         HashSet<string> folders = new(StringComparer.OrdinalIgnoreCase);
         foreach (string? configuredFolder in configuredFolders)
