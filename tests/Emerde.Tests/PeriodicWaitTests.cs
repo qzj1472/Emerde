@@ -59,6 +59,37 @@ public sealed class PeriodicWaitTests
     }
 
     [Fact]
+    public async Task Wake_ReleasesActiveWaitWithoutChangingPeriod()
+    {
+        PeriodicWait wait = new(TimeSpan.FromSeconds(5));
+        Assert.True(await wait.WaitForNextTickAsync(CancellationToken.None));
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        ValueTask<bool> pendingTick = wait.WaitForNextTickAsync(CancellationToken.None);
+
+        await Task.Delay(50);
+        wait.Wake();
+        bool result = await pendingTick;
+
+        Assert.True(result);
+        Assert.Equal(TimeSpan.FromSeconds(5), wait.Period);
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public async Task Wake_BeforeNextWaitIsPreserved()
+    {
+        PeriodicWait wait = new(TimeSpan.FromSeconds(5));
+        Assert.True(await wait.WaitForNextTickAsync(CancellationToken.None));
+
+        wait.Wake();
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        bool result = await wait.WaitForNextTickAsync(CancellationToken.None);
+
+        Assert.True(result);
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
     public async Task Dispose_ReleasesActiveWaitAndRejectsFurtherUse()
     {
         PeriodicWait wait = new(TimeSpan.FromSeconds(5));

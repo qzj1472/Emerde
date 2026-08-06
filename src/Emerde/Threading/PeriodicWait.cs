@@ -9,6 +9,7 @@ public sealed class PeriodicWait : IDisposable
     private TimeSpan period;
     private int initialized;
     private int disposed;
+    private int wakeRequested;
 
     public TimeSpan InitialDelay { get; set; }
 
@@ -52,6 +53,7 @@ public sealed class PeriodicWait : IDisposable
         ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
         if (Interlocked.Exchange(ref initialized, 1) == 0)
         {
+            Interlocked.Exchange(ref wakeRequested, 0);
             return InitialDelay <= TimeSpan.Zero
                 ? !cancellationToken.IsCancellationRequested
                 : await DelayAsync(InitialDelay, cancellationToken);
@@ -65,6 +67,10 @@ public sealed class PeriodicWait : IDisposable
             lock (periodLock)
             {
                 ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
+                if (Interlocked.Exchange(ref wakeRequested, 0) != 0)
+                {
+                    return !cancellationToken.IsCancellationRequested;
+                }
                 currentPeriod = period;
                 changeTask = periodChanged.Task;
             }
@@ -81,9 +87,27 @@ public sealed class PeriodicWait : IDisposable
             {
                 return !cancellationToken.IsCancellationRequested;
             }
+
+            if (Interlocked.Exchange(ref wakeRequested, 0) != 0)
+            {
+                return !cancellationToken.IsCancellationRequested;
+            }
         }
 
         return false;
+    }
+
+    public void Wake()
+    {
+        TaskCompletionSource previous;
+        lock (periodLock)
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
+            Interlocked.Exchange(ref wakeRequested, 1);
+            previous = periodChanged;
+            periodChanged = CreateSignal();
+        }
+        previous.TrySetResult();
     }
 
     public void Dispose()
