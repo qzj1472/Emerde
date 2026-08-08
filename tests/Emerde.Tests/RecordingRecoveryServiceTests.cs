@@ -7,6 +7,86 @@ namespace Emerde.Tests;
 [Collection("MediaOperationRegistry")]
 public sealed class RecordingRecoveryServiceTests
 {
+    [Theory]
+    [InlineData("output_track_timeline_mismatch:audio=1.000,video=4.000", true)]
+    [InlineData("duration_mismatch:expected=10.000,actual=1.000", true)]
+    [InlineData("native_exit_code:1", false)]
+    [InlineData(null, false)]
+    public void IsTerminalRecoveryFailure_OnlyBlocksUnrecoverableValidationFailures(
+        string? failureReason,
+        bool expected)
+    {
+        Assert.Equal(expected, RecordingRecoveryService.IsTerminalRecoveryFailure(failureReason));
+    }
+
+    [Fact]
+    public void SelectFailureReason_PreservesTerminalFailure()
+    {
+        string terminal = "duration_mismatch:expected=10.000,actual=1.000";
+
+        Assert.Equal(terminal, RecordingRecoveryService.SelectFailureReason("native_exit_code:1", terminal));
+        Assert.Equal(terminal, RecordingRecoveryService.SelectFailureReason(terminal, "native_exit_code:1"));
+    }
+
+    [Fact]
+    public void CreateSourceStateFingerprint_ChangesWhenSourceChanges()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"emerde-recovery-fingerprint-{Guid.NewGuid():N}.ts");
+        File.WriteAllBytes(path, [1]);
+
+        try
+        {
+            string before = RecordingRecoveryService.CreateSourceStateFingerprint([path]);
+            File.WriteAllBytes(path, [1, 2]);
+            string after = RecordingRecoveryService.CreateSourceStateFingerprint([path]);
+
+            Assert.NotEqual(before, after);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public async Task ProcessAsync_AdoptsReservedCompletedSourceAfterRestart()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-recovery-reserved-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string markerPath = Path.Combine(directory, "pending.json");
+        string sourcePath = Path.Combine(directory, "session_000.ts");
+        string targetPath = Path.Combine(directory, "session.mkv");
+        File.WriteAllBytes(sourcePath, [1]);
+        File.WriteAllBytes(targetPath, [1]);
+        _ = VideoRecordingMetadataStore.WriteSidecar(
+            directory,
+            "session_000",
+            new VideoRecordingMetadata { RoomUrl = "https://live.example/room" });
+        JsonObject marker = new()
+        {
+            ["SourcePattern"] = sourcePath,
+            ["TargetFormat"] = ".mkv",
+            ["RemoveSource"] = false,
+            ["MergeSessionParts"] = false,
+            ["ReservedCompletedSources"] = new JsonObject { [sourcePath] = targetPath },
+        };
+        File.WriteAllText(markerPath, marker.ToJsonString());
+
+        try
+        {
+            await RecordingRecoveryService.ProcessAsync(markerPath);
+
+            Assert.False(File.Exists(markerPath));
+            Assert.True(File.Exists(sourcePath));
+            Assert.True(File.Exists(targetPath));
+            Assert.False(File.Exists(Path.Combine(directory, "session_2.mkv")));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Fact]
     public void CreateMediaFinalizedEvents_UsesFinalFileAndStableIdentity()
     {
