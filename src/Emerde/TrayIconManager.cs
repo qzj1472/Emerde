@@ -228,14 +228,14 @@ internal sealed class TrayIconManager : IDisposable
 
         if (!dispatcher.CheckAccess())
         {
-            _ = dispatcher.BeginInvoke(ApplyUserPreferenceChange);
+            _ = dispatcher.BeginInvoke(() => ApplyUserPreferenceChange(e));
             return;
         }
 
-        ApplyUserPreferenceChange();
+        ApplyUserPreferenceChange(e);
     }
 
-    private void ApplyUserPreferenceChange()
+    private void ApplyUserPreferenceChange(UserPreferenceChangedEventArgs? e = null)
     {
         if (isDisposed)
         {
@@ -245,6 +245,11 @@ internal sealed class TrayIconManager : IDisposable
         if (string.IsNullOrWhiteSpace(Configurations.Theme.Get()))
         {
             ThemeManager.Apply(ApplicationTheme.Unknown);
+            AppThemeBrushes.Apply();
+        }
+        else if (e?.Category == UserPreferenceCategory.Desktop)
+        {
+            AppThemeBrushes.Apply();
         }
         UpdateTrayIcon();
     }
