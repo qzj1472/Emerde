@@ -25,7 +25,7 @@ internal static class ShortcutService
             maintenanceExecutable,
             "--uninstall",
             "Uninstall Emerde",
-            binaryExecutable);
+            maintenanceExecutable);
 
         string desktopShortcut = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
@@ -55,7 +55,7 @@ internal static class ShortcutService
             maintenanceExecutable,
             "--uninstall",
             "Uninstall Emerde",
-            binaryExecutable);
+            maintenanceExecutable);
     }
 
     public static void Remove(string installRoot)
