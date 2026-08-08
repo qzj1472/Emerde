@@ -83,6 +83,32 @@ public sealed class GlobalMonitorTests
         Assert.Equal(expected, GlobalMonitor.IsConclusiveRoomCheck(resolvedLiveState, hasFreshStream));
     }
 
+    [Theory]
+    [InlineData("", "https://example.test/avatar.png", "https://example.test/avatar.png", StreamStatus.NotStreaming, StreamStatus.NotStreaming, true)]
+    [InlineData("avatar.cache", "https://example.test/old.png", "https://example.test/new.png", StreamStatus.NotStreaming, StreamStatus.NotStreaming, true)]
+    [InlineData("avatar.cache", "https://example.test/avatar.png", "https://example.test/avatar.png", StreamStatus.NotStreaming, StreamStatus.Streaming, true)]
+    [InlineData("avatar.cache", "https://example.test/avatar.png", "https://example.test/avatar.png", StreamStatus.Streaming, StreamStatus.NotStreaming, true)]
+    [InlineData("avatar.cache", "https://example.test/avatar.png", "https://example.test/avatar.png", StreamStatus.NotStreaming, StreamStatus.NotStreaming, false)]
+    [InlineData("avatar.cache", "https://example.test/avatar.png", "https://example.test/avatar.png", StreamStatus.Initialized, StreamStatus.NotStreaming, false)]
+    [InlineData("avatar.cache", "https://example.test/avatar.png", "", StreamStatus.NotStreaming, StreamStatus.Streaming, false)]
+    public void AvatarRefresh_UsesCacheUrlAndLiveStateBoundaries(
+        string avatarLocalPath,
+        string currentAvatarUrl,
+        string nextAvatarUrl,
+        StreamStatus previousStreamStatus,
+        StreamStatus nextStreamStatus,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            GlobalMonitor.ShouldRefreshAvatar(
+                avatarLocalPath,
+                currentAvatarUrl,
+                nextAvatarUrl,
+                previousStreamStatus,
+                nextStreamStatus));
+    }
+
     [Fact]
     public void StreamConnectionMetadata_PreservesWorkingStreamWhenLiveResultIsPartial()
     {

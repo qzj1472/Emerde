@@ -1000,25 +1000,6 @@ internal static class GlobalMonitor
                     fixedMetadataChanged = true;
                 }
             }
-            if (!string.IsNullOrWhiteSpace(spiderResult.AvatarThumbUrl))
-            {
-                bool updateAvatar = string.IsNullOrWhiteSpace(roomStatus.AvatarLocalPath) ||
-                    !string.Equals(roomStatus.AvatarThumbUrl, spiderResult.AvatarThumbUrl, StringComparison.Ordinal);
-                roomStatus.AvatarThumbUrl = spiderResult.AvatarThumbUrl;
-                if (!string.Equals(room.AvatarThumbUrl, spiderResult.AvatarThumbUrl, StringComparison.Ordinal))
-                {
-                    room.AvatarThumbUrl = spiderResult.AvatarThumbUrl;
-                    fixedMetadataChanged = true;
-                }
-                if (updateAvatar)
-                {
-                    roomStatus.AvatarLocalPath = await AvatarCache.UpdateAsync(room.RoomUrl, spiderResult.AvatarThumbUrl, token);
-                }
-            }
-            else if (string.IsNullOrWhiteSpace(roomStatus.AvatarLocalPath))
-            {
-                roomStatus.AvatarLocalPath = AvatarCache.GetCachedAvatarSource(room.RoomUrl);
-            }
             roomStatus.PlatformName = string.IsNullOrWhiteSpace(spiderResult.PlatformName)
                 ? Spider.GetPlatformName(room.RoomUrl)
                 : spiderResult.PlatformName;
@@ -1051,6 +1032,26 @@ internal static class GlobalMonitor
         bool deferOffline = ShouldDeferOffline(room, roomStatus, spiderResult.IsLiveStreaming, hasFreshStream);
         bool? resolvedLiveState = deferOffline ? null : spiderResult.IsLiveStreaming;
         StreamStatus nextStreamStatus = ResolveStreamStatus(roomStatus.StreamStatus, resolvedLiveState, hasFreshStream);
+        bool shouldRefreshAvatar = false;
+        if (!string.IsNullOrWhiteSpace(spiderResult.AvatarThumbUrl))
+        {
+            shouldRefreshAvatar = ShouldRefreshAvatar(
+                roomStatus.AvatarLocalPath,
+                roomStatus.AvatarThumbUrl,
+                spiderResult.AvatarThumbUrl,
+                prevStreamStatus,
+                nextStreamStatus);
+            roomStatus.AvatarThumbUrl = spiderResult.AvatarThumbUrl;
+            if (!string.Equals(room.AvatarThumbUrl, spiderResult.AvatarThumbUrl, StringComparison.Ordinal))
+            {
+                room.AvatarThumbUrl = spiderResult.AvatarThumbUrl;
+                ConfigurationSaveScheduler.Request();
+            }
+        }
+        else if (string.IsNullOrWhiteSpace(roomStatus.AvatarLocalPath))
+        {
+            roomStatus.AvatarLocalPath = AvatarCache.GetCachedAvatarSource(room.RoomUrl);
+        }
         if (IsConclusiveRoomCheck(resolvedLiveState, hasFreshStream))
         {
             ResetRoomCheckInconclusiveLog(room.RoomUrl);
@@ -1110,6 +1111,10 @@ internal static class GlobalMonitor
             {
                 if (!StartRecorderIfNeeded(room, roomStatus, settings, isLiveStreaming, usingPreservedStream: false))
                 {
+                    if (shouldRefreshAvatar)
+                    {
+                        roomStatus.AvatarLocalPath = await AvatarCache.UpdateAsync(room.RoomUrl, roomStatus.AvatarThumbUrl, token);
+                    }
                     return;
                 }
             }
@@ -1143,6 +1148,10 @@ internal static class GlobalMonitor
         if (shouldNotify && prevStreamStatus != StreamStatus.Streaming && isLiveStreaming)
         {
             await Notify(room, token);
+        }
+        if (shouldRefreshAvatar)
+        {
+            roomStatus.AvatarLocalPath = await AvatarCache.UpdateAsync(room.RoomUrl, roomStatus.AvatarThumbUrl, token);
         }
     }
 
@@ -1657,6 +1666,19 @@ internal static class GlobalMonitor
         return !lastRefreshTimestamp.HasValue
             || currentTimestamp < lastRefreshTimestamp.Value
             || currentTimestamp - lastRefreshTimestamp.Value >= FixedRoomMetadataRefreshIntervalMilliseconds;
+    }
+
+    internal static bool ShouldRefreshAvatar(
+        string? avatarLocalPath,
+        string? currentAvatarUrl,
+        string? nextAvatarUrl,
+        StreamStatus previousStreamStatus,
+        StreamStatus nextStreamStatus)
+    {
+        return !string.IsNullOrWhiteSpace(nextAvatarUrl)
+            && (string.IsNullOrWhiteSpace(avatarLocalPath)
+            || !string.Equals(currentAvatarUrl, nextAvatarUrl, StringComparison.Ordinal)
+            || (previousStreamStatus == StreamStatus.Streaming) != (nextStreamStatus == StreamStatus.Streaming));
     }
 
     internal static bool ShouldLogRoomCheckInconclusive(long? lastLogTimestamp, long currentTimestamp)

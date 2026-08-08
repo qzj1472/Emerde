@@ -27,8 +27,23 @@ internal static class AvatarCache
 
     internal static string GetCachedAvatarSource(string roomUrl, string avatarDirectory)
     {
-        string path = GetCachedAvatarPath(roomUrl, avatarDirectory);
-        return IsUsableAvatarFile(path) ? path : string.Empty;
+        string roomHash = HashRoomUrl(roomUrl);
+        if (!Directory.Exists(avatarDirectory))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            return Directory.GetFiles(avatarDirectory, $"{roomHash}*.avatar", SearchOption.TopDirectoryOnly)
+                .Where(path => IsRoomAvatarPath(path, roomHash))
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .FirstOrDefault(IsUsableAvatarFile) ?? string.Empty;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return string.Empty;
+        }
     }
 
     public static async Task<string> UpdateAsync(string roomUrl, string avatarUrl, CancellationToken token = default)
@@ -66,21 +81,24 @@ internal static class AvatarCache
                 return GetCachedAvatarSource(roomUrl);
             }
 
-            string path = GetCachedAvatarPath(roomUrl);
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            if (IsUsableAvatarFile(path))
+            string existingPath = GetCachedAvatarSource(roomUrl);
+            if (IsUsableAvatarFile(existingPath))
             {
-                byte[] existing = await File.ReadAllBytesAsync(path, token);
+                byte[] existing = await File.ReadAllBytesAsync(existingPath, token);
                 if (CryptographicOperations.FixedTimeEquals(SHA256.HashData(existing), SHA256.HashData(bytes)))
                 {
-                    return path;
+                    return existingPath;
                 }
             }
 
+            string contentHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+            string path = GetVersionedAvatarPath(roomUrl, contentHash);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             tempPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
             await File.WriteAllBytesAsync(tempPath, bytes, token);
             File.Move(tempPath, path, true);
             tempPath = null;
+            DeleteObsoleteRoomAvatars(roomUrl, path);
             return path;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -114,9 +132,9 @@ internal static class AvatarCache
             return;
         }
 
-        HashSet<string> retainedPaths = roomUrls
+        HashSet<string> retainedRoomHashes = roomUrls
             .Where(roomUrl => !string.IsNullOrWhiteSpace(roomUrl))
-            .Select(roomUrl => GetCachedAvatarPath(roomUrl, directory))
+            .Select(HashRoomUrl)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         string[] paths;
         try
@@ -131,7 +149,8 @@ internal static class AvatarCache
 
         foreach (string path in paths)
         {
-            if (retainedPaths.Contains(path))
+            string fileName = Path.GetFileName(path);
+            if (retainedRoomHashes.Any(roomHash => IsRoomAvatarFileName(fileName, roomHash)))
             {
                 continue;
             }
@@ -172,6 +191,56 @@ internal static class AvatarCache
     {
         string normalized = NormalizeRoomUrl(roomUrl);
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalized))).ToLowerInvariant();
+    }
+
+    internal static string GetVersionedAvatarPath(string roomUrl, string contentHash, string avatarDirectory)
+    {
+        return Path.Combine(avatarDirectory, $"{HashRoomUrl(roomUrl)}.{contentHash}.avatar");
+    }
+
+    private static string GetVersionedAvatarPath(string roomUrl, string contentHash)
+    {
+        return GetVersionedAvatarPath(roomUrl, contentHash, GetAvatarDirectory());
+    }
+
+    private static void DeleteObsoleteRoomAvatars(string roomUrl, string currentPath)
+    {
+        string directory = Path.GetDirectoryName(currentPath) ?? GetAvatarDirectory();
+        string roomHash = HashRoomUrl(roomUrl);
+        try
+        {
+            foreach (string path in Directory.GetFiles(directory, $"{roomHash}*.avatar", SearchOption.TopDirectoryOnly))
+            {
+                if (path.Equals(currentPath, StringComparison.OrdinalIgnoreCase)
+                    || !IsRoomAvatarPath(path, roomHash))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    File.Delete(path);
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                }
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static bool IsRoomAvatarPath(string path, string roomHash)
+    {
+        return IsRoomAvatarFileName(Path.GetFileName(path), roomHash);
+    }
+
+    private static bool IsRoomAvatarFileName(string fileName, string roomHash)
+    {
+        return fileName.Equals($"{roomHash}.avatar", StringComparison.OrdinalIgnoreCase)
+            || fileName.StartsWith($"{roomHash}.", StringComparison.OrdinalIgnoreCase)
+                && fileName.EndsWith(".avatar", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string GetAvatarDirectory()
