@@ -12,7 +12,6 @@
                  BorderThickness="0"
                  ExtendsContentIntoTitleBar="True"
                  ResizeMode="CanResize"
-                 WindowBackdropType="Mica"
                  WindowCornerPreference="Round"
                  SnapsToDevicePixels="True"
                  UseLayoutRounding="True"

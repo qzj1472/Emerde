@@ -18,7 +18,6 @@
                  BorderBrush="Transparent"
                  BorderThickness="0"
                  WindowCornerPreference="Round"
-                 WindowBackdropType="Mica"
                  WindowStartupLocation="Manual"
                  AllowDrop="True"
                  PreviewDragOver="MainWindowPreviewDragOver"
@@ -43,15 +42,15 @@
                 <GradientStop Offset="1" Color="#FFFFFFFF" />
             </LinearGradientBrush>
 
+            <SolidColorBrush x:Key="RecordActiveBackgroundBrush" Color="#1FD95C66" />
+            <SolidColorBrush x:Key="RecordActiveBorderBrush" Color="#80D95C66" />
+            <SolidColorBrush x:Key="RecordActiveForegroundBrush" Color="#C84450" />
             <SolidColorBrush x:Key="LiveActiveBackgroundBrush" Color="#1F46B86E" />
             <SolidColorBrush x:Key="LiveActiveBorderBrush" Color="#8046B86E" />
             <SolidColorBrush x:Key="LiveActiveForegroundBrush" Color="#2D8A50" />
             <SolidColorBrush x:Key="MonitorActiveBackgroundBrush" Color="#1F4C8FD8" />
             <SolidColorBrush x:Key="MonitorActiveBorderBrush" Color="#804C8FD8" />
             <SolidColorBrush x:Key="MonitorActiveForegroundBrush" Color="#3478C9" />
-            <SolidColorBrush x:Key="RecordActiveBackgroundBrush" Color="#1FD95C66" />
-            <SolidColorBrush x:Key="RecordActiveBorderBrush" Color="#80D95C66" />
-            <SolidColorBrush x:Key="RecordActiveForegroundBrush" Color="#C84450" />
 
             <Style x:Key="StatusTrayButtonStyle" TargetType="{x:Type Button}">
                 <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
