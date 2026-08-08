@@ -117,5 +117,45 @@
                 </Style>
             </ContentControl.Style>
         </ContentControl>
+        <Grid x:Name="RoomLoadingOverlay"
+              Grid.RowSpan="2"
+              Panel.ZIndex="1"
+              Focusable="False">
+            <Grid.Style>
+                <Style TargetType="{x:Type Grid}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsSubmitting}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Border Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+                    Opacity="0.94" />
+            <ui:StackPanel HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Spacing="10">
+                <Image x:Name="LoadingFrame"
+                       Width="168"
+                       Height="168"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       IsHitTestVisible="False"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       SnapsToDevicePixels="True"
+                       Stretch="Uniform" />
+                <ProgressBar x:Name="LoadingFallbackProgressBar"
+                             Width="168"
+                             Height="4"
+                             Visibility="Collapsed"
+                             IsIndeterminate="True"
+                             Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                <TextBlock HorizontalAlignment="Center"
+                           FontSize="12"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           Text="{I18N CookieLoginLoading}" />
+            </ui:StackPanel>
+        </Grid>
     </Grid>
 </vio:ContentDialog>

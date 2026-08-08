@@ -853,7 +853,6 @@ public sealed class FocusVisualTests
     [InlineData("ExitConfirmationContentDialog.xaml")]
     [InlineData("ConfigRestoreContentDialog.xaml")]
     [InlineData("ConfigRestoreWindow.xaml")]
-    [InlineData("LoadingWindow.xaml")]
     [InlineData("LocalSettingsContentDialog.xaml")]
     [InlineData("SettingsWindow.xaml")]
     [InlineData("AboutContentDialog.xaml")]

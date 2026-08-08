@@ -114,7 +114,6 @@
         <PackageReference Include="YamlDotNet" Version="16.3.0" />
         <PackageReference Include="NAudio" Version="2.2.1" />
         <PackageReference Include="NAudio.Core" Version="2.2.1" />
-        <PackageReference Include="LottieSharp" Version="2.4.3" />
     </ItemGroup>
 
     <Target Name="PruneUnusedLibVlcRuntimeFiles" AfterTargets="Build;Publish">

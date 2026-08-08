@@ -1,5 +1,6 @@
 using Emerde.Core;
 using Emerde.Views;
+using System.Buffers.Binary;
 using System.Xml.Linq;
 
 namespace Emerde.Tests;
@@ -95,6 +96,17 @@ public sealed class AddRoomContentDialogTests
         Assert.Contains("dialog.RecordingOptions", source);
         Assert.Contains("RoomRecordingSettings.Apply(room, recordingOptions)", source);
         Assert.Contains("IsFollowGlobalSettings = isFollowGlobalSettings", source);
+    }
+
+    [Fact]
+    public void LoadingAtlas_UsesTheExpectedFrameGrid()
+    {
+        string path = FindRepositoryFile("src", "Emerde", "Assets", "RoomLoadingAtlas.png");
+        byte[] png = File.ReadAllBytes(path);
+
+        Assert.Equal(0x89504E470D0A1A0AUL, BinaryPrimitives.ReadUInt64BigEndian(png.AsSpan(0, 8)));
+        Assert.Equal(2624, BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16, 4)));
+        Assert.Equal(1640, BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(20, 4)));
     }
 
     private static string FindRepositoryFile(params string[] parts)
