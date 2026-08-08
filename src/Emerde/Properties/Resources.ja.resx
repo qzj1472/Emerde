@@ -684,7 +684,7 @@
     <value>速度テスト</value>
   </data>
   <data name="NetworkCapacityHint" xml:space="preserve">
-    <value>3回のダウンロード測定から同時録画可能数を推定します</value>
+    <value>速度を測定し同時録画数を推定</value>
   </data>
   <data name="NetworkCapacityTesting" xml:space="preserve">
     <value>測定中</value>

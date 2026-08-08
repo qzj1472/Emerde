@@ -681,7 +681,7 @@
     <value>測速</value>
   </data>
   <data name="NetworkCapacityHint" xml:space="preserve">
-    <value>連續進行三輪下載測速，估算目前網路可同時錄製的直播路數</value>
+    <value>測速並估算可同時錄製數</value>
   </data>
   <data name="NetworkCapacityTesting" xml:space="preserve">
     <value>測速中</value>

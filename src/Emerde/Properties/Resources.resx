@@ -681,7 +681,7 @@
     <value>Network test</value>
   </data>
   <data name="NetworkCapacityHint" xml:space="preserve">
-    <value>Run three download test rounds to estimate simultaneous recording capacity</value>
+    <value>Test speed and estimate simultaneous recordings</value>
   </data>
   <data name="NetworkCapacityTesting" xml:space="preserve">
     <value>Testing</value>
