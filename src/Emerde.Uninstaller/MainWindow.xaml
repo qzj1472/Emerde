@@ -138,7 +138,7 @@
                 <Image Width="18"
                        Height="18"
                        RenderOptions.BitmapScalingMode="HighQuality"
-                       Source="pack://application:,,,/Assets/Favicon.png" />
+                       Source="pack://application:,,,/Assets/Uninstaller.png" />
                 <TextBlock Margin="9,0,0,0"
                            VerticalAlignment="Center"
                            FontSize="12"
@@ -160,7 +160,7 @@
                 <Image Width="42"
                        Height="42"
                        RenderOptions.BitmapScalingMode="HighQuality"
-                       Source="pack://application:,,,/Assets/Favicon.png" />
+                       Source="pack://application:,,,/Assets/Uninstaller.png" />
                 <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
                     <TextBlock x:Name="TitleText" Style="{StaticResource TitleStyle}" Text="卸载 Emerde" />
                     <TextBlock x:Name="DescriptionText"

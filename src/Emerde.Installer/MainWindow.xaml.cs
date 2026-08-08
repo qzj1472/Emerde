@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using FluentWindow = Wpf.Ui.Controls.FluentWindow;
 
@@ -25,6 +26,9 @@ public partial class MainWindow : FluentWindow
     private const uint SetWindowNoSize = 0x0001;
     private const uint SetWindowNoZOrder = 0x0004;
     private const string ShutdownEventName = "Emerde.Shutdown";
+    private const string InstallerIconPath = "pack://application:,,,/Assets/Installer.png";
+    private const string MaintenanceIconPath = "pack://application:,,,/Assets/Maintenance.png";
+    private const string UninstallerIconPath = "pack://application:,,,/Assets/Uninstaller.png";
     private readonly InstallationService installationService;
     private readonly bool forceRunningPreview;
     private bool appStopAcknowledged;
@@ -62,6 +66,7 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
+        SetTitleIcon(MaintenanceIconPath);
         InstalledVersionText.Text = $"已安装版本 {installedInfo.Version}";
         ShowPage(MaintenancePage);
     }
@@ -379,6 +384,7 @@ public partial class MainWindow : FluentWindow
 
     private void PrepareProgressPage(InstallationOperation operation)
     {
+        SetProgressIcon(operation);
         SimulationProgress.Value = 0;
         ProgressValueText.Text = "0%";
         ProgressTitleText.Text = operation switch
@@ -468,9 +474,38 @@ public partial class MainWindow : FluentWindow
 
     private void ShowWelcomePage()
     {
+        SetTitleIcon(InstallerIconPath);
         InstallOptionsPanel.Visibility = Visibility.Collapsed;
         OptionsToggleButton.Content = "安装选项";
         ShowPage(WelcomePage);
+    }
+
+    private void SetProgressIcon(InstallationOperation operation)
+    {
+        string iconPath = operation switch
+        {
+            InstallationOperation.Repair => MaintenanceIconPath,
+            InstallationOperation.Uninstall => UninstallerIconPath,
+            _ => InstallerIconPath,
+        };
+
+        ProgressLogoImage.Source = CreateImageSource(iconPath);
+    }
+
+    private void SetTitleIcon(string iconPath)
+    {
+        TitleIconImage.Source = CreateImageSource(iconPath);
+    }
+
+    private static BitmapImage CreateImageSource(string iconPath)
+    {
+        BitmapImage image = new();
+        image.BeginInit();
+        image.UriSource = new Uri(iconPath, UriKind.Absolute);
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        image.EndInit();
+        image.Freeze();
+        return image;
     }
 
     private void ShowPage(UIElement page)

@@ -16,7 +16,7 @@
         <AppHostRelativeDotNet>..\runtime</AppHostRelativeDotNet>
         <AppHostDotNetSearch>AppRelative</AppHostDotNetSearch>
         <SatelliteResourceLanguages>en;zh-Hans;zh-Hant;ja</SatelliteResourceLanguages>
-        <ApplicationIcon>..\Emerde\Assets\Favicon.ico</ApplicationIcon>
+        <ApplicationIcon>..\Emerde\Assets\Installer.ico</ApplicationIcon>
         <ApplicationManifest>app.manifest</ApplicationManifest>
         <AssemblyName>Emerde.Installer</AssemblyName>
         <RootNamespace>Emerde.Installer</RootNamespace>
@@ -27,7 +27,9 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Resource Include="..\Emerde\Assets\Favicon.png" Link="Assets\Favicon.png" />
+        <Resource Include="..\Emerde\Assets\Installer.png" Link="Assets\Installer.png" />
+        <Resource Include="..\Emerde\Assets\Maintenance.png" Link="Assets\Maintenance.png" />
+        <Resource Include="..\Emerde\Assets\Uninstaller.png" Link="Assets\Uninstaller.png" />
     </ItemGroup>
 
     <ItemGroup>

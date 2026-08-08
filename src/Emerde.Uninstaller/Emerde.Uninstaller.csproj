@@ -6,7 +6,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <UseWPF>true</UseWPF>
         <Platforms>x64</Platforms>
-        <ApplicationIcon>..\Emerde\Assets\Favicon.ico</ApplicationIcon>
+        <ApplicationIcon>..\Emerde\Assets\Uninstaller.ico</ApplicationIcon>
         <SelfContained>false</SelfContained>
         <PublishTrimmed>false</PublishTrimmed>
         <PublishSingleFile>true</PublishSingleFile>
@@ -29,7 +29,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Resource Include="..\Emerde\Assets\Favicon.png" Link="Assets\Favicon.png" />
+        <Resource Include="..\Emerde\Assets\Uninstaller.png" Link="Assets\Uninstaller.png" />
         <PackageReference Include="WPF-UI" Version="4.0.3" />
     </ItemGroup>
 </Project>

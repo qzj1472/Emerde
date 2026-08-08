@@ -207,10 +207,11 @@
                         VerticalAlignment="Center"
                         IsHitTestVisible="False"
                         Orientation="Horizontal">
-                <Image Width="18"
+                <Image x:Name="TitleIconImage"
+                       Width="18"
                        Height="18"
                        RenderOptions.BitmapScalingMode="HighQuality"
-                       Source="pack://application:,,,/Assets/Favicon.png" />
+                       Source="pack://application:,,,/Assets/Installer.png" />
                 <TextBlock Margin="9,0,0,0"
                            VerticalAlignment="Center"
                            FontSize="12"
@@ -231,7 +232,7 @@
                     <Image Width="100"
                            Height="100"
                            RenderOptions.BitmapScalingMode="HighQuality"
-                           Source="pack://application:,,,/Assets/Favicon.png">
+                           Source="pack://application:,,,/Assets/Installer.png">
                         <Image.Effect>
                             <DropShadowEffect BlurRadius="10"
                                               Direction="270"
@@ -318,11 +319,12 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel Margin="0,17,0,0" HorizontalAlignment="Center">
-                    <Image Width="100"
+                    <Image x:Name="MaintenanceLogoImage"
+                           Width="100"
                            Height="100"
                            HorizontalAlignment="Center"
                            RenderOptions.BitmapScalingMode="HighQuality"
-                           Source="pack://application:,,,/Assets/Favicon.png">
+                           Source="pack://application:,,,/Assets/Maintenance.png">
                         <Image.Effect>
                             <DropShadowEffect BlurRadius="10"
                                               Direction="270"
@@ -451,11 +453,12 @@
                 <StackPanel Width="470"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center">
-                    <Image Width="84"
+                    <Image x:Name="ProgressLogoImage"
+                           Width="84"
                            Height="84"
                            HorizontalAlignment="Center"
                            RenderOptions.BitmapScalingMode="HighQuality"
-                           Source="pack://application:,,,/Assets/Favicon.png" />
+                           Source="pack://application:,,,/Assets/Installer.png" />
                     <TextBlock x:Name="ProgressTitleText"
                                Margin="0,17,0,0"
                                HorizontalAlignment="Center"

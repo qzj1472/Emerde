@@ -22,7 +22,7 @@
         <AssemblyVersion>1.6.7.0</AssemblyVersion>
         <FileVersion>1.6.7.0</FileVersion>
         <Version>1.6.7.0</Version>
-        <ApplicationIcon>..\Emerde\Assets\Favicon.ico</ApplicationIcon>
+        <ApplicationIcon>..\Emerde\Assets\Installer.ico</ApplicationIcon>
         <ApplicationManifest>app.manifest</ApplicationManifest>
     </PropertyGroup>
 
