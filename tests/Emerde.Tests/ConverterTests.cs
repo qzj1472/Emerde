@@ -337,4 +337,33 @@ public sealed class ConverterTests
         }
     }
 
+    [Fact]
+    public async Task ExecuteWithCompletionAsync_UsesRequestedTargetPath()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-converter-requested-target-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string source = Path.Combine(directory, "session_000.ts");
+        string requestedTarget = Path.Combine(directory, "session.mkv");
+        await File.WriteAllBytesAsync(source, [1, 2, 3, 4]);
+        string? reservedTarget = null;
+
+        try
+        {
+            bool converted = await new Converter().ExecuteWithCompletionAsync(
+                source,
+                ".mkv",
+                _ => { },
+                onTargetReserved: path => reservedTarget = path,
+                requestedTargetPath: requestedTarget);
+
+            Assert.False(converted);
+            Assert.Equal(requestedTarget, reservedTarget);
+            Assert.False(File.Exists(requestedTarget));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
 }

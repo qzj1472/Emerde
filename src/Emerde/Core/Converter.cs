@@ -42,11 +42,13 @@ public sealed class Converter
         string targetFormat,
         Action<string> onCompleted,
         CancellationTokenSource? tokenSource = null,
-        Action<string>? onTargetReserved = null)
+        Action<string>? onTargetReserved = null,
+        Action<string>? onFailed = null,
+        string? requestedTargetPath = null)
     {
         ArgumentNullException.ThrowIfNull(sourceFileName);
         ArgumentNullException.ThrowIfNull(onCompleted);
-        return await ExecuteWithCompletionAsync(sourceFileName, CreateDefaultOptions(targetFormat), onCompleted, tokenSource, onTargetReserved);
+        return await ExecuteWithCompletionAsync(sourceFileName, CreateDefaultOptions(targetFormat), onCompleted, tokenSource, onTargetReserved, onFailed, requestedTargetPath);
     }
 
     internal async Task<bool> ExecuteWithCompletionAsync(
@@ -54,11 +56,13 @@ public sealed class Converter
         ConverterOptions options,
         Action<string> onCompleted,
         CancellationTokenSource? tokenSource = null,
-        Action<string>? onTargetReserved = null)
+        Action<string>? onTargetReserved = null,
+        Action<string>? onFailed = null,
+        string? requestedTargetPath = null)
     {
         ArgumentNullException.ThrowIfNull(sourceFileName);
         ArgumentNullException.ThrowIfNull(onCompleted);
-        return await ExecuteCoreAsync([sourceFileName], options, tokenSource, sessionSourcePattern: null, allowSameFormat: false, onCompleted, onTargetReserved);
+        return await ExecuteCoreAsync([sourceFileName], options, tokenSource, sessionSourcePattern: null, allowSameFormat: false, onCompleted, onTargetReserved, onFailed, requestedTargetPath);
     }
 
     internal async Task<bool> ExecuteSessionPartsAsync(
@@ -67,10 +71,11 @@ public sealed class Converter
         string targetFormat,
         CancellationTokenSource? tokenSource = null,
         Action<string>? onCompleted = null,
-        Action<string>? onTargetReserved = null)
+        Action<string>? onTargetReserved = null,
+        Action<string>? onFailed = null)
     {
         ArgumentNullException.ThrowIfNull(sourcePattern);
-        return await ExecuteSessionPartsAsync(sourcePattern, sourceFileNames, CreateDefaultOptions(targetFormat), tokenSource, onCompleted, onTargetReserved);
+        return await ExecuteSessionPartsAsync(sourcePattern, sourceFileNames, CreateDefaultOptions(targetFormat), tokenSource, onCompleted, onTargetReserved, onFailed);
     }
 
     internal async Task<bool> ExecuteSessionPartsAsync(
@@ -79,10 +84,11 @@ public sealed class Converter
         ConverterOptions options,
         CancellationTokenSource? tokenSource = null,
         Action<string>? onCompleted = null,
-        Action<string>? onTargetReserved = null)
+        Action<string>? onTargetReserved = null,
+        Action<string>? onFailed = null)
     {
         ArgumentNullException.ThrowIfNull(sourcePattern);
-        return await ExecuteCoreAsync(sourceFileNames, options, tokenSource, sourcePattern, allowSameFormat: true, onCompleted, onTargetReserved);
+        return await ExecuteCoreAsync(sourceFileNames, options, tokenSource, sourcePattern, allowSameFormat: true, onCompleted, onTargetReserved, onFailed);
     }
 
     private async Task<bool> ExecuteCoreAsync(
@@ -92,7 +98,9 @@ public sealed class Converter
         string? sessionSourcePattern,
         bool allowSameFormat,
         Action<string>? onCompleted,
-        Action<string>? onTargetReserved = null)
+        Action<string>? onTargetReserved = null,
+        Action<string>? onFailed = null,
+        string? requestedTargetPath = null)
     {
         ArgumentNullException.ThrowIfNull(sourceFileNames);
         ArgumentNullException.ThrowIfNull(converterOptions);
@@ -100,6 +108,7 @@ public sealed class Converter
         string? normalizedTargetFormat = NormalizeTargetFormat(converterOptions.TargetFormat, allowSameFormat);
         if (normalizedTargetFormat == null)
         {
+            onFailed?.Invoke("target_format_invalid");
             return false;
         }
         string targetFormat = normalizedTargetFormat;
@@ -108,6 +117,7 @@ public sealed class Converter
         if (!FfmpegMediaEngine.IsAvailable)
         {
             AppSessionLogger.Event("error", "converter", "converter_missing", "ffmpeg native libraries were not found", new { sourceFileNames, targetFormat });
+            onFailed?.Invoke("converter_missing");
             return false;
         }
 
@@ -120,14 +130,22 @@ public sealed class Converter
             || sourceFileInfos.Any(file => !IsSupportedSourceFormat(file.Extension))
             || (!allowSameFormat && sourceFileInfos.Any(file => file.Extension.Equals(targetFormat, StringComparison.OrdinalIgnoreCase))))
         {
+            onFailed?.Invoke("source_invalid");
             return false;
         }
 
-        string requestedTargetFileName = string.IsNullOrWhiteSpace(sessionSourcePattern)
-            ? BuildTargetPath(sourceFileInfos, targetFormat)
-            : BuildSessionTargetPath(sessionSourcePattern, targetFormat);
+        string requestedTargetFileName = requestedTargetPath
+            ?? (string.IsNullOrWhiteSpace(sessionSourcePattern)
+                ? BuildTargetPath(sourceFileInfos, targetFormat)
+                : BuildSessionTargetPath(sessionSourcePattern, targetFormat));
+        if (!Path.GetExtension(requestedTargetFileName).Equals(targetFormat, StringComparison.OrdinalIgnoreCase))
+        {
+            onFailed?.Invoke("target_path_invalid");
+            return false;
+        }
         if (sourceFileInfos.Any(file => file.FullName.Equals(requestedTargetFileName, StringComparison.OrdinalIgnoreCase)))
         {
+            onFailed?.Invoke("target_overlaps_source");
             return false;
         }
         string targetFileName = ReserveAvailableTargetPath(requestedTargetFileName);
@@ -166,6 +184,7 @@ public sealed class Converter
             if (!probeBatch.Success)
             {
                 AppSessionLogger.Event("error", "converter", "conversion_source_invalid", probeBatch.Error, new { sourceFileName = probeBatch.InvalidSourcePath });
+                onFailed?.Invoke($"source_probe_failed:{probeBatch.Error}");
                 return false;
             }
             FfmpegMediaProbeResult[] sourceProbes = probeBatch.Probes;
@@ -243,6 +262,12 @@ public sealed class Converter
                 validationError = succeeded ? string.Empty : validationError,
                 errorOutput = succeeded ? string.Empty : result.ErrorOutput,
             });
+            if (!succeeded)
+            {
+                onFailed?.Invoke(string.IsNullOrWhiteSpace(validationError)
+                    ? $"native_exit_code:{result.ExitCode}"
+                    : validationError);
+            }
             return succeeded;
         }
         catch (OperationCanceledException)
@@ -259,6 +284,7 @@ public sealed class Converter
             }
             AppSessionLogger.WriteException(e);
             AppSessionLogger.Event("error", "converter", "conversion_failed", e.Message, new { sourceFileNames, targetFileName });
+            onFailed?.Invoke($"exception:{e.GetType().Name}");
             return false;
         }
         finally
