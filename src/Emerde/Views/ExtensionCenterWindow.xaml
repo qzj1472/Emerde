@@ -6,6 +6,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:views="clr-namespace:Emerde.Views"
              FontSize="14"
              AllowDrop="True"
              SnapsToDevicePixels="True"
@@ -32,17 +33,47 @@
             <Setter Property="FontSize" Value="12" />
             <Setter Property="LineHeight" Value="17" />
             <Setter Property="TextWrapping" Value="Wrap" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource UiXTextSecondaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ExtensionPageTitleStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="FontSize" Value="24" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="FontSize" Value="22" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                    <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
         <Style x:Key="ExtensionPageSectionTitleStyle" TargetType="{x:Type TextBlock}">
             <Setter Property="FontSize" Value="18" />
             <Setter Property="FontWeight" Value="Bold" />
             <Setter Property="Foreground" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="FontSize" Value="14" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                    <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
         <Style x:Key="ExtensionSettingSectionTitleStyle" TargetType="{x:Type TextBlock}">
             <Setter Property="Margin" Value="0,14,0,10" />
             <Setter Property="FontSize" Value="17" />
             <Setter Property="FontWeight" Value="Bold" />
             <Setter Property="Foreground" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="FontSize" Value="14" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                    <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
         <Style x:Key="ExtensionSettingLabelStyle" TargetType="{x:Type TextBlock}">
             <Setter Property="FontSize" Value="14" />
@@ -76,6 +107,19 @@
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
             <Setter Property="Padding" Value="16" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource UiXCardBrush}" />
+                    <Setter Property="BorderThickness" Value="0" />
+                </DataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True" />
+                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Background" Value="{DynamicResource UiXCardHoverBrush}" />
+                </MultiDataTrigger>
+            </Style.Triggers>
         </Style>
         <Style x:Key="ExtensionListBoxStyle" TargetType="{x:Type ListBox}">
             <Setter Property="Background" Value="Transparent" />
@@ -96,7 +140,7 @@
                                       HorizontalScrollBarVisibility="Disabled"
                                       IsDeferredScrollingEnabled="False"
                                       VerticalScrollBarVisibility="Auto">
-                            <ItemsPresenter Margin="20,0,22,14" />
+                            <ItemsPresenter Margin="20,0,20,14" />
                         </ScrollViewer>
                     </ControlTemplate>
                 </Setter.Value>
@@ -301,9 +345,11 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
-        <ui:Grid Grid.Row="0" Margin="20,10,22,14" ColumnDefinitions="*,Auto,Auto,Auto">
+        <ui:Grid Grid.Row="0"
+                 Margin="20,10,22,14"
+                 ColumnDefinitions="*,Auto,Auto,Auto">
             <ui:StackPanel Spacing="3">
-                <TextBlock FontSize="24" FontWeight="Bold" Text="{I18N Extensions}" />
+                <TextBlock Style="{StaticResource ExtensionPageTitleStyle}" Text="{I18N Extensions}" />
                 <TextBlock Style="{StaticResource ExtensionSecondaryTextStyle}" Text="{I18N ExtensionsDescription}" />
             </ui:StackPanel>
             <Button Grid.Column="1" Margin="8,0,0,0" Command="{Binding OpenExtensionsFolderCommand}" Style="{StaticResource ExtensionIconButtonStyle}" ToolTip="{I18N OpenExtensionsFolder}">
@@ -318,9 +364,19 @@
         </ui:Grid>
         <Grid Grid.Row="1">
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-            <ui:Grid Grid.Row="0" Margin="20,0,22,10" ColumnDefinitions="*,Auto">
+            <ui:Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                <ui:Grid.Style>
+                    <Style TargetType="{x:Type ui:Grid}">
+                        <Setter Property="Margin" Value="20,0,20,10" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                                <Setter Property="Margin" Value="20,8,20,12" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:Grid.Style>
                 <ui:StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock FontSize="16" FontWeight="Bold" Text="{I18N InstalledExtensionSection}" />
+                    <TextBlock Style="{StaticResource ExtensionPageSectionTitleStyle}" Text="{I18N InstalledExtensionSection}" />
                     <TextBlock VerticalAlignment="Center" Style="{StaticResource ExtensionSecondaryTextStyle}" Text="{Binding EnabledExtensionSummary}" />
                 </ui:StackPanel>
                 <TextBlock Grid.Column="1" VerticalAlignment="Center" Style="{StaticResource ExtensionSecondaryTextStyle}" Text="{I18N DropExtensionPackage}" />
@@ -351,11 +407,20 @@
                         </Style>
                     </ListBox.ItemContainerStyle>
                 </ListBox>
-                <Border Background="{DynamicResource EmerdePanelBrush}" CornerRadius="{StaticResource Win11ControlCornerRadius}" Padding="24">
+                <Border Background="{DynamicResource EmerdePanelBrush}" Padding="24">
                     <Border.Style>
                         <Style TargetType="{x:Type Border}">
                             <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers><DataTrigger Binding="{Binding HasExtensions}" Value="False"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                            <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasExtensions}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                                    <Setter Property="Margin" Value="20,0,20,10" />
+                                    <Setter Property="CornerRadius" Value="{StaticResource UiXPageSurfaceCornerRadius}" />
+                                </DataTrigger>
+                            </Style.Triggers>
                         </Style>
                     </Border.Style>
                     <ui:StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
@@ -364,7 +429,19 @@
                         <TextBlock HorizontalAlignment="Center" Style="{StaticResource ExtensionSecondaryTextStyle}" Text="{I18N NoExtensionsInstalledDescription}" TextAlignment="Center" />
                     </ui:StackPanel>
                 </Border>
-                <Border Panel.ZIndex="5" Margin="0,0,0,10" Background="{DynamicResource EmerdePanelBrush}" CornerRadius="{StaticResource Win11ControlCornerRadius}" Padding="16" Visibility="{Binding IsDragging, Converter={x:Static c:BoolToVisibilityConverter.Instance}}">
+                <Border Panel.ZIndex="5" Background="{DynamicResource EmerdePanelBrush}" Padding="16" Visibility="{Binding IsDragging, Converter={x:Static c:BoolToVisibilityConverter.Instance}}">
+                    <Border.Style>
+                        <Style TargetType="{x:Type Border}">
+                            <Setter Property="Margin" Value="0,0,0,10" />
+                            <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                                    <Setter Property="Margin" Value="20,0,20,10" />
+                                    <Setter Property="CornerRadius" Value="{StaticResource UiXPageSurfaceCornerRadius}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
                     <ui:StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6">
                         <ui:FontIcon HorizontalAlignment="Center" FontFamily="{DynamicResource SymbolThemeFontFamily}" FontSize="30" Glyph="{x:Static ui:FontSymbols.Add}" />
                         <TextBlock FontSize="16" FontWeight="SemiBold" Text="{I18N DropToInstallExtension}" />
