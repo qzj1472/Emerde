@@ -31,6 +31,19 @@ internal sealed record FfmpegMediaProbeResult(
     VideoRecordingMetadata Metadata,
     bool HasEmerdeMetadata);
 
+internal readonly record struct FfmpegStreamCompatibility(
+    int MediaType,
+    int CodecId,
+    int Format,
+    int Profile,
+    int Level,
+    int Width,
+    int Height,
+    int SampleRate,
+    int ChannelCount,
+    string ChannelLayout,
+    bool IsAttachedPicture);
+
 internal sealed record FfmpegMediaRunResult(
     int ExitCode,
     bool WasCanceled,
@@ -1624,7 +1637,7 @@ internal static unsafe partial class FfmpegMediaEngine
         bool outputOpened = false;
         bool headerWritten = false;
         int[]? streamMap = null;
-        string[]? streamSignatures = null;
+        FfmpegStreamCompatibility[]? streamCompatibilities = null;
         long[]? lastPacketEnds = null;
         long timelineOffset = 0;
         bool hadProgress = false;
@@ -1679,7 +1692,7 @@ internal static unsafe partial class FfmpegMediaEngine
                             return new FfmpegMediaRunResult(1, false, false, "input contains no supported audio or video streams");
                         }
                         NotifyStreamPresence(inputContext, onStreamsDiscovered);
-                        streamSignatures = CreateStreamSignatures(inputContext, streamMap, (int)outputContext->nb_streams);
+                        streamCompatibilities = CreateStreamCompatibilities(inputContext, streamMap, (int)outputContext->nb_streams);
                         lastPacketEnds = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)outputContext->nb_streams).ToArray();
 
                         if ((outputContext->oformat->flags & ffmpeg.AVFMT_NOFILE) == 0)
@@ -1707,13 +1720,13 @@ internal static unsafe partial class FfmpegMediaEngine
                             }
                         }
                     }
-                    else if (streamMap == null || streamSignatures == null || lastPacketEnds == null)
+                    else if (streamMap == null || streamCompatibilities == null || lastPacketEnds == null)
                     {
                         return new FfmpegMediaRunResult(1, false, hadProgress, "output stream map is missing");
                     }
                     else
                     {
-                        streamMap = CreateCompatibleStreamMap(inputContext, streamSignatures);
+                        streamMap = CreateCompatibleStreamMap(inputContext, streamCompatibilities);
                         if (!streamMap.Any(index => index >= 0))
                         {
                             return new FfmpegMediaRunResult(1, false, hadProgress, "input streams are incompatible with the first source");
@@ -2257,28 +2270,64 @@ internal static unsafe partial class FfmpegMediaEngine
         return streamMap;
     }
 
-    private static string[] CreateStreamSignatures(
+    private static FfmpegStreamCompatibility[] CreateStreamCompatibilities(
         AVFormatContext* inputContext,
         int[] streamMap,
         int outputStreamCount)
     {
-        string[] signatures = new string[outputStreamCount];
+        FfmpegStreamCompatibility[] compatibilities = new FfmpegStreamCompatibility[outputStreamCount];
         for (int inputIndex = 0; inputIndex < streamMap.Length; inputIndex++)
         {
             int outputIndex = streamMap[inputIndex];
             if (outputIndex >= 0)
             {
-                signatures[outputIndex] = BuildStreamSignature(inputContext->streams[inputIndex]);
+                compatibilities[outputIndex] = BuildStreamCompatibility(inputContext->streams[inputIndex]);
             }
         }
 
-        return signatures;
+        return compatibilities;
     }
 
-    private static int[] CreateCompatibleStreamMap(AVFormatContext* inputContext, IReadOnlyList<string> outputStreamSignatures)
+    private static FfmpegStreamCompatibility BuildStreamCompatibility(AVStream* stream)
+    {
+        AVCodecParameters* parameters = stream->codecpar;
+        string channelLayout = string.Empty;
+        if (parameters->codec_type == AVMediaType.AVMEDIA_TYPE_AUDIO)
+        {
+            byte* layoutBuffer = stackalloc byte[128];
+            if (ffmpeg.av_channel_layout_describe(&parameters->ch_layout, layoutBuffer, 128) >= 0)
+            {
+                channelLayout = Marshal.PtrToStringAnsi((IntPtr)layoutBuffer) ?? string.Empty;
+            }
+        }
+
+        return new FfmpegStreamCompatibility(
+            (int)parameters->codec_type,
+            (int)parameters->codec_id,
+            parameters->format,
+            parameters->profile,
+            parameters->level,
+            parameters->width,
+            parameters->height,
+            parameters->sample_rate,
+            parameters->ch_layout.nb_channels,
+            channelLayout,
+            (stream->disposition & ffmpeg.AV_DISPOSITION_ATTACHED_PIC) != 0);
+    }
+
+    internal static bool AreStreamParametersCompatible(
+        FfmpegStreamCompatibility first,
+        FfmpegStreamCompatibility second)
+    {
+        return first == second;
+    }
+
+    private static int[] CreateCompatibleStreamMap(
+        AVFormatContext* inputContext,
+        IReadOnlyList<FfmpegStreamCompatibility> outputStreamCompatibilities)
     {
         int[] streamMap = Enumerable.Repeat(-1, (int)inputContext->nb_streams).ToArray();
-        bool[] matchedOutputs = new bool[outputStreamSignatures.Count];
+        bool[] matchedOutputs = new bool[outputStreamCompatibilities.Count];
         int mediaStreamCount = 0;
         for (int inputIndex = 0; inputIndex < inputContext->nb_streams; inputIndex++)
         {
@@ -2290,15 +2339,15 @@ internal static unsafe partial class FfmpegMediaEngine
             }
             mediaStreamCount++;
 
-            string inputSignature = BuildStreamSignature(inputStream);
-            for (int outputIndex = 0; outputIndex < outputStreamSignatures.Count; outputIndex++)
+            FfmpegStreamCompatibility inputCompatibility = BuildStreamCompatibility(inputStream);
+            for (int outputIndex = 0; outputIndex < outputStreamCompatibilities.Count; outputIndex++)
             {
                 if (matchedOutputs[outputIndex])
                 {
                     continue;
                 }
 
-                if (!string.Equals(inputSignature, outputStreamSignatures[outputIndex], StringComparison.Ordinal))
+                if (!AreStreamParametersCompatible(inputCompatibility, outputStreamCompatibilities[outputIndex]))
                 {
                     continue;
                 }
@@ -2310,7 +2359,7 @@ internal static unsafe partial class FfmpegMediaEngine
         }
 
         int matchedStreamCount = streamMap.Count(index => index >= 0);
-        return mediaStreamCount == outputStreamSignatures.Count && matchedStreamCount == mediaStreamCount
+        return mediaStreamCount == outputStreamCompatibilities.Count && matchedStreamCount == mediaStreamCount
             ? streamMap
             : Enumerable.Repeat(-1, streamMap.Length).ToArray();
     }

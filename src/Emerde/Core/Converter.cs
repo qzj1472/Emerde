@@ -492,7 +492,13 @@ public sealed class Converter
             {
                 return $"optimized_audio_track_missing:expected={sourceAudioStreamCount + 1},actual={output.AudioStreamCount}";
             }
-            if (!IsTrackTimelineWithinTolerance(output.AudioEndSeconds, output.VideoEndSeconds))
+            double sourceAudioEndSeconds = sourceProbes.Sum(probe => Math.Max(0d, probe.AudioEndSeconds));
+            double sourceVideoEndSeconds = sourceProbes.Sum(probe => Math.Max(0d, probe.VideoEndSeconds));
+            if (!IsTrackTimelineWithinTolerance(
+                    output.AudioEndSeconds,
+                    output.VideoEndSeconds,
+                    sourceAudioEndSeconds,
+                    sourceVideoEndSeconds))
             {
                 return $"output_track_timeline_mismatch:audio={output.AudioEndSeconds:F3},video={output.VideoEndSeconds:F3}";
             }
@@ -532,6 +538,31 @@ public sealed class Converter
         return audioEndSeconds <= 0d
             || videoEndSeconds <= 0d
             || Math.Abs(audioEndSeconds - videoEndSeconds) <= 2d;
+    }
+
+    internal static bool IsTrackTimelineWithinTolerance(
+        double audioEndSeconds,
+        double videoEndSeconds,
+        double sourceAudioEndSeconds,
+        double sourceVideoEndSeconds)
+    {
+        if (IsTrackTimelineWithinTolerance(audioEndSeconds, videoEndSeconds))
+        {
+            return true;
+        }
+        if (sourceAudioEndSeconds <= 0d || sourceVideoEndSeconds <= 0d)
+        {
+            return true;
+        }
+
+        double outputDifference = audioEndSeconds - videoEndSeconds;
+        double sourceDifference = sourceAudioEndSeconds - sourceVideoEndSeconds;
+        if (Math.Sign(outputDifference) != Math.Sign(sourceDifference))
+        {
+            return false;
+        }
+
+        return Math.Abs(outputDifference) <= Math.Abs(sourceDifference) + 2d;
     }
 
     private static void DeleteTemporaryOutput(string? path)

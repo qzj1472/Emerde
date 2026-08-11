@@ -22,6 +22,28 @@ public sealed class ConverterTests
     }
 
     [Theory]
+    [InlineData(4257.260, 4278.433, 4257.100, 4278.300, true)]
+    [InlineData(22255.046, 22348.884, 22255.000, 22348.762, true)]
+    [InlineData(90, 100, 100, 100, false)]
+    [InlineData(110, 100, 90, 100, false)]
+    [InlineData(0, 100, 0, 100, true)]
+    public void TrackTimelineValidation_PreservesSourceTrackTailDifference(
+        double audioEndSeconds,
+        double videoEndSeconds,
+        double sourceAudioEndSeconds,
+        double sourceVideoEndSeconds,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            Converter.IsTrackTimelineWithinTolerance(
+                audioEndSeconds,
+                videoEndSeconds,
+                sourceAudioEndSeconds,
+                sourceVideoEndSeconds));
+    }
+
+    [Theory]
     [InlineData("mkv", false, ".mkv")]
     [InlineData(".MP4", false, ".mp4")]
     [InlineData(" ts ", true, ".ts")]

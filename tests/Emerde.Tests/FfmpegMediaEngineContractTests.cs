@@ -188,11 +188,22 @@ public sealed class FfmpegMediaEngineContractTests
     {
         string source = ReadSource();
 
-        Assert.Contains("streamMap = CreateCompatibleStreamMap(inputContext, streamSignatures);", source);
+        Assert.Contains("streamMap = CreateCompatibleStreamMap(inputContext, streamCompatibilities);", source);
         Assert.Contains("input streams are incompatible with the first source", source);
-        Assert.Contains("CreateStreamSignatures", source);
-        Assert.Contains("BuildStreamSignature", source);
+        Assert.Contains("CreateStreamCompatibilities", source);
+        Assert.Contains("BuildStreamCompatibility", source);
         Assert.Contains("streamSignatures.Order(StringComparer.Ordinal)", source);
+    }
+
+    [Fact]
+    public void SessionPartCompatibility_RequiresStableCodecParameters()
+    {
+        FfmpegStreamCompatibility first = new(0, 27, 0, 100, 41, 1920, 1080, 0, 0, string.Empty, false);
+
+        Assert.True(FfmpegMediaEngine.AreStreamParametersCompatible(first, first));
+        Assert.False(FfmpegMediaEngine.AreStreamParametersCompatible(first, first with { CodecId = 173 }));
+        Assert.False(FfmpegMediaEngine.AreStreamParametersCompatible(first, first with { Width = 1280 }));
+        Assert.False(FfmpegMediaEngine.AreStreamParametersCompatible(first, first with { Profile = 77 }));
     }
 
     [Fact]
