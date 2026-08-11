@@ -43,6 +43,7 @@ public sealed class SettingsViewModelTests
                 && (string?)element.Attribute("Text") == "{I18N Settings}");
 
         Assert.Equal("20,10,0,16", (string?)title.Attribute("Margin"));
+        Assert.Null(title.Attribute("Height"));
     }
 
     [Fact]
@@ -54,6 +55,108 @@ public sealed class SettingsViewModelTests
                 && ((string?)element.Attribute("Value"))?.Contains("SessionLogRetentionDays", StringComparison.Ordinal) == true);
 
         Assert.Equal("112", (string?)input.Attribute("Width"));
+    }
+
+    [Fact]
+    public void SettingsUiXLayout_UsesASeparateTwoColumnPanelAndKeepsCookieLast()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml"));
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml.cs"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+
+        Assert.Contains(document.Descendants(), element =>
+            element.Name.LocalName == "Grid"
+            && (string?)element.Attribute(xaml + "Name") == "SettingsUiXPanel");
+        XElement leftColumn = document.Descendants().Single(element =>
+            element.Name.LocalName == "StackPanel"
+            && (string?)element.Attribute(xaml + "Name") == "SettingsUiXLeftColumn");
+        XElement rightColumn = document.Descendants().Single(element =>
+            element.Name.LocalName == "StackPanel"
+            && (string?)element.Attribute(xaml + "Name") == "SettingsUiXRightColumn");
+        Assert.Equal(presentation, leftColumn.Name.Namespace);
+        Assert.Equal(presentation, rightColumn.Name.Namespace);
+        Assert.Contains(document.Descendants(), element =>
+            element.Name.LocalName == "StackPanel"
+            && (string?)element.Attribute(xaml + "Name") == "SettingsUiXBottomPanel");
+        Assert.Contains(document.Descendants(), element =>
+            element.Name.LocalName == "CardExpander"
+            && (string?)element.Attribute(xaml + "Name") == "CookieSettingsExpander");
+        Assert.DoesNotContain(document.Descendants(), element =>
+            element.Name.LocalName == "ControlTemplate"
+            && (string?)element.Attribute(xaml + "Key") == "SettingsUiXCardExpanderTemplate");
+        XElement fixedTemplate = document.Descendants().Single(element =>
+            element.Name.LocalName == "ControlTemplate"
+            && (string?)element.Attribute(xaml + "Key") == "UiXFixedCardExpanderTemplate");
+        Assert.DoesNotContain(fixedTemplate.Descendants(), element => element.Name.LocalName == "Path");
+        Assert.DoesNotContain(fixedTemplate.Descendants(), element =>
+            element.Name.LocalName == "Trigger"
+            && (string?)element.Attribute("Property") == "IsExpanded");
+        Assert.Contains("GetOrCreateSettingsUiXGroup", code, StringComparison.Ordinal);
+        Assert.Contains("AddSettingsSectionToUiX", code, StringComparison.Ordinal);
+        Assert.Contains("SettingsUiXBottomPanel.Children.Add(section)", code, StringComparison.Ordinal);
+        Assert.Contains("ClearSettingsUiXLayout", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("SettingsUiXCardExpanderTemplate", code, StringComparison.Ordinal);
+        Assert.DoesNotContain(document.Descendants(), element =>
+            element.Name.LocalName == "Path"
+            && (string?)element.Attribute(xaml + "Name") == "UiXChevronPath");
+        Assert.Contains("isIndentedContent", code, StringComparison.Ordinal);
+        Assert.Contains("if (isIndentedContent)", code, StringComparison.Ordinal);
+        Assert.Contains("new Thickness(52, margin.Top, margin.Right, margin.Bottom)", code, StringComparison.Ordinal);
+        Assert.Contains("if (!isTrailingControl)", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("? new Thickness(0, margin.Top, 0, margin.Bottom)", code, StringComparison.Ordinal);
+        Assert.Contains("ViewModel.IsUiXEnabled && !ReferenceEquals(expander, CookieSettingsExpander)", code, StringComparison.Ordinal);
+        Assert.Contains("expander.SetResourceReference(Control.TemplateProperty, \"UiXFixedCardExpanderTemplate\")", code, StringComparison.Ordinal);
+        Assert.Contains("SettingsUiXGroupTitleKeys", code, StringComparison.Ordinal);
+        Assert.Contains("BindSettingsUiXVisibility", code, StringComparison.Ordinal);
+        Assert.Contains("ClearSettingsUiXVisibility", code, StringComparison.Ordinal);
+        Assert.Contains("ApplySettingsUiXExpanderContent", code, StringComparison.Ordinal);
+        Assert.Contains("RestoreAllSettingsUiXDependentExpanderContents", code, StringComparison.Ordinal);
+        Assert.Contains("System.Windows.Controls.StackPanel", code, StringComparison.Ordinal);
+        Assert.Contains("UiXSettingsGroupBorderStyle", code, StringComparison.Ordinal);
+        Assert.Contains(document.Descendants(), element =>
+            element.Name.LocalName == "SmoothScrollViewer"
+            && (string?)element.Attribute("IsEnableSmoothScrolling") == "False");
+        Assert.Contains("ReferenceEquals(section, LanguageSettingsCard)", code, StringComparison.Ordinal);
+        Assert.Contains("ReferenceEquals(section, SaveSettingsExpander) => 5", code, StringComparison.Ordinal);
+        Assert.Contains("ReferenceEquals(section, PlatformAccessCard)", code, StringComparison.Ordinal);
+        Assert.Contains("ReferenceEquals(section, ProxyExpander)", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReferenceEquals(section, SaveSettingsExpander)\n                || ReferenceEquals(section, ProxyExpander)", code, StringComparison.Ordinal);
+        Assert.Contains("groupIndex is 0 or 1 or 2 or 3", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("sectionIndex switch", code, StringComparison.Ordinal);
+        Dictionary<string, string> namedSectionTitles = new()
+        {
+            ["RecordFormatExpander"] = "{I18N RecordFormat}",
+            ["SegmentExpander"] = "{I18N Segment}",
+            ["SaveSettingsExpander"] = "{I18N Save}",
+            ["AutoShutdownExpander"] = "{I18N AutoShutdown}",
+            ["ProxyExpander"] = "{I18N UseProxy}",
+        };
+        foreach ((string sectionName, string title) in namedSectionTitles)
+        {
+            XElement section = document.Descendants().Single(element =>
+                (string?)element.Attribute(xaml + "Name") == sectionName);
+            Assert.Contains(section.Descendants(), element =>
+                (string?)element.Attribute("Text") == title);
+        }
+        string[] dependentPanels =
+        [
+            "LiveNotificationExpander",
+            "SegmentExpander",
+            "LiveNotificationOptionsPanel",
+            "SegmentOptionsPanel",
+            "DataRetentionValueInput",
+            "DataRetentionUnitSelector",
+            "AutoShutdownExpander",
+            "AutoShutdownOptionsPanel",
+            "ProxyExpander",
+            "ProxyOptionsPanel",
+        ];
+        foreach (string panelName in dependentPanels)
+        {
+            Assert.Contains(document.Descendants(), element =>
+                (string?)element.Attribute(xaml + "Name") == panelName);
+        }
     }
 
     [Fact]
@@ -233,4 +336,5 @@ public sealed class SettingsViewModelTests
 
         throw new FileNotFoundException(string.Join(Path.DirectorySeparatorChar, parts));
     }
+
 }

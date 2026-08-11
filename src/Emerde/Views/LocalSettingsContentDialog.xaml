@@ -7,6 +7,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:vio="http://schemas.lepo.co/wpfui/2022/xaml/violeta"
+             xmlns:views="clr-namespace:Emerde.Views"
              MinWidth="0"
              MinHeight="0"
              Focusable="False"
@@ -16,6 +17,14 @@
              UseLayoutRounding="True"
              mc:Ignorable="d">
     <UserControl.Resources>
+        <Style x:Key="UiXLocalSettingsFadeStyle" TargetType="{x:Type Border}">
+            <Setter Property="Background" Value="{DynamicResource EmerdeSurfaceBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource UiXPanelBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <Style TargetType="{x:Type ui:Card}" BasedOn="{StaticResource {x:Type ui:Card}}">
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
@@ -46,6 +55,12 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource UiXCardBrush}" />
+                    <Setter Property="BorderThickness" Value="0" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
         <Style TargetType="{x:Type ui:CardExpander}" BasedOn="{StaticResource {x:Type ui:CardExpander}}">
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
@@ -59,6 +74,12 @@
             <Setter Property="MinHeight" Value="86" />
             <Setter Property="Padding" Value="14,12" />
             <Setter Property="ContentPadding" Value="0,8,0,14" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource UiXCardBrush}" />
+                    <Setter Property="BorderThickness" Value="0" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
     </UserControl.Resources>
     <Border Background="Transparent">
@@ -139,8 +160,8 @@
                         <ScrollViewer x:Name="LocalSettingsScrollViewer"
                                       Margin="0,0,8,0"
                                       BorderThickness="0"
-                                      Focusable="False"
-                                      FocusVisualStyle="{x:Null}"
+                                      Focusable="True"
+                                      IsTabStop="True"
                                       Padding="14,12,6,12"
                                       PanningMode="VerticalOnly"
                                       ScrollViewer.CanContentScroll="False"
@@ -578,11 +599,10 @@
                                 Margin="14,0,30,0"
                                 VerticalAlignment="Top"
                                 Panel.ZIndex="20"
-                                Background="{DynamicResource EmerdeSurfaceBrush}"
                                 IsHitTestVisible="False"
                                 OpacityMask="{StaticResource TopEdgeFadeOpacityMask}">
                             <Border.Style>
-                                <Style TargetType="{x:Type Border}">
+                                <Style TargetType="{x:Type Border}" BasedOn="{StaticResource UiXLocalSettingsFadeStyle}">
                                     <Setter Property="Height" Value="18" />
                                     <Style.Triggers>
                                         <MultiDataTrigger>
@@ -600,11 +620,10 @@
                                 Margin="14,0,30,0"
                                 VerticalAlignment="Bottom"
                                 Panel.ZIndex="20"
-                                Background="{DynamicResource EmerdeSurfaceBrush}"
                                 IsHitTestVisible="False"
                                 OpacityMask="{StaticResource BottomEdgeFadeOpacityMask}">
                             <Border.Style>
-                                <Style TargetType="{x:Type Border}">
+                                <Style TargetType="{x:Type Border}" BasedOn="{StaticResource UiXLocalSettingsFadeStyle}">
                                     <Setter Property="Height" Value="26" />
                                     <Style.Triggers>
                                         <MultiDataTrigger>

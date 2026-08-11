@@ -5,6 +5,8 @@
                  xmlns:c="http://schemas.github.com/computedconverters/2024/xaml"
                  xmlns:controls="clr-namespace:Emerde.Controls"
                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:fluentControls="clr-namespace:FluentWpfCore.Controls;assembly=FluentWpfCore"
+                 xmlns:fluentPhysics="clr-namespace:FluentWpfCore.ScrollPhysics;assembly=FluentWpfCore"
                  xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
                  xmlns:local="clr-namespace:Emerde.Views"
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -15,6 +17,14 @@
                    UseLayoutRounding="True"
                    mc:Ignorable="d">
     <UserControl.Resources>
+        <Style x:Key="UiXSettingsFadeStyle" TargetType="{x:Type Border}">
+            <Setter Property="Background" Value="{DynamicResource EmerdeSurfaceBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsUiXEnabled}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource UiXPanelBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <Style TargetType="{x:Type ui:Card}" BasedOn="{StaticResource {x:Type ui:Card}}">
             <Setter Property="controls:MotionAssist.IsEntranceEnabled" Value="True" />
             <Setter Property="controls:MotionAssist.IsDataContextEntranceEnabled" Value="True" />
@@ -214,6 +224,35 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <ControlTemplate x:Key="UiXFixedCardExpanderTemplate" TargetType="{x:Type ui:CardExpander}">
+            <Border MinHeight="{TemplateBinding MinHeight}"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    ClipToBounds="True"
+                    CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                    SnapsToDevicePixels="True">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Border Grid.Row="0"
+                            Padding="{TemplateBinding Padding}"
+                            Background="Transparent">
+                        <ContentPresenter ContentSource="Header"
+                                          RecognizesAccessKey="True"
+                                          SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                    </Border>
+                    <Border Grid.Row="1"
+                            Padding="{TemplateBinding ContentPadding}"
+                            Background="Transparent">
+                        <ContentPresenter ContentSource="Content"
+                                          SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                    </Border>
+                </Grid>
+            </Border>
+        </ControlTemplate>
     </UserControl.Resources>
     <Grid x:Name="SettingsDialogContent"
           controls:MotionAssist.IsEntranceEnabled="True"
@@ -228,22 +267,36 @@
                    FontWeight="SemiBold"
                    Text="{I18N Settings}" />
         <ui:Grid x:Name="SettingsContentRoot" Grid.Row="1" Margin="0">
-            <ScrollViewer x:Name="SettingsScrollViewer"
-                          BorderThickness="0"
-                          Focusable="False"
-                          FocusVisualStyle="{x:Null}"
-                          HorizontalScrollBarVisibility="Disabled"
-                          PanningMode="None"
-                          VerticalScrollBarVisibility="Visible">
+            <fluentControls:SmoothScrollViewer x:Name="SettingsScrollViewer"
+                                               BorderThickness="0"
+                                               Focusable="False"
+                                               FocusVisualStyle="{x:Null}"
+                                               HorizontalScrollBarVisibility="Disabled"
+                                               IsEnableSmoothScrolling="False"
+                                               PanningMode="None"
+                                               VerticalScrollBarVisibility="Visible">
+                <fluentControls:SmoothScrollViewer.Physics>
+                    <fluentPhysics:DefaultScrollPhysics Smoothness="0.74" />
+                </fluentControls:SmoothScrollViewer.Physics>
+                <Grid x:Name="SettingsLayoutHost">
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Setter Property="Margin" Value="20,10,20,18" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsUiXEnabled}" Value="True">
+                                    <Setter Property="Margin" Value="20,16,20,18" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
                 <ui:StackPanel x:Name="SettingsStackPanel"
-                               Margin="20,10,22,18"
                                HorizontalAlignment="Stretch"
                                Spacing="8">
                     <TextBlock Margin="4,0,0,4"
                                FontSize="14"
                                Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                Text="{I18N AppearanceSettings}" />
-                    <ui:Card>
+                    <ui:Card x:Name="LanguageSettingsCard">
                         <ui:Grid MinHeight="35" ColumnDefinitions="Auto,*,Auto">
                             <Grid Grid.Column="0" Margin="0,0,12,0">
                                 <TextBlock MinWidth="26"
@@ -273,7 +326,7 @@
                             </ComboBox>
                         </ui:Grid>
                     </ui:Card>
-                    <ui:Card>
+                    <ui:Card x:Name="ThemeSettingsCard">
                         <ui:Grid MinHeight="35" ColumnDefinitions="Auto,*,Auto">
                             <Grid Grid.Column="0" Margin="0,0,12,0">
                                 <TextBlock MinWidth="26"
@@ -301,7 +354,7 @@
                             </ComboBox>
                         </ui:Grid>
                     </ui:Card>
-                    <ui:Card>
+                    <ui:Card x:Name="TraySettingsCard">
                         <ui:Grid MinHeight="35" ColumnDefinitions="Auto,*,Auto">
                             <Grid Grid.Column="0" Margin="0,0,12,0">
                                 <TextBlock MinWidth="26"
@@ -310,7 +363,7 @@
                                            VerticalAlignment="Center"
                                            FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                            FontSize="18"
-                                           Text="{x:Static ui:FontSymbols.DeviceMonitorRightPic}" />
+                                           Text="{x:Static ui:FontSymbols.Ringer}" />
                             </Grid>
                             <ui:Grid Grid.Column="1" RowDefinitions="Auto,Auto">
                                 <TextBlock Grid.Row="0" Text="{I18N TrayStatus}" />
@@ -324,7 +377,7 @@
                                              IsChecked="{Binding IsUseStatusTray, Mode=TwoWay}" />
                         </ui:Grid>
                     </ui:Card>
-                    <ui:Card>
+                    <ui:Card x:Name="UiXSettingsCard">
                         <ui:Grid MinHeight="35" ColumnDefinitions="Auto,*,Auto">
                             <Grid Grid.Column="0" Margin="0,0,12,0">
                                 <TextBlock MinWidth="26"
@@ -333,7 +386,30 @@
                                            VerticalAlignment="Center"
                                            FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                            FontSize="18"
-                                           Text="{x:Static ui:FontSymbols.AppIconDefault}" />
+                                           Text="{x:Static ui:FontSymbols.Settings}" />
+                            </Grid>
+                            <ui:Grid Grid.Column="1" RowDefinitions="Auto,Auto">
+                                <TextBlock Grid.Row="0" Text="{I18N UIX}" />
+                                <TextBlock Grid.Row="1"
+                                           FontSize="11"
+                                           Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
+                                           Text="{I18N UIXHint}" />
+                            </ui:Grid>
+                            <ui:ToggleSwitch Grid.Column="2"
+                                             Margin="0,0,28,0"
+                                             IsChecked="{Binding IsUiXEnabled, Mode=TwoWay}" />
+                        </ui:Grid>
+                    </ui:Card>
+                    <ui:Card x:Name="ShortcutSettingsCard">
+                        <ui:Grid MinHeight="35" ColumnDefinitions="Auto,*,Auto">
+                            <Grid Grid.Column="0" Margin="0,0,12,0">
+                                <TextBlock MinWidth="26"
+                                           Margin="4,0,0,0"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                           FontSize="18"
+                                           Text="{x:Static ui:FontSymbols.Link}" />
                             </Grid>
                             <ui:Grid Grid.Column="1" RowDefinitions="Auto,Auto">
                                 <TextBlock Grid.Row="0" Text="{I18N CreateDesktopShortcut}" />
@@ -348,7 +424,7 @@
                                     Content="{I18N ButtonOfCreateNow}" />
                         </ui:Grid>
                     </ui:Card>
-                    <ui:Card>
+                    <ui:Card x:Name="LogsSettingsCard">
                         <ui:Grid MinHeight="35" ColumnDefinitions="Auto,*,Auto">
                             <Grid Grid.Column="0" Margin="0,0,12,0">
                                 <TextBlock MinWidth="26"
@@ -357,7 +433,7 @@
                                            VerticalAlignment="Center"
                                            FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                            FontSize="18"
-                                           Text="{x:Static ui:FontSymbols.Document}" />
+                                           Text="{x:Static ui:FontSymbols.Recent}" />
                             </Grid>
                             <ui:Grid Grid.Column="1" RowDefinitions="Auto,Auto">
                                 <TextBlock Grid.Row="0" Text="{I18N RunningLogs}" />
@@ -383,7 +459,7 @@
                             </ui:StackPanel>
                         </ui:Grid>
                     </ui:Card>
-                    <ui:Card>
+                    <ui:Card x:Name="ConfigSettingsCard">
                         <ui:Grid MinHeight="35" ColumnDefinitions="Auto,*,Auto">
                             <Grid Grid.Column="0" Margin="0,0,12,0">
                                 <TextBlock MinWidth="26"
@@ -400,7 +476,6 @@
                                            FontSize="11"
                                            Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
                                            Text="{Binding ConfigFilePath}"
-                                           TextTrimming="CharacterEllipsis"
                                            ToolTip="{Binding ConfigFilePath}" />
                             </ui:Grid>
                             <ui:StackPanel Grid.Column="2"
@@ -416,7 +491,7 @@
                                FontSize="14"
                                Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                Text="{I18N RecordSettings}" />
-                    <ui:CardExpander>
+                    <ui:CardExpander x:Name="LiveNotificationExpander">
                         <ui:CardExpander.Header>
                             <ui:Grid ColumnDefinitions="Auto,*,Auto">
                                 <Grid Grid.Column="0" Margin="0,0,12,0">
@@ -441,7 +516,8 @@
                             </ui:Grid>
                         </ui:CardExpander.Header>
                         <ui:StackPanel Spacing="8">
-                            <ui:StackPanel Margin="42,0,28,0"
+                            <ui:StackPanel x:Name="LiveNotificationOptionsPanel"
+                                           Margin="42,0,28,0"
                                            IsEnabled="{Binding IsToNotify}"
                                            Spacing="12">
                                 <CheckBox Content="{I18N LiveNotificationToSystem}" IsChecked="{Binding IsToNotifyWithSystem, Mode=TwoWay}" />
@@ -492,7 +568,7 @@
                             </ui:StackPanel>
                         </ui:StackPanel>
                     </ui:CardExpander>
-                    <ui:Card>
+                    <ui:Card x:Name="EnableRecordCard">
                         <ui:Grid MinHeight="35" ColumnDefinitions="Auto,*,Auto">
                             <Grid Grid.Column="0" Margin="0,0,12,0">
                                 <TextBlock MinWidth="26"
@@ -501,7 +577,7 @@
                                            VerticalAlignment="Center"
                                            FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                            FontSize="18"
-                                           Text="{x:Static ui:FontSymbols.Video}" />
+                                           Text="{x:Static ui:FontSymbols.Record}" />
                             </Grid>
                             <ui:Grid Grid.Column="1" RowDefinitions="Auto,Auto">
                                 <TextBlock Grid.Row="0" Text="{I18N EnableRecord}" />
@@ -515,7 +591,7 @@
                                              IsChecked="{Binding IsToRecord, Mode=TwoWay}" />
                         </ui:Grid>
                     </ui:Card>
-                    <ui:Card>
+                    <ui:Card x:Name="QualitySettingsCard">
                         <ui:Grid MinHeight="35" ColumnDefinitions="Auto,*,Auto">
                             <Grid Grid.Column="0" Margin="0,0,12,0">
                                 <TextBlock MinWidth="26"
@@ -542,7 +618,7 @@
                                       SelectedValuePath="Value" />
                         </ui:Grid>
                     </ui:Card>
-                    <ui:Card>
+                    <ui:Card x:Name="AutomaticMonitoringCard">
                         <ui:Grid MinHeight="35" ColumnDefinitions="Auto,*,Auto">
                             <Grid Grid.Column="0" Margin="0,0,12,0">
                                 <TextBlock MinWidth="26"
@@ -565,7 +641,7 @@
                                              IsChecked="{Binding IsToMonitor, Mode=TwoWay}" />
                         </ui:Grid>
                     </ui:Card>
-                    <ui:Card>
+                    <ui:Card x:Name="RoutineIntervalCard">
                         <ui:Grid MinHeight="35" ColumnDefinitions="Auto,*,Auto">
                             <Grid Grid.Column="0" Margin="0,0,12,0">
                                 <TextBlock MinWidth="26"
@@ -574,7 +650,7 @@
                                            VerticalAlignment="Center"
                                            FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                            FontSize="18"
-                                           Text="{x:Static ui:FontSymbols.DeviceMonitorRightPic}" />
+                                           Text="{x:Static ui:FontSymbols.Sync}" />
                             </Grid>
                             <ui:Grid Grid.Column="1" RowDefinitions="Auto,Auto">
                                 <TextBlock Grid.Row="0" Text="{I18N RoutineInterval}" />
@@ -599,7 +675,7 @@
                             </ui:StackPanel>
                         </ui:Grid>
                     </ui:Card>
-                    <ui:Card Visibility="{Binding IsRoutineSchedulePreset, Converter={x:Static c:BoolToVisibilityConverter.Instance}}">
+                    <ui:Card x:Name="MonitoringSchedulePresetCard" Visibility="{Binding IsRoutineSchedulePreset, Converter={x:Static c:BoolToVisibilityConverter.Instance}}">
                         <ui:Grid MinHeight="35" ColumnDefinitions="Auto,*,Auto">
                             <Grid Grid.Column="0" Margin="0,0,12,0">
                                 <TextBlock MinWidth="26"
@@ -629,7 +705,7 @@
                             </ComboBox>
                         </ui:Grid>
                     </ui:Card>
-                    <ui:CardExpander IsExpanded="True"
+                    <ui:CardExpander x:Name="MonitoringScheduleCustomExpander" IsExpanded="True"
                                      Visibility="{Binding IsRoutineScheduleCustom, Converter={x:Static c:BoolToVisibilityConverter.Instance}}">
                         <ui:CardExpander.Header>
                             <ui:Grid ColumnDefinitions="Auto,*,Auto">
@@ -702,7 +778,7 @@
                             </ui:Grid>
                         </ui:StackPanel>
                     </ui:CardExpander>
-                    <ui:CardExpander>
+                    <ui:CardExpander x:Name="RecordFormatExpander">
                         <ui:CardExpander.Header>
                             <ui:Grid ColumnDefinitions="Auto,*,Auto">
                                 <Grid Grid.Column="0" Margin="0,0,12,0">
@@ -730,19 +806,23 @@
                                 </Grid>
                             </ui:Grid>
                         </ui:CardExpander.Header>
-                        <ui:StackPanel Spacing="8">
-                            <ui:StackPanel Margin="42,0,28,0" Spacing="12">
-                                <CheckBox Content="{I18N CreateOptimizedAudioTrack}"
-                                          IsChecked="{Binding IsOptimizeAudio, Mode=TwoWay}"
-                                          Visibility="{Binding IsMp4RecordFormat, Converter={x:Static c:BoolToVisibilityConverter.Instance}}" />
-                                <CheckBox Grid.Column="0"
-                                          Content="{I18N RecordFormatAutoRemove}"
-                                          IsChecked="{Binding IsRemoveTs, Mode=TwoWay}"
-                                          Visibility="{Binding IsTranscodedRecordFormat, Converter={x:Static c:BoolToVisibilityConverter.Instance}}" />
-                            </ui:StackPanel>
-                        </ui:StackPanel>
+                        <Grid Margin="42,0,28,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <CheckBox Margin="0,0,0,6"
+                                      Content="{I18N CreateOptimizedAudioTrack}"
+                                      IsChecked="{Binding IsOptimizeAudio, Mode=TwoWay}"
+                                      Visibility="{Binding IsMp4RecordFormat, Converter={x:Static c:BoolToVisibilityConverter.Instance}}" />
+                            <CheckBox Grid.Row="1"
+                                      Margin="0,6,0,0"
+                                      Content="{I18N RecordFormatAutoRemove}"
+                                      IsChecked="{Binding IsRemoveTs, Mode=TwoWay}"
+                                      Visibility="{Binding IsTranscodedRecordFormat, Converter={x:Static c:BoolToVisibilityConverter.Instance}}" />
+                        </Grid>
                     </ui:CardExpander>
-                    <ui:CardExpander>
+                    <ui:CardExpander x:Name="SegmentExpander">
                         <ui:CardExpander.Header>
                             <ui:Grid ColumnDefinitions="Auto,*,Auto">
                                 <Grid Grid.Column="0" Margin="0,0,12,0">
@@ -767,7 +847,8 @@
                             </ui:Grid>
                         </ui:CardExpander.Header>
                         <ui:StackPanel Spacing="8">
-                            <ui:StackPanel Margin="42,0,28,0"
+                            <ui:StackPanel x:Name="SegmentOptionsPanel"
+                                           Margin="42,0,28,0"
                                            IsEnabled="{Binding IsToSegment}"
                                            Spacing="12">
                                 <ui:Grid ColumnDefinitions="Auto,Auto,Auto">
@@ -791,7 +872,7 @@
                             </ui:StackPanel>
                         </ui:StackPanel>
                     </ui:CardExpander>
-                    <ui:CardExpander>
+                    <ui:CardExpander x:Name="SaveSettingsExpander">
                         <ui:CardExpander.Header>
                             <ui:Grid ColumnDefinitions="Auto,*,Auto">
                                 <Grid Grid.Column="0" Margin="0,0,12,0">
@@ -833,47 +914,46 @@
                                         Command="{Binding OpenSaveFolderCommand}"
                                         Content="{I18N OpenFolder}" />
                             </ui:Grid>
-                            <ui:Grid Margin="42,0,28,0" ColumnDefinitions="*,28,*">
-                                <ui:Grid Grid.Column="0" ColumnDefinitions="Auto,*">
-                                    <TextBlock Grid.Column="0"
-                                               VerticalAlignment="Center"
-                                               Text="{I18N SavePathLevel}" />
-                                    <ComboBox Grid.Column="1"
-                                              MinWidth="130"
-                                              Margin="10,0,0,0"
-                                              HorizontalAlignment="Stretch"
-                                              SelectedIndex="{Binding SaveFolderPathLevelIndex, Mode=TwoWay}">
-                                        <ComboBoxItem Content="{I18N SavePathLevelRootOnly}" />
-                                        <ComboBoxItem Content="{I18N SavePathLevelAuthor}" />
-                                        <ComboBoxItem Content="{I18N SavePathLevelAuthorYearMonth}" />
-                                        <ComboBoxItem Content="{I18N SavePathLevelAuthorDate}" />
-                                    </ComboBox>
-                                </ui:Grid>
-                                <ui:Grid Grid.Column="2"
-                                         ColumnDefinitions="Auto,Auto,Auto,Auto"
-                                         ToolTip="{I18N DataRetentionHint}">
-                                    <TextBlock Grid.Column="0"
-                                               VerticalAlignment="Center"
-                                               Text="{I18N DataRetention}" />
-                                    <ui:ToggleSwitch Grid.Column="1"
-                                                     Margin="10,0,0,0"
-                                                     IsChecked="{Binding IsDataRetentionEnabled, Mode=TwoWay}" />
-                                    <controls:CompactNumberBox Grid.Column="2"
-                                                                Width="72"
-                                                                Margin="10,0,0,0"
-                                                                Maximum="9999"
-                                                                Minimum="1"
-                                                                IsEnabled="{Binding IsDataRetentionEnabled}"
-                                                                Value="{Binding DataRetentionValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <ComboBox Grid.Column="3"
-                                              MinWidth="70"
-                                              Margin="8,0,0,0"
-                                              DisplayMemberPath="DisplayName"
-                                              IsEnabled="{Binding IsDataRetentionEnabled}"
-                                              ItemsSource="{Binding DataRetentionUnitOptions}"
-                                              SelectedValue="{Binding DataRetentionUnitIndex, Mode=TwoWay}"
-                                              SelectedValuePath="Value" />
-                                </ui:Grid>
+                            <ui:Grid Margin="42,0,28,0" ColumnDefinitions="Auto,*,Auto">
+                                <TextBlock Grid.Column="0"
+                                           VerticalAlignment="Center"
+                                           Text="{I18N SavePathLevel}" />
+                                <ComboBox Grid.Column="2"
+                                          Width="220"
+                                          Margin="10,0,0,0"
+                                          SelectedIndex="{Binding SaveFolderPathLevelIndex, Mode=TwoWay}">
+                                    <ComboBoxItem Content="{I18N SavePathLevelRootOnly}" />
+                                    <ComboBoxItem Content="{I18N SavePathLevelAuthor}" />
+                                    <ComboBoxItem Content="{I18N SavePathLevelAuthorYearMonth}" />
+                                    <ComboBoxItem Content="{I18N SavePathLevelAuthorDate}" />
+                                </ComboBox>
+                            </ui:Grid>
+                            <ui:Grid Margin="42,0,28,0"
+                                     ColumnDefinitions="Auto,*,Auto,Auto,Auto"
+                                     ToolTip="{I18N DataRetentionHint}">
+                                <TextBlock Grid.Column="0"
+                                           VerticalAlignment="Center"
+                                           Text="{I18N DataRetention}" />
+                                <ui:ToggleSwitch Grid.Column="2"
+                                                 Margin="10,0,0,0"
+                                                 IsChecked="{Binding IsDataRetentionEnabled, Mode=TwoWay}" />
+                                <controls:CompactNumberBox x:Name="DataRetentionValueInput"
+                                                            Grid.Column="3"
+                                                            Width="72"
+                                                            Margin="10,0,0,0"
+                                                            Maximum="9999"
+                                                            Minimum="1"
+                                                            IsEnabled="{Binding IsDataRetentionEnabled}"
+                                                            Value="{Binding DataRetentionValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <ComboBox x:Name="DataRetentionUnitSelector"
+                                          Grid.Column="4"
+                                          Width="86"
+                                          Margin="8,0,0,0"
+                                          DisplayMemberPath="DisplayName"
+                                          IsEnabled="{Binding IsDataRetentionEnabled}"
+                                          ItemsSource="{Binding DataRetentionUnitOptions}"
+                                          SelectedValue="{Binding DataRetentionUnitIndex, Mode=TwoWay}"
+                                          SelectedValuePath="Value" />
                             </ui:Grid>
                             <ui:StackPanel Margin="42,10,28,0"
                                            Spacing="10">
@@ -927,7 +1007,7 @@
                             </ui:StackPanel>
                         </ui:StackPanel>
                     </ui:CardExpander>
-                    <ui:Card>
+                    <ui:Card x:Name="PreviewSettingsCard">
                         <ui:Grid MinHeight="35" ColumnDefinitions="Auto,*,Auto">
                             <Grid Grid.Column="0" Margin="0,0,12,0">
                                 <TextBlock MinWidth="26"
@@ -953,7 +1033,7 @@
                                FontSize="14"
                                Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                Text="{I18N LongRunningSettings}" />
-                    <ui:Card>
+                    <ui:Card x:Name="KeepAwakeCard">
                         <ui:Grid MinHeight="35" ColumnDefinitions="Auto,*,Auto">
                             <Grid Grid.Column="0" Margin="0,0,12,0">
                                 <TextBlock MinWidth="26"
@@ -962,7 +1042,7 @@
                                            VerticalAlignment="Center"
                                            FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                            FontSize="18"
-                                           Text="{x:Static ui:FontSymbols.Recent}" />
+                                           Text="{x:Static ui:FontSymbols.DeviceMonitorRightPic}" />
                             </Grid>
                             <ui:Grid Grid.Column="1" RowDefinitions="Auto,Auto">
                                 <TextBlock Grid.Row="0" Text="{I18N KeepAwake}" />
@@ -976,7 +1056,7 @@
                                              IsChecked="{Binding IsUseKeepAwake, Mode=TwoWay}" />
                         </ui:Grid>
                     </ui:Card>
-                    <ui:CardExpander>
+                    <ui:CardExpander x:Name="AutoShutdownExpander">
                         <ui:CardExpander.Header>
                             <ui:Grid ColumnDefinitions="Auto,*,Auto">
                                 <Grid Grid.Column="0" Margin="0,0,12,0">
@@ -1000,7 +1080,8 @@
                                 </Grid>
                             </ui:Grid>
                         </ui:CardExpander.Header>
-                        <controls:AdaptiveSplitPanel Margin="56,0,28,8"
+                        <controls:AdaptiveSplitPanel x:Name="AutoShutdownOptionsPanel"
+                                                     Margin="56,0,28,8"
                                                      HorizontalAlignment="Stretch"
                                                      HorizontalSpacing="24"
                                                      IsEnabled="{Binding IsUseAutoShutdown}"
@@ -1045,7 +1126,7 @@
                                FontSize="14"
                                Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                Text="{I18N NetworkSettings}" />
-                    <ui:Card>
+                    <ui:Card x:Name="PlatformAccessCard">
                         <Grid MinHeight="35">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -1108,7 +1189,7 @@
                             </ui:StackPanel>
                         </Grid>
                     </ui:Card>
-                    <ui:CardExpander>
+                    <ui:CardExpander x:Name="ProxyExpander">
                         <ui:CardExpander.Header>
                             <ui:Grid ColumnDefinitions="Auto,*,Auto">
                                 <Grid Grid.Column="0" Margin="0,0,12,0">
@@ -1132,7 +1213,7 @@
                                 </Grid>
                             </ui:Grid>
                         </ui:CardExpander.Header>
-                        <ui:StackPanel IsEnabled="{Binding IsUseProxy}" Spacing="12">
+                        <ui:StackPanel x:Name="ProxyOptionsPanel" IsEnabled="{Binding IsUseProxy}" Spacing="12">
                             <ui:Grid Margin="42,0,28,0" ColumnDefinitions="Auto,*,Auto">
                                 <TextBlock VerticalAlignment="Center" Text="{I18N ProxyHostAndPort}" />
                                 <ui:TextBox Grid.Column="1"
@@ -1146,7 +1227,7 @@
                             </ui:Grid>
                         </ui:StackPanel>
                     </ui:CardExpander>
-                    <ui:CardExpander>
+                    <ui:CardExpander x:Name="CookieSettingsExpander">
                         <ui:CardExpander.Header>
                             <ui:Grid ColumnDefinitions="Auto,*,Auto">
                                 <Grid Grid.Column="0" Margin="0,0,12,0">
@@ -1188,7 +1269,7 @@
                                             <TextBlock Grid.Column="0"
                                                        VerticalAlignment="Center"
                                                        Text="{Binding DisplayName, StringFormat={}{0}:}"
-                                                       TextTrimming="CharacterEllipsis" />
+                                                       TextWrapping="Wrap" />
                                             <ui:PasswordBox Grid.Column="1"
                                                             MinWidth="120"
                                                             Margin="8,0,0,0"
@@ -1228,7 +1309,7 @@
                                             <TextBlock Grid.Column="0"
                                                        VerticalAlignment="Center"
                                                        Text="{Binding DisplayName, StringFormat={}{0}:}"
-                                                       TextTrimming="CharacterEllipsis" />
+                                                       TextWrapping="Wrap" />
                                             <ui:PasswordBox Grid.Column="1"
                                                             MinWidth="120"
                                                             Margin="8,0,0,0"
@@ -1249,7 +1330,7 @@
 
                         </ui:StackPanel>
                     </ui:CardExpander>
-                    <ui:CardExpander>
+                    <ui:CardExpander x:Name="UserAgentExpander">
                         <ui:CardExpander.Header>
                             <ui:Grid ColumnDefinitions="Auto,*,Auto">
                                 <Grid Grid.Column="0" Margin="0,0,12,0">
@@ -1285,17 +1366,50 @@
                     </ui:CardExpander>
                     <FrameworkElement Height="10" />
                 </ui:StackPanel>
-            </ScrollViewer>
+                <Grid x:Name="SettingsUiXPanel"
+                      Visibility="Collapsed">
+                    <Grid.Resources>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Setter Property="TextWrapping" Value="Wrap" />
+                            <Setter Property="TextTrimming" Value="None" />
+                        </Style>
+                    </Grid.Resources>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid x:Name="SettingsUiXColumns"
+                          Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition x:Name="SettingsUiXLeftColumnDefinition" Width="*" />
+                            <ColumnDefinition x:Name="SettingsUiXGapColumnDefinition" Width="16" />
+                            <ColumnDefinition x:Name="SettingsUiXRightColumnDefinition" Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel x:Name="SettingsUiXLeftColumn"
+                                    Grid.Column="0"
+                                    HorizontalAlignment="Stretch" />
+                        <StackPanel x:Name="SettingsUiXRightColumn"
+                                    Grid.Column="2"
+                                    HorizontalAlignment="Stretch" />
+                    </Grid>
+                    <ui:StackPanel x:Name="SettingsUiXBottomPanel"
+                                   Grid.Row="1"
+                                   Margin="0,8,0,0"
+                                   HorizontalAlignment="Stretch"
+                                   Spacing="8" />
+                </Grid>
+                </Grid>
+            </fluentControls:SmoothScrollViewer>
             <Border Height="6"
                     VerticalAlignment="Top"
                     Panel.ZIndex="20"
-                    Background="{DynamicResource EmerdeSurfaceBrush}"
+                    Style="{StaticResource UiXSettingsFadeStyle}"
                     IsHitTestVisible="False"
                     OpacityMask="{StaticResource TopEdgeFadeOpacityMask}" />
             <Border Height="6"
                     VerticalAlignment="Bottom"
                     Panel.ZIndex="20"
-                    Background="{DynamicResource EmerdeSurfaceBrush}"
+                    Style="{StaticResource UiXSettingsFadeStyle}"
                     IsHitTestVisible="False"
                     OpacityMask="{StaticResource BottomEdgeFadeOpacityMask}" />
         </ui:Grid>
