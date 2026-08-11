@@ -21,6 +21,7 @@ public partial class TrayMenuWindow : Window
     private readonly LowLevelMouseProc mouseHookCallback;
     private nint mouseHook;
     private bool openAbove;
+    private bool openLeft;
 
     public string ShowMainWindowText { get; } = StripAccessKeySuffix("TrayMenuShowMainWindow".Tr());
     public string SettingsText { get; } = "Settings".Tr();
@@ -93,10 +94,11 @@ public partial class TrayMenuWindow : Window
     internal static System.Windows.Point GetTrayMenuPlacementOffset(
         System.Windows.Size popupSize,
         System.Windows.Size targetSize,
-        bool openAbove)
+        bool openAbove,
+        bool openLeft = false)
     {
         return new System.Windows.Point(
-            targetSize.Width,
+            openLeft ? -popupSize.Width : targetSize.Width,
             openAbove ? -popupSize.Height : targetSize.Height);
     }
 
@@ -108,6 +110,7 @@ public partial class TrayMenuWindow : Window
         int anchorY = Math.Clamp(cursorPixels.Y, workingAreaPixels.Top, workingAreaPixels.Bottom - 1);
         openAbove = cursorPixels.Y >= workingAreaPixels.Bottom
             || anchorY - workingAreaPixels.Top > workingAreaPixels.Bottom - anchorY;
+        openLeft = anchorX - workingAreaPixels.Left > workingAreaPixels.Right - anchorX;
         nint handle = new WindowInteropHelper(this).Handle;
         _ = SetWindowPos(handle, nint.Zero, anchorX, anchorY, 1, 1, 0x0014);
     }
@@ -117,8 +120,13 @@ public partial class TrayMenuWindow : Window
         System.Windows.Size targetSize,
         System.Windows.Point offset)
     {
-        System.Windows.Point placement = GetTrayMenuPlacementOffset(popupSize, targetSize, openAbove);
-        return [new CustomPopupPlacement(placement, PopupPrimaryAxis.Vertical)];
+        return
+        [
+            new CustomPopupPlacement(GetTrayMenuPlacementOffset(popupSize, targetSize, openAbove, openLeft), PopupPrimaryAxis.Vertical),
+            new CustomPopupPlacement(GetTrayMenuPlacementOffset(popupSize, targetSize, openAbove, !openLeft), PopupPrimaryAxis.Horizontal),
+            new CustomPopupPlacement(GetTrayMenuPlacementOffset(popupSize, targetSize, !openAbove, openLeft), PopupPrimaryAxis.Vertical),
+            new CustomPopupPlacement(GetTrayMenuPlacementOffset(popupSize, targetSize, !openAbove, !openLeft), PopupPrimaryAxis.Horizontal),
+        ];
     }
 
     private void StartMouseHook()
