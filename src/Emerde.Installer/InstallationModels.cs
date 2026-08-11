@@ -29,6 +29,12 @@ internal sealed record RepairState(
     string Version,
     IReadOnlyList<RepairFileState> Files);
 
+internal sealed record UpgradeNoticeState(
+    string Version,
+    string PreviousVersion,
+    DateTime InstalledAtUtc,
+    bool Pending);
+
 internal sealed record InstallationInfo(
     string InstallRoot,
     string Version,

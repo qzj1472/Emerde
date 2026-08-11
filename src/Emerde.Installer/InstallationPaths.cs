@@ -10,6 +10,7 @@ internal static class InstallationPaths
     public const string AutoStartRegistryPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
     public const string StateFileName = "install-state.json";
     public const string RepairStateFileName = "repair-state.json";
+    public const string UpgradeNoticeFileName = "upgrade-notice.json";
     public const string MaintenanceExecutableName = "Emerde.Uninstaller.exe";
     public const string ApplicationExecutableName = "Emerde.exe";
     public const string BinaryDirectoryName = "bin";
@@ -55,6 +56,9 @@ internal static class InstallationPaths
 
     public static string RepairStateFile(string installRoot) =>
         Path.Combine(MaintenanceDirectory(installRoot), RepairStateFileName);
+
+    public static string UpgradeNoticeFile(string installRoot) =>
+        Path.Combine(MaintenanceDirectory(installRoot), UpgradeNoticeFileName);
 
     public static string NormalizeInstallRoot(string path)
     {

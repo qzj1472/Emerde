@@ -89,6 +89,41 @@ internal static class InstallationRegistry
             JsonSerializer.Serialize(state, JsonOptions));
     }
 
+    public static UpgradeNoticeState? ReadUpgradeNotice(string installRoot)
+    {
+        string normalizedRoot = InstallationPaths.NormalizeInstallRoot(installRoot);
+        string statePath = InstallationPaths.UpgradeNoticeFile(normalizedRoot);
+
+        try
+        {
+            return File.Exists(statePath)
+                ? JsonSerializer.Deserialize<UpgradeNoticeState>(File.ReadAllText(statePath), JsonOptions)
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+    }
+
+    public static void WriteUpgradeNotice(string installRoot, string previousVersion, string version)
+    {
+        string normalizedRoot = InstallationPaths.NormalizeInstallRoot(installRoot);
+        Directory.CreateDirectory(InstallationPaths.MaintenanceDirectory(normalizedRoot));
+        UpgradeNoticeState state = new(
+            version,
+            previousVersion,
+            DateTime.UtcNow,
+            true);
+        File.WriteAllText(
+            InstallationPaths.UpgradeNoticeFile(normalizedRoot),
+            JsonSerializer.Serialize(state, JsonOptions));
+    }
+
     public static RepairState? ReadRepairState(string installRoot)
     {
         string normalizedRoot = InstallationPaths.NormalizeInstallRoot(installRoot);
@@ -138,8 +173,7 @@ internal static class InstallationRegistry
             foreach (string filePath in Directory.EnumerateFiles(componentPath, "*", SearchOption.AllDirectories))
             {
                 string fileName = Path.GetFileName(filePath);
-                if (string.Equals(fileName, InstallationPaths.StateFileName, StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(fileName, InstallationPaths.RepairStateFileName, StringComparison.OrdinalIgnoreCase))
+                if (IsMaintenanceStateFile(fileName))
                 {
                     continue;
                 }
@@ -246,5 +280,12 @@ internal static class InstallationRegistry
             ? null
             : FileVersionInfo.GetVersionInfo(executablePath).FileVersion;
         return string.IsNullOrWhiteSpace(version) ? "未知" : version;
+    }
+
+    internal static bool IsMaintenanceStateFile(string fileName)
+    {
+        return string.Equals(fileName, InstallationPaths.StateFileName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fileName, InstallationPaths.RepairStateFileName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fileName, InstallationPaths.UpgradeNoticeFileName, StringComparison.OrdinalIgnoreCase);
     }
 }

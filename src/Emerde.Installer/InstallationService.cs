@@ -61,6 +61,9 @@ internal sealed class InstallationService
 
         platform.EnsureAvailableSpace(installRoot, payload.GetUncompressedLength());
         Directory.CreateDirectory(installRoot);
+        string previousVersion = operation == InstallationOperation.Upgrade
+            ? InstallationRegistry.ReadState(installRoot).Version
+            : string.Empty;
         progress.Report(new InstallationProgress(2, GetPreparingStatus(operation)));
 
         if (operation == InstallationOperation.Repair
@@ -113,6 +116,10 @@ internal sealed class InstallationService
                 InstallationPaths.ProductVersion);
             InstallationRegistry.WriteState(state);
             InstallationRegistry.WriteRepairState(installRoot, state.Version);
+            if (operation == InstallationOperation.Upgrade)
+            {
+                InstallationRegistry.WriteUpgradeNotice(installRoot, previousVersion, state.Version);
+            }
 
             progress.Report(new InstallationProgress(90, "正在创建快捷方式..."));
             platform.ApplyShortcuts(installRoot, request.CreateShortcuts);
@@ -355,8 +362,7 @@ internal sealed class InstallationService
             {
                 string fileName = Path.GetFileName(filePath);
                 string relativePath = NormalizeRelativePath(Path.GetRelativePath(installRoot, filePath));
-                if (!string.Equals(fileName, InstallationPaths.StateFileName, StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(fileName, InstallationPaths.RepairStateFileName, StringComparison.OrdinalIgnoreCase)
+                if (!InstallationRegistry.IsMaintenanceStateFile(fileName)
                     && !expectedFiles.Contains(relativePath))
                 {
                     File.Delete(filePath);
