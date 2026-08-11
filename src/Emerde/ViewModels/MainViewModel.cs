@@ -13,6 +13,7 @@ using System.Net;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Web;
 using System.Windows;
 using System.Windows.Controls;
@@ -107,6 +108,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private CancellationTokenSource? networkCapacityTestCancellation;
     private long previewTransitionRequestSequence;
     private long lastManualRefreshTimestamp;
+    private int selectedRoomRecordingSummaryRequestId;
+    private readonly object selectedRoomRecordingSummarySync = new();
+    private CancellationTokenSource? selectedRoomRecordingSummaryCancellation;
     private readonly Dictionary<string, long> previewRefreshTimestamps = new(StringComparer.OrdinalIgnoreCase);
     private PreviewRefreshSuppression? previewRefreshSuppression;
     private CancellationTokenSource? previewRefreshSuppressionCancellation;
@@ -128,9 +132,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     public bool IsVideoListPageSelected => SelectedMainPageIndex == 1;
 
-    public bool IsSettingsPageSelected => SelectedMainPageIndex == 2;
+    public bool IsSettingsPageSelected => SelectedMainPageIndex == 3;
 
-    public bool IsExtensionsPageSelected => SelectedMainPageIndex == 3;
+    public bool IsExtensionsPageSelected => SelectedMainPageIndex == 2;
 
     public bool IsAboutPageSelected => SelectedMainPageIndex == 4;
 
@@ -253,10 +257,20 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     [ObservableProperty]
     private bool isRefreshingSelectedRoomInfo = false;
 
+    [ObservableProperty]
+    private string selectedRoomLastRecordedAtText = "-";
+
+    [ObservableProperty]
+    private string selectedRoomLastEndedAtText = "-";
+
+    [ObservableProperty]
+    private string selectedRoomStorageUsageText = "0 B";
+
     partial void OnSelectedItemChanged(RoomStatusReactive value)
     {
         IsRoomCardSelectionVisible = true;
         OnPropertyChanged(nameof(CanPreviewSelectedRoom));
+        _ = UpdateSelectedRoomRecordingSummaryAsync(value);
     }
 
     [ObservableProperty]
@@ -474,6 +488,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     [ObservableProperty]
     private bool statusOfIsUseProxy = Configurations.IsUseProxy.Get();
+
+    [ObservableProperty]
+    private bool statusOfIsUiXEnabled = Configurations.IsUiXEnabled.Get();
 
     [ObservableProperty]
     private bool statusOfIsUseKeepAwake = Configurations.IsUseKeepAwake.Get();
@@ -751,6 +768,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         StatusOfIsToMonitor = isToMonitor;
         StatusOfIsToRecord = isToRecord;
         StatusOfIsUseProxy = Configurations.IsUseProxy.Get();
+        StatusOfIsUiXEnabled = Configurations.IsUiXEnabled.Get();
         StatusOfIsUseKeepAwake = Configurations.IsUseKeepAwake.Get();
         StatusOfIsUseAutoShutdown = Configurations.IsUseAutoShutdown.Get();
         StatusOfAutoShutdownTime = Configurations.AutoShutdownTime.Get();
@@ -2471,7 +2489,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         };
         if (spiderResult != null)
         {
-            string avatarLocalPath = await CacheAvatarAsync(roomUrl, spiderResult);
+            string avatarLocalPath = await GlobalMonitor.RunRoomUpdateAsync(
+                roomUrl,
+                () => CacheAvatarAsync(roomUrl, spiderResult));
             ApplyRoomInfoResult(roomStatusReactive, spiderResult, avatarLocalPath);
         }
 
@@ -2503,23 +2523,25 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     [RelayCommand]
     private void OpenSettingsDialog()
     {
-        SelectedMainPageIndex = 2;
+        SelectedMainPageIndex = 3;
     }
 
     [RelayCommand]
     private void OpenExtensions()
     {
-        SelectedMainPageIndex = 3;
+        SelectedMainPageIndex = 2;
     }
 
     [RelayCommand]
-    private async Task OpenSaveFolderAsync()
+    private async Task OpenSaveFolderAsync(RoomStatusReactive? roomStatus = null)
     {
+        RoomStatusReactive? targetRoom = ResolveRoomCommandTarget(roomStatus);
+        string? configuredSaveFolder = GetRoomConfiguredSaveFolder(targetRoom);
         try
         {
             await Launcher.LaunchFolderAsync(
                 await StorageFolder.GetFolderFromPathAsync(
-                    SaveFolderHelper.GetSaveFolder(Configurations.SaveFolder.Get())
+                    SaveFolderHelper.GetSaveFolder(configuredSaveFolder)
                 )
             );
         }
@@ -2528,6 +2550,481 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             AppSessionLogger.WriteException(e);
             Toast.Warning("OpenSaveFolderFailed".Tr(e.Message));
         }
+    }
+
+    [RelayCommand]
+    private async Task ShowRoomInformationAsync(RoomStatusReactive? roomStatus = null)
+    {
+        RoomStatusReactive? targetRoom = ResolveRoomCommandTarget(roomStatus);
+        if (targetRoom == null)
+        {
+            return;
+        }
+
+        TextBlock lastRecordedAtValue = CreateRoomInformationValueText("CookieLoginLoading".Tr());
+        TextBlock lastEndedAtValue = CreateRoomInformationValueText("CookieLoginLoading".Tr());
+        TextBlock storageUsageValue = CreateRoomInformationValueText("CookieLoginLoading".Tr());
+        FrameworkElement content = CreateRoomInformationContent(targetRoom, lastRecordedAtValue, lastEndedAtValue, storageUsageValue);
+        ContentDialog dialog = new()
+        {
+            Title = "RoomInformation".Tr(),
+            Content = content,
+            CloseButtonText = "ButtonOfClose".Tr(),
+            DefaultButton = ContentDialogButton.Close,
+            FocusVisualStyle = null,
+            Style = Application.Current?.TryFindResource("DefaultVioletaContentDialogStyle") as Style,
+        };
+
+        _ = UpdateRoomRecordingSummaryAsync(targetRoom, lastRecordedAtValue, lastEndedAtValue, storageUsageValue);
+        using DialogBlurScope blurScope = DialogBlurScope.ForLightDismiss(Application.Current?.MainWindow, dialog);
+        await ShowMainContentDialogAsync(dialog);
+    }
+
+    private FrameworkElement CreateRoomInformationContent(
+        RoomStatusReactive room,
+        TextBlock lastRecordedAtValue,
+        TextBlock lastEndedAtValue,
+        TextBlock storageUsageValue)
+    {
+        StackPanel panel = new()
+        {
+            Width = 560,
+            MaxHeight = 560,
+        };
+        ScrollViewer scrollViewer = new()
+        {
+            BorderThickness = new Thickness(0),
+            Focusable = false,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = panel,
+        };
+
+        panel.Children.Add(CreateRoomInformationHeader(room));
+        panel.Children.Add(CreateRoomInformationDivider());
+        panel.Children.Add(CreateRoomInformationSectionTitle("RoomInformation".Tr()));
+        panel.Children.Add(CreateRoomInformationGrid([
+            ("Platform".Tr(), CreateRoomInformationValueText(room.PlatformDisplayName)),
+            ("LiveTitle".Tr(), CreateRoomInformationValueText(room.LiveTitleText)),
+            ("StreamStatus".Tr(), CreateRoomInformationValueText(room.StreamStatusText)),
+            ("RecordStatus".Tr(), CreateRoomInformationValueText(room.RecordStatusText)),
+            ("RecordFormat".Tr(), CreateRoomInformationValueText(StatusOfRecordFormat)),
+        ]));
+        panel.Children.Add(CreateRoomInformationDivider());
+        panel.Children.Add(CreateRoomInformationSectionTitle("LiveStream".Tr()));
+        panel.Children.Add(CreateRoomInformationGrid([
+            ("QualityLabel".Tr(), CreateRoomInformationValueText(room.QualityText)),
+            ("ResolutionLabel".Tr(), CreateRoomInformationValueText(room.ResolutionText)),
+            ("BitrateLabel".Tr(), CreateRoomInformationValueText(room.BitrateText)),
+            ("RoomAddress".Tr(), CreateRoomInformationCopyRow(room.RoomUrl, "CopyRoomAddressToolTip")),
+            ("LiveStream".Tr(), CreateRoomInformationCopyRow(room.LiveStreamText, "CopyLiveStreamToolTip")),
+        ]));
+        panel.Children.Add(CreateRoomInformationDivider());
+        panel.Children.Add(CreateRoomInformationSectionTitle("RoomRecordingStatistics".Tr()));
+        panel.Children.Add(CreateRoomInformationGrid([
+            ("RecentRecordingStarted".Tr(), lastRecordedAtValue),
+            ("RecentRecordingEnded".Tr(), lastEndedAtValue),
+            ("RoomRecordingStorageUsage".Tr(), storageUsageValue),
+        ]));
+
+        return scrollViewer;
+    }
+
+    private static FrameworkElement CreateRoomInformationHeader(RoomStatusReactive room)
+    {
+        Grid grid = new()
+        {
+            Margin = new Thickness(0, 0, 0, 2),
+        };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        PersonPicture picture = new()
+        {
+            Width = 44,
+            Height = 44,
+            DisplayName = room.NickName,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(picture, 0);
+        grid.Children.Add(picture);
+
+        StackPanel textPanel = new()
+        {
+            Margin = new Thickness(12, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        TextBlock name = new()
+        {
+            Text = room.NickName,
+            FontSize = 17,
+            FontWeight = FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        TextBlock code = new()
+        {
+            Text = $"UID: {room.RoomCodeText}",
+            FontSize = 12,
+            Margin = new Thickness(0, 3, 0, 0),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        code.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        textPanel.Children.Add(name);
+        textPanel.Children.Add(code);
+        Grid.SetColumn(textPanel, 1);
+        grid.Children.Add(textPanel);
+        return grid;
+    }
+
+    private static Border CreateRoomInformationDivider()
+    {
+        Border divider = new()
+        {
+            Height = 1,
+            Margin = new Thickness(0, 12, 0, 12),
+            Opacity = 0.65,
+        };
+        divider.SetResourceReference(Border.BackgroundProperty, "ControlStrokeColorDefaultBrush");
+        return divider;
+    }
+
+    private static TextBlock CreateRoomInformationSectionTitle(string text)
+    {
+        TextBlock title = new()
+        {
+            Text = text,
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 8),
+        };
+        title.SetResourceReference(TextBlock.ForegroundProperty, "SystemAccentColorPrimaryBrush");
+        return title;
+    }
+
+    private static Grid CreateRoomInformationGrid(IReadOnlyList<(string Label, FrameworkElement Value)> rows)
+    {
+        Grid grid = new();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(112) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        for (int index = 0; index < rows.Count; index++)
+        {
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            TextBlock label = new()
+            {
+                Text = rows[index].Label,
+                FontSize = 12,
+                Margin = new Thickness(0, 0, 14, 7),
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            label.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+            Grid.SetRow(label, index);
+            Grid.SetColumn(label, 0);
+            grid.Children.Add(label);
+
+            FrameworkElement value = rows[index].Value;
+            value.Margin = new Thickness(0, 0, 0, 7);
+            Grid.SetRow(value, index);
+            Grid.SetColumn(value, 1);
+            grid.Children.Add(value);
+        }
+
+        return grid;
+    }
+
+    private static TextBlock CreateRoomInformationValueText(string? text)
+    {
+        TextBlock value = new()
+        {
+            Text = string.IsNullOrWhiteSpace(text) ? "-" : text,
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        value.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
+        return value;
+    }
+
+    private FrameworkElement CreateRoomInformationCopyRow(string? text, string toolTipKey)
+    {
+        Grid grid = new();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        TextBlock value = CreateRoomInformationValueText(text);
+        Grid.SetColumn(value, 0);
+        grid.Children.Add(value);
+
+        System.Windows.Controls.Button button = new()
+        {
+            Width = 28,
+            Height = 28,
+            MinWidth = 28,
+            Padding = new Thickness(0),
+            Margin = new Thickness(8, -5, 0, 0),
+            ToolTip = toolTipKey.Tr(),
+            IsEnabled = !string.IsNullOrWhiteSpace(text) && text != "-",
+        };
+        Wpf.Ui.Controls.FontIcon icon = new()
+        {
+            Glyph = Wpf.Ui.Controls.FontSymbols.Copy,
+        };
+        icon.SetResourceReference(Wpf.Ui.Controls.FontIcon.FontFamilyProperty, "SymbolThemeFontFamily");
+        button.Content = icon;
+        button.Click += async (_, _) => await CopyTextToClipboardAsync(text);
+        Grid.SetColumn(button, 1);
+        grid.Children.Add(button);
+
+        return grid;
+    }
+
+    private async Task UpdateRoomRecordingSummaryAsync(
+        RoomStatusReactive room,
+        TextBlock lastRecordedAtValue,
+        TextBlock lastEndedAtValue,
+        TextBlock storageUsageValue)
+    {
+        RoomRecordingSummary summary;
+        try
+        {
+            summary = await Task.Run(() => GetRoomRecordingSummary(room));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
+        {
+            AppSessionLogger.WriteException(e);
+            summary = new RoomRecordingSummary(DateTime.MinValue, DateTime.MinValue, 0);
+        }
+
+        ApplicationDispatcher.BeginInvoke(() =>
+        {
+            lastRecordedAtValue.Text = FormatRoomInformationDate(summary.LastRecordedAt);
+            lastEndedAtValue.Text = FormatRoomInformationDate(summary.LastEndedAt);
+            storageUsageValue.Text = FormatRoomInformationSize(summary.TotalBytes);
+        });
+    }
+
+    private async Task UpdateSelectedRoomRecordingSummaryAsync(RoomStatusReactive? room)
+    {
+        int requestId = Interlocked.Increment(ref selectedRoomRecordingSummaryRequestId);
+        CancellationTokenSource cancellation = new();
+        CancellationToken cancellationToken = cancellation.Token;
+        lock (selectedRoomRecordingSummarySync)
+        {
+            selectedRoomRecordingSummaryCancellation?.Cancel();
+            selectedRoomRecordingSummaryCancellation?.Dispose();
+            selectedRoomRecordingSummaryCancellation = cancellation;
+        }
+
+        if (room == null || string.IsNullOrWhiteSpace(room.RoomUrl))
+        {
+            SelectedRoomLastRecordedAtText = "-";
+            SelectedRoomLastEndedAtText = "-";
+            SelectedRoomStorageUsageText = "0 B";
+            CompleteSelectedRoomRecordingSummary(cancellation);
+            return;
+        }
+
+        SelectedRoomLastRecordedAtText = "CookieLoginLoading".Tr();
+        SelectedRoomLastEndedAtText = "CookieLoginLoading".Tr();
+        SelectedRoomStorageUsageText = "CookieLoginLoading".Tr();
+
+        RoomRecordingSummary summary;
+        try
+        {
+            summary = await Task.Run(
+                () => GetRoomRecordingSummary(room, cancellationToken),
+                cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
+        {
+            AppSessionLogger.WriteException(e);
+            summary = new RoomRecordingSummary(DateTime.MinValue, DateTime.MinValue, 0);
+        }
+        finally
+        {
+            CompleteSelectedRoomRecordingSummary(cancellation);
+        }
+
+        ApplicationDispatcher.BeginInvoke(() =>
+        {
+            if (requestId != selectedRoomRecordingSummaryRequestId || !ReferenceEquals(SelectedItem, room))
+            {
+                return;
+            }
+
+            SelectedRoomLastRecordedAtText = FormatRoomInformationDate(summary.LastRecordedAt);
+            SelectedRoomLastEndedAtText = FormatRoomInformationDate(summary.LastEndedAt);
+            SelectedRoomStorageUsageText = FormatRoomInformationSize(summary.TotalBytes);
+        });
+    }
+
+    internal static RoomRecordingSummary GetRoomRecordingSummary(
+        RoomStatusReactive room,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        string targetRoomUrl = NormalizeRoomUrl(room.RoomUrl);
+        long totalBytes = 0;
+        DateTime lastRecordedAt = DateTime.MinValue;
+        DateTime lastEndedAt = DateTime.MinValue;
+
+        foreach (string root in MediaFileCatalog.GetConfiguredSaveFolders().Where(Directory.Exists))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                foreach (string path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    try
+                    {
+                        if (!MediaFileCatalog.IsMediaPath(path) || MediaFileCatalog.IsApplicationTemporaryPath(path))
+                        {
+                            continue;
+                        }
+
+                        FileInfo file = new(path);
+                        if (!file.Exists)
+                        {
+                            continue;
+                        }
+
+                        VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(file);
+                        if (!IsRoomRecordingMetadata(metadata, room, targetRoomUrl))
+                        {
+                            continue;
+                        }
+
+                        totalBytes += file.Length;
+                        DateTime recordedAt = NormalizeRoomInformationDate(metadata.RecordedAt);
+                        if (recordedAt > lastRecordedAt)
+                        {
+                            lastRecordedAt = recordedAt;
+                        }
+                        if (file.LastWriteTime > lastEndedAt)
+                        {
+                            lastEndedAt = file.LastWriteTime;
+                        }
+                    }
+                    catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
+                    {
+                        AppSessionLogger.WriteException(e);
+                    }
+                }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                AppSessionLogger.WriteException(e);
+            }
+        }
+
+        return new RoomRecordingSummary(lastRecordedAt, lastEndedAt, totalBytes);
+    }
+
+    private void CompleteSelectedRoomRecordingSummary(CancellationTokenSource cancellation)
+    {
+        lock (selectedRoomRecordingSummarySync)
+        {
+            if (!ReferenceEquals(selectedRoomRecordingSummaryCancellation, cancellation))
+            {
+                return;
+            }
+
+            selectedRoomRecordingSummaryCancellation = null;
+            cancellation.Dispose();
+        }
+    }
+
+    private static bool IsRoomRecordingMetadata(VideoRecordingMetadata metadata, RoomStatusReactive room, string targetRoomUrl)
+    {
+        string metadataRoomUrl = NormalizeRoomUrl(metadata.RoomUrl);
+        if (!string.IsNullOrWhiteSpace(metadataRoomUrl)
+            && !string.IsNullOrWhiteSpace(targetRoomUrl)
+            && string.Equals(metadataRoomUrl, targetRoomUrl, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return ExternalStreamResolver.IsSameRoom(
+            metadata.RoomUrl,
+            metadata.Platform,
+            string.Empty,
+            room.RoomUrl,
+            room.PlatformName,
+            room.Uid);
+    }
+
+    private static DateTime NormalizeRoomInformationDate(DateTime value)
+    {
+        if (value <= DateTime.MinValue)
+        {
+            return DateTime.MinValue;
+        }
+
+        return value.Kind == DateTimeKind.Utc ? value.ToLocalTime() : value;
+    }
+
+    private static string FormatRoomInformationDate(DateTime value)
+    {
+        return value <= DateTime.MinValue ? "-" : value.ToString("g", CultureInfo.CurrentCulture);
+    }
+
+    private static string FormatRoomInformationSize(long bytes)
+    {
+        if (bytes <= 0)
+        {
+            return "0 B";
+        }
+
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double value = bytes;
+        int unitIndex = 0;
+        while (value >= 1024d && unitIndex < units.Length - 1)
+        {
+            value /= 1024d;
+            unitIndex++;
+        }
+
+        return unitIndex == 0
+            ? $"{value:F0} {units[unitIndex]}"
+            : $"{value:F1} {units[unitIndex]}";
+    }
+
+    private RoomStatusReactive? ResolveRoomCommandTarget(RoomStatusReactive? roomStatus)
+    {
+        RoomStatusReactive? target = roomStatus ?? SelectedItem;
+        if (target == null || string.IsNullOrWhiteSpace(target.RoomUrl))
+        {
+            return null;
+        }
+
+        if (!ReferenceEquals(SelectedItem, target))
+        {
+            SelectedItem = target;
+        }
+
+        return target;
+    }
+
+    private static string? GetRoomConfiguredSaveFolder(RoomStatusReactive? roomStatus)
+    {
+        if (roomStatus == null || string.IsNullOrWhiteSpace(roomStatus.RoomUrl))
+        {
+            return Configurations.SaveFolder.Get();
+        }
+
+        Room? room = Configurations.Rooms.Get()
+            .FirstOrDefault(item => string.Equals(NormalizeRoomUrl(item.RoomUrl), NormalizeRoomUrl(roomStatus.RoomUrl), StringComparison.OrdinalIgnoreCase));
+        if (room is { IsFollowGlobalSettings: false } && !string.IsNullOrWhiteSpace(room.SaveFolder))
+        {
+            return room.SaveFolder;
+        }
+
+        return Configurations.SaveFolder.Get();
     }
 
     [RelayCommand]
@@ -2739,6 +3236,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             OnPropertyChanged(nameof(PlatformSummaryText));
             OnPropertyChanged(nameof(PlatformFilterOptions));
             OnPropertyChanged(nameof(CanPreviewSelectedRoom));
+            _ = UpdateSelectedRoomRecordingSummaryAsync(selectedRoom);
             ClosePreviewIfCurrentRoomUnavailable();
             Toast.Success("SuccOp".Tr());
         }
@@ -4125,9 +4623,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     }
 
     [RelayCommand]
-    private async Task ToggleSelectedRoomMonitorAsync()
+    private async Task ToggleSelectedRoomMonitorAsync(RoomStatusReactive? roomStatus = null)
     {
-        if (SelectedItem == null || string.IsNullOrWhiteSpace(SelectedItem.RoomUrl))
+        if (ResolveRoomCommandTarget(roomStatus) == null)
         {
             return;
         }
@@ -4169,9 +4667,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     }
 
     [RelayCommand]
-    private async Task ToggleSelectedRoomRecordAsync()
+    private async Task ToggleSelectedRoomRecordAsync(RoomStatusReactive? roomStatus = null)
     {
-        if (SelectedItem == null || string.IsNullOrWhiteSpace(SelectedItem.RoomUrl))
+        if (ResolveRoomCommandTarget(roomStatus) == null)
         {
             return;
         }
@@ -4298,9 +4796,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     }
 
     [RelayCommand]
-    private Task OpenLocalSettingsAsync()
+    private Task OpenLocalSettingsAsync(RoomStatusReactive? roomStatus = null)
     {
-        if (SelectedItem == null || string.IsNullOrWhiteSpace(SelectedItem.RoomUrl))
+        if (ResolveRoomCommandTarget(roomStatus) == null)
         {
             return Task.CompletedTask;
         }
@@ -4354,12 +4852,14 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     }
 
     [RelayCommand]
-    private async Task RemoveRoomUrlAsync()
+    private async Task RemoveRoomUrlAsync(RoomStatusReactive? roomStatus = null)
     {
-        RoomStatusReactive[] targets = ResolveRoomRemovalTargets(
-            RoomStatuses,
-            SelectedItem,
-            IsRoomCardSelectionVisible);
+        RoomStatusReactive[] targets = ResolveRoomCommandTarget(roomStatus) is RoomStatusReactive targetRoom
+            ? [targetRoom]
+            : ResolveRoomRemovalTargets(
+                RoomStatuses,
+                SelectedItem,
+                IsRoomCardSelectionVisible);
         if (targets.Length == 0)
         {
             return;
@@ -4675,6 +5175,12 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         AbortAutoShutdownCountdown();
         CancelNetworkCapacityTest();
         FlushPreviewRefreshSuppression();
+        lock (selectedRoomRecordingSummarySync)
+        {
+            selectedRoomRecordingSummaryCancellation?.Cancel();
+            selectedRoomRecordingSummaryCancellation?.Dispose();
+            selectedRoomRecordingSummaryCancellation = null;
+        }
         AutoShutdownDispatcherTimer.Stop();
         RecordingDurationDispatcherTimer.Stop();
         DispatcherTimer.Stop();
@@ -4717,6 +5223,8 @@ internal enum PreviewTransitionReason
 }
 
 internal sealed record PreviewRoomLogContext(string RoomUrl, string NickName, string PlatformName);
+
+internal sealed record RoomRecordingSummary(DateTime LastRecordedAt, DateTime LastEndedAt, long TotalBytes);
 
 internal sealed class PreviewFirstFrameLogContext(
     long requestId,

@@ -98,10 +98,13 @@ public partial class RoomStatusReactive : ReactiveObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EffectiveIsToRecord))]
+    [NotifyPropertyChangedFor(nameof(RecordMenuText))]
+    [NotifyPropertyChangedFor(nameof(RecordMenuIsActive))]
     private bool isToRecord = true;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EffectiveIsToMonitor))]
+    [NotifyPropertyChangedFor(nameof(MonitorMenuText))]
     private bool isToMonitor = true;
 
     [ObservableProperty]
@@ -109,6 +112,9 @@ public partial class RoomStatusReactive : ReactiveObject
     [NotifyPropertyChangedFor(nameof(EffectiveIsToRecord))]
     [NotifyPropertyChangedFor(nameof(EffectiveIsToMonitor))]
     [NotifyPropertyChangedFor(nameof(CanEditRoomSettings))]
+    [NotifyPropertyChangedFor(nameof(MonitorMenuText))]
+    [NotifyPropertyChangedFor(nameof(RecordMenuText))]
+    [NotifyPropertyChangedFor(nameof(RecordMenuIsActive))]
     private bool isFollowGlobalSettings = true;
 
     public bool EffectiveIsToNotify => Configurations.IsToNotify.Get() && IsToNotify;
@@ -118,6 +124,12 @@ public partial class RoomStatusReactive : ReactiveObject
     public bool EffectiveIsToMonitor => GlobalMonitor.GetEffectiveRoomMonitor(RoomUrl, IsToMonitor, IsFollowGlobalSettings);
 
     public bool CanEditRoomSettings => !IsFollowGlobalSettings;
+
+    public string MonitorMenuText => EffectiveIsToMonitor ? "PauseMonitor".Tr() : "Monitor".Tr();
+
+    public string RecordMenuText => EffectiveIsToRecord || RecordStatus == RecordStatus.Recording ? "PauseRecording".Tr() : "EnableRecord".Tr();
+
+    public bool RecordMenuIsActive => EffectiveIsToRecord || RecordStatus == RecordStatus.Recording;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StreamStatusText))]
@@ -157,6 +169,8 @@ public partial class RoomStatusReactive : ReactiveObject
     [NotifyPropertyChangedFor(nameof(IsRecording))]
     [NotifyPropertyChangedFor(nameof(IsRecordingOrStarting))]
     [NotifyPropertyChangedFor(nameof(RecordingEngineText))]
+    [NotifyPropertyChangedFor(nameof(RecordMenuText))]
+    [NotifyPropertyChangedFor(nameof(RecordMenuIsActive))]
     private RecordStatus recordStatus = default;
 
     public string RecordStatusText => RecordStatus switch
@@ -341,6 +355,9 @@ public partial class RoomStatusReactive : ReactiveObject
         OnPropertyChanged(nameof(EffectiveIsToRecord));
         OnPropertyChanged(nameof(EffectiveIsToMonitor));
         OnPropertyChanged(nameof(CanEditRoomSettings));
+        OnPropertyChanged(nameof(MonitorMenuText));
+        OnPropertyChanged(nameof(RecordMenuText));
+        OnPropertyChanged(nameof(RecordMenuIsActive));
     }
 
     public void RefreshDuration()

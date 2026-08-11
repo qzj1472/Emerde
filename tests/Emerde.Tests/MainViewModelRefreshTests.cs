@@ -93,4 +93,18 @@ public sealed class MainViewModelRefreshTests
     {
         Assert.Equal(expected, MainViewModel.ShouldEnableSelectedRoomRecord(recordStatus, effectiveIsToRecord));
     }
+
+    [Fact]
+    public void RoomRecordingSummary_HonorsCancellationBeforeScanning()
+    {
+        RoomStatusReactive room = new()
+        {
+            RoomUrl = "https://example.test/room",
+        };
+        using CancellationTokenSource cancellation = new();
+        cancellation.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() =>
+            MainViewModel.GetRoomRecordingSummary(room, cancellation.Token));
+    }
 }

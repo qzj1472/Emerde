@@ -3,8 +3,9 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:b="http://schemas.github.com/computedbehaviors/2024/xaml"
                  xmlns:c="http://schemas.github.com/computedconverters/2024/xaml"
-                 xmlns:controls="clr-namespace:Emerde.Controls"
-                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                  xmlns:controls="clr-namespace:Emerde.Controls"
+                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                  xmlns:fluent="clr-namespace:FluentWpfCore.AttachedProperties;assembly=FluentWpfCore"
                  xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
                  xmlns:local="clr-namespace:Emerde"
                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -13,7 +14,8 @@
                  xmlns:views="clr-namespace:Emerde.Views"
                  xmlns:vio="http://schemas.lepo.co/wpfui/2022/xaml/violeta"
                  Title="Emerde"
-                 d:Background="#FF101010"
+                  d:Background="#FF101010"
+                  Background="Transparent"
                  ExtendsContentIntoTitleBar="True"
                  BorderBrush="Transparent"
                  BorderThickness="0"
@@ -23,9 +25,28 @@
                  PreviewDragOver="MainWindowPreviewDragOver"
                  PreviewDrop="MainWindowPreviewDrop"
                  SnapsToDevicePixels="True"
-                 UseLayoutRounding="True"
-                 mc:Ignorable="d">
-    <Grid Background="{DynamicResource EmerdeShellBackgroundBrush}">
+                  UseLayoutRounding="True"
+                  fluent:DwmAnimation.EnableDwmAnimation="True"
+                  fluent:WindowMaterial.WindowCorner="Round"
+                  mc:Ignorable="d">
+    <fluent:WindowMaterial.Material>
+        <fluent:WindowMaterial x:Name="UiXWindowMaterial"
+                               CompositonColor="#D9F3F5F7"
+                               IsDarkMode="False"
+                               MaterialMode="None"
+                               UseWindowComposition="False" />
+    </fluent:WindowMaterial.Material>
+    <Grid x:Name="ShellRoot">
+        <Grid.Style>
+            <Style TargetType="{x:Type Grid}">
+                <Setter Property="Background" Value="{DynamicResource EmerdeShellBackgroundBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource UiXShellBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Grid.Style>
         <Grid.Resources>
             <c:ValueConverterGroup x:Key="NotZeroIntToToVisibilityConverter">
                 <c:IntToBoolConverter TrueValue="0" />
@@ -42,15 +63,33 @@
                 <GradientStop Offset="1" Color="#FFFFFFFF" />
             </LinearGradientBrush>
 
+            <Style x:Key="UiXMainFadeStyle" TargetType="{x:Type Border}">
+                <Setter Property="Background" Value="{DynamicResource EmerdePanelBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource UiXPanelBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="UiXRoomCardFadeStyle" TargetType="{x:Type Border}">
+                <Setter Property="Background" Value="{DynamicResource EmerdePanelBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource UiXPanelBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
             <SolidColorBrush x:Key="RecordActiveBackgroundBrush" Color="#1FD95C66" />
             <SolidColorBrush x:Key="RecordActiveBorderBrush" Color="#80D95C66" />
-            <SolidColorBrush x:Key="RecordActiveForegroundBrush" Color="#C84450" />
-            <SolidColorBrush x:Key="LiveActiveBackgroundBrush" Color="#1F46B86E" />
-            <SolidColorBrush x:Key="LiveActiveBorderBrush" Color="#8046B86E" />
-            <SolidColorBrush x:Key="LiveActiveForegroundBrush" Color="#2D8A50" />
-            <SolidColorBrush x:Key="MonitorActiveBackgroundBrush" Color="#1F4C8FD8" />
-            <SolidColorBrush x:Key="MonitorActiveBorderBrush" Color="#804C8FD8" />
-            <SolidColorBrush x:Key="MonitorActiveForegroundBrush" Color="#3478C9" />
+            <SolidColorBrush x:Key="RecordActiveForegroundBrush" Color="#B33D4C" />
+            <SolidColorBrush x:Key="LiveActiveBackgroundBrush" Color="#2A46B86E" />
+            <SolidColorBrush x:Key="LiveActiveBorderBrush" Color="#A046B86E" />
+            <SolidColorBrush x:Key="LiveActiveForegroundBrush" Color="#237A49" />
+            <SolidColorBrush x:Key="MonitorActiveBackgroundBrush" Color="#264C8FD8" />
+            <SolidColorBrush x:Key="MonitorActiveBorderBrush" Color="#A04C8FD8" />
+            <SolidColorBrush x:Key="MonitorActiveForegroundBrush" Color="#2B6EBE" />
 
             <Style x:Key="StatusTrayButtonStyle" TargetType="{x:Type Button}">
                 <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
@@ -271,9 +310,20 @@
                                                   RecognizesAccessKey="True" />
                             </Grid>
                             <ControlTemplate.Triggers>
+                                <DataTrigger Binding="{Binding StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                                    <Setter TargetName="Chrome" Property="CornerRadius" Value="{StaticResource UiXNavigationItemCornerRadius}" />
+                                </DataTrigger>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
                                 </Trigger>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True" />
+                                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                                        <Condition Binding="{Binding IsChecked, RelativeSource={RelativeSource Self}}" Value="False" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource UiXSubtleFillBrush}" />
+                                </MultiDataTrigger>
                                 <Trigger Property="IsChecked" Value="True">
                                     <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
                                     <Setter TargetName="Indicator" Property="Opacity" Value="1" />
@@ -312,10 +362,41 @@
                                         </BeginStoryboard>
                                     </Trigger.ExitActions>
                                 </Trigger>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True" />
+                                        <Condition Binding="{Binding IsChecked, RelativeSource={RelativeSource Self}}" Value="True" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource UiXSelectionFillBrush}" />
+                                    <Setter TargetName="Indicator" Property="Background" Value="{DynamicResource UiXSelectionStrokeBrush}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                                </MultiDataTrigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                        <Setter Property="Width" Value="40" />
+                        <Setter Property="Height" Value="40" />
+                        <Setter Property="MinWidth" Value="40" />
+                        <Setter Property="MaxWidth" Value="40" />
+                        <Setter Property="MinHeight" Value="40" />
+                        <Setter Property="MaxHeight" Value="40" />
+                        <Setter Property="Margin" Value="3,0,3,6" />
+                        <Setter Property="Background" Value="Transparent" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="UiXShellNavLabelStyle" TargetType="{x:Type TextBlock}">
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="11" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
             <Style x:Key="ShellExitButtonStyle"
@@ -335,7 +416,8 @@
                                 <Border x:Name="ThemeFill"
                                         Background="{DynamicResource ControlFillColorDefaultBrush}"
                                         CornerRadius="{StaticResource Win11ControlCornerRadius}" />
-                                <Border Background="{TemplateBinding Background}"
+                                <Border x:Name="ButtonSurface"
+                                        Background="{TemplateBinding Background}"
                                         CornerRadius="{StaticResource Win11ControlCornerRadius}"
                                         IsHitTestVisible="False" />
                                 <ContentPresenter Margin="{TemplateBinding Padding}"
@@ -343,9 +425,28 @@
                                                   VerticalAlignment="Center" />
                             </Grid>
                             <ControlTemplate.Triggers>
+                                <DataTrigger Binding="{Binding StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                                    <Setter TargetName="ThemeFill" Property="Width" Value="40" />
+                                    <Setter TargetName="ThemeFill" Property="Height" Value="40" />
+                                    <Setter TargetName="ThemeFill" Property="HorizontalAlignment" Value="Center" />
+                                    <Setter TargetName="ThemeFill" Property="VerticalAlignment" Value="Center" />
+                                    <Setter TargetName="ThemeFill" Property="CornerRadius" Value="{StaticResource UiXNavigationInsetCornerRadius}" />
+                                    <Setter TargetName="ButtonSurface" Property="Width" Value="40" />
+                                    <Setter TargetName="ButtonSurface" Property="Height" Value="40" />
+                                    <Setter TargetName="ButtonSurface" Property="HorizontalAlignment" Value="Center" />
+                                    <Setter TargetName="ButtonSurface" Property="VerticalAlignment" Value="Center" />
+                                    <Setter TargetName="ButtonSurface" Property="CornerRadius" Value="{StaticResource UiXNavigationInsetCornerRadius}" />
+                                </DataTrigger>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="ThemeFill" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
                                 </Trigger>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True" />
+                                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter TargetName="ThemeFill" Property="Background" Value="{DynamicResource UiXSubtleFillBrush}" />
+                                </MultiDataTrigger>
                                 <Trigger Property="IsPressed" Value="True">
                                     <Setter TargetName="ThemeFill" Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}" />
                                 </Trigger>
@@ -356,6 +457,19 @@
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                        <Setter Property="Width" Value="40" />
+                        <Setter Property="Height" Value="40" />
+                        <Setter Property="MinWidth" Value="40" />
+                        <Setter Property="MaxWidth" Value="40" />
+                        <Setter Property="MinHeight" Value="40" />
+                        <Setter Property="MaxHeight" Value="40" />
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Background" Value="{DynamicResource UiXDangerFillBrush}" />
+                        <Setter Property="Foreground" Value="{DynamicResource UiXDangerForegroundBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
             <Style x:Key="SelectedContextMenuOptionStyle"
@@ -364,11 +478,47 @@
                 <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
                 <Setter Property="controls:MotionAssist.HoverScale" Value="1.006" />
                 <Setter Property="controls:MotionAssist.PressScale" Value="0.992" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="MinHeight" Value="36" />
+                <Setter Property="Padding" Value="14,7" />
+                <Setter Property="ToolTipService.InitialShowDelay" Value="420" />
+                <Setter Property="ToolTipService.ShowDuration" Value="3000" />
+                <Setter Property="ToolTipService.Placement" Value="Mouse" />
                 <Style.Triggers>
                     <Trigger Property="IsChecked" Value="True">
                         <Setter Property="FontWeight" Value="SemiBold" />
                         <Setter Property="Foreground" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
                     </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="MonitorContextMenuActionStyle"
+                   TargetType="{x:Type MenuItem}"
+                   BasedOn="{StaticResource SelectedContextMenuOptionStyle}">
+                <Style.Triggers>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True" />
+                            <Condition Binding="{Binding IsEnabled, RelativeSource={RelativeSource Self}}" Value="True" />
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                        <Setter Property="Foreground" Value="{StaticResource MonitorActiveForegroundBrush}" />
+                    </MultiDataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="RecordContextMenuActionStyle"
+                   TargetType="{x:Type MenuItem}"
+                   BasedOn="{StaticResource SelectedContextMenuOptionStyle}">
+                <Style.Triggers>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True" />
+                            <Condition Binding="{Binding IsEnabled, RelativeSource={RelativeSource Self}}" Value="True" />
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                        <Setter Property="Foreground" Value="{StaticResource RecordActiveForegroundBrush}" />
+                    </MultiDataTrigger>
                 </Style.Triggers>
             </Style>
 
@@ -554,7 +704,7 @@
                                         Margin="6,6,6,0"
                                         VerticalAlignment="Top"
                                         Panel.ZIndex="20"
-                                        Background="{DynamicResource EmerdePanelBrush}"
+                                        Style="{StaticResource UiXRoomCardFadeStyle}"
                                         IsHitTestVisible="False"
                                         OpacityMask="{StaticResource TopEdgeFadeOpacityMask}" />
                                 <Border x:Name="RoomCardBottomFade"
@@ -562,7 +712,7 @@
                                         Margin="6,0,6,6"
                                         VerticalAlignment="Bottom"
                                         Panel.ZIndex="20"
-                                        Background="{DynamicResource EmerdePanelBrush}"
+                                        Style="{StaticResource UiXRoomCardFadeStyle}"
                                         IsHitTestVisible="False"
                                         OpacityMask="{StaticResource BottomEdgeFadeOpacityMask}" />
                             </Grid>
@@ -579,18 +729,67 @@
         </Grid.Resources>
 
         <ui:Grid x:Name="MainContentRoot"
-                 Margin="10,42,10,10"
-                 ColumnDefinitions="74,12,*"
                  controls:MotionAssist.IsEntranceEnabled="True"
                  controls:MotionAssist.EntranceOffsetY="8">
+            <ui:Grid.Style>
+                <Style TargetType="{x:Type ui:Grid}">
+                    <Setter Property="Margin" Value="10,42,10,10" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                            <Setter Property="Margin" Value="8,42,8,8" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ui:Grid.Style>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition>
+                    <ColumnDefinition.Style>
+                        <Style TargetType="{x:Type ColumnDefinition}">
+                            <Setter Property="Width" Value="74" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                                    <Setter Property="Width" Value="50" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ColumnDefinition.Style>
+                </ColumnDefinition>
+                <ColumnDefinition>
+                    <ColumnDefinition.Style>
+                        <Style TargetType="{x:Type ColumnDefinition}">
+                            <Setter Property="Width" Value="12" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                                    <Setter Property="Width" Value="8" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ColumnDefinition.Style>
+                </ColumnDefinition>
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
             <Border x:Name="ShellNavigationPanel"
                     Grid.Column="0"
-                    Background="{DynamicResource EmerdeSurfaceBrush}"
-                    BorderThickness="0"
-                    CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                    ClipToBounds="True"
                     controls:MotionAssist.IsEntranceEnabled="True"
                     controls:MotionAssist.EntranceOffsetY="6">
-                <Grid Margin="0,5,0,5">
+                <Border.Style>
+                    <Style TargetType="{x:Type Border}">
+                        <Setter Property="Background" Value="{DynamicResource EmerdeSurfaceBrush}" />
+                        <Setter Property="BorderBrush" Value="Transparent" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource UiXNavigationBrush}" />
+                                <Setter Property="BorderBrush" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                                <Setter Property="CornerRadius" Value="{StaticResource UiXShellSurfaceCornerRadius}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid Margin="2,4">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
@@ -609,7 +808,7 @@
                                          FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          FontSize="20"
                                          Glyph="{x:Static ui:FontSymbols.Home}" />
-                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="{I18N HomePage}" />
+                        <TextBlock Style="{StaticResource UiXShellNavLabelStyle}" Text="{I18N HomePage}" />
                         </ui:StackPanel>
                     </ToggleButton>
                     <ToggleButton Command="{Binding OpenScreenRecordListCommand}"
@@ -621,19 +820,7 @@
                                          FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          FontSize="20"
                                          Glyph="{x:Static ui:FontSymbols.Video}" />
-                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="{I18N VideoListTitle}" />
-                        </ui:StackPanel>
-                    </ToggleButton>
-                    <ToggleButton Command="{Binding OpenSettingsDialogCommand}"
-                                  IsChecked="{Binding IsSettingsPageSelected, Mode=OneWay}"
-                                  Style="{StaticResource ShellNavButtonStyle}"
-                                  ToolTip="{I18N NavigationSettingsToolTip}">
-                        <ui:StackPanel HorizontalAlignment="Center" Spacing="4">
-                            <ui:FontIcon HorizontalAlignment="Center"
-                                         FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                         FontSize="20"
-                                         Glyph="{x:Static ui:FontSymbols.Settings}" />
-                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="{I18N Settings}" />
+                            <TextBlock Style="{StaticResource UiXShellNavLabelStyle}" Text="{I18N VideoListTitle}" />
                         </ui:StackPanel>
                     </ToggleButton>
                     <ToggleButton Command="{Binding OpenExtensionsCommand}"
@@ -645,7 +832,19 @@
                                          FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          FontSize="20"
                                          Glyph="{x:Static ui:FontSymbols.AppIconDefault}" />
-                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="{I18N Extensions}" />
+                            <TextBlock Style="{StaticResource UiXShellNavLabelStyle}" Text="{I18N Extensions}" />
+                        </ui:StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Command="{Binding OpenSettingsDialogCommand}"
+                                  IsChecked="{Binding IsSettingsPageSelected, Mode=OneWay}"
+                                  Style="{StaticResource ShellNavButtonStyle}"
+                                  ToolTip="{I18N NavigationSettingsToolTip}">
+                        <ui:StackPanel HorizontalAlignment="Center" Spacing="4">
+                            <ui:FontIcon HorizontalAlignment="Center"
+                                         FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                         FontSize="20"
+                                         Glyph="{x:Static ui:FontSymbols.Settings}" />
+                            <TextBlock Style="{StaticResource UiXShellNavLabelStyle}" Text="{I18N Settings}" />
                         </ui:StackPanel>
                     </ToggleButton>
                     <ToggleButton Command="{Binding OpenAboutCommand}"
@@ -657,7 +856,7 @@
                                          FontFamily="{DynamicResource SymbolThemeFontFamily}"
                                          FontSize="20"
                                          Glyph="{x:Static ui:FontSymbols.Info}" />
-                            <TextBlock HorizontalAlignment="Center" FontSize="11" Text="{I18N About}" />
+                            <TextBlock Style="{StaticResource UiXShellNavLabelStyle}" Text="{I18N About}" />
                         </ui:StackPanel>
                     </ToggleButton>
                     <StackPanel x:Name="ExtensionNavigationHost" />
@@ -668,18 +867,51 @@
                             ToolTip="{I18N ExitApplicationToolTip}">
                         <ui:StackPanel Orientation="Horizontal" Spacing="5">
                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                         Glyph="{x:Static ui:FontSymbols.PowerButton}" />
-                            <TextBlock Text="{I18N TrayMenuExit}" />
+                                         Glyph="{x:Static ui:FontSymbols.PowerButton}">
+                                <ui:FontIcon.Style>
+                                    <Style TargetType="{x:Type ui:FontIcon}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                                                <Setter Property="FontSize" Value="20" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:FontIcon.Style>
+                            </ui:FontIcon>
+                            <TextBlock Text="{I18N TrayMenuExit}">
+                                <TextBlock.Style>
+                                    <Style TargetType="{x:Type TextBlock}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </ui:StackPanel>
                     </Button>
                 </Grid>
             </Border>
             <Border x:Name="ShellContentSurface"
                     Grid.Column="2"
-                    Background="{DynamicResource EmerdeSurfaceBrush}"
-                    BorderThickness="0"
-                    CornerRadius="{StaticResource Win11ControlCornerRadius}"
                     Padding="10,10,10,6">
+                <Border.Style>
+                    <Style TargetType="{x:Type Border}">
+                        <Setter Property="Background" Value="{DynamicResource EmerdeSurfaceBrush}" />
+                        <Setter Property="BorderBrush" Value="Transparent" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource UiXPanelBrush}" />
+                                <Setter Property="BorderBrush" Value="Transparent" />
+                                <Setter Property="BorderThickness" Value="0" />
+                                <Setter Property="CornerRadius" Value="{StaticResource UiXShellSurfaceCornerRadius}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
             <Grid x:Name="ShellPageHost">
                 <ui:Grid x:Name="HomePageRoot"
                          RowDefinitions="Auto,*,Auto"
@@ -696,8 +928,62 @@
                             </Style.Triggers>
                         </Style>
                     </ui:Grid.Style>
-            <ui:Grid x:Name="HomeActionBar" Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
-                <ui:StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+            <ui:Grid x:Name="HomePageHeading"
+                     Grid.Row="0"
+                     Height="48"
+                     Margin="{StaticResource UiXPageHeaderMargin}">
+                <ui:Grid.Style>
+                    <Style TargetType="{x:Type ui:Grid}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:Grid.Style>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource UiXPageTitleTextStyle}"
+                               Text="{I18N HomePage}" />
+                     <TextBlock Margin="0,2,0,0"
+                                Style="{StaticResource UiXPageSubtitleTextStyle}"
+                                Text="{Binding PlatformSummaryText}"
+                                Visibility="Collapsed" />
+                </StackPanel>
+            </ui:Grid>
+
+            <ui:Grid x:Name="HomeActionBar"
+                     Grid.Row="0"
+                     Height="48"
+                     ColumnDefinitions="Auto,*,Auto">
+                <ui:Grid.Style>
+                    <Style TargetType="{x:Type ui:Grid}">
+                        <Setter Property="Margin" Value="0" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                                <Setter Property="Margin" Value="{StaticResource UiXPageHeaderMargin}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:Grid.Style>
+                <ui:StackPanel VerticalAlignment="Center"
+                               Orientation="Horizontal"
+                               Spacing="8">
+                    <ui:StackPanel.Style>
+                        <Style TargetType="{x:Type ui:StackPanel}">
+                            <Setter Property="Grid.Column" Value="0" />
+                            <Setter Property="HorizontalAlignment" Value="Left" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                                    <Setter Property="Grid.Column" Value="2" />
+                                    <Setter Property="HorizontalAlignment" Value="Right" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ui:StackPanel.Style>
+                    <ui:StackPanel x:Name="HomeExtensionToolbarHost"
+                                   Orientation="Horizontal"
+                                   Spacing="8" />
                     <Button MinWidth="72"
                             Command="{Binding AddRoomCommand}"
                             ToolTip="{I18N AddRoomToolTip}">
@@ -737,31 +1023,29 @@
                         </Button.Content>
                     </Button>
                 </ui:StackPanel>
-
-                <ui:StackPanel x:Name="HomeExtensionToolbarHost"
-                               Grid.Column="2"
-                               HorizontalAlignment="Right"
-                               Orientation="Horizontal"
-                               Spacing="8" />
-
             </ui:Grid>
 
             <Grid x:Name="HomePreviewLayoutRoot"
                   Grid.Row="1"
-                  Margin="0,8,0,0"
                   SizeChanged="HomePreviewLayoutRootSizeChanged">
+                <Grid.Style>
+                    <Style TargetType="{x:Type Grid}">
+                        <Setter Property="Margin" Value="0,8,0,0" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                                <Setter Property="Margin" Value="10,8,10,0" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition x:Name="HomeRoomCardColumn" Width="7*" />
                     <ColumnDefinition x:Name="HomePreviewColumn" Width="0" />
-                    <ColumnDefinition x:Name="HomeDetailColumn" Width="3*" MaxWidth="309" />
+                    <ColumnDefinition x:Name="HomeDetailColumn" Width="0" MaxWidth="0" />
                 </Grid.ColumnDefinitions>
                 <Border Grid.Column="0"
                         x:Name="RoomCardPanel"
                         Padding="0"
-                        Background="{DynamicResource EmerdePanelBrush}"
-                        BorderBrush="Transparent"
-                        BorderThickness="0"
-                        CornerRadius="{StaticResource Win11ControlCornerRadius}"
                         ClipToBounds="True"
                         Focusable="False"
                         FocusVisualStyle="{x:Null}"
@@ -773,8 +1057,26 @@
                         PreviewMouseMove="RoomCardListPreviewMouseMove"
                         PreviewMouseWheel="RoomCardListPreviewMouseWheel"
                         PreviewMouseRightButtonDown="RoomCardListPreviewMouseRightButtonDown">
+                    <Border.Style>
+                        <Style TargetType="{x:Type Border}">
+                            <Setter Property="Background" Value="{DynamicResource EmerdePanelBrush}" />
+                            <Setter Property="BorderBrush" Value="Transparent" />
+                            <Setter Property="BorderThickness" Value="0" />
+                            <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource UiXPanelBrush}" />
+                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                    <Setter Property="BorderThickness" Value="0" />
+                                    <Setter Property="CornerRadius" Value="{StaticResource UiXPageSurfaceCornerRadius}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
                     <Border.ContextMenu>
-                        <ContextMenu Placement="MousePoint" DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                        <ContextMenu Placement="MousePoint"
+                                     StaysOpen="False"
+                                     DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                             <MenuItem Header="{I18N RefreshButton}"
                                       Command="{Binding RefreshRoomCardsCommand}" />
                             <MenuItem Header="{I18N CardSize}">
@@ -835,7 +1137,19 @@
                                 <ItemsPanelTemplate>
                                     <UniformGrid IsItemsHost="True"
                                                  VerticalAlignment="Top"
-                                                 Columns="{Binding RoomCardColumnCount, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" />
+                                                 Columns="{Binding RoomCardColumnCount, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}">
+                                        <UniformGrid.Style>
+                                            <Style TargetType="{x:Type UniformGrid}">
+                                                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                                                        <Setter Property="HorizontalAlignment" Value="Center" />
+                                                        <Setter Property="Width" Value="{Binding RoomCardGridWidth, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </UniformGrid.Style>
+                                    </UniformGrid>
                                 </ItemsPanelTemplate>
                             </ListBox.ItemsPanel>
                             <ListBox.ItemContainerStyle>
@@ -870,7 +1184,6 @@
                                             Height="{Binding RoomCardHeight, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
                                             Margin="{Binding RoomCardMargin, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
                                             Padding="0"
-                                            Background="{DynamicResource EmerdeCardBrush}"
                                             BorderBrush="Transparent"
                                             BorderThickness="0"
                                             CornerRadius="{StaticResource Win11ControlCornerRadius}"
@@ -880,59 +1193,114 @@
                                             SnapsToDevicePixels="True"
                                             Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
                                             TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+                                        <Border.Style>
+                                            <Style TargetType="{x:Type Border}">
+                                                <Setter Property="Background" Value="{DynamicResource EmerdeCardBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="True">
+                                                        <Setter Property="Background" Value="{DynamicResource UiXCardBrush}" />
+                                                    </DataTrigger>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="True" />
+                                                            <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Background" Value="{DynamicResource UiXCardHoverBrush}" />
+                                                    </MultiDataTrigger>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="True" />
+                                                            <Condition Binding="{Binding EffectiveIsToMonitor}" Value="True" />
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Background" Value="{DynamicResource UiXMonitorCardBrush}" />
+                                                    </MultiDataTrigger>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="True" />
+                                                            <Condition Binding="{Binding IsStreaming}" Value="True" />
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Background" Value="{DynamicResource UiXLiveCardBrush}" />
+                                                    </MultiDataTrigger>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="True" />
+                                                            <Condition Binding="{Binding IsRecording}" Value="True" />
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Background" Value="{DynamicResource UiXRecordingCardBrush}" />
+                                                    </MultiDataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
                                         <Border.ContextMenu>
                                             <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}"
+                                                         Placement="MousePoint"
+                                                         StaysOpen="False"
                                                          Opened="RoomCardContextMenuOpened">
                                                 <MenuItem Header="{I18N PreviewLiveRoom}"
                                                           Command="{Binding PreviewLiveRoomCommand}"
-                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}">
+                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          IsEnabled="{Binding PlacementTarget.DataContext.CanPreview, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          Style="{StaticResource SelectedContextMenuOptionStyle}"
+                                                          ToolTip="{I18N PreviewCurrentRoomToolTip}">
                                                     <MenuItem.Icon>
                                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Play}" />
                                                     </MenuItem.Icon>
                                                 </MenuItem>
                                                 <MenuItem Header="{I18N GotoLiveRoom}"
-                                                          Command="{Binding GotoRoomUrlCommand}">
+                                                          Command="{Binding GotoRoomUrlCommand}"
+                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          Style="{StaticResource SelectedContextMenuOptionStyle}"
+                                                          ToolTip="{I18N OpenCurrentRoomToolTip}">
                                                     <MenuItem.Icon>
                                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.OpenInNewWindow}" />
                                                     </MenuItem.Icon>
                                                 </MenuItem>
-                                                <MenuItem Header="{I18N SaveFolder}"
-                                                          Command="{Binding OpenSaveFolderCommand}">
+                                                <MenuItem Header="{Binding PlacementTarget.DataContext.MonitorMenuText, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          Command="{Binding ToggleSelectedRoomMonitorCommand}"
+                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          Style="{StaticResource MonitorContextMenuActionStyle}"
+                                                          Tag="{Binding PlacementTarget.DataContext.EffectiveIsToMonitor, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          ToolTip="{I18N ToggleCurrentMonitorToolTip}">
                                                     <MenuItem.Icon>
-                                                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.FolderOpen}" />
+                                                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                                                     Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}"
+                                                                     Glyph="{x:Static ui:FontSymbols.Radar}" />
+                                                    </MenuItem.Icon>
+                                                </MenuItem>
+                                                <MenuItem Header="{Binding PlacementTarget.DataContext.RecordMenuText, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          Command="{Binding ToggleSelectedRoomRecordCommand}"
+                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          Style="{StaticResource RecordContextMenuActionStyle}"
+                                                          Tag="{Binding PlacementTarget.DataContext.RecordMenuIsActive, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          ToolTip="{I18N ToggleCurrentRecordingToolTip}">
+                                                    <MenuItem.Icon>
+                                                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                                                     Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}"
+                                                                     Glyph="{x:Static ui:FontSymbols.Record}" />
+                                                    </MenuItem.Icon>
+                                                </MenuItem>
+                                                <MenuItem Header="{I18N Settings}"
+                                                          Command="{Binding OpenLocalSettingsCommand}"
+                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          Style="{StaticResource SelectedContextMenuOptionStyle}">
+                                                    <MenuItem.Icon>
+                                                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Settings}" />
+                                                    </MenuItem.Icon>
+                                                </MenuItem>
+                                                <MenuItem Header="{I18N RoomInformation}"
+                                                          Command="{Binding ShowRoomInformationCommand}"
+                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          Style="{StaticResource SelectedContextMenuOptionStyle}">
+                                                    <MenuItem.Icon>
+                                                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Info}" />
                                                     </MenuItem.Icon>
                                                 </MenuItem>
                                                 <Separator />
-                                                <MenuItem Header="{I18N RowUpRoom}"
-                                                          Command="{Binding RowUpRoomUrlCommand}">
-                                                    <MenuItem.Icon>
-                                                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.ChevronUp}" />
-                                                    </MenuItem.Icon>
-                                                </MenuItem>
-                                                <MenuItem Header="{I18N RowDownRoom}"
-                                                          Command="{Binding RowDownRoomUrlCommand}">
-                                                    <MenuItem.Icon>
-                                                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.ChevronDown}" />
-                                                    </MenuItem.Icon>
-                                                </MenuItem>
-                                                <MenuItem Header="{I18N StopRecord}"
-                                                          Command="{Binding StopRecordCommand}">
-                                                    <MenuItem.Icon>
-                                                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Stop}" />
-                                                    </MenuItem.Icon>
-                                                </MenuItem>
-                                                <Separator />
-                                                <MenuItem Header="{I18N LiveNotification}"
-                                                          Command="{Binding IsToNotifyCommand}"
-                                                          IsCheckable="True"
-                                                          IsChecked="{Binding SelectedItem.IsToNotify, Mode=TwoWay}" />
-                                                <MenuItem Header="{I18N EnableRecord}"
-                                                          Command="{Binding IsToRecordCommand}"
-                                                          IsCheckable="True"
-                                                          IsChecked="{Binding SelectedItem.IsToRecord, Mode=TwoWay}" />
-                                                <Separator />
-                                                 <MenuItem Header="{I18N RemoveRoom}"
-                                                           Command="{Binding RemoveRoomUrlCommand}">
+                                                <MenuItem Header="{I18N RemoveRoom}"
+                                                          Command="{Binding RemoveRoomUrlCommand}"
+                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                          Style="{StaticResource SelectedContextMenuOptionStyle}"
+                                                          ToolTip="{I18N RemoveRoomShortcutHint}">
                                                     <MenuItem.Icon>
                                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.CalculatorMultiply}" />
                                                     </MenuItem.Icon>
@@ -940,6 +1308,18 @@
                                             </ContextMenu>
                                         </Border.ContextMenu>
                                         <Grid ClipToBounds="False">
+                                            <Border x:Name="RoomCardSurfaceStroke"
+                                                    BorderThickness="1"
+                                                    CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                                    IsHitTestVisible="False">
+                                                <Border.Style>
+                                                    <Style TargetType="{x:Type Border}">
+                                                        <Setter Property="BorderBrush" Value="Transparent" />
+                                                        <Style.Triggers>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                            </Border>
                                             <Border x:Name="RoomCardSelectionLayer"
                                                     Margin="0"
                                                     Background="#2A4DA7B0"
@@ -951,98 +1331,257 @@
                                             <Border x:Name="RoomCardContent"
                                                     Padding="{Binding RoomCardPadding, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
                                                     Background="Transparent">
-                                                <ui:Grid ClipToBounds="False" RowDefinitions="Auto,*,Auto">
-                                            <Grid Grid.Row="0" ClipToBounds="False">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="{Binding RoomCardHeaderColumnWidth, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <Grid Grid.Column="0"
-                                                      Width="{Binding RoomCardAvatarContainerSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                                      Height="{Binding RoomCardAvatarContainerSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                                      HorizontalAlignment="Left"
-                                                      VerticalAlignment="Top"
-                                                      Margin="{Binding RoomCardAvatarMargin, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                                      ClipToBounds="False">
-                                                    <Ellipse Width="{Binding RoomCardAvatarSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                                             Height="{Binding RoomCardAvatarSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             Fill="{DynamicResource ControlFillColorDefaultBrush}" />
-                                                    <Ellipse x:Name="RoomCardAvatarImage"
-                                                             Width="{Binding RoomCardAvatarSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                                             Height="{Binding RoomCardAvatarSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                                             HorizontalAlignment="Center"
-                                                             VerticalAlignment="Center"
-                                                             RenderOptions.BitmapScalingMode="HighQuality"
-                                                             SnapsToDevicePixels="True">
-                                                        <Ellipse.Fill>
-                                                            <ImageBrush ImageSource="{Binding AvatarDisplaySource}" Stretch="UniformToFill" />
-                                                        </Ellipse.Fill>
-                                                    </Ellipse>
-                                                    <TextBlock x:Name="RoomCardAvatarPlaceholder"
-                                                               FontFamily="Segoe MDL2 Assets"
-                                                               FontSize="{Binding RoomCardAvatarIconSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                                               Text="&#xE77B;"
+                                                <Grid>
+                                                <ui:Grid x:Name="RoomCardLegacyLayout"
+                                                         ClipToBounds="False"
+                                                         RowDefinitions="Auto,*,Auto">
+                                                    <ui:Grid.Style>
+                                                        <Style TargetType="{x:Type ui:Grid}">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </ui:Grid.Style>
+                                                    <Grid Grid.Row="0" ClipToBounds="False">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="{Binding RoomCardHeaderColumnWidth, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Grid Grid.Column="0"
+                                                              Width="{Binding RoomCardAvatarContainerSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                              Height="{Binding RoomCardAvatarContainerSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                              HorizontalAlignment="Left"
+                                                              VerticalAlignment="Top"
+                                                              Margin="{Binding RoomCardAvatarMargin, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                              ClipToBounds="False">
+                                                            <Ellipse Width="{Binding RoomCardAvatarSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                     Height="{Binding RoomCardAvatarSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                     HorizontalAlignment="Center"
+                                                                     VerticalAlignment="Center"
+                                                                     Fill="{DynamicResource ControlFillColorDefaultBrush}" />
+                                                            <Ellipse x:Name="RoomCardAvatarImage"
+                                                                     Width="{Binding RoomCardAvatarSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                     Height="{Binding RoomCardAvatarSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                     HorizontalAlignment="Center"
+                                                                     VerticalAlignment="Center"
+                                                                     RenderOptions.BitmapScalingMode="HighQuality"
+                                                                     SnapsToDevicePixels="True">
+                                                                <Ellipse.Fill>
+                                                                    <ImageBrush ImageSource="{Binding AvatarDisplaySource}" Stretch="UniformToFill" />
+                                                                </Ellipse.Fill>
+                                                            </Ellipse>
+                                                            <TextBlock x:Name="RoomCardAvatarPlaceholder"
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"
+                                                                       FontFamily="Segoe MDL2 Assets"
+                                                                       FontSize="{Binding RoomCardAvatarIconSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                       Text="&#xE77B;"
+                                                                       Visibility="Collapsed" />
+                                                        </Grid>
+                                                        <ui:StackPanel Grid.Column="1"
+                                                                       VerticalAlignment="Center"
+                                                                       Spacing="2">
+                                                            <TextBlock FontSize="{Binding RoomCardNameFontSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                       FontWeight="SemiBold"
+                                                                       Text="{Binding NickName}"
+                                                                       TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock FontSize="{Binding RoomCardPlatformFontSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                       Text="{Binding PlatformDisplayName}"
+                                                                       TextTrimming="CharacterEllipsis" />
+                                                        </ui:StackPanel>
+                                                    </Grid>
+
+                                                    <TextBlock Grid.Row="1"
+                                                               Margin="0,5,0,0"
+                                                               FontSize="{Binding RoomCardTitleFontSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                               LineHeight="{Binding RoomCardTitleLineHeight, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                               MaxHeight="{Binding RoomCardTitleMaxHeight, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                               Text="{Binding LiveTitleText}"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               TextWrapping="Wrap"
+                                                               Visibility="{Binding RoomCardTitleVisibility, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" />
+
+                                                    <ui:Grid Grid.Row="2"
+                                                             Margin="0,6,0,0"
+                                                             VerticalAlignment="Bottom"
+                                                             ColumnDefinitions="*,*">
+                                                        <Border Grid.Column="0"
+                                                                Margin="0,0,4,0"
+                                                                Height="{Binding RoomCardChipMinHeight, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                Padding="{Binding RoomCardChipPadding, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                Style="{StaticResource LiveRoomCardChipStyle}">
+                                                            <TextBlock HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"
+                                                                       FontSize="{Binding RoomCardChipFontSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                       Text="{Binding StreamStatusText}"
+                                                                       TextAlignment="Center"
+                                                                       TextTrimming="CharacterEllipsis" />
+                                                        </Border>
+                                                        <Border Grid.Column="1"
+                                                                Margin="4,0,0,0"
+                                                                Height="{Binding RoomCardChipMinHeight, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                Padding="{Binding RoomCardChipPadding, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                Style="{StaticResource RecordRoomCardChipStyle}">
+                                                            <TextBlock HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"
+                                                                       FontSize="{Binding RoomCardChipFontSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                       Text="{Binding RecordStatusText}"
+                                                                       TextAlignment="Center"
+                                                                       TextTrimming="CharacterEllipsis" />
+                                                        </Border>
+                                                    </ui:Grid>
+                                                </ui:Grid>
+                                                <ui:Grid x:Name="RoomCardUiXLayout"
+                                                         ClipToBounds="False"
+                                                         RowDefinitions="Auto,Auto,*,Auto">
+                                                    <ui:Grid.Style>
+                                                        <Style TargetType="{x:Type ui:Grid}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </ui:Grid.Style>
+                                                    <Grid Grid.Row="0"
+                                                           Width="{Binding UiXRoomCardAvatarSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                           Height="{Binding UiXRoomCardAvatarSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                          HorizontalAlignment="Center"
+                                                          VerticalAlignment="Top"
+                                                          ClipToBounds="False">
+                                                        <Ellipse Width="{Binding UiXRoomCardAvatarSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                 Height="{Binding UiXRoomCardAvatarSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                 HorizontalAlignment="Center"
+                                                                 VerticalAlignment="Center"
+                                                                 Fill="{DynamicResource ControlFillColorDefaultBrush}" />
+                                                        <Ellipse x:Name="RoomCardAvatarImageUiX"
+                                                                  Width="{Binding UiXRoomCardAvatarSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                  Height="{Binding UiXRoomCardAvatarSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                 HorizontalAlignment="Center"
+                                                                 VerticalAlignment="Center"
+                                                                 RenderOptions.BitmapScalingMode="HighQuality"
+                                                                 SnapsToDevicePixels="True">
+                                                            <Ellipse.Fill>
+                                                                <ImageBrush ImageSource="{Binding AvatarDisplaySource}" Stretch="UniformToFill" />
+                                                            </Ellipse.Fill>
+                                                        </Ellipse>
+                                                        <TextBlock x:Name="RoomCardAvatarPlaceholderUiX"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"
+                                                                   FontFamily="Segoe MDL2 Assets"
+                                                                    FontSize="{Binding UiXRoomCardAvatarIconSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                   Text="&#xE77B;"
+                                                                   Visibility="Collapsed" />
+                                                    </Grid>
+
+                                                    <TextBlock Grid.Row="1"
+                                                               Margin="0,8,0,0"
                                                                HorizontalAlignment="Center"
-                                                               VerticalAlignment="Center"
-                                                               Visibility="Collapsed" />
-                                                </Grid>
-                                                <ui:StackPanel Grid.Column="1"
-                                                               VerticalAlignment="Center"
-                                                               Spacing="2">
-                                                    <TextBlock FontSize="{Binding RoomCardNameFontSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                               FontSize="{Binding UiXRoomCardNameFontSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
                                                                FontWeight="SemiBold"
                                                                Text="{Binding NickName}"
-                                                               TextTrimming="CharacterEllipsis" />
-                                                    <TextBlock FontSize="{Binding RoomCardPlatformFontSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                               Text="{Binding PlatformDisplayName}"
-                                                               TextTrimming="CharacterEllipsis" />
-                                                </ui:StackPanel>
-                                            </Grid>
-
-                                            <TextBlock Grid.Row="1"
-                                                       Margin="0,5,0,0"
-                                                       FontSize="{Binding RoomCardTitleFontSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                       LineHeight="{Binding RoomCardTitleLineHeight, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                                       MaxHeight="{Binding RoomCardTitleMaxHeight, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                                       Text="{Binding LiveTitleText}"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       TextWrapping="Wrap"
-                                                       Visibility="{Binding RoomCardTitleVisibility, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" />
-
-                                            <ui:Grid Grid.Row="2"
-                                                     Margin="0,6,0,0"
-                                                     VerticalAlignment="Bottom"
-                                                     ColumnDefinitions="*,*">
-                                                <Border Grid.Column="0"
-                                                        Margin="0,0,4,0"
-                                                        Height="{Binding RoomCardChipMinHeight, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                                        Padding="{Binding RoomCardChipPadding, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                                        Style="{StaticResource LiveRoomCardChipStyle}">
-                                                    <TextBlock HorizontalAlignment="Center"
-                                                               VerticalAlignment="Center"
-                                                               FontSize="{Binding RoomCardChipFontSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                                               Text="{Binding StreamStatusText}"
                                                                TextAlignment="Center"
-                                                               TextTrimming="CharacterEllipsis" />
-                                                </Border>
-                                                <Border Grid.Column="1"
-                                                        Margin="4,0,0,0"
-                                                        Height="{Binding RoomCardChipMinHeight, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                                        Padding="{Binding RoomCardChipPadding, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                                        Style="{StaticResource RecordRoomCardChipStyle}">
-                                                    <TextBlock HorizontalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               ToolTip="{Binding PlatformDisplayName}" />
+
+                                                    <TextBlock Grid.Row="2"
+                                                               Margin="0,5,0,0"
+                                                               HorizontalAlignment="Center"
                                                                VerticalAlignment="Center"
-                                                               FontSize="{Binding RoomCardChipFontSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
-                                                               Text="{Binding RecordStatusText}"
+                                                               FontSize="{Binding UiXRoomCardTitleFontSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                               FontWeight="Normal"
+                                                               Foreground="{DynamicResource UiXTextSecondaryBrush}"
+                                                               LineHeight="{Binding UiXRoomCardTitleLineHeight, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                               MaxHeight="{Binding RoomCardTitleMaxHeight, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                               Text="{Binding LiveTitleText}"
                                                                TextAlignment="Center"
-                                                               TextTrimming="CharacterEllipsis" />
-                                                </Border>
-                                            </ui:Grid>
+                                                               TextTrimming="CharacterEllipsis"
+                                                               TextWrapping="Wrap"
+                                                               Visibility="{Binding RoomCardTitleVisibility, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" />
+
+                                            <Border Grid.Row="3"
+                                                    Margin="0,8,0,0"
+                                                    Style="{StaticResource UiXInformationBandStyle}">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="8" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <ui:StackPanel Grid.Column="0"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"
+                                                                   Orientation="Horizontal">
+                                                        <Ellipse>
+                                                            <Ellipse.Style>
+                                                                <Style TargetType="{x:Type Ellipse}" BasedOn="{StaticResource UiXStatusDotStyle}">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsStreaming}" Value="True">
+                                                                            <Setter Property="Fill" Value="{DynamicResource LiveActiveForegroundBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Ellipse.Style>
+                                                        </Ellipse>
+                                                        <TextBlock FontSize="{Binding UiXRoomCardStatusFontSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                   FontWeight="Medium"
+                                                                   Text="{Binding StreamStatusText}"
+                                                                   TextAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="{x:Type TextBlock}">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource UiXTextSecondaryBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsStreaming}" Value="True">
+                                                                            <Setter Property="Foreground" Value="{DynamicResource LiveActiveForegroundBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </ui:StackPanel>
+                                                    <ui:StackPanel Grid.Column="2"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"
+                                                                   Orientation="Horizontal">
+                                                        <Ellipse>
+                                                            <Ellipse.Style>
+                                                                <Style TargetType="{x:Type Ellipse}" BasedOn="{StaticResource UiXStatusDotStyle}">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                                                                            <Setter Property="Fill" Value="{DynamicResource RecordActiveForegroundBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Ellipse.Style>
+                                                        </Ellipse>
+                                                        <TextBlock FontSize="{Binding UiXRoomCardStatusFontSize, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}"
+                                                                   FontWeight="Medium"
+                                                                   Text="{Binding RecordStatusText}"
+                                                                   TextAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="{x:Type TextBlock}">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource UiXTextSecondaryBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                                                                            <Setter Property="Foreground" Value="{DynamicResource RecordActiveForegroundBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </ui:StackPanel>
+                                                </Grid>
+                                            </Border>
                                                 </ui:Grid>
+                                                </Grid>
                                             </Border>
                                         </Grid>
                                     </Border>
@@ -1105,16 +1644,18 @@
                                         <DataTrigger Binding="{Binding AvatarDisplaySource}" Value="">
                                             <Setter TargetName="RoomCardAvatarImage" Property="Visibility" Value="Collapsed" />
                                             <Setter TargetName="RoomCardAvatarPlaceholder" Property="Visibility" Value="Visible" />
+                                            <Setter TargetName="RoomCardAvatarImageUiX" Property="Visibility" Value="Collapsed" />
+                                            <Setter TargetName="RoomCardAvatarPlaceholderUiX" Property="Visibility" Value="Visible" />
                                         </DataTrigger>
                                     </DataTemplate.Triggers>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
                         <Canvas Panel.ZIndex="30" IsHitTestVisible="False">
-                            <Rectangle x:Name="RoomCardSelectionRectangle"
-                                       Fill="#344DA7B0"
-                                       StrokeThickness="0"
-                                       Visibility="Collapsed" />
+                            <Border x:Name="RoomCardSelectionRectangle"
+                                    Background="#344DA7B0"
+                                    CornerRadius="{StaticResource UiXNestedCornerRadius}"
+                                    Visibility="Collapsed" />
                         </Canvas>
 
                         <ui:StackPanel HorizontalAlignment="Center"
@@ -1130,13 +1671,13 @@
                         <Border Height="6"
                                 VerticalAlignment="Top"
                                 Panel.ZIndex="20"
-                                Background="{DynamicResource EmerdePanelBrush}"
+                                Style="{StaticResource UiXMainFadeStyle}"
                                 IsHitTestVisible="False"
                                 OpacityMask="{StaticResource TopEdgeFadeOpacityMask}" />
                         <Border Height="6"
                                 VerticalAlignment="Bottom"
                                 Panel.ZIndex="20"
-                                Background="{DynamicResource EmerdePanelBrush}"
+                                Style="{StaticResource UiXMainFadeStyle}"
                                 IsHitTestVisible="False"
                                 OpacityMask="{StaticResource BottomEdgeFadeOpacityMask}" />
                     </Grid>
@@ -1170,7 +1711,8 @@
                         BorderBrush="Transparent"
                         BorderThickness="0"
                         CornerRadius="{StaticResource Win11ControlCornerRadius}"
-                        ClipToBounds="True">
+                        ClipToBounds="True"
+                        Visibility="Collapsed">
                     <Grid x:Name="RoomDetailPanelContent"
                           ClipToBounds="True"
                           SizeChanged="RoundedPanelContentSizeChanged">
@@ -1228,7 +1770,7 @@
                                 </Button>
                             </ui:Grid>
 
-                            <ui:Grid ColumnDefinitions="74,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+                            <ui:Grid ColumnDefinitions="74,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                                 <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N Platform}" />
                                 <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.PlatformDisplayName}" />
 
@@ -1244,17 +1786,30 @@
                                 <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N RecordFormat}" />
                                 <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding StatusOfRecordFormat}" />
 
-                                <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N QualityLabel}" />
-                                <TextBlock Grid.Row="5" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.QualityText}" />
+                                <Border Grid.Row="5" Grid.ColumnSpan="2" Height="1" Margin="0,4,0,10" Background="{DynamicResource ControlStrokeColorDefaultBrush}" Opacity="0.45" />
 
-                                <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N ResolutionLabel}" />
-                                <TextBlock Grid.Row="6" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.ResolutionText}" />
+                                <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N RecentRecordingStarted}" />
+                                <TextBlock Grid.Row="6" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedRoomLastRecordedAtText}" />
 
-                                <TextBlock Grid.Row="7" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N BitrateLabel}" />
-                                <TextBlock Grid.Row="7" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.BitrateText}" />
+                                <TextBlock Grid.Row="7" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N RecentRecordingEnded}" />
+                                <TextBlock Grid.Row="7" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedRoomLastEndedAtText}" />
 
-                                <TextBlock Grid.Row="8" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N RoomAddress}" />
-                                <ui:Grid Grid.Row="8" Grid.Column="1" Margin="0,0,0,6" ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Row="8" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N RoomRecordingStorageUsage}" />
+                                <TextBlock Grid.Row="8" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedRoomStorageUsageText}" />
+
+                                <Border Grid.Row="9" Grid.ColumnSpan="2" Height="1" Margin="0,4,0,10" Background="{DynamicResource ControlStrokeColorDefaultBrush}" Opacity="0.45" />
+
+                                <TextBlock Grid.Row="10" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N QualityLabel}" />
+                                <TextBlock Grid.Row="10" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.QualityText}" />
+
+                                <TextBlock Grid.Row="11" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N ResolutionLabel}" />
+                                <TextBlock Grid.Row="11" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.ResolutionText}" />
+
+                                <TextBlock Grid.Row="12" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N BitrateLabel}" />
+                                <TextBlock Grid.Row="12" Grid.Column="1" Margin="0,0,0,6" Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.BitrateText}" />
+
+                                <TextBlock Grid.Row="13" Grid.Column="0" Margin="0,0,12,6" Style="{StaticResource DetailLabelStyle}" Text="{I18N RoomAddress}" />
+                                <ui:Grid Grid.Row="13" Grid.Column="1" Margin="0,0,0,6" ColumnDefinitions="*,Auto">
                                     <TextBlock Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.RoomUrl}" />
                                     <Button Grid.Column="1"
                                             Width="28"
@@ -1268,8 +1823,8 @@
                                     </Button>
                                 </ui:Grid>
 
-                                <TextBlock Grid.Row="9" Grid.Column="0" Margin="0,0,12,0" Style="{StaticResource DetailLabelStyle}" Text="{I18N LiveStream}" />
-                                <ui:Grid Grid.Row="9" Grid.Column="1" ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Row="14" Grid.Column="0" Margin="0,0,12,0" Style="{StaticResource DetailLabelStyle}" Text="{I18N LiveStream}" />
+                                <ui:Grid Grid.Row="14" Grid.Column="1" ColumnDefinitions="*,Auto">
                                     <TextBlock Style="{StaticResource DetailValueStyle}" Text="{Binding SelectedItem.LiveStreamText}" />
                                     <Button Grid.Column="1"
                                             Width="28"
@@ -1376,13 +1931,13 @@
                     <Border Height="6"
                             VerticalAlignment="Top"
                             Panel.ZIndex="20"
-                            Background="{DynamicResource EmerdePanelBrush}"
+                            Style="{StaticResource UiXMainFadeStyle}"
                             IsHitTestVisible="False"
                             OpacityMask="{StaticResource TopEdgeFadeOpacityMask}" />
                     <Border Height="6"
                             VerticalAlignment="Bottom"
                             Panel.ZIndex="20"
-                            Background="{DynamicResource EmerdePanelBrush}"
+                            Style="{StaticResource UiXMainFadeStyle}"
                             IsHitTestVisible="False"
                             OpacityMask="{StaticResource BottomEdgeFadeOpacityMask}" />
                     </Grid>
@@ -1392,19 +1947,37 @@
             <ui:Grid x:Name="HomeStatusTray"
                      Grid.Row="2"
                      Height="28"
-                     Margin="2,6,2,0"
                      SnapsToDevicePixels="True"
                      UseLayoutRounding="True"
                      VerticalAlignment="Center"
                      ColumnDefinitions="Auto,*,Auto">
+                <ui:Grid.Style>
+                    <Style TargetType="{x:Type ui:Grid}">
+                        <Setter Property="Margin" Value="2,6,2,0" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                                <Setter Property="Margin" Value="18,6,18,0" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:Grid.Style>
                 <ui:StackPanel Grid.Column="0"
                                Height="28"
                                VerticalAlignment="Center"
                                Orientation="Horizontal"
                                Spacing="16">
                     <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                               Style="{StaticResource StatusTrayTextBlockStyle}"
-                               Text="{Binding PlatformSummaryText}" />
+                               Text="{Binding PlatformSummaryText}">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource StatusTrayTextBlockStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                     <Button Command="{Binding TestNetworkCapacityCommand}"
                             Style="{StaticResource StatusTrayCapacityButtonStyle}"
                             ToolTip="{I18N NetworkCapacityHint}">

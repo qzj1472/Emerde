@@ -28,9 +28,9 @@ public sealed class RoomCardLayoutTests
     }
 
     [Fact]
-    public void PreviewPaneWidths_KeepThreeColumnsOnWideWindows()
+    public void PreviewPaneWidths_HideDetailsOnWideWindows()
     {
-        Assert.Equal((320d, 260d), MainWindow.CalculatePreviewPaneWidths(1600d));
+        Assert.Equal((320d, 0d), MainWindow.CalculatePreviewPaneWidths(1600d));
     }
 
     [Fact]
@@ -40,9 +40,9 @@ public sealed class RoomCardLayoutTests
     }
 
     [Fact]
-    public void PreviewPaneWidths_CompressSideColumnsOnMediumWindows()
+    public void PreviewPaneWidths_HideDetailsOnMediumWindows()
     {
-        Assert.Equal((280d, 220d), MainWindow.CalculatePreviewPaneWidths(1100d));
+        Assert.Equal((280d, 0d), MainWindow.CalculatePreviewPaneWidths(1100d));
     }
 
     [Theory]
@@ -61,23 +61,34 @@ public sealed class RoomCardLayoutTests
     }
 
     [Fact]
-    public void ResponsiveLayout_FillsAvailableWidthAfterColumnChange()
+    public void ResponsiveLayout_KeepsCardsInsideStretchLimits()
     {
         const double availableWidth = 590d;
 
         (int columns, double slotWidth, double cardWidth) = MainWindow.CalculateRoomCardLayout(availableWidth, 250d, 1d, 12d);
 
+        Assert.Equal(2, columns);
         Assert.Equal(availableWidth, slotWidth * columns, 6);
-        Assert.Equal(slotWidth - 12d, cardWidth, 6);
+        Assert.Equal(283d, cardWidth, 6);
     }
 
     [Fact]
-    public void ResponsiveLayout_DoesNotCreateOversizedCardAtColumnBoundary()
+    public void ResponsiveLayout_DoesNotCreateUndersizedCardAtColumnBoundary()
     {
         (int columns, _, double cardWidth) = MainWindow.CalculateRoomCardLayout(350d, 200d, 1d, 12d);
 
         Assert.Equal(2, columns);
-        Assert.Equal(163d, cardWidth, 6);
+        Assert.Equal(172d, cardWidth, 6);
+    }
+
+    [Fact]
+    public void ResponsiveLayout_AddsColumnsInsteadOfStretchingCardsAcrossWideRows()
+    {
+        (int columns, double slotWidth, double cardWidth) = MainWindow.CalculateRoomCardLayout(1160d, 264d, 1d, 12d);
+
+        Assert.Equal(4, columns);
+        Assert.Equal(290d, slotWidth, 6);
+        Assert.Equal(278d, cardWidth, 6);
     }
 
     [Fact]
@@ -183,7 +194,13 @@ public sealed class RoomCardLayoutTests
         XElement statusTray = document.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "HomeStatusTray");
         XElement shellSurface = document.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "ShellContentSurface");
 
-        Assert.Equal("2,6,2,0", (string?)statusTray.Attribute("Margin"));
+        Assert.Null(statusTray.Attribute("Margin"));
+        Assert.Contains(statusTray.Descendants(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Margin"
+            && (string?)element.Attribute("Value") == "2,6,2,0");
+        Assert.Contains(statusTray.Descendants(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Margin"
+            && (string?)element.Attribute("Value") == "18,6,18,0");
         Assert.EndsWith(",6", (string?)shellSurface.Attribute("Padding"));
     }
 

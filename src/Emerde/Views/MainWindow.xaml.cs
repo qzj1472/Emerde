@@ -12,6 +12,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using FluentWpfCore.Interop;
 using Emerde.Core;
 using Emerde.Plugins;
 using Emerde.ViewModels;
@@ -31,17 +32,15 @@ namespace Emerde.Views;
 
 public partial class MainWindow : FluentWindow
 {
-    private const int VirtualKeyCapsLock = 0x14;
     private HwndSource? hwndSource;
     private readonly List<IDisposable> extensionHostRegistrations = [];
     private readonly List<ToggleButton> extensionPageButtons = [];
     private string selectedExtensionPageId = string.Empty;
-    private readonly HashSet<FrameworkElement> suppressedToolTipOwners = [];
     private DataTemplate? defaultRoomCardTemplate;
-    private bool areToolTipsSuppressed;
     public MainViewModel ViewModel { get; }
 
     public static readonly DependencyProperty RoomCardColumnCountProperty = DependencyProperty.Register(nameof(RoomCardColumnCount), typeof(int), typeof(MainWindow), new PropertyMetadata(RoomCardNormalBaseColumns));
+    public static readonly DependencyProperty RoomCardGridWidthProperty = DependencyProperty.Register(nameof(RoomCardGridWidth), typeof(double), typeof(MainWindow), new PropertyMetadata(double.NaN));
     public static readonly DependencyProperty RoomCardWidthProperty = DependencyProperty.Register(nameof(RoomCardWidth), typeof(double), typeof(MainWindow), new PropertyMetadata(184d));
     public static readonly DependencyProperty RoomCardHeightProperty = DependencyProperty.Register(nameof(RoomCardHeight), typeof(double), typeof(MainWindow), new PropertyMetadata(122d));
     public static readonly DependencyProperty RoomCardPaddingProperty = DependencyProperty.Register(nameof(RoomCardPadding), typeof(Thickness), typeof(MainWindow), new PropertyMetadata(new Thickness(8)));
@@ -60,12 +59,24 @@ public partial class MainWindow : FluentWindow
     public static readonly DependencyProperty RoomCardChipFontSizeProperty = DependencyProperty.Register(nameof(RoomCardChipFontSize), typeof(double), typeof(MainWindow), new PropertyMetadata(11d));
     public static readonly DependencyProperty RoomCardChipPaddingProperty = DependencyProperty.Register(nameof(RoomCardChipPadding), typeof(Thickness), typeof(MainWindow), new PropertyMetadata(new Thickness(4, 1, 4, 1)));
     public static readonly DependencyProperty RoomCardChipMinHeightProperty = DependencyProperty.Register(nameof(RoomCardChipMinHeight), typeof(double), typeof(MainWindow), new PropertyMetadata(20d));
+    public static readonly DependencyProperty UiXRoomCardAvatarSizeProperty = DependencyProperty.Register(nameof(UiXRoomCardAvatarSize), typeof(double), typeof(MainWindow), new PropertyMetadata(56d));
+    public static readonly DependencyProperty UiXRoomCardAvatarIconSizeProperty = DependencyProperty.Register(nameof(UiXRoomCardAvatarIconSize), typeof(double), typeof(MainWindow), new PropertyMetadata(28d));
+    public static readonly DependencyProperty UiXRoomCardNameFontSizeProperty = DependencyProperty.Register(nameof(UiXRoomCardNameFontSize), typeof(double), typeof(MainWindow), new PropertyMetadata(14d));
+    public static readonly DependencyProperty UiXRoomCardTitleFontSizeProperty = DependencyProperty.Register(nameof(UiXRoomCardTitleFontSize), typeof(double), typeof(MainWindow), new PropertyMetadata(11d));
+    public static readonly DependencyProperty UiXRoomCardTitleLineHeightProperty = DependencyProperty.Register(nameof(UiXRoomCardTitleLineHeight), typeof(double), typeof(MainWindow), new PropertyMetadata(15d));
+    public static readonly DependencyProperty UiXRoomCardStatusFontSizeProperty = DependencyProperty.Register(nameof(UiXRoomCardStatusFontSize), typeof(double), typeof(MainWindow), new PropertyMetadata(13d));
     public static readonly DependencyProperty IsPreviewSurfaceVisibleProperty = DependencyProperty.Register(nameof(IsPreviewSurfaceVisible), typeof(bool), typeof(MainWindow), new PropertyMetadata(false));
 
     public int RoomCardColumnCount
     {
         get => (int)GetValue(RoomCardColumnCountProperty);
         set => SetValue(RoomCardColumnCountProperty, value);
+    }
+
+    public double RoomCardGridWidth
+    {
+        get => (double)GetValue(RoomCardGridWidthProperty);
+        set => SetValue(RoomCardGridWidthProperty, value);
     }
 
     public double RoomCardWidth
@@ -176,6 +187,42 @@ public partial class MainWindow : FluentWindow
         set => SetValue(RoomCardChipMinHeightProperty, value);
     }
 
+    public double UiXRoomCardAvatarSize
+    {
+        get => (double)GetValue(UiXRoomCardAvatarSizeProperty);
+        set => SetValue(UiXRoomCardAvatarSizeProperty, value);
+    }
+
+    public double UiXRoomCardAvatarIconSize
+    {
+        get => (double)GetValue(UiXRoomCardAvatarIconSizeProperty);
+        set => SetValue(UiXRoomCardAvatarIconSizeProperty, value);
+    }
+
+    public double UiXRoomCardNameFontSize
+    {
+        get => (double)GetValue(UiXRoomCardNameFontSizeProperty);
+        set => SetValue(UiXRoomCardNameFontSizeProperty, value);
+    }
+
+    public double UiXRoomCardTitleFontSize
+    {
+        get => (double)GetValue(UiXRoomCardTitleFontSizeProperty);
+        set => SetValue(UiXRoomCardTitleFontSizeProperty, value);
+    }
+
+    public double UiXRoomCardTitleLineHeight
+    {
+        get => (double)GetValue(UiXRoomCardTitleLineHeightProperty);
+        set => SetValue(UiXRoomCardTitleLineHeightProperty, value);
+    }
+
+    public double UiXRoomCardStatusFontSize
+    {
+        get => (double)GetValue(UiXRoomCardStatusFontSizeProperty);
+        set => SetValue(UiXRoomCardStatusFontSizeProperty, value);
+    }
+
     public bool IsPreviewSurfaceVisible
     {
         get => (bool)GetValue(IsPreviewSurfaceVisibleProperty);
@@ -183,7 +230,6 @@ public partial class MainWindow : FluentWindow
     }
 
     private const int RoomCardNormalBaseColumns = 3;
-    private const int RoomCardPreviewBaseColumns = 1;
     private const double HomeDetailPanelBaseMaxWidth = 360d;
     private const double HomeDetailPanelMaxWidthReductionRatio = 1d / 7d;
     private const double PreviewWideLayoutThreshold = 1300d;
@@ -195,6 +241,9 @@ public partial class MainWindow : FluentWindow
     private const double PreviewNarrowRoomListWidth = 190d;
     private const double PreviewWideDetailWidth = 260d;
     private const double PreviewStandardDetailWidth = 220d;
+    private const double RoomCardNormalBaseWidth = 264d;
+    private const double RoomCardPreviewBaseWidth = 264d;
+    private const double UiXRoomCardBaseWidth = 200d;
     private const double RoomCardMinScale = 0.86d;
     private const double RoomCardMaxScale = 1.14d;
     private const double RoomCardLargeSizeScale = 1.5d;
@@ -217,10 +266,6 @@ public partial class MainWindow : FluentWindow
     private const int PreviewFullScreenOverscanPixels = 2;
     private const int PreviewFullScreenTransitionMilliseconds = 210;
 
-    private double normalRoomCardBaseWidth;
-    private bool isNormalRoomCardBaseWidthCaptured;
-    private double previewRoomCardBaseWidth;
-    private bool isPreviewRoomCardBaseWidthCaptured;
     private double roomCardSizePreference = RoomCardMediumSizeScale;
     private Point roomCardDragStart;
     private RoomStatusReactive? draggedRoom;
@@ -251,6 +296,7 @@ public partial class MainWindow : FluentWindow
     private Brush? previewShellContentBackground;
     private Visibility previewShellNavigationVisibility;
     private Visibility previewHomeActionBarVisibility;
+    private Visibility previewHomePageHeadingVisibility;
     private Visibility previewRoomCardPanelVisibility;
     private Visibility previewRoomDetailPanelVisibility;
     private Visibility previewHomeStatusTrayVisibility;
@@ -270,6 +316,8 @@ public partial class MainWindow : FluentWindow
     private bool previousPreviewingState;
     private bool isStartupAboutNoticeQueued;
     private bool isStartupAboutNoticeShowing;
+    private bool isUpgradeReleaseNotesQueued;
+    private bool isUpgradeReleaseNotesShowing;
     private int homePreviewLayoutAnimationGeneration;
     private int homePreviewLayoutUpdateGeneration;
     private int previewPresentationUpdateGeneration;
@@ -284,6 +332,7 @@ public partial class MainWindow : FluentWindow
         DataContext = ViewModel = new();
         WindowSizing.UseMainWindowAspectSize(this);
         InitializeComponent();
+        ApplyUiXWindowMaterial();
         defaultRoomCardTemplate = RoomCardList.ItemTemplate;
         WindowAppearance.EnableBorderless(this);
         ApplicationThemeManager.Changed += MainWindowThemeChanged;
@@ -318,7 +367,6 @@ public partial class MainWindow : FluentWindow
         UpdateHomePreviewLayout();
         ViewModel.PropertyChanged += ViewModelPropertyChanged;
         PreviewKeyDown += MainWindowPreviewKeyDown;
-        PreviewMouseMove += MainWindowPreviewMouseMove;
         ComponentDispatcher.ThreadPreprocessMessage += MainWindowThreadPreprocessMessage;
         AppSessionLogger.Write($"perf MainWindow initialized in {stopwatch.ElapsedMilliseconds} ms");
         Loaded += async (_, _) =>
@@ -339,27 +387,33 @@ public partial class MainWindow : FluentWindow
             RecordingRecoveryService.QueueRun();
             EnforceBorderlessWindowChrome();
             AppSessionLogger.Write($"perf MainWindow loaded in {stopwatch.ElapsedMilliseconds} ms");
+            QueueUpgradeReleaseNotesNotice();
             QueueStartupAboutNotice();
         };
         IsVisibleChanged += (_, _) =>
         {
             UpdatePreviewPresentationState();
+            QueueUpgradeReleaseNotesNotice();
             QueueStartupAboutNotice();
         };
         StateChanged += (_, _) =>
         {
             EnforceBorderlessWindowChrome();
-            CloseActiveToolTips();
             UpdatePreviewPresentationState();
+            QueueUpgradeReleaseNotesNotice();
             QueueStartupAboutNotice();
         };
         Activated += (_, _) => EnforceBorderlessWindowChrome();
-        Deactivated += (_, _) => CloseActiveToolTips();
+        Deactivated += (_, _) =>
+        {
+            Keyboard.ClearFocus();
+            _ = Dispatcher.BeginInvoke(EnforceBorderlessWindowChrome, DispatcherPriority.Render);
+        };
         SizeChanged += (_, _) =>
         {
             EnforceBorderlessWindowChrome();
-            CloseActiveToolTips();
         };
+        RoomCardList.ItemContainerGenerator.StatusChanged += RoomCardItemsGenerated;
 
         if (Configurations.IsUseKeepAwake.Get())
         {
@@ -381,6 +435,7 @@ public partial class MainWindow : FluentWindow
         hwndSource = HwndSource.FromHwnd(handle);
         hwndSource?.AddHook(MainWindowWindowProc);
         SetPreviewWindowFrameAttributes(handle, false);
+        ApplyUiXWindowMaterial();
         EnforceBorderlessWindowChrome();
     }
 
@@ -401,7 +456,7 @@ public partial class MainWindow : FluentWindow
         hwndSource?.RemoveHook(MainWindowWindowProc);
         hwndSource = null;
         PreviewKeyDown -= MainWindowPreviewKeyDown;
-        PreviewMouseMove -= MainWindowPreviewMouseMove;
+        RoomCardList.ItemContainerGenerator.StatusChanged -= RoomCardItemsGenerated;
         ApplicationThemeManager.Changed -= MainWindowThemeChanged;
         ExtensionHostRuntime.PagesChanged -= ExtensionPagesChanged;
         ExtensionHostRuntime.OverridesChanged -= ExtensionOverridesChanged;
@@ -420,7 +475,34 @@ public partial class MainWindow : FluentWindow
 
     private void MainWindowThemeChanged(ApplicationTheme applicationTheme, Color accentColor)
     {
-        _ = Dispatcher.BeginInvoke(EnforceBorderlessWindowChrome, DispatcherPriority.Loaded);
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            ApplyUiXWindowMaterial();
+            EnforceBorderlessWindowChrome();
+        }, DispatcherPriority.Loaded);
+    }
+
+    private void ApplyUiXWindowMaterial()
+    {
+        bool isUiXEnabled = ViewModel.StatusOfIsUiXEnabled;
+        bool useSystemBackdrop = OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
+        bool isDarkMode = !AppThemeBrushes.IsLightTheme();
+        UiXWindowMaterial.IsDarkMode = isDarkMode;
+        UiXWindowMaterial.UseWindowComposition = false;
+        UiXWindowMaterial.CompositonColor = isDarkMode
+            ? Color.FromArgb(0xE0, 0x12, 0x15, 0x19)
+            : Color.FromArgb(0xD9, 0xF3, 0xF5, 0xF7);
+        UiXWindowMaterial.MaterialMode = isUiXEnabled && useSystemBackdrop
+            ? MaterialType.Mica
+            : MaterialType.None;
+        if (isUiXEnabled && !useSystemBackdrop)
+        {
+            SetResourceReference(BackgroundProperty, "UiXWindowFallbackBrush");
+        }
+        else
+        {
+            SetValue(BackgroundProperty, System.Windows.Media.Brushes.Transparent);
+        }
     }
 
     private void ExtensionPagesChanged(object? sender, EventArgs e)
@@ -854,24 +936,13 @@ public partial class MainWindow : FluentWindow
             return false;
         }
 
-        int direction = key switch
-        {
-            Key.Tab => -1,
-            Key.CapsLock => 1,
-            _ => 0,
-        };
-        if (direction == 0)
+        if (key != Key.Tab)
         {
             return false;
         }
 
-        if (key == Key.CapsLock)
-        {
-            RestoreCapsLockState();
-        }
-
         int pageCount = 5 + ExtensionHostRuntime.GetPagesSnapshot().Length;
-        ViewModel.SelectedMainPageIndex = (ViewModel.SelectedMainPageIndex + direction + pageCount) % pageCount;
+        ViewModel.SelectedMainPageIndex = (ViewModel.SelectedMainPageIndex + 1) % pageCount;
         FocusActivePage();
         return true;
     }
@@ -1123,26 +1194,6 @@ public partial class MainWindow : FluentWindow
             : null;
     }
 
-    private static void RestoreCapsLockState()
-    {
-        byte[] keyboardState = new byte[256];
-        if (!GetKeyboardState(keyboardState))
-        {
-            return;
-        }
-
-        keyboardState[VirtualKeyCapsLock] ^= 1;
-        _ = SetKeyboardState(keyboardState);
-    }
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetKeyboardState([Out] byte[] keyState);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetKeyboardState(byte[] keyState);
-
     private void MainWindowThreadPreprocessMessage(ref System.Windows.Interop.MSG msg, ref bool handled)
     {
         if (handled || msg.message is not 0x0100 and not 0x0104)
@@ -1282,7 +1333,6 @@ public partial class MainWindow : FluentWindow
                 selectedExtensionPageId = string.Empty;
             }
             UpdateExtensionPageSelection();
-            CloseActiveToolTips();
             if (!ViewModel.IsHomePageSelected && isPreviewClosingTransitionActive)
             {
                 homePreviewLayoutUpdateGeneration++;
@@ -1291,6 +1341,15 @@ public partial class MainWindow : FluentWindow
             }
             UpdatePreviewPresentationState();
             FocusActivePage();
+            return;
+        }
+
+        if (e.PropertyName == nameof(MainViewModel.StatusOfIsUiXEnabled))
+        {
+            ApplyUiXWindowMaterial();
+            InterruptHomePreviewColumnAnimation();
+            UpdateHomePreviewLayout();
+            QueueRoomCardMetricsRefresh();
             return;
         }
 
@@ -1305,7 +1364,6 @@ public partial class MainWindow : FluentWindow
         InterruptHomePreviewColumnAnimation();
         if (ViewModel.IsPreviewing)
         {
-            isPreviewRoomCardBaseWidthCaptured = false;
             isPreviewClosingTransitionActive = false;
             IsPreviewSurfaceVisible = true;
         }
@@ -1480,16 +1538,18 @@ public partial class MainWindow : FluentWindow
                 new GridLength(roomListWidth),
                 new GridLength(1, GridUnitType.Star),
                 new GridLength(detailWidth),
-                detailWidth > 0d,
+                false,
                 animate);
             return;
         }
 
+        bool showDetailPanel = !ViewModel.StatusOfIsUiXEnabled;
+        double detailPanelWidth = showDetailPanel ? GetHomeDetailPanelMaxWidth() : 0d;
         ApplyHomePreviewColumns(
-            new GridLength(7, GridUnitType.Star),
+            new GridLength(1, GridUnitType.Star),
             new GridLength(0),
-            new GridLength(3, GridUnitType.Star),
-            true,
+            new GridLength(detailPanelWidth),
+            showDetailPanel,
             animate);
     }
 
@@ -1507,6 +1567,7 @@ public partial class MainWindow : FluentWindow
             ClearHomePreviewColumnAnimations();
             HomeRoomCardColumn.Width = roomListWidth;
             HomePreviewColumn.Width = previewWidth;
+            HomeDetailColumn.MaxWidth = showDetailPanel ? GetHomeDetailPanelMaxWidth() : 0d;
             HomeDetailColumn.Width = detailWidth;
             RoomDetailPanel.Visibility = showDetailPanel ? Visibility.Visible : Visibility.Collapsed;
             CompletePreviewClosingTransition();
@@ -1516,12 +1577,17 @@ public partial class MainWindow : FluentWindow
         int generation = ++homePreviewLayoutAnimationGeneration;
         isHomePreviewColumnAnimationActive = true;
         double totalWidth = Math.Max(1d, HomePreviewLayoutRoot.ActualWidth);
+        double targetDetailMaxWidth = showDetailPanel ? GetHomeDetailPanelMaxWidth() : 0d;
+        if (showDetailPanel)
+        {
+            HomeDetailColumn.MaxWidth = targetDetailMaxWidth;
+        }
         (double targetRoomListWidth, double targetPreviewWidth, double targetDetailWidth) = ResolveAnimatedHomePreviewWidths(
             totalWidth,
             roomListWidth,
             previewWidth,
             detailWidth,
-            HomeDetailColumn.MaxWidth);
+            targetDetailMaxWidth);
 
         RoomDetailPanel.Visibility = Visibility.Visible;
         AnimateHomePreviewColumn(HomeRoomCardColumn, HomeRoomCardColumn.ActualWidth, targetRoomListWidth);
@@ -1538,6 +1604,7 @@ public partial class MainWindow : FluentWindow
             HomeRoomCardColumn.Width = roomListWidth;
             HomePreviewColumn.Width = previewWidth;
             HomeDetailColumn.Width = detailWidth;
+            HomeDetailColumn.MaxWidth = targetDetailMaxWidth;
             ClearHomePreviewColumnAnimations();
             RoomDetailPanel.Visibility = showDetailPanel ? Visibility.Visible : Visibility.Collapsed;
             CompletePreviewClosingTransition();
@@ -1675,11 +1742,11 @@ public partial class MainWindow : FluentWindow
     {
         if (availableWidth >= PreviewWideLayoutThreshold)
         {
-            return (PreviewWideRoomListWidth, PreviewWideDetailWidth);
+            return (PreviewWideRoomListWidth, 0d);
         }
         if (availableWidth >= PreviewDetailLayoutThreshold)
         {
-            return (PreviewStandardRoomListWidth, PreviewStandardDetailWidth);
+            return (PreviewStandardRoomListWidth, 0d);
         }
         if (availableWidth >= PreviewCompactLayoutThreshold)
         {
@@ -1710,6 +1777,16 @@ public partial class MainWindow : FluentWindow
         UpdateRoomCardMetrics(e.NewSize.Width);
     }
 
+    private void RoomCardItemsGenerated(object? sender, EventArgs e)
+    {
+        if (!ViewModel.StatusOfIsUiXEnabled || RoomCardList.ActualWidth <= 0d)
+        {
+            return;
+        }
+
+        QueueRoomCardMetricsRefresh();
+    }
+
     private void RoomCardScrollBarVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (IsLoaded)
@@ -1729,84 +1806,6 @@ public partial class MainWindow : FluentWindow
         UpdateRoomCardMetrics(RoomCardList.ActualWidth);
     }
 
-    private void CloseActiveToolTips()
-    {
-        areToolTipsSuppressed = true;
-        CloseActiveToolTips(this, []);
-    }
-
-    private void MainWindowPreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
-    {
-        if (!areToolTipsSuppressed)
-        {
-            return;
-        }
-        foreach (FrameworkElement owner in suppressedToolTipOwners)
-        {
-            if (owner.IsLoaded)
-            {
-                ToolTipService.SetIsEnabled(owner, true);
-            }
-        }
-        suppressedToolTipOwners.Clear();
-        areToolTipsSuppressed = false;
-    }
-
-    private void CloseActiveToolTips(DependencyObject root, HashSet<DependencyObject> visited)
-    {
-        foreach (FrameworkElement owner in EnumerateToolTipOwners(root, visited))
-        {
-            if (owner.ToolTip is System.Windows.Controls.ToolTip toolTip)
-            {
-                toolTip.IsOpen = false;
-            }
-
-            if (!ToolTipService.GetIsEnabled(owner))
-            {
-                continue;
-            }
-
-            ToolTipService.SetIsEnabled(owner, false);
-            suppressedToolTipOwners.Add(owner);
-        }
-    }
-
-    private static IEnumerable<FrameworkElement> EnumerateToolTipOwners(DependencyObject root, HashSet<DependencyObject> visited)
-    {
-        if (!visited.Add(root))
-        {
-            yield break;
-        }
-
-        if (root is FrameworkElement { ToolTip: not null } element)
-        {
-            yield return element;
-        }
-
-        if (CanEnumerateVisualChildren(root))
-        {
-            int visualChildren = VisualTreeHelper.GetChildrenCount(root);
-            for (int index = 0; index < visualChildren; index++)
-            {
-                foreach (FrameworkElement child in EnumerateToolTipOwners(VisualTreeHelper.GetChild(root, index), visited))
-                {
-                    yield return child;
-                }
-            }
-        }
-
-        foreach (object logicalChild in LogicalTreeHelper.GetChildren(root))
-        {
-            if (logicalChild is DependencyObject dependencyObject)
-            {
-                foreach (FrameworkElement child in EnumerateToolTipOwners(dependencyObject, visited))
-                {
-                    yield return child;
-                }
-            }
-        }
-    }
-
     internal static bool CanEnumerateVisualChildren(DependencyObject root)
     {
         return root is Visual or System.Windows.Media.Media3D.Visual3D;
@@ -1816,7 +1815,6 @@ public partial class MainWindow : FluentWindow
     {
         Dispatcher.BeginInvoke(() =>
         {
-            CaptureRoomCardBaseWidth(RoomCardList.ActualWidth);
             UpdateRoomCardMetrics(RoomCardList.ActualWidth);
         }, DispatcherPriority.Loaded);
     }
@@ -1830,21 +1828,32 @@ public partial class MainWindow : FluentWindow
 
         double availableWidth = GetRoomCardAvailableWidth(GetRoomCardLayoutWidth(width));
         bool isPreviewMode = ViewModel.IsPreviewing;
-        double baseWidth = GetRoomCardBaseWidth(availableWidth, isPreviewMode);
+        double baseWidth = ViewModel.StatusOfIsUiXEnabled ? UiXRoomCardBaseWidth : GetRoomCardBaseWidth(isPreviewMode);
         double effectivePreference = NormalizeRoomCardScale(availableWidth, baseWidth, roomCardSizePreference);
         double horizontalGap = GetRoomCardHorizontalGap(effectivePreference);
         double verticalGap = GetRoomCardVerticalGap(effectivePreference);
         (int candidateColumns, _, _) = CalculateRoomCardLayout(availableWidth, baseWidth, effectivePreference, horizontalGap);
+        double targetCardWidth = Math.Max(1d, baseWidth * effectivePreference);
         int columns = StabilizeRoomCardColumns(
             RoomCardColumnCount,
             candidateColumns,
             availableWidth,
-            baseWidth * effectivePreference,
+            targetCardWidth,
             horizontalGap);
-        double cardWidth = GetCardWidthForColumns(availableWidth, columns, horizontalGap);
-        double cardHeight = WindowSizing.RoundLayoutValue(cardWidth * 2d / 3d);
+        double cardWidth = GetCardWidthForColumns(availableWidth, columns, horizontalGap, targetCardWidth);
+        int visibleItemCount = RoomCardList.Items.Count;
+        if (ViewModel.StatusOfIsUiXEnabled && visibleItemCount > 0)
+        {
+            columns = Math.Min(columns, visibleItemCount);
+            cardWidth = GetCardWidthForColumns(availableWidth, columns, horizontalGap, targetCardWidth);
+        }
+        double cardHeightRatio = ViewModel.StatusOfIsUiXEnabled ? 0.72d : 2d / 3d;
+        double cardHeight = WindowSizing.RoundLayoutValue(cardWidth * cardHeightRatio);
 
         RoomCardColumnCount = columns;
+        RoomCardGridWidth = ViewModel.StatusOfIsUiXEnabled && visibleItemCount > 0
+            ? WindowSizing.RoundLayoutValue(columns * (cardWidth + horizontalGap))
+            : double.NaN;
         RoomCardWidth = cardWidth;
         RoomCardHeight = cardHeight;
         double horizontalMargin = WindowSizing.RoundLayoutValue(horizontalGap / 2d);
@@ -1872,54 +1881,9 @@ public partial class MainWindow : FluentWindow
         return width - RoomCardScrollContentPadding - rightPadding - scrollBarWidth;
     }
 
-    private void CaptureRoomCardBaseWidth(double width)
+    private static double GetRoomCardBaseWidth(bool isPreviewMode)
     {
-        bool isPreviewMode = ViewModel.IsPreviewing;
-        if (isPreviewMode && isPreviewRoomCardBaseWidthCaptured)
-        {
-            return;
-        }
-
-        if (!isPreviewMode && isNormalRoomCardBaseWidthCaptured)
-        {
-            return;
-        }
-
-        double availableWidth = GetRoomCardAvailableWidth(GetRoomCardLayoutWidth(width));
-        int baseColumns = GetRoomCardBaseColumns(isPreviewMode);
-        double baseWidth = Math.Max(1d, (availableWidth - GetRoomCardHorizontalGap(RoomCardMediumSizeScale) * baseColumns) / baseColumns);
-
-        if (isPreviewMode)
-        {
-            previewRoomCardBaseWidth = baseWidth;
-            isPreviewRoomCardBaseWidthCaptured = true;
-        }
-        else
-        {
-            normalRoomCardBaseWidth = baseWidth;
-            isNormalRoomCardBaseWidthCaptured = true;
-        }
-    }
-
-    private double GetRoomCardBaseWidth(double availableWidth, bool isPreviewMode)
-    {
-        if (isPreviewMode && isPreviewRoomCardBaseWidthCaptured)
-        {
-            return previewRoomCardBaseWidth;
-        }
-
-        if (!isPreviewMode && isNormalRoomCardBaseWidthCaptured)
-        {
-            return normalRoomCardBaseWidth;
-        }
-
-        int baseColumns = GetRoomCardBaseColumns(isPreviewMode);
-        return Math.Max(1d, (availableWidth - GetRoomCardHorizontalGap(RoomCardMediumSizeScale) * baseColumns) / baseColumns);
-    }
-
-    private static int GetRoomCardBaseColumns(bool isPreviewMode)
-    {
-        return isPreviewMode ? RoomCardPreviewBaseColumns : RoomCardNormalBaseColumns;
+        return isPreviewMode ? RoomCardPreviewBaseWidth : RoomCardNormalBaseWidth;
     }
 
     private double NormalizeRoomCardScale(double availableWidth, double baseWidth, double preference)
@@ -1949,13 +1913,13 @@ public partial class MainWindow : FluentWindow
         double preferredSlotWidth = targetWidth + horizontalGap;
         int upperColumns = Math.Max(1, (int)Math.Ceiling(availableWidth / preferredSlotWidth));
         int lowerColumns = Math.Max(1, upperColumns - 1);
-        double upperCardWidth = GetCardWidthForColumns(availableWidth, upperColumns, horizontalGap);
-        double lowerCardWidth = GetCardWidthForColumns(availableWidth, lowerColumns, horizontalGap);
+        double upperCardWidth = GetCardWidthForColumns(availableWidth, upperColumns, horizontalGap, targetWidth);
+        double lowerCardWidth = GetCardWidthForColumns(availableWidth, lowerColumns, horizontalGap, targetWidth);
         int columns = lowerColumns < upperColumns && Math.Abs(lowerCardWidth - targetWidth) < Math.Abs(upperCardWidth - targetWidth)
             ? lowerColumns
             : upperColumns;
         double normalSlotWidth = availableWidth / columns;
-        double normalCardWidth = GetCardWidthForColumns(availableWidth, columns, horizontalGap);
+        double normalCardWidth = GetCardWidthForColumns(availableWidth, columns, horizontalGap, targetWidth);
 
         return (columns, normalSlotWidth, normalCardWidth);
     }
@@ -1972,7 +1936,7 @@ public partial class MainWindow : FluentWindow
             return Math.Max(1, candidateColumns);
         }
 
-        double currentCardWidth = GetCardWidthForColumns(availableWidth, currentColumns, horizontalGap);
+        double currentCardWidth = GetCardWidthForColumns(availableWidth, currentColumns, horizontalGap, targetCardWidth);
         if (candidateColumns > currentColumns && currentCardWidth <= targetCardWidth * 1.1d)
         {
             return currentColumns;
@@ -1985,9 +1949,12 @@ public partial class MainWindow : FluentWindow
         return Math.Max(1, candidateColumns);
     }
 
-    private static double GetCardWidthForColumns(double availableWidth, int columns, double horizontalGap)
+    internal static double GetCardWidthForColumns(double availableWidth, int columns, double horizontalGap, double targetCardWidth)
     {
-        return Math.Max(1d, WindowSizing.RoundLayoutValue(availableWidth / columns - horizontalGap));
+        double naturalWidth = Math.Max(1d, availableWidth / columns - horizontalGap);
+        double minWidth = Math.Max(1d, targetCardWidth * RoomCardMinScale);
+        double maxWidth = Math.Max(minWidth, targetCardWidth * RoomCardMaxScale);
+        return WindowSizing.RoundLayoutValue(Math.Clamp(naturalWidth, minWidth, maxWidth));
     }
 
     private void UpdateRoomCardVisualMetrics(double cardWidth, double baseWidth)
@@ -2020,6 +1987,12 @@ public partial class MainWindow : FluentWindow
             WindowSizing.RoundLayoutValue(6d * scale),
             WindowSizing.RoundLayoutValue(4d * scale));
         RoomCardChipMinHeight = WindowSizing.RoundLayoutValue(chipHeight);
+        UiXRoomCardAvatarSize = Math.Clamp(WindowSizing.RoundLayoutValue(52d * scale), 36d, 68d);
+        UiXRoomCardAvatarIconSize = Math.Clamp(WindowSizing.RoundLayoutValue(26d * scale), 18d, 34d);
+        UiXRoomCardNameFontSize = Math.Clamp(WindowSizing.RoundLayoutValue(15d * scale), 13d, 16d);
+        UiXRoomCardTitleFontSize = Math.Clamp(WindowSizing.RoundLayoutValue(11d * scale), 10d, 12d);
+        UiXRoomCardTitleLineHeight = Math.Clamp(WindowSizing.RoundLayoutValue(15d * scale), 13d, 17d);
+        UiXRoomCardStatusFontSize = Math.Clamp(WindowSizing.RoundLayoutValue(13d * scale), 12d, 14d);
     }
 
     internal static double CalculateRoomCardAvatarSize(double scale)
@@ -2060,7 +2033,7 @@ public partial class MainWindow : FluentWindow
     private void SetRoomCardScale(double scale)
     {
         double availableWidth = GetRoomCardAvailableWidth(GetRoomCardLayoutWidth(RoomCardList.ActualWidth));
-        double baseWidth = GetRoomCardBaseWidth(availableWidth, ViewModel.IsPreviewing);
+        double baseWidth = ViewModel.StatusOfIsUiXEnabled ? UiXRoomCardBaseWidth : GetRoomCardBaseWidth(ViewModel.IsPreviewing);
 
         if (scale > RoomCardMediumSizeScale && !CanUseRoomCardScale(availableWidth, baseWidth, scale, GetRoomCardHorizontalGap(scale)))
         {
@@ -2365,6 +2338,7 @@ public partial class MainWindow : FluentWindow
         previewShellContentBackground = ShellContentSurface.Background;
         previewShellNavigationVisibility = ShellNavigationPanel.Visibility;
         previewHomeActionBarVisibility = HomeActionBar.Visibility;
+        previewHomePageHeadingVisibility = HomePageHeading.Visibility;
         previewRoomCardPanelVisibility = RoomCardPanel.Visibility;
         previewRoomDetailPanelVisibility = RoomDetailPanel.Visibility;
         previewHomeStatusTrayVisibility = HomeStatusTray.Visibility;
@@ -2384,6 +2358,7 @@ public partial class MainWindow : FluentWindow
         HomePreviewPanel.Margin = new Thickness(0);
         ShellNavigationPanel.Visibility = Visibility.Collapsed;
         HomeActionBar.Visibility = Visibility.Collapsed;
+        HomePageHeading.Visibility = Visibility.Collapsed;
         RoomCardPanel.Visibility = Visibility.Collapsed;
         RoomDetailPanel.Visibility = Visibility.Collapsed;
         HomeStatusTray.Visibility = Visibility.Collapsed;
@@ -2420,6 +2395,7 @@ public partial class MainWindow : FluentWindow
         HomePreviewPanel.Margin = previewHomePreviewPanelMargin;
         ShellNavigationPanel.Visibility = previewShellNavigationVisibility;
         HomeActionBar.Visibility = previewHomeActionBarVisibility;
+        HomePageHeading.Visibility = previewHomePageHeadingVisibility;
         RoomCardPanel.Visibility = previewRoomCardPanelVisibility;
         RoomDetailPanel.Visibility = previewRoomDetailPanelVisibility;
         HomeStatusTray.Visibility = previewHomeStatusTrayVisibility;
@@ -2680,6 +2656,52 @@ public partial class MainWindow : FluentWindow
         UpdateRoomCardMetrics(RoomCardList.ActualWidth);
     }
 
+    private void QueueUpgradeReleaseNotesNotice()
+    {
+        if (isUpgradeReleaseNotesQueued
+            || isUpgradeReleaseNotesShowing
+            || UpgradeNoticeService.GetPendingNotice() is null)
+        {
+            return;
+        }
+
+        isUpgradeReleaseNotesQueued = true;
+        _ = Dispatcher.BeginInvoke(async () =>
+        {
+            isUpgradeReleaseNotesQueued = false;
+            await ShowUpgradeReleaseNotesIfNeededAsync();
+        }, DispatcherPriority.ContextIdle);
+    }
+
+    private async Task ShowUpgradeReleaseNotesIfNeededAsync()
+    {
+        UpgradeNoticeState? notice = UpgradeNoticeService.GetPendingNotice();
+        if (isUpgradeReleaseNotesShowing
+            || notice is null
+            || !IsLoaded
+            || !IsVisible
+            || WindowState == WindowState.Minimized
+            || IsModalDialogActive())
+        {
+            return;
+        }
+
+        isUpgradeReleaseNotesShowing = true;
+        try
+        {
+            UpdateReleaseNotesContentDialog dialog = new(notice);
+            using DialogBlurScope blurScope = DialogBlurScope.ForDialog(this, dialog);
+            _ = await WindowSizing.ShowContentDialogAsync(dialog, this);
+            UpgradeNoticeService.MarkShown(notice);
+        }
+        finally
+        {
+            isUpgradeReleaseNotesShowing = false;
+        }
+
+        QueueStartupAboutNotice();
+    }
+
     private void QueueStartupAboutNotice()
     {
         if (isStartupAboutNoticeQueued || Configurations.IsStartupAboutNoticeShown.Get())
@@ -2698,10 +2720,14 @@ public partial class MainWindow : FluentWindow
     private async Task ShowStartupAboutNoticeIfNeededAsync()
     {
         if (isStartupAboutNoticeShowing
+            || isUpgradeReleaseNotesQueued
+            || isUpgradeReleaseNotesShowing
+            || UpgradeNoticeService.GetPendingNotice() is not null
             || Configurations.IsStartupAboutNoticeShown.Get()
             || !IsLoaded
             || !IsVisible
-            || WindowState == WindowState.Minimized)
+            || WindowState == WindowState.Minimized
+            || IsModalDialogActive())
         {
             return;
         }

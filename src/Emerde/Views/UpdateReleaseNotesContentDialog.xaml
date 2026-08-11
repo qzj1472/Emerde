@@ -1,0 +1,162 @@
+<vio:ContentDialog x:Class="Emerde.Views.UpdateReleaseNotesContentDialog"
+                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:controls="clr-namespace:Emerde.Controls"
+                   xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                    xmlns:vio="http://schemas.lepo.co/wpfui/2022/xaml/violeta"
+                    xmlns:views="clr-namespace:Emerde.Views"
+                   Title="{Binding DialogTitle}"
+                   d:DesignHeight="NaN"
+                   d:DesignWidth="NaN"
+                   DefaultButton="Primary"
+                   FontSize="14"
+                   PrimaryButtonText="{I18N ButtonOfAcknowledge}"
+                   SnapsToDevicePixels="True"
+                   Style="{StaticResource DefaultVioletaContentDialogStyle}"
+                   UseLayoutRounding="True"
+                   mc:Ignorable="d">
+    <vio:ContentDialog.Resources>
+        <Style x:Key="UpdateReleaseNotesCaptionStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource UiXTextSecondaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="UpdateReleaseNotesTitleStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="UpdateReleaseNotesBodyStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="LineHeight" Value="20" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource UiXTextSecondaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="UpdateReleaseNotesHeroStyle" TargetType="{x:Type Border}">
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="Background" Value="{DynamicResource EmerdeCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource UiXElevatedBrush}" />
+                    <Setter Property="BorderBrush" Value="Transparent" />
+                    <Setter Property="BorderThickness" Value="0" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="UpdateReleaseNotesBodySurfaceStyle" TargetType="{x:Type Border}">
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="Background" Value="{DynamicResource EmerdeCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource UiXGroupBrush}" />
+                    <Setter Property="BorderBrush" Value="Transparent" />
+                    <Setter Property="BorderThickness" Value="0" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </vio:ContentDialog.Resources>
+    <Grid MinWidth="540"
+          MaxWidth="660"
+          MaxHeight="620"
+          Margin="0,2,0,0"
+          ClipToBounds="True"
+          controls:MotionAssist.IsEntranceEnabled="True"
+          controls:MotionAssist.EntranceOffsetY="8"
+          controls:MotionAssist.EntranceScale="0.98">
+        <ScrollViewer BorderThickness="0"
+                      Focusable="True"
+                      IsTabStop="True"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <ui:StackPanel Spacing="16">
+                <Border Style="{StaticResource UpdateReleaseNotesHeroStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="46"
+                                Height="46"
+                                Margin="0,0,16,0"
+                                Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                ClipToBounds="True">
+                            <Image RenderOptions.BitmapScalingMode="HighQuality"
+                                   Source="pack://application:,,,/Assets/Favicon.png"
+                                   Stretch="UniformToFill" />
+                        </Border>
+                        <ui:StackPanel Grid.Column="1"
+                                       VerticalAlignment="Center"
+                                       Spacing="5">
+                            <TextBlock Style="{StaticResource UpdateReleaseNotesTitleStyle}"
+                                       Text="{Binding CurrentVersionTitle}" />
+                            <TextBlock Style="{StaticResource UpdateReleaseNotesCaptionStyle}"
+                                       Text="{Binding UpgradeSummary}" />
+                        </ui:StackPanel>
+                    </Grid>
+                </Border>
+
+                <ui:StackPanel Spacing="6">
+                    <TextBlock Style="{StaticResource UpdateReleaseNotesCaptionStyle}"
+                               Text="{Binding HistoryLabel}" />
+                    <ComboBox x:Name="ReleaseNoteVersionPicker"
+                              MinHeight="34"
+                              HorizontalAlignment="Stretch"
+                              DisplayMemberPath="VersionLabel"
+                              ItemsSource="{Binding Entries}" />
+                </ui:StackPanel>
+
+                <Border Style="{StaticResource UpdateReleaseNotesBodySurfaceStyle}">
+                    <ui:StackPanel Spacing="10">
+                        <TextBlock Style="{StaticResource UpdateReleaseNotesTitleStyle}"
+                                   Text="{Binding SelectedItem.Title, ElementName=ReleaseNoteVersionPicker}" />
+                        <ItemsControl ItemsSource="{Binding SelectedItem.Items, ElementName=ReleaseNoteVersionPicker}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,7">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Ellipse Width="5"
+                                                 Height="5"
+                                                 Margin="0,8,10,0"
+                                                 VerticalAlignment="Top"
+                                                 Fill="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                                        <TextBlock Grid.Column="1"
+                                                   Style="{StaticResource UpdateReleaseNotesBodyStyle}"
+                                                   Text="{Binding}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ui:StackPanel>
+                </Border>
+            </ui:StackPanel>
+        </ScrollViewer>
+    </Grid>
+</vio:ContentDialog>
