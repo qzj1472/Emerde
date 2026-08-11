@@ -219,7 +219,7 @@ public sealed class FocusVisualTests
         Assert.Equal("Transparent", (string?)listScrollViewer.Attribute("BorderBrush"));
         Assert.Equal("False", (string?)listScrollViewer.Attribute("Focusable"));
         Assert.Equal("{x:Null}", (string?)listScrollViewer.Attribute("FocusVisualStyle"));
-        Assert.Equal("20,0,22,14", (string?)itemsPresenter.Attribute("Margin"));
+        Assert.Equal("20,0,20,14", (string?)itemsPresenter.Attribute("Margin"));
         Assert.Contains(itemStyle.Elements().Where(element => element.Name.LocalName == "Setter"), setter =>
             (string?)setter.Attribute("Property") == "Focusable"
             && (string?)setter.Attribute("Value") == "False");
@@ -291,7 +291,14 @@ public sealed class FocusVisualTests
             .Parent!;
 
         Assert.Equal("20,10,22,14", (string?)toolbar.Attribute("Margin"));
-        Assert.Equal("20,0,22,10", (string?)sectionHeader.Attribute("Margin"));
+        Assert.Contains(sectionHeader.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Margin"
+            && (string?)element.Attribute("Value") == "20,0,20,10");
+        Assert.Contains(sectionHeader.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Margin"
+            && (string?)element.Attribute("Value") == "20,8,20,12");
     }
 
     [Fact]
@@ -553,14 +560,19 @@ public sealed class FocusVisualTests
     [Theory]
     [InlineData("SettingsWindow.xaml", "SettingsScrollViewer")]
     [InlineData("LocalSettingsContentDialog.xaml", "LocalSettingsScrollViewer")]
-    public void SettingsScrollViewers_DoNotRenderWindowSwitchFocusOutline(string fileName, string scrollViewerName)
+    public void SettingsScrollViewers_UseSurfaceSpecificKeyboardFocus(string fileName, string scrollViewerName)
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", fileName));
         XElement scrollViewer = document.Descendants()
             .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == scrollViewerName);
 
-        Assert.Equal("False", (string?)scrollViewer.Attribute("Focusable"));
-        Assert.Equal("{x:Null}", (string?)scrollViewer.Attribute("FocusVisualStyle"));
+        bool supportsKeyboardFocus = fileName == "LocalSettingsContentDialog.xaml";
+        Assert.Equal(supportsKeyboardFocus ? "True" : "False", (string?)scrollViewer.Attribute("Focusable"));
+        Assert.Equal(supportsKeyboardFocus ? null : "{x:Null}", (string?)scrollViewer.Attribute("FocusVisualStyle"));
+        if (supportsKeyboardFocus)
+        {
+            Assert.Equal("True", (string?)scrollViewer.Attribute("IsTabStop"));
+        }
         Assert.Equal("0", (string?)scrollViewer.Attribute("BorderThickness"));
     }
 
@@ -741,6 +753,225 @@ public sealed class FocusVisualTests
     }
 
     [Fact]
+    public void HomeRoomCardContextMenu_UsesHoverShortcutHintsAndActiveStateColors()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XElement preview = FindMenuItem(document, "{I18N PreviewLiveRoom}");
+        XElement gotoRoom = FindMenuItem(document, "{I18N GotoLiveRoom}");
+        XElement monitor = FindMenuItem(document, "{Binding PlacementTarget.DataContext.MonitorMenuText, RelativeSource={RelativeSource AncestorType=ContextMenu}}");
+        XElement record = FindMenuItem(document, "{Binding PlacementTarget.DataContext.RecordMenuText, RelativeSource={RelativeSource AncestorType=ContextMenu}}");
+        XElement remove = FindMenuItem(document, "{I18N RemoveRoom}");
+
+        Assert.Null(preview.Attribute("InputGestureText"));
+        Assert.Null(gotoRoom.Attribute("InputGestureText"));
+        Assert.Null(monitor.Attribute("InputGestureText"));
+        Assert.Null(record.Attribute("InputGestureText"));
+        Assert.Null(remove.Attribute("InputGestureText"));
+        Assert.Equal("{I18N PreviewCurrentRoomToolTip}", (string?)preview.Attribute("ToolTip"));
+        Assert.Equal("{I18N OpenCurrentRoomToolTip}", (string?)gotoRoom.Attribute("ToolTip"));
+        Assert.Equal("{I18N ToggleCurrentMonitorToolTip}", (string?)monitor.Attribute("ToolTip"));
+        Assert.Equal("{I18N ToggleCurrentRecordingToolTip}", (string?)record.Attribute("ToolTip"));
+        Assert.Equal("{I18N RemoveRoomShortcutHint}", (string?)remove.Attribute("ToolTip"));
+        Assert.Equal("{StaticResource SelectedContextMenuOptionStyle}", (string?)preview.Attribute("Style"));
+        Assert.Equal("{StaticResource SelectedContextMenuOptionStyle}", (string?)gotoRoom.Attribute("Style"));
+        Assert.Equal("{StaticResource SelectedContextMenuOptionStyle}", (string?)remove.Attribute("Style"));
+        Assert.Equal("{StaticResource MonitorContextMenuActionStyle}", (string?)monitor.Attribute("Style"));
+        Assert.Equal("{StaticResource RecordContextMenuActionStyle}", (string?)record.Attribute("Style"));
+        Assert.Equal("{Binding PlacementTarget.DataContext.EffectiveIsToMonitor, RelativeSource={RelativeSource AncestorType=ContextMenu}}", (string?)monitor.Attribute("Tag"));
+        Assert.Equal("{Binding PlacementTarget.DataContext.RecordMenuIsActive, RelativeSource={RelativeSource AncestorType=ContextMenu}}", (string?)record.Attribute("Tag"));
+        Assert.Contains(document.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Foreground"
+            && (string?)element.Attribute("Value") == "{StaticResource MonitorActiveForegroundBrush}");
+        Assert.Contains(document.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Foreground"
+            && (string?)element.Attribute("Value") == "{StaticResource RecordActiveForegroundBrush}");
+        Assert.Contains(document.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "FontSize"
+            && (string?)element.Attribute("Value") == "14");
+        Assert.Contains(document.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "MinHeight"
+            && (string?)element.Attribute("Value") == "36");
+    }
+
+    [Fact]
+    public void HomeRoomCardContextMenu_SeparatesRemoveFromRoomInformation()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XElement[] menuItems = document.Descendants()
+            .Where(element => element.Name.LocalName == "MenuItem")
+            .ToArray();
+        int removeIndex = Array.FindIndex(menuItems, item => (string?)item.Attribute("Header") == "{I18N RemoveRoom}");
+        int informationIndex = Array.FindIndex(menuItems, item => (string?)item.Attribute("Header") == "{I18N RoomInformation}");
+
+        Assert.True(removeIndex >= 0);
+        Assert.True(informationIndex >= 0);
+        Assert.True(informationIndex < removeIndex);
+        XElement informationItem = menuItems[informationIndex];
+        XElement removeItem = menuItems[removeIndex];
+        Assert.Contains(informationItem.ElementsAfterSelf().TakeWhile(element => element != removeItem),
+            element => element.Name.LocalName == "Separator");
+    }
+
+    [Fact]
+    public void HomeRoomCards_KeepLegacyAndUiXLayoutsBehindTheUiXSwitch()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
+        XElement legacy = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomCardLegacyLayout");
+        XElement uiX = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomCardUiXLayout");
+
+        Assert.Contains(legacy.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Visibility"
+            && (string?)element.Attribute("Value") == "Collapsed");
+        Assert.Contains(uiX.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Visibility"
+            && (string?)element.Attribute("Value") == "Visible");
+        Assert.Contains(uiX.Descendants(), element =>
+            element.Name.LocalName == "TextBlock"
+            && (string?)element.Attribute("Text") == "{Binding NickName}"
+            && (string?)element.Attribute("TextAlignment") == "Center");
+        Assert.Contains("UiXRoomCardAvatarSize", uiX.ToString(), StringComparison.Ordinal);
+        Assert.Contains("UiXRoomCardNameFontSize", uiX.ToString(), StringComparison.Ordinal);
+        Assert.Contains("UiXRoomCardTitleFontSize", uiX.ToString(), StringComparison.Ordinal);
+        Assert.Contains("UiXRoomCardStatusFontSize", uiX.ToString(), StringComparison.Ordinal);
+        Assert.Contains("UiXInformationBandStyle", uiX.ToString(), StringComparison.Ordinal);
+        Assert.Contains("UiXStatusDotStyle", uiX.ToString(), StringComparison.Ordinal);
+        Assert.Contains("UiXRoomCardBaseWidth = 200d", source, StringComparison.Ordinal);
+        Assert.Contains("ViewModel.StatusOfIsUiXEnabled ? 0.72d : 2d / 3d", source, StringComparison.Ordinal);
+        Assert.Contains("UiXRoomCardStatusFontSize = Math.Clamp(WindowSizing.RoundLayoutValue(13d * scale), 12d, 14d)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UiXTheme_UsesFluentWpfCoreWithoutImportingItsControlTheme()
+    {
+        string project = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Emerde.csproj"));
+        string app = File.ReadAllText(FindRepositoryFile("src", "Emerde", "App.xaml"));
+        string mainWindow = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        string mainWindowCode = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
+        string uiXTheme = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Themes", "UiXTheme.xaml"));
+        XDocument uiXThemeDocument = XDocument.Parse(uiXTheme);
+        XElement surfaceBorderThickness = uiXThemeDocument.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "UiXSurfaceBorderThickness");
+
+        Assert.Contains("FluentWpfCore\" Version=\"1.0.5", project, StringComparison.Ordinal);
+        Assert.Contains("Themes/UiXTheme.xaml", app, StringComparison.Ordinal);
+        Assert.DoesNotContain("FluentWpfCore;component/Themes/Generic.xaml", app, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"UiXWindowMaterial\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("MaterialMode=\"None\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("MaterialType.Mica", mainWindowCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("MaterialType.Acrylic", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("UiXWindowFallbackBrush", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("MaterialType.None", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("UiXPanelBrush", uiXTheme, StringComparison.Ordinal);
+        Assert.Contains("UiXCardBrush", uiXTheme, StringComparison.Ordinal);
+        Assert.Contains("UiXVideoCardBrush", uiXTheme, StringComparison.Ordinal);
+        Assert.Contains("UiXShellSurfaceCornerRadius", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("UiXPageSurfaceCornerRadius", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("UiXStrokeBrush", uiXTheme, StringComparison.Ordinal);
+        Assert.Contains("UiXTranscodeFillBrush", uiXTheme, StringComparison.Ordinal);
+        Assert.Contains("UiXStallFillBrush", uiXTheme, StringComparison.Ordinal);
+        Assert.Contains("UiXInformationBandStyle", uiXTheme, StringComparison.Ordinal);
+        Assert.Contains("UiXStatusDotStyle", uiXTheme, StringComparison.Ordinal);
+        Assert.Equal("0", surfaceBorderThickness.Value);
+        Assert.Contains("Value=\"{StaticResource UiXSurfaceBorderThickness}\"", uiXTheme, StringComparison.Ordinal);
+        Assert.Contains("<Setter Property=\"Width\" Value=\"40\" />", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<Setter TargetName=\"ButtonSurface\" Property=\"Width\" Value=\"40\" />", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<Setter TargetName=\"ButtonSurface\" Property=\"Height\" Value=\"40\" />", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<Setter TargetName=\"ButtonSurface\" Property=\"CornerRadius\" Value=\"{StaticResource UiXNavigationInsetCornerRadius}\" />", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainNavigation_UsesTheSameVisualAndKeyboardPageOrder()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        string viewModel = File.ReadAllText(FindRepositoryFile("src", "Emerde", "ViewModels", "MainViewModel.cs"));
+        XElement navigation = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "ShellNavigationItems");
+        string[] commands = navigation.Elements()
+            .Where(element => element.Name.LocalName == "ToggleButton")
+            .Select(element => (string)element.Attribute("Command")!)
+            .ToArray();
+
+        Assert.Equal(
+            [
+                "{Binding ShowHomePageCommand}",
+                "{Binding OpenScreenRecordListCommand}",
+                "{Binding OpenExtensionsCommand}",
+                "{Binding OpenSettingsDialogCommand}",
+                "{Binding OpenAboutCommand}",
+            ],
+            commands);
+        Assert.Contains("IsExtensionsPageSelected => SelectedMainPageIndex == 2", viewModel, StringComparison.Ordinal);
+        Assert.Contains("IsSettingsPageSelected => SelectedMainPageIndex == 3", viewModel, StringComparison.Ordinal);
+        Assert.Contains("private void OpenExtensions()", viewModel, StringComparison.Ordinal);
+        Assert.Contains("private void OpenSettingsDialog()", viewModel, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainNavigation_ExitButtonUsesCloudLegacyContentAndCompactUiXContent()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XElement exitButton = document.Descendants()
+            .Single(element => element.Name.LocalName == "Button"
+                && (string?)element.Attribute("Command") == "{Binding ExitApplicationCommand}");
+        XElement exitStyle = document.Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "ShellExitButtonStyle");
+        XElement uiXTrigger = exitStyle.Elements()
+            .Single(element => element.Name.LocalName == "Style.Triggers")
+            .Elements()
+            .Single(element => element.Name.LocalName == "DataTrigger");
+
+        Assert.Single(exitButton.Elements(), element => element.Name.LocalName == "StackPanel");
+        Assert.Single(exitButton.Descendants(), element => element.Name.LocalName == "FontIcon");
+        XElement exitLabel = exitButton.Descendants()
+            .Single(element => element.Name.LocalName == "TextBlock");
+        Assert.Equal("{I18N TrayMenuExit}", (string?)exitLabel.Attribute("Text"));
+        Assert.Contains(exitLabel.Descendants(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Visibility"
+            && (string?)element.Attribute("Value") == "Collapsed");
+        Assert.Contains(exitStyle.Elements(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Width"
+            && (string?)element.Attribute("Value") == "64");
+        Assert.Contains(exitStyle.Elements(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Height"
+            && (string?)element.Attribute("Value") == "34");
+        Assert.Contains(uiXTrigger.Elements(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Width"
+            && (string?)element.Attribute("Value") == "40");
+        Assert.Contains(uiXTrigger.Elements(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Height"
+            && (string?)element.Attribute("Value") == "40");
+    }
+
+    [Fact]
+    public void UiXSecondaryPages_UseSharedSemanticThemeTokens()
+    {
+        string about = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml"));
+        string extensions = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ExtensionCenterWindow.xaml"));
+        string localSettings = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "LocalSettingsContentDialog.xaml"));
+        string settings = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml"));
+        string videos = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+        string releaseNotes = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "UpdateReleaseNotesContentDialog.xaml"));
+
+        Assert.Contains("UiXCardBrush", about, StringComparison.Ordinal);
+        Assert.Contains("UiXCardBrush", extensions, StringComparison.Ordinal);
+        Assert.Contains("UiXCardBrush", localSettings, StringComparison.Ordinal);
+        Assert.DoesNotContain("SettingsUiXCardExpanderTemplate", settings, StringComparison.Ordinal);
+        Assert.Contains("UiXVideoCardBrush", videos, StringComparison.Ordinal);
+        Assert.Contains("UiXElevatedBrush", releaseNotes, StringComparison.Ordinal);
+        Assert.Contains("<Setter Property=\"TextWrapping\" Value=\"Wrap\" />", settings, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void VideoCards_DrawAllStrokesInsideTheSurface()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
@@ -761,12 +992,78 @@ public sealed class FocusVisualTests
         Assert.Same(surface, content.Parent);
         Assert.Equal("1", (string?)surfaceStroke.Attribute("BorderThickness"));
         Assert.Equal("1", (string?)selectionLayer.Attribute("BorderThickness"));
-        Assert.Equal("14", (string?)content.Attribute("Padding"));
+        XElement paddingStyle = content.Elements()
+            .Single(element => element.Name.LocalName == "Border.Style")
+            .Elements()
+            .Single(element => element.Name.LocalName == "Style");
+        Assert.Contains(paddingStyle.Elements().Where(element => element.Name.LocalName == "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Padding"
+            && (string?)setter.Attribute("Value") == "14");
+        Assert.Contains(paddingStyle.Descendants().Where(element => element.Name.LocalName == "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Padding"
+            && (string?)setter.Attribute("Value") == "4");
         Assert.DoesNotContain(document.Descendants(), element =>
             element.Name.LocalName == "Setter"
             && (string?)element.Attribute("TargetName") == "VideoCardShell"
             && (string?)element.Attribute("Property") is "BorderBrush" or "BorderThickness");
         Assert.Equal("#78337DFF", (string?)selectionLayer.Attribute("BorderBrush"));
+    }
+
+    [Fact]
+    public void VideoList_KeepsLegacyListAndUiXCardLayoutsBehindTheUiXSwitch()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+        XElement listStyle = document.Descendants()
+            .First(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute("BasedOn") == "{StaticResource VideoListBoxStyle}");
+        XElement legacy = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "VideoCardLegacyLayout");
+        XElement uiX = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "VideoCardUiXLayout");
+        XElement groupPanel = document.Descendants()
+            .Single(element => element.Name.LocalName == "ItemsPanelTemplate"
+                && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "UiXVideoGroupPanelTemplate");
+        XElement rootListPanel = listStyle.Elements()
+            .Single(element => element.Name.LocalName == "Setter"
+                && (string?)element.Attribute("Property") == "ItemsPanel")
+            .Descendants()
+            .Single(element => element.Name.LocalName == "ItemsPanelTemplate");
+
+        Assert.Contains(rootListPanel.Descendants(), element => element.Name.LocalName == "VirtualizingStackPanel");
+        Assert.DoesNotContain(rootListPanel.Descendants(), element => element.Name.LocalName == "VirtualizingWrapPanel");
+        Assert.Contains(groupPanel.Descendants(), element => element.Name.LocalName == "VirtualizingWrapPanel"
+            && (string?)element.Attribute("IsItemsHost") == "True");
+        Assert.Contains(groupPanel.Descendants(), element => element.Name.LocalName == "VirtualizingWrapPanel"
+            && (string?)element.Attribute("Orientation") == "Vertical"
+            && ((string?)element.Attribute("ItemSize"))?.StartsWith("{Binding VideoCardItemSize", StringComparison.Ordinal) == true);
+        Assert.Contains(document.Descendants(), element =>
+            element.Name.LocalName == "ControlTemplate"
+            && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "UiXVideoGroupTemplate");
+        XElement videoList = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "VideoListBox");
+        Assert.Equal("True", (string?)videoList.Attribute("VirtualizingPanel.IsVirtualizingWhenGrouping"));
+        Assert.Contains(legacy.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Visibility"
+            && (string?)element.Attribute("Value") == "Collapsed");
+        Assert.Contains(uiX.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Visibility"
+            && (string?)element.Attribute("Value") == "Visible");
+        Assert.Contains(uiX.Descendants(), element =>
+            element.Name.LocalName == "Border"
+            && ((string?)element.Attribute("Height"))?.StartsWith("{Binding VideoCardCoverHeight", StringComparison.Ordinal) == true);
+        Assert.DoesNotContain(uiX.Descendants(), element => element.Name.LocalName == "Button");
+        Assert.Contains(uiX.Descendants(), element =>
+            element.Name.LocalName == "TextBlock"
+            && (string?)element.Attribute("Text") == "{Binding FileName}");
+        Assert.Contains(uiX.Descendants(), element =>
+            element.Name.LocalName == "TextBlock"
+            && (string?)element.Attribute("Text") == "{Binding NickName}");
+        Assert.Contains(uiX.Descendants(), element =>
+            element.Name.LocalName == "Border"
+            && (string?)element.Attribute("Style") == "{StaticResource UiXInformationBandStyle}");
+        Assert.DoesNotContain(uiX.Descendants(), element => element.Name.LocalName == "Run");
     }
 
     [Fact]
@@ -854,6 +1151,7 @@ public sealed class FocusVisualTests
     [InlineData("ConfigRestoreContentDialog.xaml")]
     [InlineData("ConfigRestoreWindow.xaml")]
     [InlineData("LocalSettingsContentDialog.xaml")]
+    [InlineData("UpdateReleaseNotesContentDialog.xaml")]
     [InlineData("SettingsWindow.xaml")]
     [InlineData("AboutContentDialog.xaml")]
     [InlineData("ScreenRecordListWindow.xaml")]
@@ -937,5 +1235,11 @@ public sealed class FocusVisualTests
             get => getter();
             set => setter(value);
         }
+    }
+
+    private static XElement FindMenuItem(XDocument document, string header)
+    {
+        return document.Descendants()
+            .Single(element => element.Name.LocalName == "MenuItem" && (string?)element.Attribute("Header") == header);
     }
 }
