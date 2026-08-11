@@ -88,18 +88,12 @@
                                TextWrapping="Wrap" />
                 </Grid>
             </Border>
-            <Grid Margin="0,2,0,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <CheckBox Grid.Column="0"
-                          Content="{Binding SkipValidationText}"
+            <ui:StackPanel Margin="0,2,0,0" Spacing="6">
+                <CheckBox Content="{Binding SkipValidationText}"
                           IsChecked="{Binding IsForcedAdd, Mode=TwoWay}" />
-                <CheckBox Grid.Column="1"
-                          Content="{Binding FollowGlobalSettingsText}"
+                <CheckBox Content="{Binding FollowGlobalSettingsText}"
                           IsChecked="{Binding IsFollowGlobalSettings, Mode=TwoWay}" />
-            </Grid>
+            </ui:StackPanel>
         </ui:StackPanel>
         <ContentControl Grid.Row="1"
                         Margin="0,10,0,0"

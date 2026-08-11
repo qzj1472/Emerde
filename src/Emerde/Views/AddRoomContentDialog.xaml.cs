@@ -227,7 +227,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
             try
             {
                 string preferredQuality = RoomRecordingSettings.GetGlobal().PreferredStreamQuality;
-                ISpiderResult? spider = await GlobalMonitor.GetManualSpiderResultAsync(normalizedRoomUrl, preferredQuality);
+                ISpiderResult? spider = await GlobalMonitor.GetManualSpiderResultAsync(normalizedRoomUrl, preferredQuality, token);
                 token.ThrowIfCancellationRequested();
                 string roomUrl = string.IsNullOrWhiteSpace(spider?.RoomUrl)
                     ? normalizedRoomUrl
