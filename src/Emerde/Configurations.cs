@@ -13,11 +13,13 @@ public static class Configurations
     public static ConfigurationDefinition<int> PreviewVolume { get; } = new(nameof(PreviewVolume), 10);
     public static ConfigurationDefinition<bool> IsPreviewMuted { get; } = new(nameof(IsPreviewMuted), true);
     public static ConfigurationDefinition<bool> IsStartupAboutNoticeShown { get; } = new(nameof(IsStartupAboutNoticeShown), false);
+    public static ConfigurationDefinition<string> LastShownUpgradeNoticeVersion { get; } = new(nameof(LastShownUpgradeNoticeVersion), string.Empty);
     public static ConfigurationDefinition<bool> IsSessionLogEnabled { get; } = new(nameof(IsSessionLogEnabled), true);
     public static ConfigurationDefinition<int> SessionLogRetentionDays { get; } = new(nameof(SessionLogRetentionDays), 30);
     public static ConfigurationDefinition<bool> IsOffRemindCloseToTray { get; } = new(nameof(IsOffRemindCloseToTray), false);
     public static ConfigurationDefinition<Room[]> Rooms { get; } = new(nameof(Rooms), []);
     public static ConfigurationDefinition<bool> IsUseStatusTray { get; } = new(nameof(IsUseStatusTray), true);
+    public static ConfigurationDefinition<bool> IsUiXEnabled { get; } = new(nameof(IsUiXEnabled), true);
     public static ConfigurationDefinition<int> RoutineInterval { get; } = new(nameof(RoutineInterval), MonitorTiming.DefaultRoutineIntervalMilliseconds);
     public static ConfigurationDefinition<int> RoutineIntervalUnit { get; } = new(nameof(RoutineIntervalUnit), 1);
     public static ConfigurationDefinition<bool> IsMonitorRunning { get; } = new(nameof(IsMonitorRunning), true);

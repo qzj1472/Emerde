@@ -63,6 +63,12 @@
         <Setter Property="HasDropShadow" Value="True" />
         <Setter Property="Padding" Value="10,7" />
         <Setter Property="MaxWidth" Value="360" />
+        <Setter Property="ToolTipService.InitialShowDelay" Value="320" />
+        <Setter Property="ToolTipService.BetweenShowDelay" Value="80" />
+        <Setter Property="ToolTipService.ShowDuration" Value="3600" />
+        <Setter Property="ToolTipService.Placement" Value="Mouse" />
+        <Setter Property="ToolTipService.HorizontalOffset" Value="10" />
+        <Setter Property="ToolTipService.VerticalOffset" Value="8" />
         <Setter Property="Background" Value="{DynamicResource EmerdeSurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="1" />
@@ -93,12 +99,24 @@
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
         <Setter Property="MinHeight" Value="34" />
+        <Setter Property="ToolTipService.InitialShowDelay" Value="320" />
+        <Setter Property="ToolTipService.BetweenShowDelay" Value="80" />
+        <Setter Property="ToolTipService.ShowDuration" Value="3600" />
+        <Setter Property="ToolTipService.Placement" Value="Mouse" />
+        <Setter Property="ToolTipService.HorizontalOffset" Value="10" />
+        <Setter Property="ToolTipService.VerticalOffset" Value="8" />
     </Style>
 
     <Style TargetType="{x:Type ToggleButton}" BasedOn="{StaticResource {x:Type ToggleButton}}">
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
         <Setter Property="MinHeight" Value="34" />
+        <Setter Property="ToolTipService.InitialShowDelay" Value="320" />
+        <Setter Property="ToolTipService.BetweenShowDelay" Value="80" />
+        <Setter Property="ToolTipService.ShowDuration" Value="3600" />
+        <Setter Property="ToolTipService.Placement" Value="Mouse" />
+        <Setter Property="ToolTipService.HorizontalOffset" Value="10" />
+        <Setter Property="ToolTipService.VerticalOffset" Value="8" />
     </Style>
 
     <Style TargetType="{x:Type CheckBox}" BasedOn="{StaticResource {x:Type CheckBox}}">

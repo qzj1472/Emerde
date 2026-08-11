@@ -14,6 +14,7 @@
                 <vio:ControlsDictionary />
                 <ResourceDictionary Source="pack://application:,,,/Wpf.Ui.Violeta;component/Controls/DataGrid/LegacyDataGrid.xaml" />
                 <ResourceDictionary Source="Resources.xaml" />
+                <ResourceDictionary Source="Themes/UiXTheme.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

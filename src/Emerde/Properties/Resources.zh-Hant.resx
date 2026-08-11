@@ -379,6 +379,12 @@
   <data name="TrayStatusHint" xml:space="preserve">
     <value>啟用錄制中提示狀態的托盤圖標</value>
   </data>
+  <data name="UIX" xml:space="preserve">
+    <value>UI-X</value>
+  </data>
+  <data name="UIXHint" xml:space="preserve">
+    <value>使用卡片式首頁版面，透過右鍵選單查看直播間資訊</value>
+  </data>
   <data name="RecordSettings" xml:space="preserve">
     <value>錄製設定</value>
   </data>
@@ -485,6 +491,7 @@
   <data name="CookieLoginInitializing" xml:space="preserve"><value>正在啟動安全登入視窗...</value></data>
   <data name="CookieLoginInstruction" xml:space="preserve"><value>請在此頁面完成登入，然後點擊「完成並獲取」。</value></data>
   <data name="CookieLoginFinish" xml:space="preserve"><value>完成並獲取</value></data>
+  <data name="CookieLoginBack" xml:space="preserve"><value>返回</value></data>
   <data name="CookieLoginRuntimeMissing" xml:space="preserve"><value>未偵測到 Microsoft Edge WebView2 Runtime。</value></data>
   <data name="CookieLoginOpenFailed" xml:space="preserve"><value>無法開啟登入頁面：{0}</value></data>
   <data name="CookieLoginReading" xml:space="preserve"><value>正在讀取該平台的登入 Cookie...</value></data>
@@ -777,6 +784,16 @@
   <data name="PreviewRestore" xml:space="preserve"><value>離開全螢幕</value></data>
   <data name="StartupAboutNoticeTitle" xml:space="preserve"><value>使用前請先閱讀說明</value></data>
   <data name="StartupAboutNoticeDescription" xml:space="preserve"><value>為了避免誤操作和平台風控，首次使用前建議先打開左側「關於」，仔細閱讀監控間隔、動態檢測、錄製、預覽與全螢幕等說明。理解這些規則後再添加直播間和開啟監控，會更穩一些。</value></data>
+  <data name="UpdateReleaseNotesDialogTitle" xml:space="preserve"><value>更新日誌</value></data>
+  <data name="UpdateReleaseNotesCurrentVersionFormat" xml:space="preserve"><value>已更新到 {0}</value></data>
+  <data name="UpdateReleaseNotesUpgradeFromFormat" xml:space="preserve"><value>已從 {0} 升級到 {1}。這次更新內容如下。</value></data>
+  <data name="UpdateReleaseNotesUpgradeCurrentFormat" xml:space="preserve"><value>這是升級到 {0} 後第一次打開。更新內容如下。</value></data>
+  <data name="UpdateReleaseNotesHistoryLabel" xml:space="preserve"><value>歷史更新日誌</value></data>
+  <data name="ReleaseNotes1670Title" xml:space="preserve"><value>Emerde 1.6.7.0</value></data>
+  <data name="ReleaseNotes1670Date" xml:space="preserve"><value>2026-08-10</value></data>
+  <data name="ReleaseNotes1670Items" xml:space="preserve"><value>完成安裝器打包與維護流程優化，安裝、升級、修復、解除安裝、執行中提示和保留使用者資料選項更完整。|規範安裝目錄結構、解除安裝捷徑、維護檔案、圖示資源，並清理 GitHub 首頁舊圖示。|常規交付調整為 Debug 自包含建置和安裝包，不再預設輸出獨立 Release 壓縮包。|加強多平台分享文案和短連結識別，覆蓋抖音、B 站等手機端分享格式。|規範直播間 URL 匯入和重複偵測，避免同一直播間透過不同連結重複加入。|優化錄製清理排程，按最近到期時間執行，減少無意義掃描。|審查並優化時間迴圈、路徑處理、檔案儲存、頭像刷新、托盤圖示和載入動畫。|優化首頁直播間卡片、右鍵操作、資訊彈窗、框選行為，並新增可切換的 UI-X 版面。|新增安裝器升級後的首次啟動更新日誌彈窗，按完整四段版本識別後續 1.6.7.x 小版本。</value></data>
+  <data name="ReleaseNotesUnknownTitle" xml:space="preserve"><value>Emerde 更新</value></data>
+  <data name="ReleaseNotesUnknownItem" xml:space="preserve"><value>這個版本包含穩定性與使用體驗優化。</value></data>
   <data name="ConfigurationRecovered" xml:space="preserve"><value>設定檔無效，已保留到：{0}。Emerde 已使用預設設定啟動。</value></data>
   <data name="Unsupported" xml:space="preserve"><value>不支援</value></data>
   <data name="SkipValidation" xml:space="preserve"><value>略過檢測</value></data>
@@ -800,11 +817,13 @@
   <data name="HomePage" xml:space="preserve"><value>首頁</value></data>
   <data name="Extensions" xml:space="preserve"><value>擴充功能</value></data>
   <data name="Monitor" xml:space="preserve"><value>監控</value></data>
-  <data name="NavigationHomeToolTip" xml:space="preserve"><value>首頁（Alt+1，Tab 向上 / CapsLock 向下）</value></data>
-  <data name="NavigationVideosToolTip" xml:space="preserve"><value>影片列表（Alt+2，Tab 向上 / CapsLock 向下）</value></data>
-  <data name="NavigationSettingsToolTip" xml:space="preserve"><value>設定（Alt+3，Tab 向上 / CapsLock 向下）</value></data>
-  <data name="NavigationExtensionsToolTip" xml:space="preserve"><value>擴充功能（Alt+4，Tab 向上 / CapsLock 向下）</value></data>
-  <data name="NavigationAboutToolTip" xml:space="preserve"><value>關於（Alt+5，Tab 向上 / CapsLock 向下）</value></data>
+  <data name="PauseMonitor" xml:space="preserve"><value>暫停監控</value></data>
+  <data name="PauseRecording" xml:space="preserve"><value>暫停錄製</value></data>
+  <data name="NavigationHomeToolTip" xml:space="preserve"><value>首頁（Alt+1，Tab 正向循環）</value></data>
+  <data name="NavigationVideosToolTip" xml:space="preserve"><value>影片列表（Alt+2，Tab 正向循環）</value></data>
+  <data name="NavigationSettingsToolTip" xml:space="preserve"><value>設定（Alt+4，Tab 正向循環）</value></data>
+  <data name="NavigationExtensionsToolTip" xml:space="preserve"><value>擴充功能（Alt+3，Tab 正向循環）</value></data>
+  <data name="NavigationAboutToolTip" xml:space="preserve"><value>關於（Alt+5，Tab 正向循環）</value></data>
   <data name="ExitApplicationToolTip" xml:space="preserve"><value>結束 Emerde（Ctrl+Shift+W）</value></data>
   <data name="AddRoomToolTip" xml:space="preserve"><value>新增直播間（Ctrl+N）</value></data>
   <data name="ToggleAllMonitorToolTip" xml:space="preserve"><value>啟用或暫停全部監控（Ctrl+Shift+M）</value></data>
@@ -819,6 +838,10 @@
   <data name="PlatformFilter" xml:space="preserve"><value>平台篩選</value></data>
   <data name="LoadPlatforms" xml:space="preserve"><value>載入平台</value></data>
   <data name="RoomInformation" xml:space="preserve"><value>直播間資訊</value></data>
+  <data name="RoomRecordingStatistics" xml:space="preserve"><value>錄製統計</value></data>
+  <data name="RecentRecordingStarted" xml:space="preserve"><value>最近一次錄製</value></data>
+  <data name="RecentRecordingEnded" xml:space="preserve"><value>最近一次結束錄製</value></data>
+  <data name="RoomRecordingStorageUsage" xml:space="preserve"><value>此直播間錄製占用</value></data>
   <data name="LiveTitle" xml:space="preserve"><value>標題</value></data>
   <data name="ResolutionLabel" xml:space="preserve"><value>解析度</value></data>
   <data name="BitrateLabel" xml:space="preserve"><value>位元率</value></data>
@@ -830,6 +853,7 @@
   <data name="OpenCurrentRoomToolTip" xml:space="preserve"><value>開啟目前直播間網頁（E）</value></data>
   <data name="ToggleCurrentMonitorToolTip" xml:space="preserve"><value>啟用或暫停目前直播間監控（Shift+M）</value></data>
   <data name="ToggleCurrentRecordingToolTip" xml:space="preserve"><value>啟用或暫停目前直播間錄製（Shift+R）</value></data>
+  <data name="RemoveRoomShortcutHint" xml:space="preserve"><value>移除目前直播間（Del）</value></data>
   <data name="OpenCurrentRoomSettingsToolTip" xml:space="preserve"><value>開啟目前直播間設定</value></data>
   <data name="AutoShutdownDebugSkipped" xml:space="preserve"><value>已觸發關閉電腦，偵錯模式不會執行系統關機。</value></data>
   <data name="CancellingTranscode" xml:space="preserve"><value>正在取消轉碼...</value></data>

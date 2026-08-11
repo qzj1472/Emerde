@@ -207,6 +207,16 @@ public sealed class ResourceTextTests
             "StartupAboutNoticeTitle",
             "StartupAboutNoticeDescription",
             "ButtonOfAcknowledge",
+            "UpdateReleaseNotesDialogTitle",
+            "UpdateReleaseNotesCurrentVersionFormat",
+            "UpdateReleaseNotesUpgradeFromFormat",
+            "UpdateReleaseNotesUpgradeCurrentFormat",
+            "UpdateReleaseNotesHistoryLabel",
+            "ReleaseNotes1670Title",
+            "ReleaseNotes1670Date",
+            "ReleaseNotes1670Items",
+            "ReleaseNotesUnknownTitle",
+            "ReleaseNotesUnknownItem",
         ];
 
         foreach (string key in keys)
@@ -237,7 +247,8 @@ public sealed class ResourceTextTests
             "PlatformFilter", "LoadPlatforms", "RoomInformation", "LiveTitle", "ResolutionLabel", "BitrateLabel",
             "RoomAddress", "RefreshCurrentRoomToolTip", "CopyRoomAddressToolTip", "CopyLiveStreamToolTip",
             "PreviewCurrentRoomToolTip", "OpenCurrentRoomToolTip", "ToggleCurrentMonitorToolTip",
-            "ToggleCurrentRecordingToolTip", "OpenCurrentRoomSettingsToolTip",
+            "ToggleCurrentRecordingToolTip", "RemoveRoomShortcutHint", "OpenCurrentRoomSettingsToolTip",
+            "UIX", "UIXHint",
         ];
 
         foreach (string key in keys)

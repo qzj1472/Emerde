@@ -204,6 +204,8 @@ public sealed class ConfigFileManagerTests
     [Theory]
     [InlineData("IsStartupAboutNoticeShown: true", false)]
     [InlineData("IsStartupAboutNoticeShown: true\nRooms: []", false)]
+    [InlineData("LastShownUpgradeNoticeVersion: 1.6.7.0", false)]
+    [InlineData("LastShownUpgradeNoticeVersion: 1.6.7.0\nRooms: []", false)]
     [InlineData("Rooms: []", false)]
     [InlineData("Theme: ''\nRooms: []", false)]
     [InlineData("RoutineIntervalUnit: Seconds\nRooms: []", false)]

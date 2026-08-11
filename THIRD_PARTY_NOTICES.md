@@ -28,6 +28,18 @@ The full upstream license text is available at:
 
 https://github.com/ihmily/DouyinLiveRecorder/blob/main/LICENSE
 
+## FluentWpfCore
+
+Emerde uses FluentWpfCore for Windows material and scrolling capabilities.
+
+FluentWpfCore is licensed under the MIT License.
+
+Copyright (c) 2026 TwilightLemon
+
+Project: https://github.com/TwilightLemon/FluentWpfCore
+
+The MIT License text is available in [licenses/MIT.txt](licenses/MIT.txt).
+
 ## Other Dependencies
 
 FFmpeg, LibVLC, NuGet packages, and other bundled or linked third-party components remain governed by their respective licenses. Emerde's GPL-3.0-only license does not relicense those independent components. Release packages must preserve every license and notice required by the versions and build configurations they distribute.

@@ -406,6 +406,16 @@ public partial class SettingsViewModel : ReactiveObject
         TrayIconManager.GetInstance().UpdateTrayIcon();
     }
 
+    [ObservableProperty]
+    private bool isUiXEnabled = Configurations.IsUiXEnabled.Get();
+
+    partial void OnIsUiXEnabledChanged(bool value)
+    {
+        Configurations.IsUiXEnabled.Set(value);
+        ConfigurationSaveScheduler.Request();
+        NotifyRuntimeConfigurationChanged();
+    }
+
     [RelayCommand]
     private void CreateDesktopShortcut()
     {

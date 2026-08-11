@@ -1181,6 +1181,12 @@ namespace Emerde.Properties {
             }
         }
 
+        public static string CookieLoginBack {
+            get {
+                return ResourceManager.GetString("CookieLoginBack", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Starting the secure login browser....
         /// </summary>
@@ -3136,7 +3142,7 @@ namespace Emerde.Properties {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to About (Alt+5, Tab up / CapsLock down).
+        ///   Looks up a localized string similar to About (Alt+5, Tab forward).
         /// </summary>
         public static string NavigationAboutToolTip {
             get {
@@ -3145,7 +3151,7 @@ namespace Emerde.Properties {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Extensions (Alt+4, Tab up / CapsLock down).
+        ///   Looks up a localized string similar to Extensions (Alt+3, Tab forward).
         /// </summary>
         public static string NavigationExtensionsToolTip {
             get {
@@ -3154,7 +3160,7 @@ namespace Emerde.Properties {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Home (Alt+1, Tab up / CapsLock down).
+        ///   Looks up a localized string similar to Home (Alt+1, Tab forward).
         /// </summary>
         public static string NavigationHomeToolTip {
             get {
@@ -3163,7 +3169,7 @@ namespace Emerde.Properties {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Settings (Alt+3, Tab up / CapsLock down).
+        ///   Looks up a localized string similar to Settings (Alt+4, Tab forward).
         /// </summary>
         public static string NavigationSettingsToolTip {
             get {
@@ -3172,7 +3178,7 @@ namespace Emerde.Properties {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Videos (Alt+2, Tab up / CapsLock down).
+        ///   Looks up a localized string similar to Videos (Alt+2, Tab forward).
         /// </summary>
         public static string NavigationVideosToolTip {
             get {
@@ -4594,6 +4600,15 @@ namespace Emerde.Properties {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Remove this room (Del).
+        /// </summary>
+        public static string RemoveRoomShortcutHint {
+            get {
+                return ResourceManager.GetString("RemoveRoomShortcutHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Rename.
         /// </summary>
         public static string Rename {
@@ -4684,6 +4699,24 @@ namespace Emerde.Properties {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Last recording ended.
+        /// </summary>
+        public static string RecentRecordingEnded {
+            get {
+                return ResourceManager.GetString("RecentRecordingEnded", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Last recording.
+        /// </summary>
+        public static string RecentRecordingStarted {
+            get {
+                return ResourceManager.GetString("RecentRecordingStarted", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Room address.
         /// </summary>
         public static string RoomAddress {
@@ -4716,6 +4749,24 @@ namespace Emerde.Properties {
         public static string RoomInformation {
             get {
                 return ResourceManager.GetString("RoomInformation", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Recording statistics.
+        /// </summary>
+        public static string RoomRecordingStatistics {
+            get {
+                return ResourceManager.GetString("RoomRecordingStatistics", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Recording storage.
+        /// </summary>
+        public static string RoomRecordingStorageUsage {
+            get {
+                return ResourceManager.GetString("RoomRecordingStorageUsage", resourceCulture);
             }
         }
 
@@ -6142,6 +6193,24 @@ namespace Emerde.Properties {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to UI-X.
+        /// </summary>
+        public static string UIX {
+            get {
+                return ResourceManager.GetString("UIX", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Use the card-style home layout and show room details from the context menu..
+        /// </summary>
+        public static string UIXHint {
+            get {
+                return ResourceManager.GetString("UIXHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Tue.
         /// </summary>
         public static string Tuesday {
@@ -6473,5 +6542,6 @@ namespace Emerde.Properties {
                 return ResourceManager.GetString("Yes", resourceCulture);
             }
         }
+
     }
 }

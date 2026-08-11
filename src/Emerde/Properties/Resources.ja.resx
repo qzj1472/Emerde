@@ -382,6 +382,12 @@
   <data name="TrayStatusHint" xml:space="preserve">
     <value>録画状態に合わせてトレイのアイコンが変わる</value>
   </data>
+  <data name="UIX" xml:space="preserve">
+    <value>UI-X</value>
+  </data>
+  <data name="UIXHint" xml:space="preserve">
+    <value>カード型のホームレイアウトを使い、右クリックメニューから配信ルーム情報を表示します。</value>
+  </data>
   <data name="RecordSettings" xml:space="preserve">
     <value>録画設定</value>
   </data>
@@ -491,6 +497,7 @@
   <data name="CookieLoginInitializing" xml:space="preserve"><value>安全なログイン画面を起動しています...</value></data>
   <data name="CookieLoginInstruction" xml:space="preserve"><value>このページでログインし、「完了して取得」を選択してください。</value></data>
   <data name="CookieLoginFinish" xml:space="preserve"><value>完了して取得</value></data>
+  <data name="CookieLoginBack" xml:space="preserve"><value>戻る</value></data>
   <data name="CookieLoginRuntimeMissing" xml:space="preserve"><value>Microsoft Edge WebView2 Runtime が見つかりません。</value></data>
   <data name="CookieLoginOpenFailed" xml:space="preserve"><value>ログインページを開けません：{0}</value></data>
   <data name="CookieLoginReading" xml:space="preserve"><value>このプラットフォームのログイン Cookie を読み取っています...</value></data>
@@ -780,6 +787,16 @@
   <data name="PreviewRestore" xml:space="preserve"><value>全画面を終了</value></data>
   <data name="StartupAboutNoticeTitle" xml:space="preserve"><value>使用前に説明をお読みください</value></data>
   <data name="StartupAboutNoticeDescription" xml:space="preserve"><value>誤操作やプラットフォームのリスク制御を避けるため、初回利用前に左側の「概要」を開き、監視間隔、動的チェック、録画、プレビュー、全画面表示に関する説明を確認してください。内容を理解してから配信ルームを追加し、監視を開始することをおすすめします。</value></data>
+  <data name="UpdateReleaseNotesDialogTitle" xml:space="preserve"><value>更新履歴</value></data>
+  <data name="UpdateReleaseNotesCurrentVersionFormat" xml:space="preserve"><value>{0} に更新しました</value></data>
+  <data name="UpdateReleaseNotesUpgradeFromFormat" xml:space="preserve"><value>{0} から {1} にアップグレードしました。今回の変更内容は以下です。</value></data>
+  <data name="UpdateReleaseNotesUpgradeCurrentFormat" xml:space="preserve"><value>{0} へのアップグレード後、初回起動です。変更内容は以下です。</value></data>
+  <data name="UpdateReleaseNotesHistoryLabel" xml:space="preserve"><value>過去の更新履歴</value></data>
+  <data name="ReleaseNotes1670Title" xml:space="preserve"><value>Emerde 1.6.7.0</value></data>
+  <data name="ReleaseNotes1670Date" xml:space="preserve"><value>2026-08-10</value></data>
+  <data name="ReleaseNotes1670Items" xml:space="preserve"><value>インストーラーのパッケージ化とメンテナンスフローを整え、インストール、アップグレード、修復、アンインストール、実行中の確認、ユーザーデータ保持を改善しました。|インストール先の構成、アンインストール用ショートカット、メンテナンスファイル、アイコン素材、GitHub 表示用アイコンを整理しました。|通常の配布を Debug の自己完結ビルドとインストーラーに変更し、単独の Release アーカイブは既定では作成しないようにしました。|Douyin や Bilibili など、モバイル共有文からの短縮リンク認識を強化しました。|配信ルーム URL の正規化と重複検出を改善し、異なるリンクから同じルームが重複追加されることを防ぎます。|録画クリーンアップを次の期限に合わせて実行する方式にし、不要なスキャンを減らしました。|時間ループ、パス処理、ファイル保存、アバター更新、トレイアイコン、読み込みアニメーションを見直しました。|ホームの配信ルームカード、右クリック操作、情報ダイアログ、範囲選択を調整し、切り替え可能な UI-X レイアウトを追加しました。|インストーラーでアップグレードした後の初回起動時に更新履歴を表示し、今後の 1.6.7.x 小更新も 4 桁バージョンで判定します。</value></data>
+  <data name="ReleaseNotesUnknownTitle" xml:space="preserve"><value>Emerde 更新</value></data>
+  <data name="ReleaseNotesUnknownItem" xml:space="preserve"><value>このバージョンには安定性と操作性の改善が含まれています。</value></data>
   <data name="ConfigurationRecovered" xml:space="preserve"><value>設定ファイルが無効なため、{0} に保存しました。Emerde は既定の設定で起動しました。</value></data>
   <data name="Unsupported" xml:space="preserve"><value>未対応</value></data>
   <data name="SkipValidation" xml:space="preserve"><value>検証をスキップ</value></data>
@@ -803,11 +820,13 @@
   <data name="HomePage" xml:space="preserve"><value>ホーム</value></data>
   <data name="Extensions" xml:space="preserve"><value>拡張機能</value></data>
   <data name="Monitor" xml:space="preserve"><value>監視</value></data>
-  <data name="NavigationHomeToolTip" xml:space="preserve"><value>ホーム（Alt+1、Tab で上 / CapsLock で下）</value></data>
-  <data name="NavigationVideosToolTip" xml:space="preserve"><value>動画一覧（Alt+2、Tab で上 / CapsLock で下）</value></data>
-  <data name="NavigationSettingsToolTip" xml:space="preserve"><value>設定（Alt+3、Tab で上 / CapsLock で下）</value></data>
-  <data name="NavigationExtensionsToolTip" xml:space="preserve"><value>拡張機能（Alt+4、Tab で上 / CapsLock で下）</value></data>
-  <data name="NavigationAboutToolTip" xml:space="preserve"><value>概要（Alt+5、Tab で上 / CapsLock で下）</value></data>
+  <data name="PauseMonitor" xml:space="preserve"><value>監視を一時停止</value></data>
+  <data name="PauseRecording" xml:space="preserve"><value>録画を一時停止</value></data>
+  <data name="NavigationHomeToolTip" xml:space="preserve"><value>ホーム（Alt+1、Tab で順方向に循環）</value></data>
+  <data name="NavigationVideosToolTip" xml:space="preserve"><value>動画一覧（Alt+2、Tab で順方向に循環）</value></data>
+  <data name="NavigationSettingsToolTip" xml:space="preserve"><value>設定（Alt+4、Tab で順方向に循環）</value></data>
+  <data name="NavigationExtensionsToolTip" xml:space="preserve"><value>拡張機能（Alt+3、Tab で順方向に循環）</value></data>
+  <data name="NavigationAboutToolTip" xml:space="preserve"><value>概要（Alt+5、Tab で順方向に循環）</value></data>
   <data name="ExitApplicationToolTip" xml:space="preserve"><value>Emerde を終了（Ctrl+Shift+W）</value></data>
   <data name="AddRoomToolTip" xml:space="preserve"><value>配信ルームを追加（Ctrl+N）</value></data>
   <data name="ToggleAllMonitorToolTip" xml:space="preserve"><value>すべての監視を開始または一時停止（Ctrl+Shift+M）</value></data>
@@ -822,6 +841,10 @@
   <data name="PlatformFilter" xml:space="preserve"><value>プラットフォーム絞り込み</value></data>
   <data name="LoadPlatforms" xml:space="preserve"><value>プラットフォームを読み込み中</value></data>
   <data name="RoomInformation" xml:space="preserve"><value>配信ルーム情報</value></data>
+  <data name="RoomRecordingStatistics" xml:space="preserve"><value>録画統計</value></data>
+  <data name="RecentRecordingStarted" xml:space="preserve"><value>直近の録画</value></data>
+  <data name="RecentRecordingEnded" xml:space="preserve"><value>直近の録画終了</value></data>
+  <data name="RoomRecordingStorageUsage" xml:space="preserve"><value>このルームの録画容量</value></data>
   <data name="LiveTitle" xml:space="preserve"><value>タイトル</value></data>
   <data name="ResolutionLabel" xml:space="preserve"><value>解像度</value></data>
   <data name="BitrateLabel" xml:space="preserve"><value>ビットレート</value></data>
@@ -833,6 +856,7 @@
   <data name="OpenCurrentRoomToolTip" xml:space="preserve"><value>現在の配信ルームページを開く（E）</value></data>
   <data name="ToggleCurrentMonitorToolTip" xml:space="preserve"><value>現在の配信ルームの監視を開始または一時停止（Shift+M）</value></data>
   <data name="ToggleCurrentRecordingToolTip" xml:space="preserve"><value>現在の配信ルームの録画を開始または一時停止（Shift+R）</value></data>
+  <data name="RemoveRoomShortcutHint" xml:space="preserve"><value>現在の配信ルームを削除（Del）</value></data>
   <data name="OpenCurrentRoomSettingsToolTip" xml:space="preserve"><value>現在の配信ルーム設定を開く</value></data>
   <data name="AutoShutdownDebugSkipped" xml:space="preserve"><value>コンピューターのシャットダウンが実行されました。デバッグモードでは Windows をシャットダウンしません。</value></data>
   <data name="CancellingTranscode" xml:space="preserve"><value>トランスコードを停止しています...</value></data>

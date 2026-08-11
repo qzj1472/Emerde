@@ -605,7 +605,8 @@ internal static class ConfigFileManager
 
     private static bool IsMeaninglessConfigurationEntry(string key, YamlNode valueNode)
     {
-        if (string.Equals(key, nameof(Configurations.IsStartupAboutNoticeShown), StringComparison.Ordinal))
+        if (string.Equals(key, nameof(Configurations.IsStartupAboutNoticeShown), StringComparison.Ordinal)
+            || string.Equals(key, nameof(Configurations.LastShownUpgradeNoticeVersion), StringComparison.Ordinal))
         {
             return true;
         }

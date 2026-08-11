@@ -379,6 +379,12 @@
   <data name="TrayStatusHint" xml:space="preserve">
     <value>Enable tray icon is following to recording status</value>
   </data>
+  <data name="UIX" xml:space="preserve">
+    <value>UI-X</value>
+  </data>
+  <data name="UIXHint" xml:space="preserve">
+    <value>Use the card-style home layout and show room details from the context menu.</value>
+  </data>
   <data name="RecordSettings" xml:space="preserve">
     <value>Recording Settings</value>
   </data>
@@ -485,6 +491,7 @@
   <data name="CookieLoginInitializing" xml:space="preserve"><value>Starting the secure login browser...</value></data>
   <data name="CookieLoginInstruction" xml:space="preserve"><value>Sign in on this page, then choose Finish and get Cookie.</value></data>
   <data name="CookieLoginFinish" xml:space="preserve"><value>Finish and get</value></data>
+  <data name="CookieLoginBack" xml:space="preserve"><value>Back</value></data>
   <data name="CookieLoginRuntimeMissing" xml:space="preserve"><value>Microsoft Edge WebView2 Runtime is unavailable.</value></data>
   <data name="CookieLoginOpenFailed" xml:space="preserve"><value>Unable to open the login page: {0}</value></data>
   <data name="CookieLoginReading" xml:space="preserve"><value>Reading this platform's login Cookie...</value></data>
@@ -777,6 +784,16 @@
   <data name="PreviewRestore" xml:space="preserve"><value>Exit full screen</value></data>
   <data name="StartupAboutNoticeTitle" xml:space="preserve"><value>Read before using</value></data>
   <data name="StartupAboutNoticeDescription" xml:space="preserve"><value>To avoid misconfiguration and platform risk control, open About before first use and review the monitoring interval, dynamic checks, recording, preview, and full-screen behavior. Add live rooms and enable monitoring after understanding these rules.</value></data>
+  <data name="UpdateReleaseNotesDialogTitle" xml:space="preserve"><value>Update notes</value></data>
+  <data name="UpdateReleaseNotesCurrentVersionFormat" xml:space="preserve"><value>Updated to {0}</value></data>
+  <data name="UpdateReleaseNotesUpgradeFromFormat" xml:space="preserve"><value>Upgraded from {0} to {1}. The latest changes are shown below.</value></data>
+  <data name="UpdateReleaseNotesUpgradeCurrentFormat" xml:space="preserve"><value>This is the first launch after upgrading to {0}. The latest changes are shown below.</value></data>
+  <data name="UpdateReleaseNotesHistoryLabel" xml:space="preserve"><value>Version history</value></data>
+  <data name="ReleaseNotes1670Title" xml:space="preserve"><value>Emerde 1.6.7.0</value></data>
+  <data name="ReleaseNotes1670Date" xml:space="preserve"><value>2026-08-10</value></data>
+  <data name="ReleaseNotes1670Items" xml:space="preserve"><value>Completed the installer packaging and maintenance flow, including install, upgrade, repair, uninstall, running-app prompts, and optional user-data retention.|Standardized the installed directory layout, uninstall shortcut, maintenance files, icon assets, and GitHub presentation icon cleanup.|Changed routine delivery to Debug self-contained builds plus installer packages instead of standalone Release archives by default.|Improved multi-platform share text and short-link recognition, including Douyin and Bilibili mobile share formats.|Normalized imported room URLs and duplicate detection so the same room is not added again through different links.|Optimized recording cleanup scheduling to use nearest-expiration timing and reduce unnecessary scans.|Reviewed and tightened time loops, path handling, file saving, avatar refresh, tray icons, and loading animation behavior.|Refined the home room cards, context menu actions, information dialog, selection behavior, and the optional UI-X layout switch.|Added the first-launch update notes dialog after installer upgrades, with full four-part version matching for future 1.6.7.x updates.</value></data>
+  <data name="ReleaseNotesUnknownTitle" xml:space="preserve"><value>Emerde update</value></data>
+  <data name="ReleaseNotesUnknownItem" xml:space="preserve"><value>This version includes stability and experience improvements.</value></data>
   <data name="ConfigurationRecovered" xml:space="preserve"><value>The configuration file was invalid and has been preserved at: {0}. Emerde has started with default settings.</value></data>
   <data name="Unsupported" xml:space="preserve"><value>Unsupported</value></data>
   <data name="SkipValidation" xml:space="preserve"><value>Skip validation</value></data>
@@ -800,11 +817,13 @@
   <data name="HomePage" xml:space="preserve"><value>Home</value></data>
   <data name="Extensions" xml:space="preserve"><value>Extensions</value></data>
   <data name="Monitor" xml:space="preserve"><value>Monitor</value></data>
-  <data name="NavigationHomeToolTip" xml:space="preserve"><value>Home (Alt+1, Tab up / CapsLock down)</value></data>
-  <data name="NavigationVideosToolTip" xml:space="preserve"><value>Videos (Alt+2, Tab up / CapsLock down)</value></data>
-  <data name="NavigationSettingsToolTip" xml:space="preserve"><value>Settings (Alt+3, Tab up / CapsLock down)</value></data>
-  <data name="NavigationExtensionsToolTip" xml:space="preserve"><value>Extensions (Alt+4, Tab up / CapsLock down)</value></data>
-  <data name="NavigationAboutToolTip" xml:space="preserve"><value>About (Alt+5, Tab up / CapsLock down)</value></data>
+  <data name="PauseMonitor" xml:space="preserve"><value>Pause monitor</value></data>
+  <data name="PauseRecording" xml:space="preserve"><value>Pause recording</value></data>
+  <data name="NavigationHomeToolTip" xml:space="preserve"><value>Home (Alt+1, Tab forward)</value></data>
+  <data name="NavigationVideosToolTip" xml:space="preserve"><value>Videos (Alt+2, Tab forward)</value></data>
+  <data name="NavigationSettingsToolTip" xml:space="preserve"><value>Settings (Alt+4, Tab forward)</value></data>
+  <data name="NavigationExtensionsToolTip" xml:space="preserve"><value>Extensions (Alt+3, Tab forward)</value></data>
+  <data name="NavigationAboutToolTip" xml:space="preserve"><value>About (Alt+5, Tab forward)</value></data>
   <data name="ExitApplicationToolTip" xml:space="preserve"><value>Exit Emerde (Ctrl+Shift+W)</value></data>
   <data name="AddRoomToolTip" xml:space="preserve"><value>Add room (Ctrl+N)</value></data>
   <data name="ToggleAllMonitorToolTip" xml:space="preserve"><value>Start or pause all monitoring (Ctrl+Shift+M)</value></data>
@@ -819,6 +838,10 @@
   <data name="PlatformFilter" xml:space="preserve"><value>Platform filter</value></data>
   <data name="LoadPlatforms" xml:space="preserve"><value>Loading platforms</value></data>
   <data name="RoomInformation" xml:space="preserve"><value>Room information</value></data>
+  <data name="RoomRecordingStatistics" xml:space="preserve"><value>Recording statistics</value></data>
+  <data name="RecentRecordingStarted" xml:space="preserve"><value>Last recording</value></data>
+  <data name="RecentRecordingEnded" xml:space="preserve"><value>Last recording ended</value></data>
+  <data name="RoomRecordingStorageUsage" xml:space="preserve"><value>Recording storage</value></data>
   <data name="LiveTitle" xml:space="preserve"><value>Title</value></data>
   <data name="ResolutionLabel" xml:space="preserve"><value>Resolution</value></data>
   <data name="BitrateLabel" xml:space="preserve"><value>Bitrate</value></data>
@@ -830,6 +853,7 @@
   <data name="OpenCurrentRoomToolTip" xml:space="preserve"><value>Open current room page (E)</value></data>
   <data name="ToggleCurrentMonitorToolTip" xml:space="preserve"><value>Start or pause current room monitoring (Shift+M)</value></data>
   <data name="ToggleCurrentRecordingToolTip" xml:space="preserve"><value>Start or pause current room recording (Shift+R)</value></data>
+  <data name="RemoveRoomShortcutHint" xml:space="preserve"><value>Remove this room (Del)</value></data>
   <data name="OpenCurrentRoomSettingsToolTip" xml:space="preserve"><value>Open current room settings</value></data>
   <data name="AutoShutdownDebugSkipped" xml:space="preserve"><value>Computer shutdown was triggered. Debug mode will not shut down Windows.</value></data>
   <data name="CancellingTranscode" xml:space="preserve"><value>Stopping transcoding...</value></data>

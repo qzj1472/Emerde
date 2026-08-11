@@ -1,0 +1,117 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <CornerRadius x:Key="UiXSurfaceCornerRadius">8</CornerRadius>
+    <CornerRadius x:Key="UiXNestedCornerRadius">4</CornerRadius>
+    <CornerRadius x:Key="UiXShellSurfaceCornerRadius">12</CornerRadius>
+    <CornerRadius x:Key="UiXPageSurfaceCornerRadius">12</CornerRadius>
+    <CornerRadius x:Key="UiXNavigationCornerRadius">8</CornerRadius>
+    <CornerRadius x:Key="UiXNavigationInsetCornerRadius">8</CornerRadius>
+    <CornerRadius x:Key="UiXNavigationItemCornerRadius">4</CornerRadius>
+    <CornerRadius x:Key="UiXMenuCornerRadius">8</CornerRadius>
+    <Thickness x:Key="UiXSurfaceBorderThickness">0</Thickness>
+    <Thickness x:Key="UiXPageHeaderMargin">20,0,20,0</Thickness>
+    <SolidColorBrush x:Key="UiXShellBrush" Color="#E2F1F4F5" />
+    <SolidColorBrush x:Key="UiXWindowFallbackBrush" Color="#F1F4F5" />
+    <SolidColorBrush x:Key="UiXNavigationBrush" Color="#D8E9EEF0" />
+    <SolidColorBrush x:Key="UiXPanelBrush" Color="#D0E5EBEE" />
+    <SolidColorBrush x:Key="UiXCardBrush" Color="#E9EEF2F4" />
+    <SolidColorBrush x:Key="UiXCardHoverBrush" Color="#F2FFFFFF" />
+    <SolidColorBrush x:Key="UiXVideoCardBrush" Color="#F0E2E9ED" />
+    <SolidColorBrush x:Key="UiXVideoCardHoverBrush" Color="#F6EAF0F3" />
+    <SolidColorBrush x:Key="UiXGroupBrush" Color="#B0E1E8EB" />
+    <SolidColorBrush x:Key="UiXElevatedBrush" Color="#F3F7FAFB" />
+    <SolidColorBrush x:Key="UiXMonitorCardBrush" Color="#F0D7E8FA" />
+    <SolidColorBrush x:Key="UiXLiveCardBrush" Color="#F2C9EAD5" />
+    <SolidColorBrush x:Key="UiXRecordingCardBrush" Color="#F2F6CDD2" />
+    <SolidColorBrush x:Key="UiXMonitorFillBrush" Color="#664D82C7" />
+    <SolidColorBrush x:Key="UiXLiveFillBrush" Color="#783B9B61" />
+    <SolidColorBrush x:Key="UiXRecordingFillBrush" Color="#78C94D5A" />
+    <SolidColorBrush x:Key="UiXTranscodeFillBrush" Color="#5AD98B3D" />
+    <SolidColorBrush x:Key="UiXStallFillBrush" Color="#5A4C8FD8" />
+    <SolidColorBrush x:Key="UiXDividerBrush" Color="#1216202A" />
+    <SolidColorBrush x:Key="UiXSubtleFillBrush" Color="#0F16202A" />
+    <SolidColorBrush x:Key="UiXStrokeBrush" Color="#1A16202A" />
+    <SolidColorBrush x:Key="UiXStrongStrokeBrush" Color="#2B16202A" />
+    <SolidColorBrush x:Key="UiXSelectionFillBrush" Color="#244D8DA3" />
+    <SolidColorBrush x:Key="UiXSelectionStrokeBrush" Color="#804D8DA3" />
+    <SolidColorBrush x:Key="UiXDangerForegroundBrush" Color="#C42B3A" />
+    <SolidColorBrush x:Key="UiXDangerFillBrush" Color="#1AD1344B" />
+    <SolidColorBrush x:Key="UiXTextPrimaryBrush" Color="#E8171B20" />
+    <SolidColorBrush x:Key="UiXTextSecondaryBrush" Color="#A8171B20" />
+
+    <Style x:Key="UiXPanelBorderStyle" TargetType="{x:Type Border}">
+        <Setter Property="Background" Value="{DynamicResource UiXPanelBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource UiXStrokeBrush}" />
+        <Setter Property="BorderThickness" Value="{StaticResource UiXSurfaceBorderThickness}" />
+        <Setter Property="CornerRadius" Value="{StaticResource UiXSurfaceCornerRadius}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <Style x:Key="UiXCardBorderStyle" TargetType="{x:Type Border}">
+        <Setter Property="Background" Value="{DynamicResource UiXCardBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource UiXStrokeBrush}" />
+        <Setter Property="BorderThickness" Value="{StaticResource UiXSurfaceBorderThickness}" />
+        <Setter Property="CornerRadius" Value="{StaticResource UiXSurfaceCornerRadius}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource UiXCardHoverBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="UiXNestedCardBorderStyle" TargetType="{x:Type Border}">
+        <Setter Property="Background" Value="{DynamicResource UiXElevatedBrush}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="{StaticResource UiXNestedCornerRadius}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+        <Style x:Key="UiXSettingsGroupBorderStyle" TargetType="{x:Type Border}" BasedOn="{StaticResource UiXPanelBorderStyle}">
+        <Setter Property="Background" Value="{DynamicResource UiXCardBrush}" />
+        <Setter Property="Padding" Value="8" />
+        <Setter Property="Margin" Value="0,0,0,14" />
+    </Style>
+
+    <Style x:Key="UiXInformationBandStyle" TargetType="{x:Type Border}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="0" />
+        <Setter Property="Padding" Value="0" />
+    </Style>
+
+    <Style x:Key="UiXStatusDotStyle" TargetType="{x:Type Ellipse}">
+        <Setter Property="Width" Value="8" />
+        <Setter Property="Height" Value="8" />
+        <Setter Property="Margin" Value="0,0,6,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Fill" Value="{DynamicResource UiXTextSecondaryBrush}" />
+    </Style>
+
+    <Style x:Key="UiXElevatedBorderStyle" TargetType="{x:Type Border}">
+        <Setter Property="Background" Value="{DynamicResource UiXElevatedBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="{StaticResource UiXSurfaceCornerRadius}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <Style x:Key="UiXPageTitleTextStyle" TargetType="{x:Type TextBlock}">
+        <Setter Property="FontSize" Value="22" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="UiXPageSubtitleTextStyle" TargetType="{x:Type TextBlock}">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="LineHeight" Value="17" />
+        <Setter Property="Foreground" Value="{DynamicResource UiXTextSecondaryBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="UiXSectionTitleTextStyle" TargetType="{x:Type TextBlock}">
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+    </Style>
+</ResourceDictionary>
