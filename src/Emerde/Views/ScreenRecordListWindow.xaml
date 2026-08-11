@@ -13,6 +13,45 @@
                  UseLayoutRounding="True"
                  mc:Ignorable="d">
     <UserControl.Resources>
+        <local:VideoDateGroupLabelConverter x:Key="VideoDateGroupLabelConverter" />
+        <DataTemplate x:Key="VideoDateGroupHeaderTemplate">
+            <TextBlock FontSize="15"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource UiXTextPrimaryBrush}"
+                       Text="{Binding Name, Converter={StaticResource VideoDateGroupLabelConverter}}" />
+        </DataTemplate>
+        <ItemsPanelTemplate x:Key="UiXVideoGroupPanelTemplate">
+            <ui:VirtualizingWrapPanel Width="{Binding VideoCardGridWidth, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
+                                      HorizontalAlignment="Center"
+                                      IsItemsHost="True"
+                                      ItemSize="{Binding VideoCardItemSize, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
+                                      Orientation="Vertical"
+                                      SpacingMode="None"
+                                      StretchItems="False" />
+        </ItemsPanelTemplate>
+        <ControlTemplate x:Key="UiXVideoGroupTemplate" TargetType="{x:Type GroupItem}">
+            <StackPanel Width="{Binding VideoCardGridWidth, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
+                        Margin="0,0,0,18"
+                        HorizontalAlignment="Center"
+                        SnapsToDevicePixels="True">
+                <ContentPresenter Margin="6,8,6,0"
+                                  HorizontalAlignment="Stretch"
+                                  Content="{TemplateBinding Content}"
+                                  ContentTemplate="{TemplateBinding ContentTemplate}" />
+                <Border Height="1"
+                        Margin="6,8,6,6"
+                        Background="{DynamicResource UiXDividerBrush}" />
+                <ItemsPresenter HorizontalAlignment="Stretch" />
+            </StackPanel>
+        </ControlTemplate>
+        <Style x:Key="UiXVideoFadeStyle" TargetType="{x:Type Border}">
+            <Setter Property="Background" Value="{DynamicResource EmerdeSurfaceBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type local:MainWindow}}}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource UiXPanelBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="VideoListToolbarButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="MinWidth" Value="84" />
             <Setter Property="Height" Value="36" />
@@ -27,6 +66,31 @@
             <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        </Style>
+        <Style x:Key="VideoListHeaderButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource VideoListToolbarButtonStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type local:MainWindow}}}" Value="True">
+                    <Setter Property="Width" Value="36" />
+                    <Setter Property="MinWidth" Value="36" />
+                    <Setter Property="Padding" Value="0" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="VideoListHeaderIconStyle" TargetType="{x:Type ui:FontIcon}">
+            <Setter Property="Margin" Value="0,0,7,0" />
+            <Setter Property="FontFamily" Value="{DynamicResource SymbolThemeFontFamily}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type local:MainWindow}}}" Value="True">
+                    <Setter Property="Margin" Value="0" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="VideoListHeaderLabelStyle" TargetType="{x:Type TextBlock}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type local:MainWindow}}}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
         <Style x:Key="VideoCardActionButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Height" Value="32" />
@@ -158,7 +222,7 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0" Margin="20,0,20,0">
+            <Grid Grid.Row="0" Margin="{StaticResource UiXPageHeaderMargin}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="48" />
                     <RowDefinition Height="44" />
@@ -181,41 +245,78 @@
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center"
                                 Orientation="Horizontal">
-                        <StackPanel.RenderTransform>
-                            <TranslateTransform Y="8" />
-                        </StackPanel.RenderTransform>
+                        <StackPanel.Style>
+                            <Style TargetType="{x:Type StackPanel}">
+                                <Setter Property="RenderTransform">
+                                    <Setter.Value>
+                                        <TranslateTransform Y="8" />
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type local:MainWindow}}}" Value="True">
+                                        <Setter Property="RenderTransform">
+                                            <Setter.Value>
+                                                <TranslateTransform Y="0" />
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
                         <StackPanel x:Name="VideoListExtensionToolbarHost"
                                     Orientation="Horizontal" />
                         <Button Command="{Binding RefreshCommand}"
                                 Margin="0,0,8,0"
                                 IsEnabled="{Binding IsIdle}"
-                                Style="{StaticResource VideoListToolbarButtonStyle}"
+                                Style="{StaticResource VideoListHeaderButtonStyle}"
                                 ToolTip="{I18N RefreshVideoListShortcutHint}">
                             <StackPanel Orientation="Horizontal">
-                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                             Margin="0,0,7,0"
+                                <ui:FontIcon Style="{StaticResource VideoListHeaderIconStyle}"
                                              Glyph="{x:Static ui:FontSymbols.Sync}" />
-                                <TextBlock Text="{I18N RefreshButton}" />
+                                <TextBlock Style="{StaticResource VideoListHeaderLabelStyle}" Text="{I18N RefreshButton}" />
                             </StackPanel>
                         </Button>
                         <Button Command="{Binding ImportFolderCommand}"
                                 Margin="0,0,8,0"
                                 IsEnabled="{Binding IsIdle}"
-                                Style="{StaticResource VideoListToolbarButtonStyle}">
+                                Style="{StaticResource VideoListHeaderButtonStyle}"
+                                ToolTip="{I18N ImportFolder}">
                             <StackPanel Orientation="Horizontal">
-                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                             Margin="0,0,7,0"
-                                             Glyph="{x:Static ui:FontSymbols.FolderOpen}" />
-                                <TextBlock Text="{I18N ImportFolder}" />
+                                <ui:FontIcon Style="{StaticResource VideoListHeaderIconStyle}"
+                                             Glyph="{x:Static ui:FontSymbols.Add}" />
+                                <TextBlock Style="{StaticResource VideoListHeaderLabelStyle}" Text="{I18N ImportFolder}" />
                             </StackPanel>
                         </Button>
                         <Button Command="{Binding OpenSaveFolderCommand}"
-                                Style="{StaticResource VideoListToolbarButtonStyle}">
+                                Margin="0,0,8,0"
+                                Style="{StaticResource VideoListHeaderButtonStyle}"
+                                ToolTip="{I18N SaveFolder}">
                             <StackPanel Orientation="Horizontal">
-                                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                             Margin="0,0,7,0"
+                                <ui:FontIcon Style="{StaticResource VideoListHeaderIconStyle}"
                                              Glyph="{x:Static ui:FontSymbols.FolderOpen}" />
-                                <TextBlock Text="{I18N SaveFolder}" />
+                                <TextBlock Style="{StaticResource VideoListHeaderLabelStyle}" Text="{I18N SaveFolder}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Command="{Binding BeginMultiSelectCommand}"
+                                ToolTip="{I18N EnterMultiSelectShortcutHint}">
+                            <Button.Style>
+                                <Style TargetType="{x:Type Button}" BasedOn="{StaticResource VideoListHeaderButtonStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding HasVisibleVideos}" Value="True" />
+                                                <Condition Binding="{Binding IsMultiSelectMode}" Value="False" />
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <ui:FontIcon Style="{StaticResource VideoListHeaderIconStyle}"
+                                             Glyph="{x:Static ui:FontSymbols.BulletedList}" />
+                                <TextBlock Style="{StaticResource VideoListHeaderLabelStyle}" Text="{I18N MultiSelect}" />
                             </StackPanel>
                         </Button>
                     </StackPanel>
@@ -276,25 +377,6 @@
                                       SelectedIndex="{Binding SelectedTimeRangeIndex, Mode=TwoWay}" />
                         </StackPanel>
 
-                        <Button Grid.Column="1"
-                                Command="{Binding BeginMultiSelectCommand}"
-                                Content="{I18N MultiSelect}"
-                                ToolTip="{I18N EnterMultiSelectShortcutHint}">
-                            <Button.Style>
-                                <Style TargetType="{x:Type Button}" BasedOn="{StaticResource VideoListToolbarButtonStyle}">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                    <Style.Triggers>
-                                        <MultiDataTrigger>
-                                            <MultiDataTrigger.Conditions>
-                                                <Condition Binding="{Binding HasVisibleVideos}" Value="True" />
-                                                <Condition Binding="{Binding IsMultiSelectMode}" Value="False" />
-                                            </MultiDataTrigger.Conditions>
-                                            <Setter Property="Visibility" Value="Visible" />
-                                        </MultiDataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
                             <StackPanel.Style>
                                 <Style TargetType="{x:Type StackPanel}">
@@ -361,10 +443,32 @@
                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                           ScrollViewer.VerticalScrollBarVisibility="Auto"
                           ScrollViewer.ScrollChanged="VideoListScrollChanged"
-                          Style="{StaticResource VideoListBoxStyle}"
                           VirtualizingPanel.IsVirtualizing="True"
+                          VirtualizingPanel.IsVirtualizingWhenGrouping="True"
                           VirtualizingPanel.ScrollUnit="Pixel"
                           VirtualizingPanel.VirtualizationMode="Recycling">
+                <ListBox.Style>
+                    <Style TargetType="{x:Type ListBox}" BasedOn="{StaticResource VideoListBoxStyle}">
+                        <Setter Property="ItemsPanel">
+                            <Setter.Value>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel />
+                                </ItemsPanelTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.Style>
+                <ListBox.GroupStyle>
+                    <GroupStyle HeaderTemplate="{StaticResource VideoDateGroupHeaderTemplate}"
+                                Panel="{StaticResource UiXVideoGroupPanelTemplate}">
+                        <GroupStyle.ContainerStyle>
+                            <Style TargetType="{x:Type GroupItem}">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="Template" Value="{StaticResource UiXVideoGroupTemplate}" />
+                            </Style>
+                        </GroupStyle.ContainerStyle>
+                    </GroupStyle>
+                </ListBox.GroupStyle>
                 <ListBox.ItemContainerStyle>
                     <Style TargetType="{x:Type ListBoxItem}" BasedOn="{StaticResource {x:Type ListBoxItem}}">
                         <Setter Property="controls:MotionAssist.IsEntranceEnabled" Value="True" />
@@ -388,27 +492,42 @@
                         </Setter>
                     </Style>
                 </ListBox.ItemContainerStyle>
-                <ListBox.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <VirtualizingStackPanel />
-                    </ItemsPanelTemplate>
-                </ListBox.ItemsPanel>
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <Border x:Name="VideoCardShell"
-                                Margin="0,0,0,8"
                                 Padding="0"
                                 Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
-                                Background="{DynamicResource EmerdePanelBrush}"
-                                BorderBrush="Transparent"
                                 BorderThickness="0"
-                                CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                ClipToBounds="True"
+                                CornerRadius="{StaticResource UiXSurfaceCornerRadius}"
                                 controls:MotionAssist.IsDataContextEntranceEnabled="True"
                                 controls:MotionAssist.EntranceTrigger="{Binding DataContext.IsVideoListPageSelected, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
                                 ContextMenuOpening="VideoCardContextMenuOpening"
                                 Loaded="VideoCardLoaded">
+                            <Border.Style>
+                                <Style TargetType="{x:Type Border}">
+                                    <Setter Property="Margin" Value="0,0,0,8" />
+                                    <Setter Property="Background" Value="{DynamicResource EmerdePanelBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type local:MainWindow}}}" Value="True">
+                                            <Setter Property="Width" Value="{Binding VideoCardWidth, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}" />
+                                            <Setter Property="Margin" Value="{Binding VideoCardMargin, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}" />
+                                            <Setter Property="Background" Value="{DynamicResource UiXVideoCardBrush}" />
+                                        </DataTrigger>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type local:MainWindow}}}" Value="True" />
+                                                <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Background" Value="{DynamicResource UiXVideoCardHoverBrush}" />
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
                             <Border.ContextMenu>
-                                <ContextMenu DataContext="{Binding PlacementTarget, RelativeSource={RelativeSource Self}}">
+                                <ContextMenu DataContext="{Binding PlacementTarget, RelativeSource={RelativeSource Self}}"
+                                             Placement="MousePoint"
+                                             StaysOpen="False">
                                     <MenuItem Header="{I18N OpenVideo}"
                                               Command="{Binding Tag.OpenVideoCommand}"
                                               CommandParameter="{Binding DataContext}"
@@ -441,6 +560,7 @@
                                               Command="{Binding Tag.CopyContextCommand}"
                                               CommandParameter="{Binding DataContext}"
                                               IsEnabled="{Binding DataContext.CanModify}" />
+                                    <Separator />
                                     <MenuItem Header="{I18N DeleteButton}"
                                               Command="{Binding Tag.DeleteContextCommand}"
                                               CommandParameter="{Binding DataContext}"
@@ -449,286 +569,469 @@
                             </Border.ContextMenu>
                             <Grid>
                                 <Border x:Name="VideoCardSurfaceStroke"
-                                        BorderBrush="Transparent"
                                         BorderThickness="1"
-                                        CornerRadius="{StaticResource Win11ControlCornerRadius}"
-                                        IsHitTestVisible="False" />
+                                        CornerRadius="{StaticResource UiXNestedCornerRadius}"
+                                        IsHitTestVisible="False">
+                                    <Border.Style>
+                                        <Style TargetType="{x:Type Border}">
+                                            <Setter Property="BorderBrush" Value="Transparent" />
+                                        </Style>
+                                    </Border.Style>
+                                </Border>
                                 <Border x:Name="VideoCardHoverLayer"
                                         Background="{DynamicResource ControlFillColorSecondaryBrush}"
                                         BorderThickness="0"
-                                        CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                        CornerRadius="{StaticResource UiXSurfaceCornerRadius}"
                                         IsHitTestVisible="False"
                                         Opacity="0" />
                                 <Border x:Name="VideoCardSelectionLayer"
                                         Background="#18337DFF"
                                         BorderBrush="#78337DFF"
                                         BorderThickness="1"
-                                        CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                        CornerRadius="{StaticResource UiXSurfaceCornerRadius}"
                                         IsHitTestVisible="False"
                                         Opacity="0" />
                                 <Border x:Name="VideoCardMultiSelectionLayer"
                                         Background="#1D4DA7B0"
                                         BorderBrush="#944DA7B0"
                                         BorderThickness="1"
-                                        CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                        CornerRadius="{StaticResource UiXSurfaceCornerRadius}"
                                         IsHitTestVisible="False"
                                         Opacity="0" />
                                 <Border x:Name="VideoCardContent"
-                                        Padding="14"
                                         Background="Transparent">
+                                    <Border.Style>
+                                        <Style TargetType="{x:Type Border}">
+                                            <Setter Property="Padding" Value="14" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type local:MainWindow}}}" Value="True">
+                                                    <Setter Property="Padding" Value="4" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="124" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
+                                    <Grid x:Name="VideoCardLegacyLayout">
+                                        <Grid.Style>
+                                            <Style TargetType="{x:Type Grid}">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type local:MainWindow}}}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Grid.Style>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="124" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
 
-                                <Border Width="124"
-                                        Height="70"
-                                        HorizontalAlignment="Left"
-                                        VerticalAlignment="Center"
-                                        Background="#16000000"
-                                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="{StaticResource Win11ControlCornerRadius}"
-                                        ClipToBounds="True">
-                                    <Grid>
-                                        <Border CornerRadius="{StaticResource Win11ControlCornerRadius}">
-                                            <Border.Background>
-                                                <ImageBrush AlignmentX="Center"
-                                                            AlignmentY="Center"
-                                                            ImageSource="{Binding ThumbnailPath, Converter={x:Static local:ThumbnailImageConverter.Instance}}"
-                                                            Stretch="UniformToFill" />
-                                            </Border.Background>
+                                        <Border Width="124"
+                                                Height="70"
+                                                HorizontalAlignment="Left"
+                                                VerticalAlignment="Center"
+                                                Background="#16000000"
+                                                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                                ClipToBounds="True">
+                                            <Grid>
+                                                <Border CornerRadius="{StaticResource UiXNestedCornerRadius}">
+                                                    <Border.Background>
+                                                        <ImageBrush AlignmentX="Center"
+                                                                    AlignmentY="Center"
+                                                                    ImageSource="{Binding ThumbnailPath, Converter={x:Static local:ThumbnailImageConverter.Instance}}"
+                                                                    Stretch="UniformToFill" />
+                                                    </Border.Background>
+                                                </Border>
+                                                <ui:FontIcon HorizontalAlignment="Center"
+                                                             VerticalAlignment="Center"
+                                                             FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                                             FontSize="24"
+                                                             Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                             Glyph="{x:Static ui:FontSymbols.Video}">
+                                                    <ui:FontIcon.Style>
+                                                        <Style TargetType="{x:Type ui:FontIcon}">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </ui:FontIcon.Style>
+                                                </ui:FontIcon>
+                                            </Grid>
                                         </Border>
-                                        <ui:FontIcon HorizontalAlignment="Center"
-                                                     VerticalAlignment="Center"
-                                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                                     FontSize="24"
-                                                     Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                     Glyph="{x:Static ui:FontSymbols.Video}">
-                                            <ui:FontIcon.Style>
-                                                <Style TargetType="{x:Type ui:FontIcon}">
+
+                                        <StackPanel Grid.Column="1" Margin="14,0,18,0" VerticalAlignment="Center">
+                                            <TextBlock FontSize="16"
+                                                       FontWeight="SemiBold"
+                                                       Text="{Binding FileName}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
+                                                <Border MaxWidth="110"
+                                                        Background="#18F59E0B"
+                                                        BorderBrush="#45F59E0B"
+                                                        BorderThickness="1"
+                                                        CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                                        Margin="0,0,6,0"
+                                                        MinHeight="22"
+                                                        Padding="9,2">
+                                                    <Border.Style>
+                                                        <Style TargetType="{x:Type Border}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsConverting}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <TextBlock FontSize="12"
+                                                               Foreground="#C46A00"
+                                                               Text="{I18N TranscodingChip}" />
+                                                </Border>
+                                                <Border MaxWidth="110"
+                                                        Background="#24D13438"
+                                                        BorderBrush="#80D13438"
+                                                        BorderThickness="1"
+                                                        CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                                        Margin="0,0,6,0"
+                                                        MinHeight="22"
+                                                        Padding="9,2">
+                                                    <Border.Style>
+                                                        <Style TargetType="{x:Type Border}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsRecordingFile}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <TextBlock FontSize="12"
+                                                               Foreground="#C50F1F"
+                                                               Text="{I18N RecordStatusOfRecording}" />
+                                                </Border>
+                                                <Border MaxWidth="110"
+                                                        Background="#183B82F6"
+                                                        BorderBrush="#453B82F6"
+                                                        BorderThickness="1"
+                                                        CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                                        Margin="0,0,6,0"
+                                                        MinHeight="22"
+                                                        Padding="9,2">
+                                                    <Border.Style>
+                                                        <Style TargetType="{x:Type Border}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsStallSegment}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <TextBlock FontSize="12"
+                                                               Foreground="#2563EB"
+                                                               Text="{I18N StallSegmentChip}" />
+                                                </Border>
+                                                <TextBlock MaxWidth="360"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="12"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                           Text="{Binding StreamerChipText}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <TextBlock Margin="0,6,0,0"
+                                                       FontSize="12"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                       Text="{Binding RecordingDetailsText}" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="2"
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center"
+                                                    Orientation="Horizontal"
+                                                    IsEnabled="{Binding CanModify}">
+                                            <StackPanel.Style>
+                                                <Style TargetType="{x:Type StackPanel}">
                                                     <Setter Property="Visibility" Value="Visible" />
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                                        <DataTrigger Binding="{Binding DataContext.IsMultiSelectMode, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}" Value="True">
                                                             <Setter Property="Visibility" Value="Collapsed" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
-                                            </ui:FontIcon.Style>
-                                        </ui:FontIcon>
+                                            </StackPanel.Style>
+                                            <Button Margin="0,0,8,0"
+                                                    Command="{Binding DataContext.OpenVideoCommand, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
+                                                    CommandParameter="{Binding}"
+                                                    Content="{I18N OpenVideo}"
+                                                    Style="{StaticResource VideoCardActionButtonStyle}"
+                                                    ToolTip="{I18N OpenVideoShortcutHint}" />
+                                            <Button Margin="0,0,8,0"
+                                                    Command="{Binding DataContext.TranscodeVideoCommand, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
+                                                    CommandParameter="{Binding}"
+                                                    Content="{I18N TranscodeVideo}">
+                                                <Button.Style>
+                                                    <Style TargetType="{x:Type Button}" BasedOn="{StaticResource VideoCardActionButtonStyle}">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding CanTranscode}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                            <Button Margin="0,0,8,0"
+                                                    Command="{Binding DataContext.SplitVideoCommand, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
+                                                    CommandParameter="{Binding}"
+                                                    Content="{I18N SplitButton}"
+                                                    Style="{StaticResource VideoCardActionButtonStyle}" />
+                                            <Button Command="{Binding DataContext.OpenDirectoryCommand, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
+                                                    CommandParameter="{Binding}"
+                                                    Content="{I18N OpenFolder}"
+                                                    Style="{StaticResource VideoCardActionButtonStyle}" />
+                                        </StackPanel>
                                     </Grid>
-                                </Border>
-
-                                <StackPanel Grid.Column="1" Margin="14,0,18,0" VerticalAlignment="Center">
-                                    <TextBlock FontSize="16"
-                                               FontWeight="SemiBold"
-                                               Text="{Binding FileName}"
-                                               TextTrimming="CharacterEllipsis" />
-                                    <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
-                                        <Border MaxWidth="110"
-                                                Background="#18F59E0B"
-                                                BorderBrush="#45F59E0B"
-                                                BorderThickness="1"
-                                                CornerRadius="{StaticResource Win11ControlCornerRadius}"
-                                                Margin="0,0,6,0"
-                                                MinHeight="22"
-                                                Padding="9,2">
-                                            <Border.Style>
-                                                <Style TargetType="{x:Type Border}">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsConverting}" Value="True">
-                                                            <Setter Property="Visibility" Value="Visible" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
-                                            <TextBlock FontSize="12"
-                                                       Foreground="#C46A00"
-                                                       Text="{I18N TranscodingChip}" />
-                                        </Border>
-                                        <Border MaxWidth="110"
-                                                Background="#24D13438"
-                                                BorderBrush="#80D13438"
-                                                BorderThickness="1"
-                                                CornerRadius="{StaticResource Win11ControlCornerRadius}"
-                                                Margin="0,0,6,0"
-                                                MinHeight="22"
-                                                Padding="9,2">
-                                            <Border.Style>
-                                                <Style TargetType="{x:Type Border}">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsRecordingFile}" Value="True">
-                                                            <Setter Property="Visibility" Value="Visible" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
-                                            <TextBlock FontSize="12"
-                                                       Foreground="#C50F1F"
-                                                       Text="{I18N RecordStatusOfRecording}" />
-                                        </Border>
-                                        <Border MaxWidth="110"
-                                                Background="#183B82F6"
-                                                BorderBrush="#453B82F6"
-                                                BorderThickness="1"
-                                                CornerRadius="{StaticResource Win11ControlCornerRadius}"
-                                                Margin="0,0,6,0"
-                                                MinHeight="22"
-                                                Padding="9,2">
-                                            <Border.Style>
-                                                <Style TargetType="{x:Type Border}">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsStallSegment}" Value="True">
-                                                            <Setter Property="Visibility" Value="Visible" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
-                                            <TextBlock FontSize="12"
-                                                       Foreground="#2563EB"
-                                                       Text="{I18N StallSegmentChip}" />
-                                        </Border>
-                                        <TextBlock MaxWidth="360"
-                                                   VerticalAlignment="Center"
-                                                   FontSize="12"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                   Text="{Binding StreamerChipText}"
-                                                   TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                    <TextBlock Margin="0,6,0,0"
-                                               FontSize="12"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                               Text="{Binding RecordingDetailsText}" />
-                                </StackPanel>
-
-                                <StackPanel Grid.Column="2"
-                                            HorizontalAlignment="Right"
-                                            VerticalAlignment="Center"
-                                            Orientation="Horizontal"
-                                            IsEnabled="{Binding CanModify}">
-                                    <StackPanel.Style>
-                                        <Style TargetType="{x:Type StackPanel}">
-                                            <Setter Property="Visibility" Value="Visible" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding DataContext.IsMultiSelectMode, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}" Value="True">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </StackPanel.Style>
-                                    <Button Margin="0,0,8,0"
-                                            Command="{Binding DataContext.OpenVideoCommand, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
-                                            CommandParameter="{Binding}"
-                                            Content="{I18N OpenVideo}"
-                                            Style="{StaticResource VideoCardActionButtonStyle}"
-                                            ToolTip="{I18N OpenVideoShortcutHint}" />
-                                    <Button Margin="0,0,8,0"
-                                            Command="{Binding DataContext.TranscodeVideoCommand, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
-                                            CommandParameter="{Binding}"
-                                            Content="{I18N TranscodeVideo}">
-                                        <Button.Style>
-                                            <Style TargetType="{x:Type Button}" BasedOn="{StaticResource VideoCardActionButtonStyle}">
+                                    <Grid x:Name="VideoCardUiXLayout">
+                                        <Grid.Style>
+                                            <Style TargetType="{x:Type Grid}">
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding CanTranscode}" Value="True">
+                                                    <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type local:MainWindow}}}" Value="True">
                                                         <Setter Property="Visibility" Value="Visible" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
-                                        </Button.Style>
-                                    </Button>
-                                    <Button Margin="0,0,8,0"
-                                            Command="{Binding DataContext.SplitVideoCommand, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
-                                            CommandParameter="{Binding}"
-                                            Content="{I18N SplitButton}"
-                                            Style="{StaticResource VideoCardActionButtonStyle}" />
-                                    <Button Command="{Binding DataContext.OpenDirectoryCommand, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
-                                            CommandParameter="{Binding}"
-                                            Content="{I18N OpenFolder}"
-                                            Style="{StaticResource VideoCardActionButtonStyle}" />
-                                </StackPanel>
+                                        </Grid.Style>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
 
-                                <Grid Grid.Column="2"
-                                      Width="32"
-                                      Height="24"
-                                      Margin="8,0,0,0"
-                                      HorizontalAlignment="Right"
-                                      VerticalAlignment="Center">
-                                    <Grid.Style>
-                                        <Style TargetType="{x:Type Grid}">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding DataContext.IsMultiSelectMode, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Grid.Style>
-                                    <CheckBox Width="22"
-                                              Height="22"
-                                              MinWidth="22"
-                                              Padding="0"
-                                              HorizontalAlignment="Center"
-                                              HorizontalContentAlignment="Center"
-                                              VerticalAlignment="Center"
-                                              VerticalContentAlignment="Center"
-                                              PreviewMouseLeftButtonDown="SelectionCheckBoxPreviewMouseLeftButtonDown"
-                                              IsEnabled="{Binding CanSelect}"
-                                              IsChecked="{Binding IsSelected, Mode=TwoWay}">
-                                        <CheckBox.Style>
-                                            <Style TargetType="{x:Type CheckBox}" BasedOn="{StaticResource {x:Type CheckBox}}">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                <Style.Triggers>
-                                                    <MultiDataTrigger>
-                                                        <MultiDataTrigger.Conditions>
-                                                            <Condition Binding="{Binding DataContext.IsMultiSelectMode, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}" Value="True" />
-                                                            <Condition Binding="{Binding IsSelected}" Value="False" />
-                                                        </MultiDataTrigger.Conditions>
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                    </MultiDataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </CheckBox.Style>
-                                    </CheckBox>
-                                    <Border x:Name="VideoSelectionOrderBadge"
-                                            Height="24"
-                                            MinWidth="24"
-                                            Padding="5,0"
-                                            HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            Background="#E64DA7B0"
-                                            CornerRadius="12"
-                                            Cursor="Hand"
-                                            PreviewMouseLeftButtonDown="SelectionCheckBoxPreviewMouseLeftButtonDown">
-                                        <Border.Style>
-                                            <Style TargetType="{x:Type Border}">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                <Style.Triggers>
-                                                    <MultiDataTrigger>
-                                                        <MultiDataTrigger.Conditions>
-                                                            <Condition Binding="{Binding DataContext.IsMultiSelectMode, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}" Value="True" />
-                                                            <Condition Binding="{Binding IsSelected}" Value="True" />
-                                                        </MultiDataTrigger.Conditions>
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                    </MultiDataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
-                                        <Viewbox MaxWidth="22" MaxHeight="16">
-                                            <TextBlock HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
-                                                       FontSize="12"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="White"
-                                                       Text="{Binding SelectionOrder}" />
-                                        </Viewbox>
-                                    </Border>
-                                </Grid>
+                                        <Border Height="{Binding VideoCardCoverHeight, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}"
+                                                HorizontalAlignment="Stretch"
+                                                VerticalAlignment="Top"
+                                                Background="#16000000"
+                                                BorderThickness="0"
+                                                CornerRadius="{StaticResource UiXNestedCornerRadius}"
+                                                ClipToBounds="True">
+                                            <Grid>
+                                                <Border CornerRadius="{StaticResource UiXNestedCornerRadius}">
+                                                    <Border.Background>
+                                                        <ImageBrush AlignmentX="Center"
+                                                                    AlignmentY="Center"
+                                                                    ImageSource="{Binding ThumbnailPath, Converter={x:Static local:ThumbnailImageConverter.Instance}}"
+                                                                    Stretch="UniformToFill" />
+                                                    </Border.Background>
+                                                </Border>
+                                                <ui:FontIcon HorizontalAlignment="Center"
+                                                             VerticalAlignment="Center"
+                                                             FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                                             FontSize="24"
+                                                             Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                             Glyph="{x:Static ui:FontSymbols.Video}">
+                                                    <ui:FontIcon.Style>
+                                                        <Style TargetType="{x:Type ui:FontIcon}">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasThumbnail}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </ui:FontIcon.Style>
+                                                </ui:FontIcon>
+                                                <Grid Margin="8"
+                                                      HorizontalAlignment="Right"
+                                                      VerticalAlignment="Top">
+                                                     <Border MaxWidth="104"
+                                                             Background="{DynamicResource UiXTranscodeFillBrush}"
+                                                            CornerRadius="6"
+                                                            Padding="7,2">
+                                                        <Border.Style>
+                                                            <Style TargetType="{x:Type Border}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <MultiDataTrigger>
+                                                                        <MultiDataTrigger.Conditions>
+                                                                            <Condition Binding="{Binding IsConverting}" Value="True" />
+                                                                            <Condition Binding="{Binding IsRecordingFile}" Value="False" />
+                                                                        </MultiDataTrigger.Conditions>
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </MultiDataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <TextBlock FontSize="11"
+                                                                   Foreground="#A75600"
+                                                                   Text="{I18N TranscodingChip}"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </Border>
+                                                     <Border MaxWidth="104"
+                                                             Background="{DynamicResource UiXRecordingFillBrush}"
+                                                            CornerRadius="6"
+                                                            Padding="7,2">
+                                                        <Border.Style>
+                                                            <Style TargetType="{x:Type Border}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsRecordingFile}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <TextBlock FontSize="11"
+                                                                   Foreground="#B10E1C"
+                                                                   Text="{I18N RecordStatusOfRecording}"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </Border>
+                                                     <Border MaxWidth="104"
+                                                             Background="{DynamicResource UiXStallFillBrush}"
+                                                            CornerRadius="6"
+                                                            Padding="7,2">
+                                                        <Border.Style>
+                                                            <Style TargetType="{x:Type Border}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <MultiDataTrigger>
+                                                                        <MultiDataTrigger.Conditions>
+                                                                            <Condition Binding="{Binding IsStallSegment}" Value="True" />
+                                                                            <Condition Binding="{Binding IsRecordingFile}" Value="False" />
+                                                                            <Condition Binding="{Binding IsConverting}" Value="False" />
+                                                                        </MultiDataTrigger.Conditions>
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </MultiDataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <TextBlock FontSize="11"
+                                                                   Foreground="#1D4ED8"
+                                                                   Text="{I18N StallSegmentChip}"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </Border>
+                                                </Grid>
+                                                <Grid Width="32"
+                                                      Height="24"
+                                                      Margin="0,0,8,8"
+                                                      HorizontalAlignment="Right"
+                                                      VerticalAlignment="Bottom">
+                                                    <Grid.Style>
+                                                        <Style TargetType="{x:Type Grid}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding DataContext.IsMultiSelectMode, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Grid.Style>
+                                                    <CheckBox Width="22"
+                                                              Height="22"
+                                                              MinWidth="22"
+                                                              Padding="0"
+                                                              HorizontalAlignment="Center"
+                                                              HorizontalContentAlignment="Center"
+                                                              VerticalAlignment="Center"
+                                                              VerticalContentAlignment="Center"
+                                                              PreviewMouseLeftButtonDown="SelectionCheckBoxPreviewMouseLeftButtonDown"
+                                                              IsEnabled="{Binding CanSelect}"
+                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                                                        <CheckBox.Style>
+                                                            <Style TargetType="{x:Type CheckBox}" BasedOn="{StaticResource {x:Type CheckBox}}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <MultiDataTrigger>
+                                                                        <MultiDataTrigger.Conditions>
+                                                                            <Condition Binding="{Binding DataContext.IsMultiSelectMode, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}" Value="True" />
+                                                                            <Condition Binding="{Binding IsSelected}" Value="False" />
+                                                                        </MultiDataTrigger.Conditions>
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </MultiDataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </CheckBox.Style>
+                                                    </CheckBox>
+                                                    <Border x:Name="VideoSelectionOrderBadge"
+                                                            Height="24"
+                                                            MinWidth="24"
+                                                            Padding="5,0"
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            Background="#E64DA7B0"
+                                                            CornerRadius="12"
+                                                            Cursor="Hand"
+                                                            PreviewMouseLeftButtonDown="SelectionCheckBoxPreviewMouseLeftButtonDown">
+                                                        <Border.Style>
+                                                            <Style TargetType="{x:Type Border}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <MultiDataTrigger>
+                                                                        <MultiDataTrigger.Conditions>
+                                                                            <Condition Binding="{Binding DataContext.IsMultiSelectMode, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}" Value="True" />
+                                                                            <Condition Binding="{Binding IsSelected}" Value="True" />
+                                                                        </MultiDataTrigger.Conditions>
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </MultiDataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <Viewbox MaxWidth="22" MaxHeight="16">
+                                                            <TextBlock HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"
+                                                                       FontSize="12"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="White"
+                                                                       Text="{Binding SelectionOrder}" />
+                                                        </Viewbox>
+                                                    </Border>
+                                                </Grid>
+                                            </Grid>
+                                        </Border>
+
+                                        <Border Grid.Row="1"
+                                                Margin="0,6,0,0"
+                                                Padding="8,3"
+                                                Style="{StaticResource UiXInformationBandStyle}">
+                                            <StackPanel>
+                                                <TextBlock FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           Text="{Binding FileName}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                                <Grid Margin="0,2,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock FontSize="11"
+                                                               Foreground="{DynamicResource UiXTextSecondaryBrush}"
+                                                               Text="{Binding NickName}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Grid.Column="1"
+                                                               Margin="8,0,0,0"
+                                                               FontSize="11"
+                                                               Text="{Binding FormatText}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="{x:Type TextBlock}">
+                                                                <Setter Property="Foreground" Value="{DynamicResource UiXTextSecondaryBrush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsTargetFormat}" Value="False">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource UiXDangerForegroundBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
                                     </Grid>
                                 </Border>
                             </Grid>
@@ -814,7 +1117,7 @@
                         Margin="20,8,22,0"
                         VerticalAlignment="Top"
                         Panel.ZIndex="20"
-                        Background="{DynamicResource EmerdeSurfaceBrush}"
+                        Style="{StaticResource UiXVideoFadeStyle}"
                         IsHitTestVisible="False"
                         OpacityMask="{StaticResource TopEdgeFadeOpacityMask}"
                         Visibility="Collapsed" />
@@ -823,7 +1126,7 @@
                         Margin="20,0,22,10"
                         VerticalAlignment="Bottom"
                         Panel.ZIndex="20"
-                        Background="{DynamicResource EmerdeSurfaceBrush}"
+                        Style="{StaticResource UiXVideoFadeStyle}"
                         IsHitTestVisible="False"
                         OpacityMask="{StaticResource BottomEdgeFadeOpacityMask}"
                         Visibility="Collapsed" />

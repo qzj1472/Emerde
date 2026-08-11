@@ -5,6 +5,7 @@ using Emerde.Extensions;
 using Emerde.Plugins;
 using Emerde.Properties;
 using Emerde.Threading;
+using Emerde.ViewModels;
 using Microsoft.VisualBasic.FileIO;
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
@@ -25,11 +26,23 @@ using WindowsAPICodePack.Dialogs;
 using Wpf.Ui.Violeta.Controls;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Point = System.Windows.Point;
+using Size = System.Windows.Size;
 
 namespace Emerde.Views;
 
 public partial class ScreenRecordListWindow : System.Windows.Controls.UserControl
 {
+    public static readonly DependencyProperty VideoCardGridWidthProperty = DependencyProperty.Register(nameof(VideoCardGridWidth), typeof(double), typeof(ScreenRecordListWindow), new PropertyMetadata(228d));
+    public static readonly DependencyProperty VideoCardWidthProperty = DependencyProperty.Register(nameof(VideoCardWidth), typeof(double), typeof(ScreenRecordListWindow), new PropertyMetadata(216d));
+    public static readonly DependencyProperty VideoCardCoverHeightProperty = DependencyProperty.Register(nameof(VideoCardCoverHeight), typeof(double), typeof(ScreenRecordListWindow), new PropertyMetadata(117d));
+    public static readonly DependencyProperty VideoCardMarginProperty = DependencyProperty.Register(nameof(VideoCardMargin), typeof(Thickness), typeof(ScreenRecordListWindow), new PropertyMetadata(new Thickness(6d)));
+    public static readonly DependencyProperty VideoCardItemSizeProperty = DependencyProperty.Register(nameof(VideoCardItemSize), typeof(Size), typeof(ScreenRecordListWindow), new PropertyMetadata(new Size(228d, 179d)));
+
+    private const double UiXVideoCardBaseWidth = 216d;
+    private const double UiXVideoCardHorizontalGap = 12d;
+    private const double UiXVideoCardVerticalGap = 12d;
+    private const double UiXVideoCardContentInset = 42d;
+    private const double UiXVideoCardDetailsHeight = 50d;
     private readonly DispatcherTimer visibleVideoLoadTimer = new() { Interval = TimeSpan.FromMilliseconds(180) };
     private Task? visibleVideoRefreshTask;
     private bool videoMarqueeCandidate;
@@ -39,8 +52,41 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
     private int videoMarqueeClickCount;
     private IDisposable? videoSelectionRegistration;
     private bool extensionUiSubscribed;
+    private bool videoCardMetricsRefreshPending;
+    private int videoCardColumnCount = 1;
+    private MainWindow? hostMainWindow;
 
     public ScreenRecordListViewModel ViewModel { get; } = new();
+
+    public double VideoCardGridWidth
+    {
+        get => (double)GetValue(VideoCardGridWidthProperty);
+        set => SetValue(VideoCardGridWidthProperty, value);
+    }
+
+    public double VideoCardWidth
+    {
+        get => (double)GetValue(VideoCardWidthProperty);
+        set => SetValue(VideoCardWidthProperty, value);
+    }
+
+    public double VideoCardCoverHeight
+    {
+        get => (double)GetValue(VideoCardCoverHeightProperty);
+        set => SetValue(VideoCardCoverHeightProperty, value);
+    }
+
+    public Thickness VideoCardMargin
+    {
+        get => (Thickness)GetValue(VideoCardMarginProperty);
+        set => SetValue(VideoCardMarginProperty, value);
+    }
+
+    public Size VideoCardItemSize
+    {
+        get => (Size)GetValue(VideoCardItemSizeProperty);
+        set => SetValue(VideoCardItemSizeProperty, value);
+    }
 
     public ScreenRecordListWindow()
     {
@@ -48,7 +94,11 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         InitializeComponent();
         VideoListModalOverlay.IsVisibleChanged += (_, _) => DialogBlurScope.ApplyBackdropBrush(VideoListModalOverlay);
         visibleVideoLoadTimer.Tick += VisibleVideoLoadTimerTick;
-        ViewModel.VisibleItemsChanged += (_, _) => ScheduleVisibleVideoLoading();
+        ViewModel.VisibleItemsChanged += (_, _) =>
+        {
+            ScheduleVisibleVideoLoading();
+            QueueVideoCardMetricsRefresh();
+        };
         Loaded += ScreenRecordListWindowLoaded;
         Unloaded += ScreenRecordListWindowUnloaded;
         IsVisibleChanged += ScreenRecordListWindowIsVisibleChanged;
@@ -56,6 +106,7 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         {
             ScheduleVisibleVideoLoading();
             UpdateVideoListEdgeFades();
+            QueueVideoCardMetricsRefresh();
         };
         PreviewKeyDown += ScreenRecordListWindowPreviewKeyDown;
     }
@@ -68,6 +119,12 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
             ExtensionHostRuntime.UiContributionsChanged += ExtensionUiContributionsChanged;
             extensionUiSubscribed = true;
         }
+        hostMainWindow = Window.GetWindow(this) as MainWindow;
+        if (hostMainWindow != null)
+        {
+            hostMainWindow.ViewModel.PropertyChanged += HostMainWindowPropertyChanged;
+        }
+        UpdateVideoListGrouping();
         UpdateExtensionToolbar();
         DialogBlurScope.ApplyBackdropBrush(VideoListModalOverlay);
         ViewModel.StartMonitoring();
@@ -76,6 +133,7 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
             FocusVideoList();
             await RefreshVisibleVideoListAsync();
             UpdateVideoListEdgeFades();
+            QueueVideoCardMetricsRefresh();
         }
     }
 
@@ -85,6 +143,11 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         {
             ExtensionHostRuntime.UiContributionsChanged -= ExtensionUiContributionsChanged;
             extensionUiSubscribed = false;
+        }
+        if (hostMainWindow != null)
+        {
+            hostMainWindow.ViewModel.PropertyChanged -= HostMainWindowPropertyChanged;
+            hostMainWindow = null;
         }
         VideoListExtensionToolbarHost.Children.Clear();
         videoSelectionRegistration?.Dispose();
@@ -118,6 +181,89 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         {
             VideoListExtensionToolbarHost.Children.Add(contribution.Content);
         }
+    }
+
+    private void HostMainWindowPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.StatusOfIsUiXEnabled))
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                UpdateVideoListGrouping();
+                QueueVideoCardMetricsRefresh();
+            }, DispatcherPriority.DataBind);
+        }
+    }
+
+    private void UpdateVideoListGrouping()
+    {
+        using (ViewModel.Videos.DeferRefresh())
+        {
+            ViewModel.Videos.GroupDescriptions.Clear();
+            if (hostMainWindow?.ViewModel.StatusOfIsUiXEnabled == true)
+            {
+                ViewModel.Videos.GroupDescriptions.Add(new PropertyGroupDescription(nameof(RecordedVideoItem.DateGroupKey)));
+            }
+        }
+    }
+
+    private void QueueVideoCardMetricsRefresh()
+    {
+        if (!IsLoaded || videoCardMetricsRefreshPending)
+        {
+            return;
+        }
+
+        videoCardMetricsRefreshPending = true;
+        Dispatcher.BeginInvoke(() =>
+        {
+            videoCardMetricsRefreshPending = false;
+            UpdateVideoCardMetrics(VideoListBox.ActualWidth);
+        }, DispatcherPriority.Loaded);
+    }
+
+    private void UpdateVideoCardMetrics(double width)
+    {
+        if (double.IsNaN(width) || double.IsInfinity(width) || width <= 0d)
+        {
+            return;
+        }
+
+        double availableWidth = Math.Max(UiXVideoCardBaseWidth + UiXVideoCardHorizontalGap, width - UiXVideoCardContentInset);
+        (int candidateColumns, _, _) = MainWindow.CalculateRoomCardLayout(
+            availableWidth,
+            UiXVideoCardBaseWidth,
+            1d,
+            UiXVideoCardHorizontalGap);
+        int columns = MainWindow.StabilizeRoomCardColumns(
+            videoCardColumnCount,
+            candidateColumns,
+            availableWidth,
+            UiXVideoCardBaseWidth,
+            UiXVideoCardHorizontalGap);
+        int visibleItemCount = ViewModel.Videos.Cast<RecordedVideoItem>().Count();
+        if (visibleItemCount > 0)
+        {
+            columns = Math.Min(columns, visibleItemCount);
+        }
+
+        double cardWidth = MainWindow.GetCardWidthForColumns(
+            availableWidth,
+            columns,
+            UiXVideoCardHorizontalGap,
+            UiXVideoCardBaseWidth);
+        double slotWidth = cardWidth + UiXVideoCardHorizontalGap;
+        double coverHeight = WindowSizing.RoundLayoutValue(Math.Max(1d, cardWidth - 8d) * 9d / 16d);
+        double itemHeight = WindowSizing.RoundLayoutValue(coverHeight + UiXVideoCardDetailsHeight + UiXVideoCardVerticalGap);
+        double horizontalMargin = WindowSizing.RoundLayoutValue(UiXVideoCardHorizontalGap / 2d);
+        double verticalMargin = WindowSizing.RoundLayoutValue(UiXVideoCardVerticalGap / 2d);
+
+        videoCardColumnCount = Math.Max(1, columns);
+        VideoCardGridWidth = WindowSizing.RoundLayoutValue(videoCardColumnCount * slotWidth);
+        VideoCardWidth = cardWidth;
+        VideoCardCoverHeight = coverHeight;
+        VideoCardMargin = new Thickness(horizontalMargin, verticalMargin, horizontalMargin, verticalMargin);
+        VideoCardItemSize = new Size(WindowSizing.RoundLayoutValue(slotWidth), itemHeight);
     }
 
     private async void ScreenRecordListWindowIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -232,49 +378,13 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
 
     private void VideoListBoxPreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        if (FindVisualChild<ScrollViewer>(VideoListBox) is not ScrollViewer scrollViewer)
+        if (FindVisualChild<ScrollViewer>(VideoListBox) is not ScrollViewer scrollViewer || e.Delta == 0)
         {
             return;
         }
 
-        if (e.Delta == 0)
-        {
-            return;
-        }
-
-        int wheelScrollLines = SystemParameters.WheelScrollLines;
-        if (wheelScrollLines == 0)
-        {
-            e.Handled = true;
-            return;
-        }
-
-        if (wheelScrollLines < 0)
-        {
-            if (e.Delta > 0)
-            {
-                scrollViewer.PageUp();
-            }
-            else
-            {
-                scrollViewer.PageDown();
-            }
-        }
-        else
-        {
-            for (int index = 0; index < wheelScrollLines; index++)
-            {
-                if (e.Delta > 0)
-                {
-                    scrollViewer.LineUp();
-                }
-                else
-                {
-                    scrollViewer.LineDown();
-                }
-            }
-        }
-
+        double offset = Math.Max(0d, scrollViewer.VerticalOffset - e.Delta * 0.25d);
+        scrollViewer.ScrollToVerticalOffset(Math.Min(scrollViewer.ScrollableHeight, offset));
         e.Handled = true;
     }
 
@@ -470,6 +580,7 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         {
             PopulateVideoCardContextMenu(card);
             card.ContextMenu.PlacementTarget = card;
+            card.ContextMenu.Placement = PlacementMode.MousePoint;
             card.ContextMenu.IsOpen = true;
             e.Handled = true;
         }
@@ -941,6 +1052,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
     private bool isRestoringSelection;
     private bool isApplyingSelectionChange;
     private int videoEnrichmentWorkerRunning;
+    private int videoViewRefreshPending;
     private readonly Dictionary<string, FileSystemWatcher> directoryWatchers = new(StringComparer.OrdinalIgnoreCase);
     private string[] watchedRoots = [];
     private int directorySnapshotDirty = 1;
@@ -948,6 +1060,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
     private int automaticRefreshDeferred;
     private int automaticRefreshSuppressionDepth;
     private bool isMonitoring;
+    private bool isReloadingLocalizedOptions;
 
     public ICollectionView Videos { get; }
     private string allStreamerOption = string.Empty;
@@ -961,7 +1074,6 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         Videos = CollectionViewSource.GetDefaultView(videos);
         Videos.Filter = FilterVideo;
         ReloadLocalizedOptions();
-        Locale.CultureChanged += OnCultureChanged;
     }
 
     internal void StartMonitoring()
@@ -972,6 +1084,8 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         }
 
         isMonitoring = true;
+        Locale.CultureChanged += OnCultureChanged;
+        ReloadLocalizedState();
         MediaOperationRegistry.OperationsChanged += MediaOperationRegistryOperationsChanged;
         ConfigureDirectoryWatchers(MediaFileCatalog.GetConfiguredSaveFolders(createDirectories: true));
     }
@@ -984,6 +1098,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         }
 
         isMonitoring = false;
+        Locale.CultureChanged -= OnCultureChanged;
         MediaOperationRegistry.OperationsChanged -= MediaOperationRegistryOperationsChanged;
         foreach (FileSystemWatcher watcher in directoryWatchers.Values)
         {
@@ -1050,7 +1165,6 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         {
             return;
         }
-
         Interlocked.Exchange(ref directorySnapshotDirty, 1);
         QueueAutomaticRefresh();
     }
@@ -1183,7 +1297,10 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
     partial void OnSelectedStreamerChanged(string value)
     {
-        ApplyFilters();
+        if (!isReloadingLocalizedOptions)
+        {
+            ApplyFilters();
+        }
     }
 
     [ObservableProperty]
@@ -1203,53 +1320,61 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
     private void OnCultureChanged(object? sender, EventArgs e)
     {
-        Action reload = () =>
-        {
-            bool selectedAll = string.IsNullOrWhiteSpace(SelectedStreamer)
-                || string.Equals(SelectedStreamer, allStreamerOption, StringComparison.Ordinal);
-            ReloadLocalizedOptions();
-            if (selectedAll)
-            {
-                SelectedStreamer = allStreamerOption;
-            }
-            foreach (RecordedVideoItem item in videos)
-            {
-                item.RefreshLocalizedText();
-            }
-            OnPropertyChanged(nameof(SortDirectionText));
-            OnPropertyChanged(nameof(SortDirectionToolTip));
-            RefreshSelectionSummary();
-            ApplyFilters();
-        };
-
         Dispatcher? dispatcher = Application.Current?.Dispatcher;
         if (dispatcher == null || dispatcher.CheckAccess())
         {
-            reload();
+            ReloadLocalizedState();
             return;
         }
 
-        dispatcher.Invoke(reload);
+        dispatcher.Invoke(ReloadLocalizedState);
+    }
+
+    private void ReloadLocalizedState()
+    {
+        bool selectedAll = string.IsNullOrWhiteSpace(SelectedStreamer)
+            || string.Equals(SelectedStreamer, allStreamerOption, StringComparison.Ordinal);
+        ReloadLocalizedOptions();
+        if (selectedAll)
+        {
+            SelectedStreamer = allStreamerOption;
+        }
+        foreach (RecordedVideoItem item in videos)
+        {
+            item.RefreshLocalizedText();
+        }
+        OnPropertyChanged(nameof(SortDirectionText));
+        OnPropertyChanged(nameof(SortDirectionToolTip));
+        RefreshSelectionSummary();
+        ApplyFilters();
     }
 
     private void ReloadLocalizedOptions()
     {
-        allStreamerOption = GetResourceText("VideoAllStreamers", "All streamers");
-        TimeRangeOptions.Clear();
-        foreach ((string key, string fallback) in new[]
+        isReloadingLocalizedOptions = true;
+        try
         {
-            ("TimeRangeAll", "All time"),
-            ("TimeRangeLast24Hours", "Last 24 hours"),
-            ("TimeRangeLastWeek", "Last week"),
-            ("TimeRangeLastMonth", "Last month"),
-            ("TimeRangeLastThreeMonths", "Last 3 months"),
-            ("TimeRangeLastYear", "Last year"),
-        })
-        {
-            TimeRangeOptions.Add(GetResourceText(key, fallback));
-        }
+            allStreamerOption = GetResourceText("VideoAllStreamers", "All streamers");
+            TimeRangeOptions.Clear();
+            foreach ((string key, string fallback) in new[]
+            {
+                ("TimeRangeAll", "All time"),
+                ("TimeRangeLast24Hours", "Last 24 hours"),
+                ("TimeRangeLastWeek", "Last week"),
+                ("TimeRangeLastMonth", "Last month"),
+                ("TimeRangeLastThreeMonths", "Last 3 months"),
+                ("TimeRangeLastYear", "Last year"),
+            })
+            {
+                TimeRangeOptions.Add(GetResourceText(key, fallback));
+            }
 
-        UpdateStreamerOptions();
+            UpdateStreamerOptions();
+        }
+        finally
+        {
+            isReloadingLocalizedOptions = false;
+        }
     }
 
     [ObservableProperty]
@@ -2499,10 +2624,16 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+        string globalRecordFormat = RoomRecordingSettings.GetGlobal().RecordFormat;
+        Dictionary<string, string> roomRecordFormats = Configurations.Rooms.Get()
+            .Where(room => !string.IsNullOrWhiteSpace(room.RoomUrl))
+            .GroupBy(room => room.RoomUrl, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => RoomRecordingSettings.Get(group.Last()).RecordFormat, StringComparer.OrdinalIgnoreCase);
         bool rootsChanged = !watchedRoots.SequenceEqual(roots, StringComparer.OrdinalIgnoreCase);
         ConfigureDirectoryWatchers(roots);
         if (reuseExistingItems && !rootsChanged && Volatile.Read(ref directorySnapshotDirty) == 0)
         {
+            UpdateTargetRecordFormats(videos, globalRecordFormat, roomRecordFormats);
             foreach (RecordedVideoItem item in videos)
             {
                 UpdateOperationState(item);
@@ -2573,6 +2704,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
         foreach (RecordedVideoItem item in items)
         {
+            UpdateTargetRecordFormat(item, globalRecordFormat, roomRecordFormats);
             UpdateOperationState(item);
         }
 
@@ -2727,6 +2859,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             FileName = fileInfo.Name,
             FullPath = fileInfo.FullName,
             DirectoryPath = fileInfo.DirectoryName ?? string.Empty,
+            RoomUrl = metadata.RoomUrl,
             NickName = nickName,
             Resolution = resolution,
             Bitrate = bitrate,
@@ -2744,6 +2877,43 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             SourceLastWriteTimeUtc = snapshot.LastWriteTimeUtc,
             MetadataLastWriteTimeUtc = snapshot.MetadataLastWriteTimeUtc,
         };
+    }
+
+    private static void UpdateTargetRecordFormats(
+        IEnumerable<RecordedVideoItem> items,
+        string globalRecordFormat,
+        IReadOnlyDictionary<string, string> roomRecordFormats)
+    {
+        foreach (RecordedVideoItem item in items)
+        {
+            UpdateTargetRecordFormat(item, globalRecordFormat, roomRecordFormats);
+        }
+    }
+
+    private static void UpdateTargetRecordFormat(
+        RecordedVideoItem item,
+        string globalRecordFormat,
+        IReadOnlyDictionary<string, string> roomRecordFormats)
+    {
+        item.TargetRecordFormat = !string.IsNullOrWhiteSpace(item.RoomUrl)
+            && roomRecordFormats.TryGetValue(item.RoomUrl, out string? roomRecordFormat)
+                ? roomRecordFormat
+                : globalRecordFormat;
+    }
+
+    internal static string GetVideoFormatText(string filePath)
+    {
+        string extension = Path.GetExtension(filePath);
+        return string.IsNullOrWhiteSpace(extension) ? "-" : extension.TrimStart('.').ToUpperInvariant();
+    }
+
+    internal static bool IsTargetVideoFormat(string filePath, string recordFormat)
+    {
+        string extension = Path.GetExtension(filePath).ToLowerInvariant();
+        string? targetFormat = Recorder.GetTargetFormat(recordFormat);
+        return string.IsNullOrWhiteSpace(targetFormat)
+            ? extension is ".ts" or ".flv"
+            : extension.Equals(targetFormat, StringComparison.OrdinalIgnoreCase);
     }
 
     internal static VideoRecordingMetadata LoadMetadata(FileInfo file)
@@ -3076,8 +3246,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
                     item.IsEnriched = true;
                     if (createdAtChanged)
                     {
-                        Videos.Refresh();
-                        VisibleItemsChanged?.Invoke(this, EventArgs.Empty);
+                        QueueVideoViewRefresh();
                     }
                 }
             });
@@ -3723,6 +3892,31 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         VisibleItemsChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    private void QueueVideoViewRefresh()
+    {
+        if (Interlocked.Exchange(ref videoViewRefreshPending, 1) != 0)
+        {
+            return;
+        }
+
+        Dispatcher? dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.HasShutdownStarted)
+        {
+            Interlocked.Exchange(ref videoViewRefreshPending, 0);
+            return;
+        }
+
+        _ = dispatcher.InvokeAsync(() =>
+        {
+            Interlocked.Exchange(ref videoViewRefreshPending, 0);
+            using (Videos.DeferRefresh())
+            {
+                Videos.Refresh();
+            }
+            VisibleItemsChanged?.Invoke(this, EventArgs.Empty);
+        }, DispatcherPriority.Background);
+    }
+
     private void NormalizeSelectionForVisibleVideos()
     {
         OnPropertyChanged(nameof(HasVisibleVideos));
@@ -4316,6 +4510,27 @@ internal sealed record SelectionSnapshot(
     bool BeforeMultiSelectMode,
     bool AfterMultiSelectMode);
 
+public sealed class VideoDateGroupLabelConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is not DateTime date)
+        {
+            return string.Empty;
+        }
+
+        CultureInfo currentCulture = Locale.Culture;
+        return currentCulture.TwoLetterISOLanguageName is "zh" or "ja"
+            ? $"{date.Month}月{date.Day}日"
+            : date.ToString("MMM d", currentCulture);
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        return System.Windows.Data.Binding.DoNothing;
+    }
+}
+
 public partial class RecordedVideoItem : ObservableObject
 {
     internal int UserSelectionOrder { get; set; }
@@ -4332,13 +4547,19 @@ public partial class RecordedVideoItem : ObservableObject
     private string fileName = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FormatText))]
+    [NotifyPropertyChangedFor(nameof(IsTargetFormat))]
     private string fullPath = string.Empty;
 
     [ObservableProperty]
     private string directoryPath = string.Empty;
 
     [ObservableProperty]
+    private string roomUrl = string.Empty;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StreamerChipText))]
+    [NotifyPropertyChangedFor(nameof(UiXSummaryText))]
     private string nickName = string.Empty;
 
     [ObservableProperty]
@@ -4361,7 +4582,13 @@ public partial class RecordedVideoItem : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RecordingDetailsText))]
+    [NotifyPropertyChangedFor(nameof(UiXSummaryText))]
+    [NotifyPropertyChangedFor(nameof(DateGroupKey))]
     private DateTime createdAt;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsTargetFormat))]
+    private string targetRecordFormat = "TS/FLV";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanModify))]
@@ -4391,6 +4618,12 @@ public partial class RecordedVideoItem : ObservableObject
 
     public bool HasThumbnail => !string.IsNullOrWhiteSpace(ThumbnailPath) && File.Exists(ThumbnailPath);
 
+    public DateTime DateGroupKey => CreatedAt.Date;
+
+    public string FormatText => ScreenRecordListViewModel.GetVideoFormatText(FullPath);
+
+    public bool IsTargetFormat => ScreenRecordListViewModel.IsTargetVideoFormat(FullPath, TargetRecordFormat);
+
     public bool CanModify => !IsInProgress && !IsRecordingFile;
 
     public bool CanTranscode => SupportsTranscode && !IsInProgress && !IsRecordingFile;
@@ -4413,6 +4646,7 @@ public partial class RecordedVideoItem : ObservableObject
         OnPropertyChanged(nameof(ResolutionChipText));
         OnPropertyChanged(nameof(BitrateChipText));
         OnPropertyChanged(nameof(RecordingDetailsText));
+        OnPropertyChanged(nameof(UiXSummaryText));
     }
 
     public string StreamerChipText => ScreenRecordListViewModel.FormatResourceText(
@@ -4431,4 +4665,6 @@ public partial class RecordedVideoItem : ObservableObject
         string.IsNullOrWhiteSpace(Bitrate) ? ScreenRecordListViewModel.GetResourceText("CommonUnknown", "Unknown") : Bitrate);
 
     public string RecordingDetailsText => $"{CreatedAt:yyyy-MM-dd HH:mm:ss}  ·  {ScreenRecordListViewModel.FormatFileSize(SourceLength)}";
+
+    public string UiXSummaryText => $"{(string.IsNullOrWhiteSpace(NickName) ? ScreenRecordListViewModel.GetResourceText("CommonUnknown", "Unknown") : NickName)}  ·  {RecordingDetailsText}";
 }

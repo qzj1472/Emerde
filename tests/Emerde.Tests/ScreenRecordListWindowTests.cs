@@ -2,6 +2,7 @@ using Emerde.Core;
 using Emerde.Plugins;
 using Emerde.Views;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Text.Json;
 using System.Xml.Linq;
 
@@ -9,6 +10,19 @@ namespace Emerde.Tests;
 
 public sealed class ScreenRecordListWindowTests
 {
+    [Fact]
+    public void LocalizationSubscription_FollowsVideoListMonitoringLifecycle()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
+        string constructor = ExtractMethod(source, "public ScreenRecordListViewModel()", "internal void StartMonitoring()");
+        string start = ExtractMethod(source, "internal void StartMonitoring()", "internal void StopMonitoring()");
+        string stop = ExtractMethod(source, "internal void StopMonitoring()", "private void ConfigureDirectoryWatchers(");
+
+        Assert.DoesNotContain("Locale.CultureChanged += OnCultureChanged", constructor, StringComparison.Ordinal);
+        Assert.Contains("Locale.CultureChanged += OnCultureChanged", start, StringComparison.Ordinal);
+        Assert.Contains("Locale.CultureChanged -= OnCultureChanged", stop, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void VideoList_ContextMenuLoadsRegisteredExtensionActions()
     {
@@ -266,12 +280,106 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
+    public void VideoListXaml_GroupsUiXVideosByDateWithoutAGroupContainer()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
+        XDocument document = XDocument.Parse(xaml);
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement list = document.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "VideoListBox");
+        XElement listStyle = list.Elements().Single(element => element.Name.LocalName == "ListBox.Style").Elements().Single();
+        XElement rootPanel = listStyle.Elements()
+            .Single(element => element.Name.LocalName == "Setter" && (string?)element.Attribute("Property") == "ItemsPanel")
+            .Descendants()
+            .Single(element => element.Name.LocalName == "ItemsPanelTemplate");
+        XElement groupPanel = document.Descendants()
+            .Single(element => element.Name.LocalName == "ItemsPanelTemplate"
+                && (string?)element.Attribute(x + "Key") == "UiXVideoGroupPanelTemplate");
+
+        Assert.Contains("Width=\"{Binding VideoCardGridWidth", xaml, StringComparison.Ordinal);
+        Assert.Contains("VideoDateGroupHeaderTemplate", xaml, StringComparison.Ordinal);
+        Assert.Contains("UiXVideoGroupPanelTemplate", xaml, StringComparison.Ordinal);
+        Assert.Contains("UiXVideoGroupTemplate", xaml, StringComparison.Ordinal);
+        Assert.Contains(rootPanel.Descendants(), element => element.Name.LocalName == "VirtualizingStackPanel");
+        Assert.DoesNotContain(rootPanel.Descendants(), element => element.Name.LocalName == "VirtualizingWrapPanel");
+        Assert.Contains(groupPanel.Descendants(), element => element.Name.LocalName == "VirtualizingWrapPanel"
+            && ((string?)element.Attribute("Width"))?.StartsWith("{Binding VideoCardGridWidth", StringComparison.Ordinal) == true
+            && ((string?)element.Attribute("ItemSize"))?.StartsWith("{Binding VideoCardItemSize", StringComparison.Ordinal) == true
+            && (string?)element.Attribute("Orientation") == "Vertical"
+            && (string?)element.Attribute("SpacingMode") == "None");
+        Assert.Contains("VirtualizingPanel.IsVirtualizingWhenGrouping=\"True\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Value=\"{Binding VideoCardWidth", xaml, StringComparison.Ordinal);
+        Assert.Contains("Value=\"{Binding VideoCardMargin", xaml, StringComparison.Ordinal);
+        Assert.Contains("Height=\"{Binding VideoCardCoverHeight", xaml, StringComparison.Ordinal);
+        Assert.Contains("HorizontalAlignment=\"Stretch\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding FormatText}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Binding=\"{Binding IsTargetFormat}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("NonStandardFormatText", xaml, StringComparison.Ordinal);
+        Assert.Contains("UpdateVideoCardMetrics", code, StringComparison.Ordinal);
+        Assert.Contains("UiXVideoCardHorizontalGap = 12d", code, StringComparison.Ordinal);
+        Assert.Contains("UiXVideoCardVerticalGap = 12d", code, StringComparison.Ordinal);
+        Assert.Contains("UpdateVideoListGrouping", code, StringComparison.Ordinal);
+        Assert.Contains("PropertyGroupDescription(nameof(RecordedVideoItem.DateGroupKey))", code, StringComparison.Ordinal);
+        Assert.Contains("VideoDateGroupLabelConverter", code, StringComparison.Ordinal);
+        Assert.Contains("DateGroupKey => CreatedAt.Date", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("ItemSize=\"224,224\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VideoDateGrouping_UsesTheCalendarDateOnly()
+    {
+        RecordedVideoItem item = new() { CreatedAt = new DateTime(2026, 8, 11, 23, 59, 58) };
+
+        Assert.Equal(new DateTime(2026, 8, 11), item.DateGroupKey);
+    }
+
+    [Fact]
+    public void VideoDateGroupLabel_UsesTheRequestedCulture()
+    {
+        CultureInfo previousCulture = Locale.Culture;
+        CultureInfo culture = CultureInfo.GetCultureInfo("zh-CN");
+        DateTime date = new(2026, 8, 11);
+        VideoDateGroupLabelConverter converter = new();
+
+        try
+        {
+            Locale.Culture = culture;
+            Assert.Equal("8月11日", converter.Convert(date, typeof(string), null!, CultureInfo.InvariantCulture));
+        }
+        finally
+        {
+            Locale.Culture = previousCulture;
+        }
+    }
+
+    [Theory]
+    [InlineData("video.ts", "TS/FLV", true)]
+    [InlineData("video.flv", "TS/FLV", true)]
+    [InlineData("video.mp4", "TS/FLV -> MP4", true)]
+    [InlineData("video.mkv", "TS/FLV -> MKV", true)]
+    [InlineData("video.ts", "TS/FLV -> MP4", false)]
+    [InlineData("video.mp4", "TS/FLV -> MKV", false)]
+    public void IsTargetVideoFormat_MatchesConfiguredOutput(string filePath, string recordFormat, bool expected)
+    {
+        Assert.Equal(expected, ScreenRecordListViewModel.IsTargetVideoFormat(filePath, recordFormat));
+    }
+
+    [Theory]
+    [InlineData("video.ts", "TS")]
+    [InlineData("video.Mp4", "MP4")]
+    [InlineData("video", "-")]
+    public void GetVideoFormatText_ReturnsNormalizedExtension(string filePath, string expected)
+    {
+        Assert.Equal(expected, ScreenRecordListViewModel.GetVideoFormatText(filePath));
+    }
+
+    [Fact]
     public void VideoListXaml_AlignsEdgeFadesWithScrollableContent()
     {
         string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
 
         Assert.Contains("Property=\"Padding\" Value=\"20,8,0,10\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Margin=\"20,0,20,0\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Margin=\"{StaticResource UiXPageHeaderMargin}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"VideoListHeaderActions\"", xaml, StringComparison.Ordinal);
         Assert.Contains("<TranslateTransform Y=\"8\" />", xaml, StringComparison.Ordinal);
         Assert.Contains("Margin=\"20,8,22,0\"", xaml, StringComparison.Ordinal);
@@ -1639,5 +1747,15 @@ public sealed class ScreenRecordListWindowTests
                 Directory.Delete(root, recursive: true);
             }
         }
+    }
+
+    private static string ExtractMethod(string source, string startMarker, string endMarker)
+    {
+        int start = source.IndexOf(startMarker, StringComparison.Ordinal);
+        int end = source.IndexOf(endMarker, start + startMarker.Length, StringComparison.Ordinal);
+
+        Assert.True(start >= 0);
+        Assert.True(end > start);
+        return source[start..end];
     }
 }
