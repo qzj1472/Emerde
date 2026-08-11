@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
 
 namespace Emerde.Views;
@@ -91,18 +90,6 @@ public sealed partial class ConfigRestoreContentDialog : System.Windows.Controls
             ConfigFileDropped?.Invoke(this, new ConfigFileDroppedEventArgs(filePath));
         }
 
-        e.Handled = true;
-    }
-
-    private void OptionsListBoxPreviewMouseWheel(object sender, MouseWheelEventArgs e)
-    {
-        if (FindVisualChild<ScrollViewer>(OptionsListBox, "OptionsScrollViewer") is not ScrollViewer scrollViewer)
-        {
-            return;
-        }
-
-        double offset = scrollViewer.VerticalOffset - e.Delta * 0.45d;
-        scrollViewer.ScrollToVerticalOffset(Math.Clamp(offset, 0d, scrollViewer.ScrollableHeight));
         e.Handled = true;
     }
 
