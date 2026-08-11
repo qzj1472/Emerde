@@ -22,6 +22,7 @@ public partial class PlatformCookieLoginWindow : FluentWindow
         this.profile = profile;
         lifetimeToken = lifetimeCancellation.Token;
         InitializeComponent();
+        WindowSizing.UseRelativeMainWindowSize(this, 1020d, 720d);
         WindowAppearance.EnableBorderless(this);
         Owner = owner;
         string actionText = "AcquireCookie".Tr();

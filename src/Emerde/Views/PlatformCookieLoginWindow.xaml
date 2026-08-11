@@ -4,10 +4,10 @@
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
                  Title="Emerde"
-                 Width="1020"
-                 Height="760"
-                 MinWidth="760"
-                 MinHeight="560"
+                  Width="1020"
+                  Height="720"
+                  MinWidth="640"
+                  MinHeight="480"
                  BorderBrush="Transparent"
                  BorderThickness="0"
                  ExtendsContentIntoTitleBar="True"
@@ -21,7 +21,7 @@
             <RowDefinition Height="36" />
             <RowDefinition Height="50" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="62" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <ui:TitleBar x:Name="WindowTitleBar"
@@ -42,7 +42,7 @@
                     Padding="0"
                     Click="BackButtonClick"
                     FocusVisualStyle="{x:Null}"
-                    ToolTip="Back">
+                    ToolTip="{I18N CookieLoginBack}">
                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                              FontSize="14"
                              Glyph="&#xE72B;" />
@@ -55,7 +55,7 @@
                     Padding="0"
                     Click="RefreshButtonClick"
                     FocusVisualStyle="{x:Null}"
-                    ToolTip="Refresh">
+                    ToolTip="{I18N RefreshButton}">
                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                              FontSize="14"
                              Glyph="&#xE72C;" />
@@ -69,7 +69,8 @@
                 <TextBlock x:Name="AddressText"
                            VerticalAlignment="Center"
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                           TextTrimming="CharacterEllipsis" />
+                           TextTrimming="CharacterEllipsis"
+                           ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
             </Border>
         </Grid>
 
@@ -91,7 +92,8 @@
                        VerticalAlignment="Center"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                        Text="{I18N CookieLoginInitializing}"
-                       TextTrimming="CharacterEllipsis" />
+                       TextWrapping="Wrap"
+                       ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
             <Button Grid.Column="1"
                     MinWidth="88"
                     Margin="12,0,0,0"
