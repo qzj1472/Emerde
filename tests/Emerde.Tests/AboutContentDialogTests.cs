@@ -19,7 +19,9 @@ public class AboutContentDialogTests
             .Single(element => element.Name.LocalName == "Border" && (string?)element.Attribute("Background") == "#14D83B01");
         XElement[] cardRows = document.Descendants()
             .Where(element => element.Name.LocalName == "WrapPanel"
-                && element.Elements().Any(child => (string?)child.Attribute("Style") == "{StaticResource AboutCardStyle}"))
+                && element.Elements().Any(child =>
+                    (string?)child.Attribute("Style") is "{StaticResource AboutCardStyle}"
+                        or "{StaticResource AboutWorkflowCardStyle}"))
             .ToArray();
 
         Assert.Equal("20,10,20,20", (string?)pagePadding.Attribute("Padding"));
@@ -75,12 +77,13 @@ public class AboutContentDialogTests
     }
 
     [Fact]
-    public void RootScrollViewer_DoesNotRenderAWindowSwitchFocusOutline()
+    public void RootScrollViewer_SupportsKeyboardScrolling()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml"));
         XElement scrollViewer = document.Descendants().First(element => element.Name.LocalName == "ScrollViewer");
 
         Assert.Equal("False", (string?)scrollViewer.Attribute("Focusable"));
+        Assert.Equal("False", (string?)scrollViewer.Attribute("IsTabStop"));
         Assert.Equal("{x:Null}", (string?)scrollViewer.Attribute("FocusVisualStyle"));
         Assert.Equal("0", (string?)scrollViewer.Attribute("BorderThickness"));
     }
@@ -159,7 +162,7 @@ public class AboutContentDialogTests
         Assert.DoesNotContain("Ctrl+R", labels);
         Assert.Contains("Ctrl+F", labels);
         Assert.Contains("Tab", labels);
-        Assert.Contains("CapsLock", labels);
+        Assert.DoesNotContain("CapsLock", labels);
         Assert.Contains("Ctrl+W", labels);
         Assert.Contains("Ctrl+Shift+W", labels);
         Assert.Contains("Ctrl+Z", labels);
@@ -189,7 +192,7 @@ public class AboutContentDialogTests
         Assert.Contains("全部监控", labels);
         Assert.Contains("全部录制", labels);
         Assert.Contains("刷新全部", labels);
-        Assert.Contains("向上切换页面", labels);
+        Assert.DoesNotContain("向上切换页面", labels);
         Assert.Contains("向下切换页面", labels);
         Assert.Contains("关闭窗口", labels);
         Assert.Contains("退出软件", labels);

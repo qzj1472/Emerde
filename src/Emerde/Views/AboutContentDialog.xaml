@@ -6,24 +6,47 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:views="clr-namespace:Emerde.Views"
              FontSize="14"
              SizeChanged="AboutContentDialogSizeChanged"
              SnapsToDevicePixels="True"
              UseLayoutRounding="True"
              mc:Ignorable="d">
     <UserControl.Resources>
+        <Style x:Key="UiXAboutFadeStyle" TargetType="{x:Type Border}">
+            <Setter Property="Background" Value="{DynamicResource EmerdeSurfaceBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource UiXPanelBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="AboutHeroTitleStyle" TargetType="{x:Type TextBlock}">
             <Setter Property="Margin" Value="0,0,10,0" />
             <Setter Property="FontSize" Value="30" />
             <Setter Property="FontWeight" Value="Bold" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
             <Setter Property="TextWrapping" Value="Wrap" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="FontSize" Value="24" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                    <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
         <Style x:Key="AboutSectionTitleStyle" TargetType="{x:Type TextBlock}">
-            <Setter Property="Margin" Value="0,14,0,0" />
+            <Setter Property="Margin" Value="0,18,0,0" />
             <Setter Property="FontSize" Value="22" />
             <Setter Property="FontWeight" Value="Bold" />
             <Setter Property="Foreground" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="FontSize" Value="17" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                    <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
         <Style x:Key="AboutSectionDescriptionStyle" TargetType="{x:Type TextBlock}">
             <Setter Property="Margin" Value="0,-2,0,2" />
@@ -31,6 +54,11 @@
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
             <Setter Property="LineHeight" Value="20" />
             <Setter Property="TextWrapping" Value="Wrap" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource UiXTextSecondaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
         <Style x:Key="AboutCardStyle" TargetType="{x:Type Border}">
             <Setter Property="Margin" Value="0,0,12,12" />
@@ -39,6 +67,23 @@
             <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="Padding" Value="12,10" />
+                    <Setter Property="Background" Value="{DynamicResource UiXCardBrush}" />
+                    <Setter Property="BorderBrush" Value="Transparent" />
+                    <Setter Property="BorderThickness" Value="0" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="AboutWorkflowCardStyle" TargetType="{x:Type Border}" BasedOn="{StaticResource AboutCardStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="Padding" Value="12,10" />
+                    <Setter Property="Background" Value="{DynamicResource UiXCardBrush}" />
+                    <Setter Property="CornerRadius" Value="{StaticResource UiXSurfaceCornerRadius}" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
         <Style x:Key="AboutCardTitleStyle" TargetType="{x:Type TextBlock}">
             <Setter Property="Margin" Value="0,0,0,10" />
@@ -46,6 +91,11 @@
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource EmerdeAboutCardTitleBrush}" />
             <Setter Property="TextWrapping" Value="Wrap" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
         <Style x:Key="AboutStepNumberStyle" TargetType="{x:Type TextBlock}">
             <Setter Property="FontSize" Value="18" />
@@ -56,6 +106,11 @@
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
             <Setter Property="LineHeight" Value="20" />
             <Setter Property="TextWrapping" Value="Wrap" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource UiXTextSecondaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
         <Style x:Key="AboutBulletTextStyle" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource AboutBodyTextStyle}">
             <Setter Property="Margin" Value="0,0,0,5" />
@@ -93,6 +148,22 @@
             <Setter Property="FontWeight" Value="Bold" />
             <Setter Property="Foreground" Value="#D83B01" />
         </Style>
+        <Style x:Key="AboutHeroCardStyle" TargetType="{x:Type Border}">
+            <Setter Property="Padding" Value="18" />
+            <Setter Property="Background" Value="{DynamicResource EmerdeCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="Padding" Value="4,2,4,8" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="BorderBrush" Value="Transparent" />
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="CornerRadius" Value="0" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <Grid ClipToBounds="True"
@@ -100,16 +171,13 @@
           controls:MotionAssist.EntranceOffsetY="8">
         <ScrollViewer BorderThickness="0"
                       Focusable="False"
+                      IsTabStop="False"
                       FocusVisualStyle="{x:Null}"
                       HorizontalScrollBarVisibility="Disabled"
                       VerticalScrollBarVisibility="Auto">
             <Border Padding="20,10,20,20">
                 <ui:StackPanel HorizontalAlignment="Stretch" Spacing="18">
-                    <Border Padding="18"
-                            Background="{DynamicResource EmerdeCardBrush}"
-                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                            BorderThickness="1"
-                            CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                    <Border Style="{StaticResource AboutHeroCardStyle}">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -117,8 +185,8 @@
                             </Grid.ColumnDefinitions>
                             <Border Width="78"
                                     Height="78"
-                                    Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                    CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                    Background="Transparent"
+                                    CornerRadius="0"
                                     ClipToBounds="True">
                                 <Image RenderOptions.BitmapScalingMode="HighQuality"
                                        Source="pack://application:,,,/Assets/Favicon.png"
@@ -166,7 +234,7 @@
                         <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="{I18N QuickStartDescription}" />
                     </ui:StackPanel>
                     <WrapPanel Margin="0,0,-12,0">
-                        <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
+                        <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutWorkflowCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" Text="01" />
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N AddLiveRoom}" />
@@ -174,7 +242,7 @@
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutConfirmPlatformStreamer}" />
                             </ui:StackPanel>
                         </Border>
-                        <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
+                        <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutWorkflowCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="#168A55" Text="02" />
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N EnableMonitoring}" />
@@ -182,7 +250,7 @@
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutRecordingNeedsMonitoring}" />
                             </ui:StackPanel>
                         </Border>
-                        <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
+                        <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutWorkflowCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="#D83B01" Text="03" />
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N EnableRecording}" />
@@ -190,7 +258,7 @@
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutHomeShowsRecording}" />
                             </ui:StackPanel>
                         </Border>
-                        <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutCardStyle}">
+                        <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutWorkflowCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="#7A4DA0" Text="04" />
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N ManageVideos}" />
@@ -301,16 +369,6 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Tab" /></Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N NavigatePreviousPage}" />
-                                        </Grid>
-                                    </Border>
-                                    <Border Style="{StaticResource AboutShortcutItemStyle}">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="CapsLock" /></Border>
                                             <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N NavigateNextPage}" />
                                         </Grid>
                                     </Border>
@@ -320,7 +378,7 @@
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Alt+1~4" /></Border>
+                                            <Border Style="{StaticResource AboutShortcutKeyPillStyle}"><TextBlock Style="{StaticResource AboutShortcutKeyTextStyle}" Text="Alt+1~5" /></Border>
                                             <TextBlock Grid.Column="1" Style="{StaticResource AboutShortcutDescriptionTextStyle}" Text="{I18N NavigateDirectly}" />
                                         </Grid>
                                     </Border>
@@ -790,13 +848,13 @@
         <Border Height="6"
                 VerticalAlignment="Top"
                 Panel.ZIndex="20"
-                Background="{DynamicResource EmerdeSurfaceBrush}"
+                Style="{StaticResource UiXAboutFadeStyle}"
                 IsHitTestVisible="False"
                 OpacityMask="{StaticResource TopEdgeFadeOpacityMask}" />
         <Border Height="6"
                 VerticalAlignment="Bottom"
                 Panel.ZIndex="20"
-                Background="{DynamicResource EmerdeSurfaceBrush}"
+                Style="{StaticResource UiXAboutFadeStyle}"
                 IsHitTestVisible="False"
                 OpacityMask="{StaticResource BottomEdgeFadeOpacityMask}" />
     </Grid>
