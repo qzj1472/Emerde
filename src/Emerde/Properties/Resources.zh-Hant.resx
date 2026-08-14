@@ -508,10 +508,10 @@
     <value>瀏覽器UserAgent</value>
   </data>
   <data name="UserAgentHint" xml:space="preserve">
-    <value>您可以使用自定義瀏覽器 UserAgent</value>
+    <value>進階相容選項，通常無需修改</value>
   </data>
   <data name="UserAgentEnterHint" xml:space="preserve">
-    <value>留白則使用內置瀏覽器 UserAgent 標識</value>
+    <value>留空自動使用內置瀏覽器標識</value>
   </data>
   <data name="Settings" xml:space="preserve">
     <value>設定</value>
@@ -789,9 +789,19 @@
   <data name="UpdateReleaseNotesUpgradeFromFormat" xml:space="preserve"><value>已從 {0} 升級到 {1}。這次更新內容如下。</value></data>
   <data name="UpdateReleaseNotesUpgradeCurrentFormat" xml:space="preserve"><value>這是升級到 {0} 後第一次打開。更新內容如下。</value></data>
   <data name="UpdateReleaseNotesHistoryLabel" xml:space="preserve"><value>歷史更新日誌</value></data>
+  <data name="AboutOverviewNavigation" xml:space="preserve"><value>說明</value></data>
+  <data name="AboutReleaseNotesNavigation" xml:space="preserve"><value>更新日誌</value></data>
+  <data name="AboutReleaseNotesDescription" xml:space="preserve"><value>查看各版本的功能變化與體驗改進。</value></data>
+  <data name="ReleaseNotesUserFacingLabel" xml:space="preserve"><value>使用者可感知的更新</value></data>
+  <data name="ReleaseNotesAdditionalLabel" xml:space="preserve"><value>其他改進</value></data>
+  <data name="ReleaseNotes1671Title" xml:space="preserve"><value>Emerde 1.6.7.1</value></data>
+  <data name="ReleaseNotes1671Date" xml:space="preserve"><value>2026-08-13</value></data>
+  <data name="ReleaseNotes1671Items" xml:space="preserve"><value>提升長時間錄製穩定性，改善直播卡頓、資料不連續、音畫不同步和錄製結束後轉碼失敗。|新增錄影修復，異常 TS、MP4 等影片可嘗試恢復可播放的音訊與視訊內容。|最佳化直播間連結、短連結辨識和重複偵測，避免同一直播間被重複加入。|最佳化主播頭像、開播狀態和直播間資訊同步，狀態變化後能更及時反映。|重做 UI-X 的新增直播間與單獨設定工作台，最佳化設定繼承、資訊層級、操作區域和視窗適配。|最佳化首頁卡片、預覽卡片列和視窗縮放，減少留白、截斷、閃爍、卡死和調整視窗時的延遲。|最佳化影片列表封面、檔名、主播資訊、時間大小、格式提示、卡片排列和多選操作。|統一 UI-X 的設定、直播間資訊、日誌匯出、恢復設定、轉碼、錄影修復和確認彈窗，改善間距、底色、描邊、模糊和互動。|完善首頁與系統匣右鍵選單、快捷鍵、選取狀態、設定、擴充和關於頁面。</value></data>
+  <data name="ReleaseNotes1671AdditionalItems" xml:space="preserve"><value>最佳化安裝程式升級後的首次啟動提示，更新日誌會按版本顯示。|最佳化通知、系統匣圖示、載入狀態和頭像刷新，狀態變化時回饋更及時。|最佳化錄製檔案儲存、清理和設定恢復，減少誤操作對既有資料的影響。|最佳化異常檔案處理、轉碼失敗提示和錄影修復結果展示。</value></data>
   <data name="ReleaseNotes1670Title" xml:space="preserve"><value>Emerde 1.6.7.0</value></data>
   <data name="ReleaseNotes1670Date" xml:space="preserve"><value>2026-08-10</value></data>
-  <data name="ReleaseNotes1670Items" xml:space="preserve"><value>完成安裝器打包與維護流程優化，安裝、升級、修復、解除安裝、執行中提示和保留使用者資料選項更完整。|規範安裝目錄結構、解除安裝捷徑、維護檔案、圖示資源，並清理 GitHub 首頁舊圖示。|常規交付調整為 Debug 自包含建置和安裝包，不再預設輸出獨立 Release 壓縮包。|加強多平台分享文案和短連結識別，覆蓋抖音、B 站等手機端分享格式。|規範直播間 URL 匯入和重複偵測，避免同一直播間透過不同連結重複加入。|優化錄製清理排程，按最近到期時間執行，減少無意義掃描。|審查並優化時間迴圈、路徑處理、檔案儲存、頭像刷新、托盤圖示和載入動畫。|優化首頁直播間卡片、右鍵操作、資訊彈窗、框選行為，並新增可切換的 UI-X 版面。|新增安裝器升級後的首次啟動更新日誌彈窗，按完整四段版本識別後續 1.6.7.x 小版本。</value></data>
+  <data name="ReleaseNotes1670Items" xml:space="preserve"><value>優化安裝、升級、解除安裝、修復和設定恢復流程，更可靠地保留使用者設定與資料。|加強抖音、B 站等手機端分享文字和短連結辨識。|改善直播間 URL 匯入、規範化和重複偵測。|優化首頁直播間卡片、右鍵選單、資訊彈窗和框選操作。|加入可切換的 UI-X 首頁版面。</value></data>
+  <data name="ReleaseNotes1670AdditionalItems" xml:space="preserve"><value>優化錄製清理、檔案儲存、頭像刷新和系統匣狀態回饋。|加入安裝程式升級後的首次啟動更新日誌提示。|優化多平台直播間辨識和常用操作回饋。</value></data>
   <data name="ReleaseNotesUnknownTitle" xml:space="preserve"><value>Emerde 更新</value></data>
   <data name="ReleaseNotesUnknownItem" xml:space="preserve"><value>這個版本包含穩定性與使用體驗優化。</value></data>
   <data name="ConfigurationRecovered" xml:space="preserve"><value>設定檔無效，已保留到：{0}。Emerde 已使用預設設定啟動。</value></data>
@@ -854,6 +864,11 @@
   <data name="ToggleCurrentMonitorToolTip" xml:space="preserve"><value>啟用或暫停目前直播間監控（Shift+M）</value></data>
   <data name="ToggleCurrentRecordingToolTip" xml:space="preserve"><value>啟用或暫停目前直播間錄製（Shift+R）</value></data>
   <data name="RemoveRoomShortcutHint" xml:space="preserve"><value>移除目前直播間（Del）</value></data>
+  <data name="PreviewRoomMenuToolTip" xml:space="preserve"><value>預覽（Q）</value></data>
+  <data name="OpenRoomMenuToolTip" xml:space="preserve"><value>進入直播間（E）</value></data>
+  <data name="MonitorRoomMenuToolTip" xml:space="preserve"><value>監控（Shift+M）</value></data>
+  <data name="RecordRoomMenuToolTip" xml:space="preserve"><value>錄製（Shift+R）</value></data>
+  <data name="RemoveRoomMenuToolTip" xml:space="preserve"><value>移除（Del）</value></data>
   <data name="OpenCurrentRoomSettingsToolTip" xml:space="preserve"><value>開啟目前直播間設定</value></data>
   <data name="AutoShutdownDebugSkipped" xml:space="preserve"><value>已觸發關閉電腦，偵錯模式不會執行系統關機。</value></data>
   <data name="CancellingTranscode" xml:space="preserve"><value>正在取消轉碼...</value></data>
@@ -1225,4 +1240,21 @@
   <data name="AboutEnsureDiskSpace" xml:space="preserve"><value>• 請確保儲存磁碟有足夠空間，避免錄製中斷或檔案損壞</value></data>
   <data name="AboutStreamStallEffects" xml:space="preserve"><value>• 網路或主播推流卡頓可能造成畫面凍結、掉幀或音畫異常</value></data>
   <data name="AboutFeedbackDetails" xml:space="preserve"><value>• 回報問題時，請說明問題現象，並提供直播間連結、發生時間、操作步驟、截圖與對應日誌</value></data>
+  <data name="RepairVideo" xml:space="preserve"><value>修復錄影</value></data>
+  <data name="RepairVideoDescription" xml:space="preserve"><value>從可讀取的音訊與視訊資料產生新檔案。損壞錄影建議使用 MKV；MP4 需要音訊與視訊串流相容。原始檔案不會被修改，已遺失的內容無法還原。</value></data>
+  <data name="RepairingVideo" xml:space="preserve"><value>正在修復錄影...</value></data>
+  <data name="RepairVideoComplete" xml:space="preserve"><value>錄影修復完成</value></data>
+  <data name="RepairVideoPartial" xml:space="preserve"><value>已儲存可恢復內容，但時間軸仍不完整</value></data>
+  <data name="RepairVideoFailed" xml:space="preserve"><value>錄影無法修復</value></data>
+  <data name="UiXWorkspaceOverview" xml:space="preserve"><value>概覽</value></data>
+  <data name="UiXWorkspaceAll" xml:space="preserve"><value>全部</value></data>
+  <data name="UiXWorkspaceRun" xml:space="preserve"><value>運行</value></data>
+  <data name="UiXWorkspaceRecording" xml:space="preserve"><value>錄製</value></data>
+  <data name="UiXWorkspaceOutput" xml:space="preserve"><value>輸出</value></data>
+  <data name="UiXWorkspaceHierarchy" xml:space="preserve"><value>目錄層級</value></data>
+  <data name="UiXWorkspaceWaitingForAddress" xml:space="preserve"><value>輸入直播間地址後自動識別</value></data>
+  <data name="UiXWorkspaceIdentify" xml:space="preserve"><value>識別</value></data>
+  <data name="UiXWorkspaceGlobalDescription" xml:space="preserve"><value>繼承的設定保持可見且唯讀，切換到「自訂」後可編輯此直播間。</value></data>
+  <data name="UiXWorkspaceCustomDescription" xml:space="preserve"><value>此直播間使用獨立的監控、錄製與輸出設定。</value></data>
+  <data name="UiXWorkspaceNoSegment" xml:space="preserve"><value>不分段</value></data>
 </root>

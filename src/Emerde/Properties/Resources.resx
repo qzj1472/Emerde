@@ -508,10 +508,10 @@
     <value>Browser UserAgent</value>
   </data>
   <data name="UserAgentHint" xml:space="preserve">
-    <value>You can use a custom browser UserAgent</value>
+    <value>Advanced compatibility option; usually no change is needed</value>
   </data>
   <data name="UserAgentEnterHint" xml:space="preserve">
-    <value>Leave blank to use the built-in browser UserAgent</value>
+    <value>Leave blank to use the built-in browser identity automatically</value>
   </data>
   <data name="Settings" xml:space="preserve">
     <value>Settings</value>
@@ -789,9 +789,19 @@
   <data name="UpdateReleaseNotesUpgradeFromFormat" xml:space="preserve"><value>Upgraded from {0} to {1}. The latest changes are shown below.</value></data>
   <data name="UpdateReleaseNotesUpgradeCurrentFormat" xml:space="preserve"><value>This is the first launch after upgrading to {0}. The latest changes are shown below.</value></data>
   <data name="UpdateReleaseNotesHistoryLabel" xml:space="preserve"><value>Version history</value></data>
+  <data name="AboutOverviewNavigation" xml:space="preserve"><value>Overview</value></data>
+  <data name="AboutReleaseNotesNavigation" xml:space="preserve"><value>Release notes</value></data>
+  <data name="AboutReleaseNotesDescription" xml:space="preserve"><value>Review changes and improvements from recent versions.</value></data>
+  <data name="ReleaseNotesUserFacingLabel" xml:space="preserve"><value>User-facing changes</value></data>
+  <data name="ReleaseNotesAdditionalLabel" xml:space="preserve"><value>Additional improvements</value></data>
+  <data name="ReleaseNotes1671Title" xml:space="preserve"><value>Emerde 1.6.7.1</value></data>
+  <data name="ReleaseNotes1671Date" xml:space="preserve"><value>2026-08-13</value></data>
+  <data name="ReleaseNotes1671Items" xml:space="preserve"><value>Improved long-running recording stability, stream stalls, data discontinuities, audio/video synchronization, and post-recording conversion failures.|Added recording repair to recover playable audio and video from damaged TS, MP4, and related files where possible.|Improved room-link and short-link recognition and duplicate detection so the same room is not added repeatedly.|Improved streamer avatars, live status, and room information synchronization for faster state updates.|Redesigned the UI-X add-room and per-room settings workspaces with clearer inheritance, hierarchy, controls, and window adaptation.|Improved home cards, preview cards, and window resizing to reduce blank space, clipping, flicker, stalls, and resize lag.|Improved video thumbnails, filenames, streamer information, time and size details, format indicators, card layout, and multi-select actions.|Unified UI-X settings, room information, log export, configuration restore, conversion, repair, and confirmation dialogs with clearer spacing, surfaces, borders, blur, and interaction.|Refined home and tray context menus, shortcuts, selection states, settings, extensions, and the About page.</value></data>
+  <data name="ReleaseNotes1671AdditionalItems" xml:space="preserve"><value>Improved the first-launch notice after installer upgrades so release notes are shown by version.|Refined notifications, tray icons, loading states, and avatar refresh for faster feedback.|Improved recording-file saving, cleanup, and configuration recovery to reduce accidental impact on existing data.|Improved damaged-file handling, conversion-failure feedback, and repair-result presentation.</value></data>
   <data name="ReleaseNotes1670Title" xml:space="preserve"><value>Emerde 1.6.7.0</value></data>
   <data name="ReleaseNotes1670Date" xml:space="preserve"><value>2026-08-10</value></data>
-  <data name="ReleaseNotes1670Items" xml:space="preserve"><value>Completed the installer packaging and maintenance flow, including install, upgrade, repair, uninstall, running-app prompts, and optional user-data retention.|Standardized the installed directory layout, uninstall shortcut, maintenance files, icon assets, and GitHub presentation icon cleanup.|Changed routine delivery to Debug self-contained builds plus installer packages instead of standalone Release archives by default.|Improved multi-platform share text and short-link recognition, including Douyin and Bilibili mobile share formats.|Normalized imported room URLs and duplicate detection so the same room is not added again through different links.|Optimized recording cleanup scheduling to use nearest-expiration timing and reduce unnecessary scans.|Reviewed and tightened time loops, path handling, file saving, avatar refresh, tray icons, and loading animation behavior.|Refined the home room cards, context menu actions, information dialog, selection behavior, and the optional UI-X layout switch.|Added the first-launch update notes dialog after installer upgrades, with full four-part version matching for future 1.6.7.x updates.</value></data>
+  <data name="ReleaseNotes1670Items" xml:space="preserve"><value>Improved install, upgrade, uninstall, repair, and configuration recovery while preserving user settings and data more reliably.|Improved share text and short-link recognition for mobile formats such as Douyin and Bilibili.|Improved imported room URL normalization and duplicate detection.|Refined home room cards, context menus, information dialogs, and marquee selection.|Introduced the optional UI-X home layout.</value></data>
+  <data name="ReleaseNotes1670AdditionalItems" xml:space="preserve"><value>Improved recording cleanup, file saving, avatar refresh, and tray status feedback.|Added a first-launch update-notes notice after installer upgrades.|Refined multi-platform room recognition and common-action feedback.</value></data>
   <data name="ReleaseNotesUnknownTitle" xml:space="preserve"><value>Emerde update</value></data>
   <data name="ReleaseNotesUnknownItem" xml:space="preserve"><value>This version includes stability and experience improvements.</value></data>
   <data name="ConfigurationRecovered" xml:space="preserve"><value>The configuration file was invalid and has been preserved at: {0}. Emerde has started with default settings.</value></data>
@@ -854,6 +864,11 @@
   <data name="ToggleCurrentMonitorToolTip" xml:space="preserve"><value>Start or pause current room monitoring (Shift+M)</value></data>
   <data name="ToggleCurrentRecordingToolTip" xml:space="preserve"><value>Start or pause current room recording (Shift+R)</value></data>
   <data name="RemoveRoomShortcutHint" xml:space="preserve"><value>Remove this room (Del)</value></data>
+  <data name="PreviewRoomMenuToolTip" xml:space="preserve"><value>Preview (Q)</value></data>
+  <data name="OpenRoomMenuToolTip" xml:space="preserve"><value>Open room (E)</value></data>
+  <data name="MonitorRoomMenuToolTip" xml:space="preserve"><value>Monitor (Shift+M)</value></data>
+  <data name="RecordRoomMenuToolTip" xml:space="preserve"><value>Record (Shift+R)</value></data>
+  <data name="RemoveRoomMenuToolTip" xml:space="preserve"><value>Remove (Del)</value></data>
   <data name="OpenCurrentRoomSettingsToolTip" xml:space="preserve"><value>Open current room settings</value></data>
   <data name="AutoShutdownDebugSkipped" xml:space="preserve"><value>Computer shutdown was triggered. Debug mode will not shut down Windows.</value></data>
   <data name="CancellingTranscode" xml:space="preserve"><value>Stopping transcoding...</value></data>
@@ -1225,4 +1240,21 @@
   <data name="AboutEnsureDiskSpace" xml:space="preserve"><value>• Keep enough free disk space to avoid interrupted recordings or damaged files</value></data>
   <data name="AboutStreamStallEffects" xml:space="preserve"><value>• Network or source stalls may cause frozen frames, dropped frames, or audio and video problems</value></data>
   <data name="AboutFeedbackDetails" xml:space="preserve"><value>• When reporting a problem, include the symptoms, room link, time, steps, screenshots, and corresponding logs</value></data>
+  <data name="RepairVideo" xml:space="preserve"><value>Repair recording</value></data>
+  <data name="RepairVideoDescription" xml:space="preserve"><value>Creates a new file from readable audio and video data. MKV is recommended for damaged recordings; MP4 requires compatible streams. The original is not changed, and missing content cannot be recreated.</value></data>
+  <data name="RepairingVideo" xml:space="preserve"><value>Repairing recording...</value></data>
+  <data name="RepairVideoComplete" xml:space="preserve"><value>Recording repaired</value></data>
+  <data name="RepairVideoPartial" xml:space="preserve"><value>Recoverable content was saved, but the timeline remains incomplete</value></data>
+  <data name="RepairVideoFailed" xml:space="preserve"><value>Recording could not be repaired</value></data>
+  <data name="UiXWorkspaceOverview" xml:space="preserve"><value>Overview</value></data>
+  <data name="UiXWorkspaceAll" xml:space="preserve"><value>All</value></data>
+  <data name="UiXWorkspaceRun" xml:space="preserve"><value>Run</value></data>
+  <data name="UiXWorkspaceRecording" xml:space="preserve"><value>Recording</value></data>
+  <data name="UiXWorkspaceOutput" xml:space="preserve"><value>Output</value></data>
+  <data name="UiXWorkspaceHierarchy" xml:space="preserve"><value>Folder hierarchy</value></data>
+  <data name="UiXWorkspaceWaitingForAddress" xml:space="preserve"><value>Enter a room address to identify it automatically</value></data>
+  <data name="UiXWorkspaceIdentify" xml:space="preserve"><value>Identify</value></data>
+  <data name="UiXWorkspaceGlobalDescription" xml:space="preserve"><value>Inherited settings stay visible and read-only. Switch to Custom to edit this room.</value></data>
+  <data name="UiXWorkspaceCustomDescription" xml:space="preserve"><value>This room uses its own monitoring, recording, and output settings.</value></data>
+  <data name="UiXWorkspaceNoSegment" xml:space="preserve"><value>No segmentation</value></data>
 </root>

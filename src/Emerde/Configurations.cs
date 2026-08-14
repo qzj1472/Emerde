@@ -14,6 +14,8 @@ public static class Configurations
     public static ConfigurationDefinition<bool> IsPreviewMuted { get; } = new(nameof(IsPreviewMuted), true);
     public static ConfigurationDefinition<bool> IsStartupAboutNoticeShown { get; } = new(nameof(IsStartupAboutNoticeShown), false);
     public static ConfigurationDefinition<string> LastShownUpgradeNoticeVersion { get; } = new(nameof(LastShownUpgradeNoticeVersion), string.Empty);
+    public static ConfigurationDefinition<string> LastShownUpgradeNoticeId { get; } = new(nameof(LastShownUpgradeNoticeId), string.Empty);
+    public static ConfigurationDefinition<string> LastShownUpgradeNoticeDebugBuildId { get; } = new(nameof(LastShownUpgradeNoticeDebugBuildId), string.Empty);
     public static ConfigurationDefinition<bool> IsSessionLogEnabled { get; } = new(nameof(IsSessionLogEnabled), true);
     public static ConfigurationDefinition<int> SessionLogRetentionDays { get; } = new(nameof(SessionLogRetentionDays), 30);
     public static ConfigurationDefinition<bool> IsOffRemindCloseToTray { get; } = new(nameof(IsOffRemindCloseToTray), false);

@@ -115,6 +115,7 @@ internal static class InstallationRegistry
         string normalizedRoot = InstallationPaths.NormalizeInstallRoot(installRoot);
         Directory.CreateDirectory(InstallationPaths.MaintenanceDirectory(normalizedRoot));
         UpgradeNoticeState state = new(
+            Guid.NewGuid().ToString("N"),
             version,
             previousVersion,
             DateTime.UtcNow,

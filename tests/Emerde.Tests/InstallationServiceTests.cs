@@ -158,8 +158,22 @@ public sealed class InstallationServiceTests
             UpgradeNoticeState? notice = InstallationRegistry.ReadUpgradeNotice(installRoot);
             Assert.NotNull(notice);
             Assert.True(notice.Pending);
+            Assert.False(string.IsNullOrWhiteSpace(notice.NoticeId));
             Assert.Equal("1.6.6.0", notice.PreviousVersion);
             Assert.Equal(InstallationPaths.ProductVersion, notice.Version);
+
+            string firstNoticeId = notice.NoticeId!;
+            await service.InstallAsync(
+                new InstallationRequest(installRoot, false, false),
+                InstallationOperation.Upgrade,
+                new Progress<InstallationProgress>());
+
+            UpgradeNoticeState? repeatedVersionNotice = InstallationRegistry.ReadUpgradeNotice(installRoot);
+            Assert.NotNull(repeatedVersionNotice);
+            Assert.True(repeatedVersionNotice.Pending);
+            Assert.Equal(InstallationPaths.ProductVersion, repeatedVersionNotice.PreviousVersion);
+            Assert.Equal(InstallationPaths.ProductVersion, repeatedVersionNotice.Version);
+            Assert.NotEqual(firstNoticeId, repeatedVersionNotice.NoticeId);
         }
         finally
         {

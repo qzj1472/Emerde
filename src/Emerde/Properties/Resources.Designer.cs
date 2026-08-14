@@ -3852,6 +3852,36 @@ namespace Emerde.Properties {
             }
         }
 
+        public static string PreviewRoomMenuToolTip {
+            get {
+                return ResourceManager.GetString("PreviewRoomMenuToolTip", resourceCulture);
+            }
+        }
+
+        public static string OpenRoomMenuToolTip {
+            get {
+                return ResourceManager.GetString("OpenRoomMenuToolTip", resourceCulture);
+            }
+        }
+
+        public static string MonitorRoomMenuToolTip {
+            get {
+                return ResourceManager.GetString("MonitorRoomMenuToolTip", resourceCulture);
+            }
+        }
+
+        public static string RecordRoomMenuToolTip {
+            get {
+                return ResourceManager.GetString("RecordRoomMenuToolTip", resourceCulture);
+            }
+        }
+
+        public static string RemoveRoomMenuToolTip {
+            get {
+                return ResourceManager.GetString("RemoveRoomMenuToolTip", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Full screen.
         /// </summary>
@@ -4551,6 +4581,72 @@ namespace Emerde.Properties {
         public static string RefreshPreviewShortcutHint {
             get {
                 return ResourceManager.GetString("RefreshPreviewShortcutHint", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotes1671Date {
+            get {
+                return ResourceManager.GetString("ReleaseNotes1671Date", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotesAdditionalLabel {
+            get {
+                return ResourceManager.GetString("ReleaseNotesAdditionalLabel", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotesUserFacingLabel {
+            get {
+                return ResourceManager.GetString("ReleaseNotesUserFacingLabel", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotes1671Items {
+            get {
+                return ResourceManager.GetString("ReleaseNotes1671Items", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotes1671Title {
+            get {
+                return ResourceManager.GetString("ReleaseNotes1671Title", resourceCulture);
+            }
+        }
+
+        public static string RepairingVideo {
+            get {
+                return ResourceManager.GetString("RepairingVideo", resourceCulture);
+            }
+        }
+
+        public static string RepairVideo {
+            get {
+                return ResourceManager.GetString("RepairVideo", resourceCulture);
+            }
+        }
+
+        public static string RepairVideoComplete {
+            get {
+                return ResourceManager.GetString("RepairVideoComplete", resourceCulture);
+            }
+        }
+
+        public static string RepairVideoDescription {
+            get {
+                return ResourceManager.GetString("RepairVideoDescription", resourceCulture);
+            }
+        }
+
+        public static string RepairVideoFailed {
+            get {
+                return ResourceManager.GetString("RepairVideoFailed", resourceCulture);
+            }
+        }
+
+        public static string RepairVideoPartial {
+            get {
+                return ResourceManager.GetString("RepairVideoPartial", resourceCulture);
             }
         }
 
@@ -6369,6 +6465,42 @@ namespace Emerde.Properties {
         public static string UserImport {
             get {
                 return ResourceManager.GetString("UserImport", resourceCulture);
+            }
+        }
+
+        public static string UiXWorkspaceHierarchy {
+            get {
+                return ResourceManager.GetString("UiXWorkspaceHierarchy", resourceCulture);
+            }
+        }
+
+        public static string UiXWorkspaceOutput {
+            get {
+                return ResourceManager.GetString("UiXWorkspaceOutput", resourceCulture);
+            }
+        }
+
+        public static string UiXWorkspaceOverview {
+            get {
+                return ResourceManager.GetString("UiXWorkspaceOverview", resourceCulture);
+            }
+        }
+
+        public static string UiXWorkspaceAll {
+            get {
+                return ResourceManager.GetString("UiXWorkspaceAll", resourceCulture);
+            }
+        }
+
+        public static string UiXWorkspaceRecording {
+            get {
+                return ResourceManager.GetString("UiXWorkspaceRecording", resourceCulture);
+            }
+        }
+
+        public static string UiXWorkspaceRun {
+            get {
+                return ResourceManager.GetString("UiXWorkspaceRun", resourceCulture);
             }
         }
 

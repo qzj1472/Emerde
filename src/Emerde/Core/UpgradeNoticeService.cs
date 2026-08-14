@@ -17,25 +17,41 @@ internal static class UpgradeNoticeService
 
     public static UpgradeNoticeState? GetPendingNotice()
     {
+        if (IsDevelopmentBuild())
+        {
+            return TryReadDevelopmentNotice(
+                GetCurrentVersion(),
+                AppConfig.BuildId,
+                Configurations.LastShownUpgradeNoticeDebugBuildId.Get() ?? string.Empty);
+        }
+
         return TryReadPendingNotice(
             AppContext.BaseDirectory,
             GetCurrentVersion(),
-            Configurations.LastShownUpgradeNoticeVersion.Get() ?? string.Empty);
+            Configurations.LastShownUpgradeNoticeId.Get() ?? string.Empty);
     }
 
     public static void MarkShown(UpgradeNoticeState notice)
     {
+        if (IsDevelopmentNotice(notice))
+        {
+            Configurations.LastShownUpgradeNoticeDebugBuildId.Set(notice.NoticeId);
+            _ = ConfigurationSaveScheduler.TrySaveNow();
+            return;
+        }
+
+        Configurations.LastShownUpgradeNoticeId.Set(notice.NoticeId);
         Configurations.LastShownUpgradeNoticeVersion.Set(notice.Version);
-        ConfigurationSaveScheduler.Request();
+        _ = ConfigurationSaveScheduler.TrySaveNow();
         TryUpdatePendingState(
             notice.NoticePath,
-            new UpgradeNoticeFileState(notice.Version, notice.PreviousVersion, notice.InstalledAtUtc, false));
+            new UpgradeNoticeFileState(notice.NoticeId, notice.Version, notice.PreviousVersion, notice.InstalledAtUtc, false));
     }
 
     internal static UpgradeNoticeState? TryReadPendingNotice(
         string baseDirectory,
         string currentVersion,
-        string lastShownVersion)
+        string lastShownNoticeId)
     {
         string? installRoot = TryGetInstallRoot(baseDirectory);
         if (installRoot is null)
@@ -47,18 +63,68 @@ internal static class UpgradeNoticeService
         UpgradeNoticeFileState? state = ReadState(noticePath);
         if (state is not { Pending: true }
             || string.IsNullOrWhiteSpace(state.Version)
-            || !string.Equals(state.Version, currentVersion, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(state.Version, lastShownVersion, StringComparison.OrdinalIgnoreCase))
+            || !string.Equals(state.Version, currentVersion, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        string noticeId = GetNoticeId(state);
+        if (string.Equals(noticeId, lastShownNoticeId, StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
 
         return new UpgradeNoticeState(
+            noticeId,
             state.Version,
             state.PreviousVersion ?? string.Empty,
             state.InstalledAtUtc,
             noticePath,
             state.Pending);
+    }
+
+    internal static UpgradeNoticeState? TryReadDevelopmentNotice(
+        string currentVersion,
+        string buildId,
+        string lastShownBuildId)
+    {
+        if (string.IsNullOrWhiteSpace(currentVersion) || string.IsNullOrWhiteSpace(buildId))
+        {
+            return null;
+        }
+
+        string noticeId = $"debug:{currentVersion}:{buildId}";
+        if (string.Equals(buildId, lastShownBuildId, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(noticeId, lastShownBuildId, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return new UpgradeNoticeState(
+            noticeId,
+            currentVersion,
+            string.Empty,
+            DateTime.UtcNow,
+            string.Empty,
+            true);
+    }
+
+    private static bool IsDevelopmentBuild()
+    {
+        return string.Equals(AppConfig.BuildConfiguration, "Debug", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsDevelopmentNotice(UpgradeNoticeState notice)
+    {
+        return string.IsNullOrWhiteSpace(notice.NoticePath)
+            && notice.NoticeId.StartsWith("debug:", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetNoticeId(UpgradeNoticeFileState state)
+    {
+        return !string.IsNullOrWhiteSpace(state.NoticeId)
+            ? state.NoticeId
+            : $"legacy:{state.Version}:{state.InstalledAtUtc.ToUniversalTime().Ticks}";
     }
 
     internal static string? TryGetInstallRoot(string baseDirectory)
@@ -122,6 +188,7 @@ internal static class UpgradeNoticeService
 }
 
 public sealed record UpgradeNoticeState(
+    string NoticeId,
     string Version,
     string PreviousVersion,
     DateTime InstalledAtUtc,
@@ -129,6 +196,7 @@ public sealed record UpgradeNoticeState(
     bool Pending);
 
 internal sealed record UpgradeNoticeFileState(
+    string? NoticeId,
     string Version,
     string? PreviousVersion,
     DateTime InstalledAtUtc,

@@ -511,10 +511,10 @@
     <value>ブラウザ UserAgent</value>
   </data>
   <data name="UserAgentHint" xml:space="preserve">
-    <value>UserAgent をカスタマイズ可能</value>
+    <value>高度な互換性オプション。通常は変更不要です</value>
   </data>
   <data name="UserAgentEnterHint" xml:space="preserve">
-    <value>空白の場合は内蔵ブラウザ UserAgent を使用</value>
+    <value>空欄の場合は内蔵ブラウザ識別子を自動使用</value>
   </data>
   <data name="Settings" xml:space="preserve">
     <value>設定</value>
@@ -792,9 +792,19 @@
   <data name="UpdateReleaseNotesUpgradeFromFormat" xml:space="preserve"><value>{0} から {1} にアップグレードしました。今回の変更内容は以下です。</value></data>
   <data name="UpdateReleaseNotesUpgradeCurrentFormat" xml:space="preserve"><value>{0} へのアップグレード後、初回起動です。変更内容は以下です。</value></data>
   <data name="UpdateReleaseNotesHistoryLabel" xml:space="preserve"><value>過去の更新履歴</value></data>
+  <data name="AboutOverviewNavigation" xml:space="preserve"><value>説明</value></data>
+  <data name="AboutReleaseNotesNavigation" xml:space="preserve"><value>更新履歴</value></data>
+  <data name="AboutReleaseNotesDescription" xml:space="preserve"><value>各バージョンの変更点と改善内容を確認できます。</value></data>
+  <data name="ReleaseNotesUserFacingLabel" xml:space="preserve"><value>ユーザー向けの変更</value></data>
+  <data name="ReleaseNotesAdditionalLabel" xml:space="preserve"><value>その他の改善</value></data>
+  <data name="ReleaseNotes1671Title" xml:space="preserve"><value>Emerde 1.6.7.1</value></data>
+  <data name="ReleaseNotes1671Date" xml:space="preserve"><value>2026-08-13</value></data>
+  <data name="ReleaseNotes1671Items" xml:space="preserve"><value>長時間録画の安定性、配信停止、データの不連続、音声と映像の同期、録画後の変換失敗への対応を改善しました。|異常な TS、MP4 などから再生可能な音声と映像を可能な範囲で復元する録画修復機能を追加しました。|配信ルームリンクと短縮リンクの認識、重複検出を改善し、同じルームの重複追加を防ぎます。|配信者のアバター、配信状態、ルーム情報の同期を改善し、状態の変化をより早く反映します。|UI-X のルーム追加と個別設定ワークスペースを再設計し、設定の継承、情報階層、操作領域、ウィンドウ対応を改善しました。|ホームカード、プレビューカード、ウィンドウサイズ変更を改善し、余白、切れ、ちらつき、停止、サイズ変更時の遅延を減らしました。|動画一覧のサムネイル、ファイル名、配信者情報、時間とサイズ、形式表示、カード配置、複数選択を改善しました。|UI-X の設定、ルーム情報、ログ出力、設定復元、変換、録画修復、確認ダイアログを統一し、間隔、背景、枠線、ぼかし、操作性を改善しました。|ホームとトレイのコンテキストメニュー、ショートカット、選択状態、設定、拡張機能、バージョン情報画面を改善しました。</value></data>
+  <data name="ReleaseNotes1671AdditionalItems" xml:space="preserve"><value>インストーラー更新後の初回起動通知を改善し、更新履歴をバージョンごとに表示します。|通知、トレイアイコン、読み込み状態、アバター更新を改善し、変化をより早く伝えます。|録画ファイルの保存、クリーンアップ、設定復元を改善し、既存データへの誤操作の影響を減らしました。|異常ファイルの処理、変換失敗の通知、録画修復結果の表示を改善しました。</value></data>
   <data name="ReleaseNotes1670Title" xml:space="preserve"><value>Emerde 1.6.7.0</value></data>
   <data name="ReleaseNotes1670Date" xml:space="preserve"><value>2026-08-10</value></data>
-  <data name="ReleaseNotes1670Items" xml:space="preserve"><value>インストーラーのパッケージ化とメンテナンスフローを整え、インストール、アップグレード、修復、アンインストール、実行中の確認、ユーザーデータ保持を改善しました。|インストール先の構成、アンインストール用ショートカット、メンテナンスファイル、アイコン素材、GitHub 表示用アイコンを整理しました。|通常の配布を Debug の自己完結ビルドとインストーラーに変更し、単独の Release アーカイブは既定では作成しないようにしました。|Douyin や Bilibili など、モバイル共有文からの短縮リンク認識を強化しました。|配信ルーム URL の正規化と重複検出を改善し、異なるリンクから同じルームが重複追加されることを防ぎます。|録画クリーンアップを次の期限に合わせて実行する方式にし、不要なスキャンを減らしました。|時間ループ、パス処理、ファイル保存、アバター更新、トレイアイコン、読み込みアニメーションを見直しました。|ホームの配信ルームカード、右クリック操作、情報ダイアログ、範囲選択を調整し、切り替え可能な UI-X レイアウトを追加しました。|インストーラーでアップグレードした後の初回起動時に更新履歴を表示し、今後の 1.6.7.x 小更新も 4 桁バージョンで判定します。</value></data>
+  <data name="ReleaseNotes1670Items" xml:space="preserve"><value>インストール、アップグレード、アンインストール、修復、設定復元を改善し、ユーザー設定とデータをより確実に保持します。|Douyin や Bilibili など、モバイル共有文と短縮リンクの認識を強化しました。|配信ルーム URL の取り込み、正規化、重複検出を改善しました。|ホームの配信ルームカード、コンテキストメニュー、情報ダイアログ、範囲選択を改善しました。|切り替え可能な UI-X ホームレイアウトを追加しました。</value></data>
+  <data name="ReleaseNotes1670AdditionalItems" xml:space="preserve"><value>録画のクリーンアップ、ファイル保存、アバター更新、トレイ状態の表示を改善しました。|インストーラー更新後の初回起動時に更新履歴を表示するようにしました。|複数プラットフォームの配信ルーム認識と一般的な操作フィードバックを改善しました。</value></data>
   <data name="ReleaseNotesUnknownTitle" xml:space="preserve"><value>Emerde 更新</value></data>
   <data name="ReleaseNotesUnknownItem" xml:space="preserve"><value>このバージョンには安定性と操作性の改善が含まれています。</value></data>
   <data name="ConfigurationRecovered" xml:space="preserve"><value>設定ファイルが無効なため、{0} に保存しました。Emerde は既定の設定で起動しました。</value></data>
@@ -857,6 +867,11 @@
   <data name="ToggleCurrentMonitorToolTip" xml:space="preserve"><value>現在の配信ルームの監視を開始または一時停止（Shift+M）</value></data>
   <data name="ToggleCurrentRecordingToolTip" xml:space="preserve"><value>現在の配信ルームの録画を開始または一時停止（Shift+R）</value></data>
   <data name="RemoveRoomShortcutHint" xml:space="preserve"><value>現在の配信ルームを削除（Del）</value></data>
+  <data name="PreviewRoomMenuToolTip" xml:space="preserve"><value>プレビュー（Q）</value></data>
+  <data name="OpenRoomMenuToolTip" xml:space="preserve"><value>配信ルームを開く（E）</value></data>
+  <data name="MonitorRoomMenuToolTip" xml:space="preserve"><value>監視（Shift+M）</value></data>
+  <data name="RecordRoomMenuToolTip" xml:space="preserve"><value>録画（Shift+R）</value></data>
+  <data name="RemoveRoomMenuToolTip" xml:space="preserve"><value>削除（Del）</value></data>
   <data name="OpenCurrentRoomSettingsToolTip" xml:space="preserve"><value>現在の配信ルーム設定を開く</value></data>
   <data name="AutoShutdownDebugSkipped" xml:space="preserve"><value>コンピューターのシャットダウンが実行されました。デバッグモードでは Windows をシャットダウンしません。</value></data>
   <data name="CancellingTranscode" xml:space="preserve"><value>トランスコードを停止しています...</value></data>
@@ -1228,4 +1243,21 @@
   <data name="AboutEnsureDiskSpace" xml:space="preserve"><value>• 録画の中断やファイル破損を防ぐため、保存先ディスクに十分な空き容量を確保してください</value></data>
   <data name="AboutStreamStallEffects" xml:space="preserve"><value>• ネットワークや配信元の停止により、映像のフリーズ、フレーム欠落、音声と映像の異常が発生することがあります</value></data>
   <data name="AboutFeedbackDetails" xml:space="preserve"><value>• 問題を報告する際は、症状、ルームリンク、発生時刻、操作手順、スクリーンショット、対応するログを添えてください</value></data>
+  <data name="RepairVideo" xml:space="preserve"><value>録画を修復</value></data>
+  <data name="RepairVideoDescription" xml:space="preserve"><value>読み取り可能な音声と映像から新しいファイルを作成します。破損した録画には MKV を推奨します。MP4 には互換性のあるストリームが必要です。元のファイルは変更されず、失われた内容は復元できません。</value></data>
+  <data name="RepairingVideo" xml:space="preserve"><value>録画を修復しています...</value></data>
+  <data name="RepairVideoComplete" xml:space="preserve"><value>録画の修復が完了しました</value></data>
+  <data name="RepairVideoPartial" xml:space="preserve"><value>復元可能な内容を保存しましたが、タイムラインは完全ではありません</value></data>
+  <data name="RepairVideoFailed" xml:space="preserve"><value>録画を修復できませんでした</value></data>
+  <data name="UiXWorkspaceOverview" xml:space="preserve"><value>概要</value></data>
+  <data name="UiXWorkspaceAll" xml:space="preserve"><value>すべて</value></data>
+  <data name="UiXWorkspaceRun" xml:space="preserve"><value>実行</value></data>
+  <data name="UiXWorkspaceRecording" xml:space="preserve"><value>録画</value></data>
+  <data name="UiXWorkspaceOutput" xml:space="preserve"><value>出力</value></data>
+  <data name="UiXWorkspaceHierarchy" xml:space="preserve"><value>フォルダー階層</value></data>
+  <data name="UiXWorkspaceWaitingForAddress" xml:space="preserve"><value>配信ルームのアドレスを入力すると自動識別します</value></data>
+  <data name="UiXWorkspaceIdentify" xml:space="preserve"><value>識別</value></data>
+  <data name="UiXWorkspaceGlobalDescription" xml:space="preserve"><value>継承した設定は読み取り専用で表示されます。編集するにはカスタムに切り替えてください。</value></data>
+  <data name="UiXWorkspaceCustomDescription" xml:space="preserve"><value>この配信ルームは独自の監視、録画、出力設定を使用します。</value></data>
+  <data name="UiXWorkspaceNoSegment" xml:space="preserve"><value>分割なし</value></data>
 </root>

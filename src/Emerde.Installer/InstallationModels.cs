@@ -30,6 +30,7 @@ internal sealed record RepairState(
     IReadOnlyList<RepairFileState> Files);
 
 internal sealed record UpgradeNoticeState(
+    string? NoticeId,
     string Version,
     string PreviousVersion,
     DateTime InstalledAtUtc,
