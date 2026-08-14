@@ -288,41 +288,337 @@ public sealed class ScreenRecordListWindowTests
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         XElement list = document.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "VideoListBox");
         XElement listStyle = list.Elements().Single(element => element.Name.LocalName == "ListBox.Style").Elements().Single();
-        XElement rootPanel = listStyle.Elements()
+        XElement legacyPanel = listStyle.Elements()
             .Single(element => element.Name.LocalName == "Setter" && (string?)element.Attribute("Property") == "ItemsPanel")
+            .Descendants()
+            .Single(element => element.Name.LocalName == "ItemsPanelTemplate");
+        XElement uiXPanel = listStyle.Descendants()
+            .Where(element => element.Name.LocalName == "Setter" && (string?)element.Attribute("Property") == "ItemsPanel")
+            .Skip(1)
+            .Single()
             .Descendants()
             .Single(element => element.Name.LocalName == "ItemsPanelTemplate");
         XElement groupPanel = document.Descendants()
             .Single(element => element.Name.LocalName == "ItemsPanelTemplate"
                 && (string?)element.Attribute(x + "Key") == "UiXVideoGroupPanelTemplate");
-
         Assert.Contains("Width=\"{Binding VideoCardGridWidth", xaml, StringComparison.Ordinal);
         Assert.Contains("VideoDateGroupHeaderTemplate", xaml, StringComparison.Ordinal);
         Assert.Contains("UiXVideoGroupPanelTemplate", xaml, StringComparison.Ordinal);
         Assert.Contains("UiXVideoGroupTemplate", xaml, StringComparison.Ordinal);
-        Assert.Contains(rootPanel.Descendants(), element => element.Name.LocalName == "VirtualizingStackPanel");
-        Assert.DoesNotContain(rootPanel.Descendants(), element => element.Name.LocalName == "VirtualizingWrapPanel");
-        Assert.Contains(groupPanel.Descendants(), element => element.Name.LocalName == "VirtualizingWrapPanel"
+        Assert.Contains(legacyPanel.Descendants(), element => element.Name.LocalName == "VirtualizingStackPanel");
+        Assert.Contains(uiXPanel.Descendants(), element => element.Name.LocalName == "UniformGrid"
             && ((string?)element.Attribute("Width"))?.StartsWith("{Binding VideoCardGridWidth", StringComparison.Ordinal) == true
-            && ((string?)element.Attribute("ItemSize"))?.StartsWith("{Binding VideoCardItemSize", StringComparison.Ordinal) == true
-            && (string?)element.Attribute("Orientation") == "Vertical"
-            && (string?)element.Attribute("SpacingMode") == "None");
+            && ((string?)element.Attribute("Columns"))?.StartsWith("{Binding VideoCardColumnCount", StringComparison.Ordinal) == true
+            && (string?)element.Attribute("HorizontalAlignment") == "Center");
+        Assert.Contains(groupPanel.Descendants(), element => element.Name.LocalName == "VirtualizingStackPanel"
+            && (string?)element.Attribute("Orientation") == "Vertical");
         Assert.Contains("VirtualizingPanel.IsVirtualizingWhenGrouping=\"True\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Value=\"{Binding VideoCardWidth", xaml, StringComparison.Ordinal);
         Assert.Contains("Value=\"{Binding VideoCardMargin", xaml, StringComparison.Ordinal);
+        Assert.Contains("Width=\"{Binding VideoCardCoverWidth", xaml, StringComparison.Ordinal);
         Assert.Contains("Height=\"{Binding VideoCardCoverHeight", xaml, StringComparison.Ordinal);
+        Assert.Contains("Height\" Value=\"{Binding VideoCardHeight", xaml, StringComparison.Ordinal);
         Assert.Contains("HorizontalAlignment=\"Stretch\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding FormatText}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Binding=\"{Binding IsTargetFormat}\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("NonStandardFormatText", xaml, StringComparison.Ordinal);
         Assert.Contains("UpdateVideoCardMetrics", code, StringComparison.Ordinal);
+        Assert.Contains("CalculateVideoCardColumns", code, StringComparison.Ordinal);
+        Assert.Contains("UiXVideoCardBaseWidth = 378d", code, StringComparison.Ordinal);
+        Assert.Contains("UiXVideoCardMinimumWidth = 227d", code, StringComparison.Ordinal);
+        Assert.Contains("UiXVideoCardMaximumWidth = 432d", code, StringComparison.Ordinal);
+        Assert.Contains("UiXVideoCardInformationWidthRatio = 1.5d", code, StringComparison.Ordinal);
+        Assert.Contains("UiXVideoCardMinimumInformationWidthRatio = 1.5d", code, StringComparison.Ordinal);
+        Assert.Contains("UiXVideoCardCoverAspectWidth = 3d", code, StringComparison.Ordinal);
+        Assert.Contains("UiXVideoCardCoverAspectHeight = 2d", code, StringComparison.Ordinal);
+        Assert.Contains("UiXVideoCardFileNameFontSize = 13d", code, StringComparison.Ordinal);
+        Assert.Contains("UiXVideoCardSecondaryFontSize = 11d", code, StringComparison.Ordinal);
+        Assert.Contains("UiXVideoCardDetailFontSize = 10d", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("UiXVideoCardMinimumTextScale", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("textScale", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("UiXVideoCardStatusBottomInset", code, StringComparison.Ordinal);
         Assert.Contains("UiXVideoCardHorizontalGap = 12d", code, StringComparison.Ordinal);
         Assert.Contains("UiXVideoCardVerticalGap = 12d", code, StringComparison.Ordinal);
+        Assert.Contains("UiXVideoCardColumnHysteresis = 16d", code, StringComparison.Ordinal);
+        Assert.Contains("CalculateVideoCardHeight(padding, coverHeight, informationHeight)", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("VideoListScrollContentPresenterSizeChanged", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("SizeChanged=\"VideoListScrollContentPresenterSizeChanged\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("MaxHeight\" Value=\"{Binding VideoCardHeight", xaml, StringComparison.Ordinal);
+        Assert.Contains("CalculateVideoCardCoverWidth", code, StringComparison.Ordinal);
+        Assert.Contains("CalculateVideoCardCoverHeight", code, StringComparison.Ordinal);
+        Assert.Contains("gridWidth = WindowSizing.RoundLayoutValue(columns * slotWidth)", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("VideoCardItemSize", code, StringComparison.Ordinal);
+        Assert.Contains("VideoListScrollContentPresenter", xaml, StringComparison.Ordinal);
+        Assert.Contains("GetVideoCardContentWidth", code, StringComparison.Ordinal);
+        Assert.Contains("CalculateVideoCardLayout", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("MainWindow.GetCardWidthRange", code, StringComparison.Ordinal);
+        Assert.Contains("cardWidth = Math.Clamp(naturalCardWidth, minimumCardWidth, maximumCardWidth)", code, StringComparison.Ordinal);
+        Assert.Contains("DispatcherPriority.Render", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("CalculateVideoCardWidth", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("hasPartialRow", code, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding UiXStreamerText}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding RecordingTimeText}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding FileSizeText}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"{Binding UiXSummaryText}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"{Binding ResolutionChipText}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("TextWrapping=\"Wrap\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Height=\"{Binding VideoCardFileNameHeight", xaml, StringComparison.Ordinal);
+        Assert.Contains("ClipToBounds=\"True\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding UiXWrappedFileName}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("FontSize=\"{Binding VideoCardFileNameFontSize", xaml, StringComparison.Ordinal);
+        Assert.Contains("FontSize=\"{Binding VideoCardSecondaryFontSize", xaml, StringComparison.Ordinal);
+        Assert.Contains("FontSize=\"{Binding VideoCardDetailFontSize", xaml, StringComparison.Ordinal);
+        Assert.Contains("LineHeight=\"{Binding VideoCardFileNameLineHeight", xaml, StringComparison.Ordinal);
+        Assert.Contains("LineHeight=\"{Binding VideoCardSecondaryLineHeight", xaml, StringComparison.Ordinal);
+        Assert.Contains("LineHeight=\"{Binding VideoCardDetailLineHeight", xaml, StringComparison.Ordinal);
+        Assert.Contains("Value=\"{Binding VideoCardPadding", xaml, StringComparison.Ordinal);
+        Assert.Contains("Margin=\"{Binding VideoCardInfoMargin", xaml, StringComparison.Ordinal);
+        Assert.Contains("Height=\"{Binding VideoCardStatusHeight", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("VideoCardStatusMargin", xaml, StringComparison.Ordinal);
+        Assert.Contains("ToolTip=\"{Binding FileName}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("HoverMarquee", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"VideoCardStatusRow\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Grid.Column=\"1\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("VerticalAlignment=\"Center\"", xaml, StringComparison.Ordinal);
         Assert.Contains("UpdateVideoListGrouping", code, StringComparison.Ordinal);
         Assert.Contains("PropertyGroupDescription(nameof(RecordedVideoItem.DateGroupKey))", code, StringComparison.Ordinal);
         Assert.Contains("VideoDateGroupLabelConverter", code, StringComparison.Ordinal);
         Assert.Contains("DateGroupKey => CreatedAt.Date", code, StringComparison.Ordinal);
         Assert.DoesNotContain("ItemSize=\"224,224\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(779d, 1)]
+    [InlineData(780d, 2)]
+    [InlineData(1169d, 2)]
+    [InlineData(1170d, 3)]
+    [InlineData(1559d, 3)]
+    [InlineData(1560d, 4)]
+    public void VideoCardColumns_ChangeMonotonicallyAtTheExactSlotBoundary(double availableWidth, int expectedColumns)
+    {
+        Assert.Equal(expectedColumns, ScreenRecordListWindow.CalculateVideoCardColumns(availableWidth, 378d, 12d));
+    }
+
+    [Fact]
+    public void VideoCardLayout_DoesNotResizeCardsWhenAColumnIsAdded()
+    {
+        (int beforeColumns, double beforeCardWidth, _) = ScreenRecordListWindow.CalculateVideoCardLayout(1560d, 378d, 378d, 432d, 12d);
+        (int afterColumns, double afterCardWidth, _) = ScreenRecordListWindow.CalculateVideoCardLayout(1561d, 378d, 378d, 432d, 12d);
+
+        Assert.Equal(4, beforeColumns);
+        Assert.Equal(4, afterColumns);
+        Assert.InRange(Math.Abs(afterCardWidth - beforeCardWidth), 0d, 1d);
+        Assert.Equal(378d, beforeCardWidth);
+        Assert.Equal(378d, afterCardWidth);
+    }
+
+    [Theory]
+    [InlineData(265d, 8d, 8d, 96d, 64d, 59d, 80d)]
+    [InlineData(378d, 12d, 12d, 136d, 91d, 83d, 115d)]
+    [InlineData(432d, 14d, 14d, 156d, 104d, 95d, 132d)]
+    public void VideoCardGeometry_PreservesCoverAndInformationRatios(
+        double cardWidth,
+        double padding,
+        double informationGap,
+        double expectedCoverWidth,
+        double expectedCoverHeight,
+        double informationHeight,
+        double expectedCardHeight)
+    {
+        double coverWidth = ScreenRecordListWindow.CalculateVideoCardCoverWidth(cardWidth, padding, informationGap, 1.5d, 1.5d);
+        double coverHeight = ScreenRecordListWindow.CalculateVideoCardCoverHeight(coverWidth, 3d, 2d);
+        double informationWidth = cardWidth - padding * 2d - informationGap - coverWidth;
+
+        Assert.Equal(expectedCoverWidth, coverWidth);
+        Assert.Equal(expectedCoverHeight, coverHeight);
+        Assert.Equal(expectedCardHeight, ScreenRecordListWindow.CalculateVideoCardHeight(padding, coverHeight, informationHeight));
+        Assert.InRange(coverWidth / coverHeight, 1.49d, 1.51d);
+        Assert.True(informationWidth / coverWidth >= 1.5d);
+    }
+
+    [Theory]
+    [InlineData(2, 3, 1185d, 2)]
+    [InlineData(2, 3, 1186d, 3)]
+    [InlineData(3, 2, 1170d, 3)]
+    [InlineData(3, 2, 1169d, 2)]
+    public void VideoCardColumns_UseDirectionalHysteresisAtLayoutBoundaries(
+        int currentColumns,
+        int candidateColumns,
+        double availableWidth,
+        int expectedColumns)
+    {
+        Assert.Equal(expectedColumns, ScreenRecordListWindow.StabilizeVideoCardColumns(
+            currentColumns,
+            candidateColumns,
+            availableWidth,
+            378d,
+            12d,
+            16d));
+    }
+
+    [Fact]
+    public void VideoCardLayout_UsesAllAvailableWidthWithinTheCurrentColumn()
+    {
+        (int columns, double cardWidth, double slotWidth) = ScreenRecordListWindow.CalculateVideoCardLayout(1560d, 378d, 378d, 432d, 12d);
+
+        Assert.Equal(4, columns);
+        Assert.Equal(378d, cardWidth);
+        Assert.Equal(390d, slotWidth);
+        Assert.Equal(1560d, slotWidth * columns);
+    }
+
+    [Theory]
+    [InlineData(900d)]
+    [InlineData(975d)]
+    [InlineData(1110d)]
+    [InlineData(1218d)]
+    [InlineData(1560d)]
+    public void VideoCardLayout_NeverPlacesTheLastColumnOutsideTheContentTrack(double availableWidth)
+    {
+        (int columns, double cardWidth, double slotWidth) = ScreenRecordListWindow.CalculateVideoCardLayout(availableWidth, 378d, 378d, 432d, 12d);
+
+        Assert.True(columns * slotWidth <= availableWidth + 0.5d || columns == 1);
+        Assert.Equal(cardWidth + 12d, slotWidth);
+    }
+
+    [Theory]
+    [InlineData(-20d, 400d, -20d)]
+    [InlineData(0d, 400d, -20d)]
+    [InlineData(22d, 400d, -12d)]
+    [InlineData(44d, 400d, 0d)]
+    [InlineData(200d, 400d, 0d)]
+    [InlineData(356d, 400d, 0d)]
+    [InlineData(378d, 400d, 12d)]
+    [InlineData(400d, 400d, 20d)]
+    [InlineData(420d, 400d, 20d)]
+    public void MarqueeAutoScroll_UsesBoundedAccelerationAtViewportEdges(double pointerY, double viewportHeight, double expectedDelta)
+    {
+        Assert.Equal(expectedDelta, Emerde.Controls.MarqueeAutoScroll.GetDelta(pointerY, viewportHeight), 6);
+    }
+
+    [Fact]
+    public void VideoAndHomeMarquee_KeepEdgeAutoScrollAndAccumulatedSelection()
+    {
+        string videoCode = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
+        string homeCode = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
+
+        Assert.Contains("VideoMarqueeAutoScrollTimerTick", videoCode, StringComparison.Ordinal);
+        Assert.Contains("AccumulateVideoMarqueeItems", videoCode, StringComparison.Ordinal);
+        Assert.Contains("RoomCardMarqueeAutoScrollTimerTick", homeCode, StringComparison.Ordinal);
+        Assert.Contains("AccumulateRoomCardMarqueeItems", homeCode, StringComparison.Ordinal);
+        Assert.Contains("GetVideoMarqueeContentPoint", videoCode, StringComparison.Ordinal);
+        Assert.Contains("ProjectVideoMarqueeToViewport", videoCode, StringComparison.Ordinal);
+        Assert.Contains("GetRoomCardMarqueeContentPoint", homeCode, StringComparison.Ordinal);
+        Assert.Contains("ProjectRoomCardMarqueeToViewport", homeCode, StringComparison.Ordinal);
+        Assert.Contains("!isRoomCardDragging && !isRoomCardMarqueeSelecting", homeCode, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(390d)]
+    [InlineData(378d)]
+    [InlineData(450d)]
+    [InlineData(1560d)]
+    [InlineData(2100d)]
+    public void VideoCardLayout_StaysWithinItsSingleElasticRange(double availableWidth)
+    {
+        (_, double cardWidth, _) = ScreenRecordListWindow.CalculateVideoCardLayout(availableWidth, 378d, 378d, 432d, 12d);
+
+        Assert.InRange(cardWidth, 378d, 432d);
+    }
+
+    [Fact]
+    public void TimeRangeFilter_BindsToTheLocalizedOptionValue()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
+
+        Assert.Contains("SelectedItem=\"{Binding SelectedTimeRange, Mode=TwoWay}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("SelectedTimeRange = TimeRangeOptions.Count == 0 ? null : TimeRangeOptions[SelectedTimeRangeIndex]", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GroupedVideoLayout_StacksDatesAndWrapsVisibleCardsFromLeftToRight()
+    {
+        RunOnStaThread(() =>
+        {
+            GroupedVideoLayoutItem[] items =
+            [
+                new(new DateTime(2026, 8, 13), "first"),
+                new(new DateTime(2026, 8, 13), "second"),
+                new(new DateTime(2026, 8, 7), "third"),
+            ];
+            System.Windows.Data.ListCollectionView view = new(items);
+            view.GroupDescriptions.Add(new System.Windows.Data.PropertyGroupDescription(nameof(GroupedVideoLayoutItem.Date)));
+
+            System.Windows.FrameworkElementFactory itemPanel = new(typeof(System.Windows.Controls.Primitives.UniformGrid));
+            itemPanel.SetValue(System.Windows.FrameworkElement.WidthProperty, 780d);
+            itemPanel.SetValue(System.Windows.Controls.Primitives.UniformGrid.ColumnsProperty, 2);
+            System.Windows.FrameworkElementFactory groupPanel = new(typeof(System.Windows.Controls.VirtualizingStackPanel));
+            groupPanel.SetValue(System.Windows.Controls.VirtualizingStackPanel.OrientationProperty, System.Windows.Controls.Orientation.Vertical);
+            System.Windows.FrameworkElementFactory groupItemsPresenter = new(typeof(System.Windows.Controls.ItemsPresenter));
+            System.Windows.FrameworkElementFactory groupHeader = new(typeof(System.Windows.Controls.ContentPresenter));
+            groupHeader.SetValue(System.Windows.Controls.ContentPresenter.ContentProperty, new System.Windows.TemplateBindingExtension(System.Windows.Controls.ContentControl.ContentProperty));
+            System.Windows.FrameworkElementFactory groupStack = new(typeof(System.Windows.Controls.StackPanel));
+            groupStack.AppendChild(groupHeader);
+            groupStack.AppendChild(groupItemsPresenter);
+            System.Windows.Controls.ControlTemplate groupTemplate = new(typeof(System.Windows.Controls.GroupItem))
+            {
+                VisualTree = groupStack,
+            };
+
+            System.Windows.Controls.ListBox listBox = new()
+            {
+                Width = 800d,
+                Height = 500d,
+                ItemsSource = view,
+                ItemsPanel = new System.Windows.Controls.ItemsPanelTemplate(itemPanel),
+            };
+            System.Windows.Controls.VirtualizingPanel.SetIsVirtualizing(listBox, false);
+            listBox.GroupStyle.Add(new System.Windows.Controls.GroupStyle
+            {
+                Panel = new System.Windows.Controls.ItemsPanelTemplate(groupPanel),
+                ContainerStyle = new System.Windows.Style(typeof(System.Windows.Controls.GroupItem))
+                {
+                    Setters =
+                    {
+                        new System.Windows.Setter(System.Windows.Controls.Control.TemplateProperty, groupTemplate),
+                    },
+                },
+            });
+            System.Windows.Window window = new()
+            {
+                Width = 820d,
+                Height = 520d,
+                Left = -10000d,
+                Top = -10000d,
+                ShowInTaskbar = false,
+                WindowStyle = System.Windows.WindowStyle.None,
+                Content = listBox,
+            };
+
+            try
+            {
+                window.Show();
+                listBox.UpdateLayout();
+
+                System.Windows.Controls.GroupItem[] groups = FindVisualDescendants<System.Windows.Controls.GroupItem>(listBox).ToArray();
+                System.Windows.Controls.ListBoxItem[] cards = FindVisualDescendants<System.Windows.Controls.ListBoxItem>(listBox).ToArray();
+
+                Assert.Equal(2, groups.Length);
+                Assert.Equal(3, cards.Length);
+                System.Windows.Point firstGroupPosition = groups[0].TranslatePoint(new System.Windows.Point(), listBox);
+                System.Windows.Point secondGroupPosition = groups[1].TranslatePoint(new System.Windows.Point(), listBox);
+                System.Windows.Point firstCardPosition = cards[0].TranslatePoint(new System.Windows.Point(), listBox);
+                System.Windows.Point secondCardPosition = cards[1].TranslatePoint(new System.Windows.Point(), listBox);
+                Assert.True(secondGroupPosition.Y > firstGroupPosition.Y, $"Date groups were arranged at {firstGroupPosition} and {secondGroupPosition}.");
+                Assert.True(secondCardPosition.X > firstCardPosition.X, $"Video cards were arranged at {firstCardPosition} and {secondCardPosition}.");
+                Assert.All(cards, card => Assert.True(card.ActualHeight > 0d));
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
     }
 
     [Fact]
@@ -382,6 +678,7 @@ public sealed class ScreenRecordListWindowTests
         Assert.Contains("Margin=\"{StaticResource UiXPageHeaderMargin}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"VideoListHeaderActions\"", xaml, StringComparison.Ordinal);
         Assert.Contains("<TranslateTransform Y=\"8\" />", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<TranslateTransform Y=\"0\" />", xaml, StringComparison.Ordinal);
         Assert.Contains("Margin=\"20,8,22,0\"", xaml, StringComparison.Ordinal);
         Assert.Contains("OpacityMask=\"{StaticResource TopEdgeFadeOpacityMask}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Margin=\"20,0,22,10\"", xaml, StringComparison.Ordinal);
@@ -1758,4 +2055,48 @@ public sealed class ScreenRecordListWindowTests
         Assert.True(end > start);
         return source[start..end];
     }
+
+    private static IEnumerable<T> FindVisualDescendants<T>(System.Windows.DependencyObject root)
+        where T : System.Windows.DependencyObject
+    {
+        for (int index = 0; index < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            System.Windows.DependencyObject child = System.Windows.Media.VisualTreeHelper.GetChild(root, index);
+            if (child is T match)
+            {
+                yield return match;
+            }
+
+            foreach (T descendant in FindVisualDescendants<T>(child))
+            {
+                yield return descendant;
+            }
+        }
+    }
+
+    private static void RunOnStaThread(Action action)
+    {
+        Exception? error = null;
+        Thread thread = new(() =>
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception exception)
+            {
+                error = exception;
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (error != null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error).Throw();
+        }
+    }
+
+    private sealed record GroupedVideoLayoutItem(DateTime Date, string Name);
 }

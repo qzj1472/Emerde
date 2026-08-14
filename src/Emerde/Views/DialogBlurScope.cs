@@ -57,6 +57,7 @@ internal sealed class DialogBlurScope : IDisposable
     private readonly ContentDialog? contentDialog;
     private readonly BlurEffect? activeBlurEffect;
     private readonly double targetBlurRadius;
+    private readonly Action? lightDismissAction;
     private static int activeDialogCount;
     private bool isDisposed;
     private bool isExitAnimating;
@@ -65,12 +66,13 @@ internal sealed class DialogBlurScope : IDisposable
 
     public static bool HasActiveDialog => Volatile.Read(ref activeDialogCount) > 0;
 
-    public DialogBlurScope(Window? owner = null, double radius = 8d, object? dialog = null, bool isLightDismissEnabled = false, bool keepOwnerEnabled = true, bool showBackdrop = true)
+    public DialogBlurScope(Window? owner = null, double radius = 8d, object? dialog = null, bool isLightDismissEnabled = false, bool keepOwnerEnabled = true, bool showBackdrop = true, WpfPanel? backdropOverride = null, Action? lightDismissAction = null)
     {
+        this.lightDismissAction = lightDismissAction;
         bool animate = ShouldAnimate();
         WpfBrush backdropBrush = CreateBackdropBrush();
         ApplyBuiltInSmoke(dialog, backdropBrush);
-        AttachDialogMask(dialog, backdropBrush, isLightDismissEnabled);
+        AttachDialogMask(dialog, backdropBrush, isLightDismissEnabled, lightDismissAction);
         dialogMaskClearTimer = dialog is FrameworkElement dialogElement
             ? StartDialogMaskClearPump(dialogElement)
             : null;
@@ -105,7 +107,7 @@ internal sealed class DialogBlurScope : IDisposable
             }
         }
 
-        backdrop = showBackdrop ? FindBackdrop(window) : null;
+        backdrop = showBackdrop ? backdropOverride ?? FindBackdrop(window) : null;
         if (backdrop != null)
         {
             previousBackdropBackground = backdrop.Background;
@@ -122,7 +124,11 @@ internal sealed class DialogBlurScope : IDisposable
                     e.Handled = true;
                     if (isLightDismissEnabled && dialog != null)
                     {
-                        HideDialog(dialog);
+                        RequestLightDismiss(dialog);
+                    }
+                    else if (isLightDismissEnabled)
+                    {
+                        lightDismissAction?.Invoke();
                     }
                 }
             };
@@ -155,14 +161,14 @@ internal sealed class DialogBlurScope : IDisposable
         return new DialogBlurScope(owner, radius, dialog);
     }
 
-    public static DialogBlurScope ForOwnedWindow(Window? owner, Window dialog, double radius = 8d)
-    {
-        return new DialogBlurScope(owner, radius, null, false, false);
-    }
-
     public static DialogBlurScope ForMessageBox(Window? owner, double radius = 8d)
     {
         return new DialogBlurScope(owner, radius, null, false, false, false);
+    }
+
+    public static DialogBlurScope ForOverlay(Window? owner, WpfPanel backdrop, double radius = 8d)
+    {
+        return new DialogBlurScope(owner, radius, null, false, true, true, backdrop);
     }
 
     internal async Task PlayExitAsync()
@@ -665,7 +671,7 @@ internal sealed class DialogBlurScope : IDisposable
         return effectiveOpacity > 0d && effectiveOpacity <= 0.72d;
     }
 
-    private static void AttachDialogMask(object? dialog, WpfBrush backdropBrush, bool isLightDismissEnabled)
+    private static void AttachDialogMask(object? dialog, WpfBrush backdropBrush, bool isLightDismissEnabled, Action? lightDismissAction)
     {
         if (dialog is not UIElement dialogElement)
         {
@@ -700,7 +706,11 @@ internal sealed class DialogBlurScope : IDisposable
                         e.Handled = true;
                         if (isLightDismissEnabled)
                         {
-                            HideDialog(dialog);
+                            lightDismissAction?.Invoke();
+                            if (lightDismissAction == null)
+                            {
+                                HideDialog(dialog);
+                            }
                         }
                     };
                 }
@@ -823,7 +833,9 @@ internal sealed class DialogBlurScope : IDisposable
 
             if (baseBorderObject is WpfBorder baseBorder)
             {
-                baseBorder.Background = transparentBrush;
+                baseBorder.SetBinding(
+                    WpfBorder.BackgroundProperty,
+                    new System.Windows.Data.Binding(nameof(WpfControl.Background)) { Source = control });
             }
         }
     }
@@ -902,5 +914,16 @@ internal sealed class DialogBlurScope : IDisposable
             .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
             .FirstOrDefault(method => method.Name == "Hide" && method.GetParameters().Length == 0);
         hide?.Invoke(dialog, null);
+    }
+
+    private void RequestLightDismiss(object dialog)
+    {
+        if (lightDismissAction != null)
+        {
+            lightDismissAction();
+            return;
+        }
+
+        HideDialog(dialog);
     }
 }

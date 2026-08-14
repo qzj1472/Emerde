@@ -1,0 +1,592 @@
+<UserControl x:Class="Emerde.Views.UiXRoomWorkspace"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Emerde.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:Emerde.Views"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             d:DesignHeight="720"
+             d:DesignWidth="1040"
+             PreviewKeyDown="WorkspacePreviewKeyDown"
+             Background="Transparent"
+             FocusVisualStyle="{x:Null}"
+             SnapsToDevicePixels="True"
+             UseLayoutRounding="True"
+             mc:Ignorable="d">
+    <UserControl.Resources>
+        <Style BasedOn="{StaticResource {x:Type controls:CompactNumberBox}}" TargetType="{x:Type controls:CompactNumberBox}">
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        </Style>
+        <Style BasedOn="{StaticResource {x:Type ui:ToggleSwitch}}" TargetType="{x:Type ui:ToggleSwitch}">
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        </Style>
+        <Style x:Key="WorkspaceStageButtonStyle" TargetType="{x:Type RadioButton}">
+            <Setter Property="MinWidth" Value="116" />
+            <Setter Property="Height" Value="38" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Foreground" Value="{DynamicResource UiXTextSecondaryBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type RadioButton}">
+                        <Border x:Name="Chrome"
+                                Padding="16,0"
+                                Background="Transparent"
+                                CornerRadius="8">
+                            <Grid>
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Border x:Name="Indicator"
+                                        Width="20"
+                                        Height="2"
+                                        Margin="0,0,0,3"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Bottom"
+                                        Background="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                        CornerRadius="1"
+                                        Opacity="0" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource UiXDialogSubtleBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource UiXDialogSelectionBrush}" />
+                                <Setter TargetName="Indicator" Property="Opacity" Value="1" />
+                                <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="WorkspaceModeButtonStyle" TargetType="{x:Type RadioButton}" BasedOn="{StaticResource WorkspaceStageButtonStyle}">
+            <Setter Property="MinWidth" Value="96" />
+            <Setter Property="Height" Value="34" />
+        </Style>
+        <Style x:Key="WorkspaceNotificationButtonStyle" TargetType="{x:Type ToggleButton}">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource UiXTextSecondaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ToggleButton}">
+                        <Border x:Name="Chrome"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource UiXDialogSubtleBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource UiXDialogSelectionBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="WorkspaceSectionStyle" TargetType="{x:Type Border}">
+            <Setter Property="Padding" Value="18,16" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+            <Setter Property="Background" Value="{DynamicResource UiXDialogSectionBrush}" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <Style x:Key="WorkspaceChildSectionStyle" TargetType="{x:Type Border}">
+            <Setter Property="Margin" Value="24,4,0,8" />
+            <Setter Property="Padding" Value="0,4,0,2" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style x:Key="WorkspaceSettingRowStyle" TargetType="{x:Type Border}">
+            <Setter Property="MinHeight" Value="52" />
+            <Setter Property="Padding" Value="0,8" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style x:Key="WorkspaceLabelStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="WorkspaceHintStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Margin" Value="0,3,0,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="LineHeight" Value="17" />
+            <Setter Property="Foreground" Value="{DynamicResource UiXTextSecondaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </UserControl.Resources>
+    <Border x:Name="WorkspaceSurface"
+            MaxWidth="832"
+            Margin="0"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Top"
+            Background="Transparent"
+            BorderThickness="0"
+            CornerRadius="0"
+            Focusable="False">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid Grid.Row="0" Margin="24,22,24,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="52"
+                            Height="52"
+                            Margin="0,0,14,0"
+                            CornerRadius="8">
+                        <Border.Background>
+                            <ImageBrush ImageSource="{Binding AvatarSource}"
+                                        RenderOptions.BitmapScalingMode="HighQuality"
+                                        Stretch="UniformToFill">
+                                <ImageBrush.RelativeTransform>
+                                    <ScaleTransform CenterX="0.5" CenterY="0.5" ScaleX="1.28" ScaleY="1.28" />
+                                </ImageBrush.RelativeTransform>
+                            </ImageBrush>
+                        </Border.Background>
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource UiXTextPrimaryBrush}"
+                                   Text="{Binding TaskTitle}"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Grid>
+                <StackPanel Grid.Column="1" Margin="16,0,0,0" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal">
+                    <ToggleButton Margin="0,0,8,0"
+                                  IsChecked="{Binding Editor.IsToNotify, Mode=TwoWay}"
+                                  Style="{StaticResource WorkspaceNotificationButtonStyle}"
+                                  ToolTip="{I18N LiveNotification}">
+                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Ringer}" />
+                    </ToggleButton>
+                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                        <RadioButton Content="{I18N FollowGlobalSettings}"
+                                     IsChecked="{Binding Editor.IsFollowGlobalSettings, Mode=TwoWay}"
+                                     Style="{StaticResource WorkspaceModeButtonStyle}" />
+                        <RadioButton Content="{I18N Custom}"
+                                     Checked="CustomModeChecked"
+                                     IsChecked="{Binding IsCustomMode, Mode=TwoWay}"
+                                     Margin="0"
+                                     Style="{StaticResource WorkspaceModeButtonStyle}" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+            <Grid Grid.Row="1" Margin="24,16,24,8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid x:Name="AddIdentityPanel" Visibility="{Binding AddIdentityVisibility}">
+                    <ui:TextBox x:Name="RoomUrlTextBox"
+                                Height="42"
+                                VerticalContentAlignment="Center"
+                                PlaceholderText="https://live.douyin.com/xxx / https://live.bilibili.com/xxx"
+                                Text="{Binding RoomUrlInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                </Grid>
+                <Grid Grid.Row="1" Margin="0,8,0,0" Visibility="{Binding AddIdentityVisibility}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock VerticalAlignment="Center"
+                               FontSize="12"
+                               Foreground="{Binding DetectionForeground}"
+                               Text="{Binding DetectionText}"
+                               TextTrimming="CharacterEllipsis" />
+                    <CheckBox Grid.Column="1"
+                              MinWidth="0"
+                              Margin="16,0,0,0"
+                              HorizontalAlignment="Right"
+                              Content="{I18N SkipValidation}"
+                              IsChecked="{Binding IsForcedAdd, Mode=TwoWay}" />
+                </Grid>
+            </Grid>
+            <Grid Grid.Row="2"
+                  Margin="24,0,24,0"
+                  Visibility="{Binding CustomWorkspaceVisibility}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <StackPanel Margin="0,0,0,12" Orientation="Horizontal">
+                    <RadioButton x:Name="RunStageButton"
+                                 Click="StageButtonClick"
+                                 CommandParameter="1"
+                                 Content="{I18N UiXWorkspaceRun}"
+                                 IsChecked="True"
+                                 Style="{StaticResource WorkspaceStageButtonStyle}" />
+                    <RadioButton x:Name="RecordingStageButton"
+                                 Click="StageButtonClick"
+                                 CommandParameter="2"
+                                 Content="{I18N UiXWorkspaceRecording}"
+                                 Style="{StaticResource WorkspaceStageButtonStyle}" />
+                    <RadioButton x:Name="OutputStageButton"
+                                 Click="StageButtonClick"
+                                 CommandParameter="3"
+                                 Content="{I18N UiXWorkspaceOutput}"
+                                 Style="{StaticResource WorkspaceStageButtonStyle}" />
+                </StackPanel>
+                <ScrollViewer x:Name="StageScrollViewer"
+                              Grid.Row="1"
+                              controls:ScrollEdgeFade.IsEnabled="True"
+                              Focusable="False"
+                              FocusVisualStyle="{x:Null}"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+                    <Grid>
+                        <StackPanel x:Name="RunStage" Visibility="{Binding RunVisibility}">
+                            <Border Style="{StaticResource WorkspaceSectionStyle}">
+                                <StackPanel IsEnabled="{Binding Editor.CanEditLocalSettings}">
+                                    <Border Style="{StaticResource WorkspaceSettingRowStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="220" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N Monitor}" />
+                                                <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{I18N AutomaticMonitoringHint}" />
+                                            </StackPanel>
+                                            <ui:ToggleSwitch Grid.Column="1" HorizontalAlignment="Right" IsChecked="{Binding Editor.IsToMonitor, Mode=TwoWay}" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource WorkspaceSettingRowStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="220" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N EnableRecord}" />
+                                                <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{I18N EnableRecordHint}" />
+                                            </StackPanel>
+                                            <ui:ToggleSwitch Grid.Column="1" HorizontalAlignment="Right" IsChecked="{Binding Editor.IsToRecord, Mode=TwoWay}" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource WorkspaceSettingRowStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="220" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N MonitoringSchedule}" />
+                                                <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{I18N RoomMonitoringScheduleHint}" />
+                                            </StackPanel>
+                                            <ComboBox Grid.Column="1"
+                                                      controls:ScrollEdgeFade.IsEnabled="True"
+                                                      SelectedIndex="{Binding Editor.RoutineScheduleModeIndex, Mode=TwoWay}">
+                                                <ComboBoxItem Content="{I18N ScheduleAlways}" />
+                                                <ComboBoxItem Content="{I18N ScheduleWeekdays}" />
+                                                <ComboBoxItem Content="{I18N ScheduleWeekends}" />
+                                                <ComboBoxItem Content="{I18N ScheduleNight}" />
+                                                <ComboBoxItem Content="{I18N ScheduleCustom}" />
+                                            </ComboBox>
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource WorkspaceChildSectionStyle}"
+                                            Visibility="{Binding Editor.IsRoutineScheduleCustom, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}">
+                                        <StackPanel>
+                                            <StackPanel>
+                                                <WrapPanel>
+                                                <ToggleButton MinWidth="56" Margin="0,0,8,8" Content="{I18N Monday}" IsChecked="{Binding Editor.RoutineScheduleMonday, Mode=TwoWay}" />
+                                                <ToggleButton MinWidth="56" Margin="0,0,8,8" Content="{I18N Tuesday}" IsChecked="{Binding Editor.RoutineScheduleTuesday, Mode=TwoWay}" />
+                                                <ToggleButton MinWidth="56" Margin="0,0,8,8" Content="{I18N Wednesday}" IsChecked="{Binding Editor.RoutineScheduleWednesday, Mode=TwoWay}" />
+                                                <ToggleButton MinWidth="56" Margin="0,0,8,8" Content="{I18N Thursday}" IsChecked="{Binding Editor.RoutineScheduleThursday, Mode=TwoWay}" />
+                                                <ToggleButton MinWidth="56" Margin="0,0,8,8" Content="{I18N Friday}" IsChecked="{Binding Editor.RoutineScheduleFriday, Mode=TwoWay}" />
+                                                <ToggleButton MinWidth="56" Margin="0,0,8,8" Content="{I18N Saturday}" IsChecked="{Binding Editor.RoutineScheduleSaturday, Mode=TwoWay}" />
+                                                <ToggleButton MinWidth="56" Margin="0,0,0,8" Content="{I18N Sunday}" IsChecked="{Binding Editor.RoutineScheduleSunday, Mode=TwoWay}" />
+                                                </WrapPanel>
+                                                <StackPanel Margin="0,8,0,0"
+                                                            HorizontalAlignment="Right"
+                                                            VerticalAlignment="Center"
+                                                            Orientation="Horizontal">
+                                                    <TextBlock Margin="0,0,10,0" VerticalAlignment="Center" Text="{I18N TimeRange}" />
+                                                    <controls:CompactNumberBox Width="60" Maximum="23" Minimum="0" Value="{Binding Editor.RoutineScheduleStartHour, Mode=TwoWay}" />
+                                                    <TextBlock Margin="4,0" VerticalAlignment="Center" Text=":" />
+                                                    <controls:CompactNumberBox Width="60" Maximum="59" Minimum="0" Value="{Binding Editor.RoutineScheduleStartMinute, Mode=TwoWay}" />
+                                                    <TextBlock Margin="8,0" VerticalAlignment="Center" Text="{I18N To}" />
+                                                    <controls:CompactNumberBox Width="60" Maximum="23" Minimum="0" Value="{Binding Editor.RoutineScheduleEndHour, Mode=TwoWay}" />
+                                                    <TextBlock Margin="4,0" VerticalAlignment="Center" Text=":" />
+                                                    <controls:CompactNumberBox Width="60" Maximum="59" Minimum="0" Value="{Binding Editor.RoutineScheduleEndMinute, Mode=TwoWay}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource WorkspaceSettingRowStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="220" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N RoutineInterval}" />
+                                                <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{I18N RoutineIntervalHint}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" HorizontalAlignment="Right" Orientation="Horizontal">
+                                                <controls:CompactNumberBox Width="112"
+                                                                           Maximum="2147483647"
+                                                                           Minimum="1"
+                                                                           Value="{Binding Editor.RoutineIntervalValue, Mode=TwoWay}" />
+                                                <ComboBox Width="100"
+                                                          Margin="8,0,0,0"
+                                                          controls:ScrollEdgeFade.IsEnabled="True"
+                                                          DisplayMemberPath="DisplayName"
+                                                          ItemsSource="{Binding Editor.TimeUnitOptions}"
+                                                          SelectedValue="{Binding Editor.RoutineIntervalUnitIndex, Mode=TwoWay}"
+                                                          SelectedValuePath="Value" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                        <StackPanel x:Name="RecordingStage" Visibility="{Binding RecordingVisibility}">
+                            <Border Style="{StaticResource WorkspaceSectionStyle}">
+                                <StackPanel IsEnabled="{Binding Editor.CanEditLocalSettings}">
+                                    <Border Style="{StaticResource WorkspaceSettingRowStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="220" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N QualityLabel}" />
+                                                <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{I18N StreamQualityHint}" />
+                                            </StackPanel>
+                                            <ComboBox Grid.Column="1"
+                                                      controls:ScrollEdgeFade.IsEnabled="True"
+                                                      DisplayMemberPath="DisplayName"
+                                                      ItemsSource="{Binding Editor.QualityOptions}"
+                                                      SelectedValue="{Binding Editor.PreferredQuality, Mode=TwoWay}"
+                                                      SelectedValuePath="Value" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource WorkspaceSettingRowStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="220" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N RecordFormat}" />
+                                                <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{I18N RecordFormatHint}" />
+                                            </StackPanel>
+                                            <ComboBox Grid.Column="1"
+                                                      controls:ScrollEdgeFade.IsEnabled="True"
+                                                      SelectedIndex="{Binding Editor.RecordFormatIndex, Mode=TwoWay}">
+                                                <ComboBoxItem Content="TS/FLV" />
+                                                <ComboBoxItem Content="TS/FLV -&gt; MP4" />
+                                                <ComboBoxItem Content="TS/FLV -&gt; MKV" />
+                                            </ComboBox>
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource WorkspaceChildSectionStyle}"
+                                            Visibility="{Binding Editor.IsTranscodedRecordFormat, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}">
+                                        <StackPanel>
+                                            <CheckBox Content="{I18N RecordFormatAutoRemove}"
+                                                      IsChecked="{Binding Editor.IsRemoveTs, Mode=TwoWay}" />
+                                            <CheckBox Margin="0,10,0,0"
+                                                      Content="{I18N CreateOptimizedAudioTrack}"
+                                                      IsChecked="{Binding Editor.IsOptimizeAudio, Mode=TwoWay}"
+                                                      Visibility="{Binding Editor.IsMp4RecordFormat, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource WorkspaceSettingRowStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="220" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N Segment}" />
+                                                <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{I18N SegmentHint}" />
+                                            </StackPanel>
+                                            <ui:ToggleSwitch Grid.Column="1" HorizontalAlignment="Right" IsChecked="{Binding Editor.IsToSegment, Mode=TwoWay}" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource WorkspaceChildSectionStyle}"
+                                            Visibility="{Binding Editor.IsToSegment, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}">
+                                        <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                            <controls:CompactNumberBox Width="112"
+                                                                       Maximum="2147483647"
+                                                                       Minimum="1"
+                                                                       Value="{Binding Editor.SegmentTimeValue, Mode=TwoWay}" />
+                                            <ComboBox Width="112"
+                                                      Margin="8,0,0,0"
+                                                      controls:ScrollEdgeFade.IsEnabled="True"
+                                                      DisplayMemberPath="DisplayName"
+                                                      ItemsSource="{Binding Editor.SegmentUnitOptions}"
+                                                      SelectedValue="{Binding Editor.SegmentTimeUnitIndex, Mode=TwoWay}"
+                                                      SelectedValuePath="Value" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                        <StackPanel x:Name="OutputStage" Visibility="{Binding OutputVisibility}">
+                            <Border Style="{StaticResource WorkspaceSectionStyle}">
+                                <StackPanel IsEnabled="{Binding Editor.CanEditLocalSettings}">
+                                    <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N SaveFolder}" />
+                                    <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{I18N SaveFolderHint}" />
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <ui:TextBox Height="38"
+                                                 VerticalContentAlignment="Center"
+                                                 PlaceholderText="EmerdeDownloads"
+                                                 Text="{Binding Editor.SaveFolder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <Button Grid.Column="1"
+                                                MinWidth="92"
+                                                Height="38"
+                                                Margin="8,0,0,0"
+                                                Command="{Binding Editor.SelectSaveFolderCommand}"
+                                                Content="{I18N SelectFolder}" />
+                                        <Button Grid.Column="2"
+                                                MinWidth="84"
+                                                Height="38"
+                                                Margin="8,0,0,0"
+                                                Command="{Binding Editor.OpenSaveFolderCommand}"
+                                                Content="{I18N OpenFolder}" />
+                                    </Grid>
+                                    <Grid Margin="0,18,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="220" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N UiXWorkspaceHierarchy}" />
+                                            <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{Binding OutputSummary}" />
+                                        </StackPanel>
+                                        <ComboBox Grid.Column="1"
+                                                  controls:ScrollEdgeFade.IsEnabled="True"
+                                                  SelectedIndex="{Binding Editor.SaveFolderPathLevelIndex, Mode=TwoWay}">
+                                            <ComboBoxItem Content="{I18N SavePathLevelRootOnly}" />
+                                            <ComboBoxItem Content="{I18N SavePathLevelAuthor}" />
+                                            <ComboBoxItem Content="{I18N SavePathLevelAuthorYearMonth}" />
+                                            <ComboBoxItem Content="{I18N SavePathLevelAuthorDate}" />
+                                        </ComboBox>
+                                    </Grid>
+                                    <TextBlock Margin="20,18,0,0" Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N CustomRule}" />
+                                    <Grid Margin="20,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox MinHeight="40"
+                                                 VerticalContentAlignment="Center"
+                                                 Text="{Binding Editor.SaveFileNameCustomRule, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <Button Grid.Column="1"
+                                                Width="40"
+                                                Height="40"
+                                                Margin="8,0,0,0"
+                                                Padding="0"
+                                                Command="{Binding Editor.DeleteLastSaveFileNameTokenCommand}"
+                                                ToolTip="{I18N DeleteLast}">
+                                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Delete}" />
+                                        </Button>
+                                        <Button Grid.Column="2"
+                                                Width="40"
+                                                Height="40"
+                                                Margin="8,0,0,0"
+                                                Padding="0"
+                                                Command="{Binding Editor.ClearSaveFileNameCustomRuleCommand}"
+                                                ToolTip="{I18N Clear}">
+                                            <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.CalculatorMultiply}" />
+                                        </Button>
+                                    </Grid>
+                                    <WrapPanel Margin="40,10,0,0">
+                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{主播名}" Content="{I18N TokenAuthor}" />
+                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{录制时间}" Content="{I18N TokenRecordTime}" />
+                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{日期}" Content="{I18N TokenDate}" />
+                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{时间}" Content="{I18N TokenTime}" />
+                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{平台}" Content="{I18N Platform}" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </Grid>
+            <Grid Grid.Row="3" Margin="24,12,24,22">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button MinWidth="104"
+                            Height="44"
+                            Click="CancelClick"
+                            Content="{Binding CancelButtonText}" />
+                    <ui:Button MinWidth="112"
+                               Height="44"
+                               Margin="10,0,0,0"
+                               Appearance="Primary"
+                               Click="ConfirmClick"
+                               Content="{Binding ConfirmButtonText}"
+                               IsEnabled="{Binding CanConfirm}"
+                               IsDefault="True" />
+                </StackPanel>
+            </Grid>
+            <Grid x:Name="RoomLoadingOverlay"
+                  Grid.RowSpan="4"
+                  Panel.ZIndex="10"
+                  Visibility="{Binding LoadingVisibility}">
+                <Border Background="{DynamicResource UiXDialogSurfaceBrush}"
+                        CornerRadius="7" />
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Image x:Name="LoadingFrame"
+                           Width="160"
+                           Height="160"
+                           HorizontalAlignment="Center"
+                           IsHitTestVisible="False"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           SnapsToDevicePixels="True"
+                           Stretch="Uniform" />
+                    <ProgressBar x:Name="LoadingFallbackProgressBar"
+                                 Width="160"
+                                 Height="4"
+                                 IsIndeterminate="True"
+                                 Visibility="Collapsed" />
+                    <TextBlock Margin="0,8,0,0"
+                               HorizontalAlignment="Center"
+                               FontSize="13"
+                               Foreground="{DynamicResource UiXTextSecondaryBrush}"
+                               Text="{I18N CookieLoginLoading}" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>

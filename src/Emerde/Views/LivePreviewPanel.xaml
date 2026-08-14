@@ -161,7 +161,6 @@
                                 MouseEnter="PreviewViewport_OnMouseActivity"
                                 MouseMove="PreviewViewport_OnMouseActivity"
                                 MouseLeftButtonDown="PreviewTouchLayer_OnMouseLeftButtonDown"
-                                MouseLeftButtonUp="PreviewTouchLayer_OnMouseLeftButtonUp"
                                 PreviewMouseWheel="PreviewVolume_OnPreviewMouseWheel" />
                         <Button x:Name="PausedIndicator"
                                 Panel.ZIndex="1"

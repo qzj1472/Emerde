@@ -200,6 +200,22 @@ public sealed class RoomCardSelectionTests
     }
 
     [Fact]
+    public void ResolveRoomRemovalTargets_PreservesMultiSelectionWhenContextRoomIsSelected()
+    {
+        RoomStatusReactive firstSelected = CreateRoom("first", "Douyin");
+        RoomStatusReactive contextRoom = CreateRoom("second", "Douyin");
+        firstSelected.IsSelected = true;
+        contextRoom.IsSelected = true;
+
+        RoomStatusReactive[] targets = MainViewModel.ResolveRoomRemovalTargets(
+            [firstSelected, contextRoom],
+            contextRoom,
+            allowSingleSelectionFallback: true);
+
+        Assert.Equal([firstSelected, contextRoom], targets);
+    }
+
+    [Fact]
     public void ResolveRoomRemovalTargets_FallsBackToClickedRoomWithoutMarqueeSelection()
     {
         RoomStatusReactive selectedItem = CreateRoom("selected", "Douyin");

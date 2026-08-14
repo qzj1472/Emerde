@@ -1356,18 +1356,28 @@ public partial class SettingsViewModel : ReactiveObject
     [RelayCommand]
     private async Task ExportLogsAsync()
     {
+        bool isUiXEnabled = UiXDialogContent.IsEnabled;
+        UiXExportLogsContent? uiXContent = isUiXEnabled ? new UiXExportLogsContent() : null;
         ContentDialog dialog = new()
         {
             Title = "ExportLogsTitle".Tr(),
-            Content = "ExportLogsPrompt".Tr(),
+            Content = uiXContent is not null ? uiXContent : "ExportLogsPrompt".Tr(),
             CloseButtonText = "ButtonOfCancel".Tr(),
-            SecondaryButtonText = "ExportToday".Tr(),
-            PrimaryButtonText = "ExportAll".Tr(),
+            SecondaryButtonText = isUiXEnabled ? string.Empty : "ExportToday".Tr(),
+            PrimaryButtonText = isUiXEnabled ? "Export".Tr() : "ExportAll".Tr(),
+            DefaultButton = ContentDialogButton.Primary,
+            Style = Application.Current?.TryFindResource("EmerdeContentDialogStyle") as System.Windows.Style,
         };
 
-        using DialogBlurScope blurScope = DialogBlurScope.ForDialog(OwnerWindow, dialog);
+        using DialogBlurScope blurScope = isUiXEnabled
+            ? DialogBlurScope.ForLightDismiss(OwnerWindow, dialog)
+            : DialogBlurScope.ForDialog(OwnerWindow, dialog);
         ContentDialogResult result = await WindowSizing.ShowContentDialogAsync(dialog, OwnerWindow);
-        if (result == ContentDialogResult.Primary)
+        if (isUiXEnabled && result == ContentDialogResult.Primary)
+        {
+            await ExportLogsToArchiveAsync(uiXContent!.TodayOnly);
+        }
+        else if (result == ContentDialogResult.Primary)
         {
             await ExportLogsToArchiveAsync(todayOnly: false);
         }
@@ -1473,11 +1483,15 @@ public partial class SettingsViewModel : ReactiveObject
     private async Task RestoreConfigCoreAsync(string? initialImportPath)
     {
         ConfigRestoreContentDialog content = new(BuildConfigRestoreOptions());
-
-        ConfigRestoreWindow dialog = new(content, OwnerWindow)
+        ContentDialog dialog = new()
         {
             Title = "RestoreConfigTitle".Tr(),
+            Content = content,
             PrimaryButtonText = GetConfigRestorePrimaryButtonText(content.SelectedOption),
+            CloseButtonText = "ButtonOfCancel".Tr(),
+            DefaultButton = ContentDialogButton.Primary,
+            FocusVisualStyle = null,
+            Style = Application.Current?.TryFindResource("EmerdeContentDialogStyle") as System.Windows.Style,
         };
 
         content.SelectionChanged += (_, _) =>
@@ -1493,10 +1507,25 @@ public partial class SettingsViewModel : ReactiveObject
                 return;
             }
         }
-        using DialogBlurScope blurScope = DialogBlurScope.ForOwnedWindow(OwnerWindow, dialog);
-        dialog.BackgroundExitAnimation = blurScope.PlayExitAsync;
-        bool? result = dialog.ShowDialog();
-        if (result != true || content.SelectedOption is not ConfigRestoreOption selected)
+
+        double ownerWidth = OwnerWindow?.ActualWidth > 1d ? OwnerWindow.ActualWidth : System.Windows.SystemParameters.WorkArea.Width;
+        double ownerHeight = OwnerWindow?.ActualHeight > 1d ? OwnerWindow.ActualHeight : System.Windows.SystemParameters.WorkArea.Height;
+        double targetWidth = Math.Min(750d, Math.Max(320d, WindowSizing.RoundLayoutValue(ownerWidth - 96d)));
+        double targetHeight = Math.Min(608d, Math.Max(320d, WindowSizing.RoundLayoutValue(ownerHeight - 96d)));
+        dialog.Resources["EmerdeWideContentDialog"] = true;
+        LocalSettingsContentDialog.ApplyWideDialogVisualSize(dialog, targetWidth, targetHeight);
+
+        ContentDialogResult result;
+        try
+        {
+            using DialogBlurScope blurScope = DialogBlurScope.ForLightDismiss(OwnerWindow, dialog);
+            result = await WindowSizing.ShowContentDialogAsync(dialog, OwnerWindow);
+        }
+        finally
+        {
+            LocalSettingsContentDialog.ClearWideDialogVisualSize(dialog);
+        }
+        if (result != ContentDialogResult.Primary || content.SelectedOption is not ConfigRestoreOption selected)
         {
             return;
         }
@@ -1615,10 +1644,26 @@ public partial class SettingsViewModel : ReactiveObject
 
     private async Task ResetConfigCoreAsync(bool confirmBeforeReset)
     {
-        using (DialogBlurScope blurScope = DialogBlurScope.ForMessageBox(OwnerWindow))
+        if (confirmBeforeReset)
         {
-            if (confirmBeforeReset &&
-                MessageBox.Question("ConfirmResetConfig".Tr()) != System.Windows.MessageBoxResult.Yes)
+            bool confirmed;
+            if (UiXDialogContent.IsEnabled)
+            {
+                confirmed = await UiXDialogContent.ConfirmAsync(
+                    OwnerWindow,
+                    "ConfigReset".Tr(),
+                    "ConfirmResetConfig".Tr(),
+                    "Yes".Tr(),
+                    "No".Tr(),
+                    Wpf.Ui.Controls.FontSymbols.Delete,
+                    UiXDialogTone.Danger);
+            }
+            else
+            {
+                using DialogBlurScope blurScope = DialogBlurScope.ForMessageBox(OwnerWindow);
+                confirmed = MessageBox.Question("ConfirmResetConfig".Tr()) == System.Windows.MessageBoxResult.Yes;
+            }
+            if (!confirmed)
             {
                 return;
             }
@@ -1685,9 +1730,24 @@ public partial class SettingsViewModel : ReactiveObject
 
     private async Task RestartIfConfirmedAsync(string message)
     {
-        using DialogBlurScope blurScope = DialogBlurScope.ForMessageBox(OwnerWindow);
-        System.Windows.MessageBoxResult result = await MessageBox.QuestionAsync(message);
-        if (result == System.Windows.MessageBoxResult.Yes)
+        bool confirmed;
+        if (UiXDialogContent.IsEnabled)
+        {
+            confirmed = await UiXDialogContent.ConfirmAsync(
+                OwnerWindow,
+                "Title".Tr(),
+                message,
+                "Yes".Tr(),
+                "No".Tr(),
+                Wpf.Ui.Controls.FontSymbols.PowerButton,
+                UiXDialogTone.Information);
+        }
+        else
+        {
+            using DialogBlurScope blurScope = DialogBlurScope.ForMessageBox(OwnerWindow);
+            confirmed = await MessageBox.QuestionAsync(message) == System.Windows.MessageBoxResult.Yes;
+        }
+        if (confirmed)
         {
             await TrayIconManager.GetInstance().RestartApplicationAsync(confirmRecording: false);
         }

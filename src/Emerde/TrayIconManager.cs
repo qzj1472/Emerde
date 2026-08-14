@@ -214,7 +214,7 @@ internal sealed class TrayIconManager : IDisposable
             return;
         }
 
-        trayMenuWindow?.Close();
+        trayMenuWindow?.RequestClose();
         _icon.ToolTipText = "Emerde";
     }
 
@@ -264,7 +264,7 @@ internal sealed class TrayIconManager : IDisposable
         isDisposed = true;
         Locale.CultureChanged -= OnCultureChanged;
         SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
-        trayMenuWindow?.Close();
+        trayMenuWindow?.RequestClose();
         trayMenuWindow = null;
         _icon.Dispose();
         currentIcon?.Dispose();
@@ -281,7 +281,9 @@ internal sealed class TrayIconManager : IDisposable
         ActivateMainWindow();
         Window? owner = Application.Current.MainWindow;
         ExitConfirmationContentDialog dialog = new("SureOnRecording".Tr());
-        using DialogBlurScope blurScope = DialogBlurScope.ForDialog(owner, dialog);
+        using DialogBlurScope blurScope = UiXDialogContent.IsEnabled
+            ? DialogBlurScope.ForLightDismiss(owner, dialog)
+            : DialogBlurScope.ForDialog(owner, dialog);
         ContentDialogResult result = await WindowSizing.ShowContentDialogAsync(dialog, owner);
         return result == ContentDialogResult.Primary;
     }
@@ -303,7 +305,7 @@ internal sealed class TrayIconManager : IDisposable
             return;
         }
 
-        trayMenuWindow?.Close();
+        trayMenuWindow?.RequestClose();
         TrayMenuState state = CreateTrayMenuState();
         _icon.ToolTipText = $"Emerde - {TrayMenuWindow.BuildStatusText(state)}";
         TrayMenuWindow window = new(state, HandleTrayMenuAction);

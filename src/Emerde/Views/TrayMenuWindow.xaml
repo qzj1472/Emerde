@@ -3,118 +3,188 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:Emerde.Controls"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-        Width="1"
-        Height="1"
+        Width="188"
         AllowsTransparency="True"
         Background="Transparent"
+        FocusVisualStyle="{x:Null}"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
+        SizeToContent="Height"
         SnapsToDevicePixels="True"
         Topmost="True"
         UseLayoutRounding="True"
-        WindowStyle="None">
+        WindowStyle="None"
+        Deactivated="TrayMenuWindowDeactivated"
+        PreviewKeyDown="TrayMenuWindowPreviewKeyDown">
     <Window.Resources>
-        <Style x:Key="TrayMenuItemStyle"
-               TargetType="{x:Type MenuItem}"
-               BasedOn="{StaticResource {x:Type MenuItem}}">
-            <Setter Property="MinHeight" Value="36" />
+        <SolidColorBrush x:Key="TrayMenuSurfaceBrush" Color="#FFF7F8FA" />
+        <SolidColorBrush x:Key="TrayMenuItemHoverBrush" Color="#0F172A0D" />
+        <SolidColorBrush x:Key="TrayMenuDividerBrush" Color="#140F172A" />
+        <SolidColorBrush x:Key="TrayMenuDangerBrush" Color="#C43D4D" />
+        <Style x:Key="TrayMenuIconStyle" TargetType="{x:Type ui:FontIcon}">
+            <Setter Property="FontFamily" Value="{DynamicResource SymbolThemeFontFamily}" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="TrayMenuButtonStyle" TargetType="{x:Type Button}">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="FontSize" Value="13" />
-            <Setter Property="Padding" Value="12,7" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="0" />
             <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
-            <Setter Property="controls:MotionAssist.HoverScale" Value="1.006" />
-            <Setter Property="controls:MotionAssist.PressScale" Value="0.992" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="ItemSurface"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemSurface" Property="Background" Value="{StaticResource TrayMenuItemHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ItemSurface" Property="Opacity" Value="0.72" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ItemSurface" Property="Opacity" Value="0.42" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
-        <Style x:Key="PrimaryTrayMenuItemStyle"
-               TargetType="{x:Type MenuItem}"
-               BasedOn="{StaticResource TrayMenuItemStyle}">
-            <Setter Property="Foreground" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
-            <Setter Property="FontWeight" Value="SemiBold" />
+        <Style x:Key="TrayMenuDangerButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource TrayMenuButtonStyle}">
+            <Setter Property="Foreground" Value="{StaticResource TrayMenuDangerBrush}" />
         </Style>
-        <Style x:Key="ToggleTrayMenuItemStyle"
-               TargetType="{x:Type MenuItem}"
-               BasedOn="{StaticResource TrayMenuItemStyle}">
-            <Style.Triggers>
-                <Trigger Property="IsChecked" Value="True">
-                    <Setter Property="Foreground" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
-                    <Setter Property="FontWeight" Value="SemiBold" />
-                </Trigger>
-            </Style.Triggers>
+        <Style x:Key="TrayMenuSelectionIndicatorStyle" TargetType="{x:Type Border}">
+            <Setter Property="Width" Value="3" />
+            <Setter Property="Height" Value="16" />
+            <Setter Property="Background" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+            <Setter Property="CornerRadius" Value="2" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Visibility" Value="Collapsed" />
+        </Style>
+        <Style x:Key="TrayMenuDividerStyle" TargetType="{x:Type Border}">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Margin" Value="8,4" />
+            <Setter Property="Background" Value="{StaticResource TrayMenuDividerBrush}" />
         </Style>
     </Window.Resources>
-    <Grid x:Name="PlacementTarget">
-        <Grid.ContextMenu>
-            <ContextMenu x:Name="TrayContextMenu"
-                         DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
-                         MinWidth="196"
-                         Closed="TrayContextMenuClosed"
-                         Opened="TrayContextMenuOpened"
-                         Placement="Custom"
-                         StaysOpen="False"
-                         controls:MotionAssist.IsEntranceEnabled="True"
-                         controls:MotionAssist.EntranceOffsetY="6"
-                         controls:MotionAssist.EntranceScale="0.98">
-                <MenuItem Click="ShowMainWindowClick"
-                          Header="{Binding ShowMainWindowText}"
-                          Style="{StaticResource PrimaryTrayMenuItemStyle}">
-                    <MenuItem.Icon>
-                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.OpenInNewWindow}" />
-                    </MenuItem.Icon>
-                </MenuItem>
-                <MenuItem Click="OpenSettingsClick"
-                          Header="{Binding SettingsText}"
-                          Style="{StaticResource TrayMenuItemStyle}">
-                    <MenuItem.Icon>
-                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Settings}" />
-                    </MenuItem.Icon>
-                </MenuItem>
 
-                <Separator />
+    <Border x:Name="MenuSurface"
+            Margin="0"
+            Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+            CornerRadius="8"
+            Padding="4"
+            controls:MotionAssist.IsEntranceEnabled="True"
+            controls:MotionAssist.EntranceOffsetY="6"
+            controls:MotionAssist.EntranceScale="0.98">
+        <StackPanel>
+            <Button Click="ShowMainWindowClick" Style="{StaticResource TrayMenuButtonStyle}">
+                <Grid Margin="6,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="22" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ui:FontIcon Grid.Column="0" Style="{StaticResource TrayMenuIconStyle}" Glyph="{x:Static ui:FontSymbols.OpenInNewWindow}" />
+                    <TextBlock Grid.Column="2" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding ShowMainWindowText}" />
+                </Grid>
+            </Button>
+            <Button Click="OpenSettingsClick" Style="{StaticResource TrayMenuButtonStyle}">
+                <Grid Margin="6,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="22" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ui:FontIcon Grid.Column="0" Style="{StaticResource TrayMenuIconStyle}" Glyph="{x:Static ui:FontSymbols.Settings}" />
+                    <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="{Binding SettingsText}" />
+                </Grid>
+            </Button>
 
-                <MenuItem Click="ToggleMonitorClick"
-                          Header="{Binding MonitorText}"
-                          IsCheckable="True"
-                          IsChecked="{Binding IsMonitorRunning, Mode=OneWay}"
-                          Style="{StaticResource ToggleTrayMenuItemStyle}">
-                    <MenuItem.Icon>
-                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Radar}" />
-                    </MenuItem.Icon>
-                </MenuItem>
-                <MenuItem Click="ToggleRecordClick"
-                          Header="{Binding RecordText}"
-                          IsCheckable="True"
-                          IsChecked="{Binding IsRecordEnabled, Mode=OneWay}"
-                          Style="{StaticResource ToggleTrayMenuItemStyle}">
-                    <MenuItem.Icon>
-                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Record}" />
-                    </MenuItem.Icon>
-                </MenuItem>
-                <MenuItem Click="ToggleAutoRunClick"
-                          Header="{Binding AutoRunText}"
-                          IsCheckable="True"
-                          IsChecked="{Binding IsAutoRun, Mode=OneWay}"
-                          Style="{StaticResource ToggleTrayMenuItemStyle}">
-                    <MenuItem.Icon>
-                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Play}" />
-                    </MenuItem.Icon>
-                </MenuItem>
+            <Border Style="{StaticResource TrayMenuDividerStyle}" />
 
-                <Separator />
+            <Button Click="ToggleMonitorClick" Style="{StaticResource TrayMenuButtonStyle}">
+                <Grid Margin="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3" />
+                        <ColumnDefinition Width="6" />
+                        <ColumnDefinition Width="22" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Style="{StaticResource TrayMenuSelectionIndicatorStyle}" Visibility="{Binding MonitorIndicatorVisibility}" />
+                    <ui:FontIcon Grid.Column="2" Style="{StaticResource TrayMenuIconStyle}" Glyph="{x:Static ui:FontSymbols.Radar}" />
+                    <TextBlock Grid.Column="4" VerticalAlignment="Center" Text="{Binding MonitorText}" />
+                </Grid>
+            </Button>
+            <Button Click="ToggleRecordClick" Style="{StaticResource TrayMenuButtonStyle}">
+                <Grid Margin="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3" />
+                        <ColumnDefinition Width="6" />
+                        <ColumnDefinition Width="22" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Style="{StaticResource TrayMenuSelectionIndicatorStyle}" Visibility="{Binding RecordIndicatorVisibility}" />
+                    <ui:FontIcon Grid.Column="2" Style="{StaticResource TrayMenuIconStyle}" Glyph="{x:Static ui:FontSymbols.Record}" />
+                    <TextBlock Grid.Column="4" VerticalAlignment="Center" Text="{Binding RecordText}" />
+                </Grid>
+            </Button>
+            <Button Click="ToggleAutoRunClick" Style="{StaticResource TrayMenuButtonStyle}">
+                <Grid Margin="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3" />
+                        <ColumnDefinition Width="6" />
+                        <ColumnDefinition Width="22" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Style="{StaticResource TrayMenuSelectionIndicatorStyle}" Visibility="{Binding AutoRunIndicatorVisibility}" />
+                    <ui:FontIcon Grid.Column="2" Style="{StaticResource TrayMenuIconStyle}" Glyph="{x:Static ui:FontSymbols.Play}" />
+                    <TextBlock Grid.Column="4" VerticalAlignment="Center" Text="{Binding AutoRunText}" />
+                </Grid>
+            </Button>
 
-                <MenuItem Click="RestartClick"
-                          Header="{Binding RestartText}"
-                          Style="{StaticResource TrayMenuItemStyle}">
-                    <MenuItem.Icon>
-                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Sync}" />
-                    </MenuItem.Icon>
-                </MenuItem>
-                <MenuItem Click="ExitClick"
-                          Header="{Binding ExitText}"
-                          Style="{StaticResource TrayMenuItemStyle}">
-                    <MenuItem.Icon>
-                        <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.PowerButton}" />
-                    </MenuItem.Icon>
-                </MenuItem>
-            </ContextMenu>
-        </Grid.ContextMenu>
-    </Grid>
+            <Border Style="{StaticResource TrayMenuDividerStyle}" />
+
+            <Button Click="RestartClick" Style="{StaticResource TrayMenuButtonStyle}">
+                <Grid Margin="6,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="22" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ui:FontIcon Grid.Column="0" Style="{StaticResource TrayMenuIconStyle}" Glyph="{x:Static ui:FontSymbols.Sync}" />
+                    <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="{Binding RestartText}" />
+                </Grid>
+            </Button>
+            <Button Click="ExitClick" Style="{StaticResource TrayMenuDangerButtonStyle}">
+                <Grid Margin="6,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="22" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ui:FontIcon Grid.Column="0" Style="{StaticResource TrayMenuIconStyle}" Glyph="{x:Static ui:FontSymbols.PowerButton}" />
+                    <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="{Binding ExitText}" />
+                </Grid>
+            </Button>
+        </StackPanel>
+    </Border>
 </Window>

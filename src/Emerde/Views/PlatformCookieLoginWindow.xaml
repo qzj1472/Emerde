@@ -16,7 +16,45 @@
                  SnapsToDevicePixels="True"
                  UseLayoutRounding="True"
                  WindowStartupLocation="CenterOwner">
-    <Grid Background="{DynamicResource EmerdeShellBackgroundBrush}">
+    <ui:FluentWindow.Resources>
+        <Style x:Key="CookieLoginShellStyle" TargetType="{x:Type Grid}">
+            <Setter Property="Background" Value="{DynamicResource EmerdeShellBackgroundBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding MainWindow.DataContext.StatusOfIsUiXEnabled, Source={x:Static Application.Current}}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource UiXWindowFallbackBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="CookieLoginAddressStyle" TargetType="{x:Type Border}">
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+            <Setter Property="CornerRadius" Value="{StaticResource ButtonCornerRadius}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding MainWindow.DataContext.StatusOfIsUiXEnabled, Source={x:Static Application.Current}}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource UiXDialogSectionBrush}" />
+                    <Setter Property="CornerRadius" Value="{StaticResource UiXSurfaceCornerRadius}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="CookieLoginBrowserSurfaceStyle" TargetType="{x:Type Border}">
+            <Setter Property="Background" Value="{DynamicResource EmerdeSurfaceBrush}" />
+            <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding MainWindow.DataContext.StatusOfIsUiXEnabled, Source={x:Static Application.Current}}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource UiXDialogSurfaceBrush}" />
+                    <Setter Property="CornerRadius" Value="{StaticResource UiXSurfaceCornerRadius}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="CookieLoginSecondaryTextStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding MainWindow.DataContext.StatusOfIsUiXEnabled, Source={x:Static Application.Current}}" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource UiXTextSecondaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </ui:FluentWindow.Resources>
+    <Grid Style="{StaticResource CookieLoginShellStyle}">
         <Grid.RowDefinitions>
             <RowDefinition Height="36" />
             <RowDefinition Height="50" />
@@ -64,11 +102,10 @@
                     Height="34"
                     Margin="8,0,0,0"
                     Padding="12,0"
-                    Background="{DynamicResource ControlFillColorDefaultBrush}"
-                    CornerRadius="{StaticResource ButtonCornerRadius}">
+                    Style="{StaticResource CookieLoginAddressStyle}">
                 <TextBlock x:Name="AddressText"
                            VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           Style="{StaticResource CookieLoginSecondaryTextStyle}"
                            TextTrimming="CharacterEllipsis"
                            ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
             </Border>
@@ -76,9 +113,8 @@
 
         <Border Grid.Row="2"
                 Margin="16,0"
-                Background="{DynamicResource EmerdeSurfaceBrush}"
                 ClipToBounds="True"
-                CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                Style="{StaticResource CookieLoginBrowserSurfaceStyle}">
             <wv2:WebView2 x:Name="Browser" />
         </Border>
 
@@ -90,7 +126,7 @@
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="StatusText"
                        VerticalAlignment="Center"
-                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                       Style="{StaticResource CookieLoginSecondaryTextStyle}"
                        Text="{I18N CookieLoginInitializing}"
                        TextWrapping="Wrap"
                        ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />

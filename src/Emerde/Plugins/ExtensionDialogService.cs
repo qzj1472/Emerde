@@ -28,12 +28,14 @@ internal sealed class ExtensionDialogService(Window owner) : IExtensionDialogSer
         ContentDialog dialog = new()
         {
             Title = request.Title,
-            Content = request.Content,
+            Content = UiXDialogContent.IsEnabled
+                ? UiXDialogContent.CreateTaskSurface(request.Content, request.UseWideLayout ? 0d : 420d)
+                : request.Content,
             PrimaryButtonText = request.PrimaryButtonText,
             CloseButtonText = request.CloseButtonText,
             SecondaryButtonText = request.SecondaryButtonText,
             DefaultButton = ContentDialogButton.Primary,
-            Style = Application.Current.TryFindResource("DefaultVioletaContentDialogStyle") as Style,
+            Style = Application.Current.TryFindResource("EmerdeContentDialogStyle") as Style,
             FocusVisualStyle = null,
             BorderBrush = System.Windows.Media.Brushes.Transparent,
             BorderThickness = new Thickness(0),
@@ -71,20 +73,23 @@ internal sealed class ExtensionDialogService(Window owner) : IExtensionDialogSer
                 }
                 dialog.Resources["EmerdeWideContentDialog"] = true;
                 LocalSettingsContentDialog.ApplyWideDialogVisualSize(dialog, targetWidth, targetHeight);
-                request.Content.Width = double.NaN;
-                request.Content.Height = double.NaN;
-                request.Content.MinWidth = 0d;
-                request.Content.MinHeight = 0d;
-                request.Content.MaxWidth = double.PositiveInfinity;
-                request.Content.MaxHeight = double.PositiveInfinity;
-                request.Content.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
-                request.Content.VerticalAlignment = System.Windows.VerticalAlignment.Stretch;
+                FrameworkElement content = dialog.Content as FrameworkElement ?? request.Content;
+                content.Width = double.NaN;
+                content.Height = double.NaN;
+                content.MinWidth = 0d;
+                content.MinHeight = 0d;
+                content.MaxWidth = double.PositiveInfinity;
+                content.MaxHeight = double.PositiveInfinity;
+                content.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
+                content.VerticalAlignment = System.Windows.VerticalAlignment.Stretch;
             }
             ApplyWideLayout();
             wideLayoutHandler = (_, _) => ApplyWideLayout();
             dialog.Loaded += wideLayoutHandler;
         }
-        using DialogBlurScope blurScope = DialogBlurScope.ForDialog(owner, dialog);
+        using DialogBlurScope blurScope = UiXDialogContent.IsEnabled
+            ? DialogBlurScope.ForLightDismiss(owner, dialog)
+            : DialogBlurScope.ForDialog(owner, dialog);
         ContentDialogResult result;
         try
         {

@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Emerde.Controls;
 using Emerde.Core;
 using Emerde.Extensions;
 using Emerde.Plugins;
@@ -26,34 +27,64 @@ using WindowsAPICodePack.Dialogs;
 using Wpf.Ui.Violeta.Controls;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Point = System.Windows.Point;
-using Size = System.Windows.Size;
 
 namespace Emerde.Views;
 
 public partial class ScreenRecordListWindow : System.Windows.Controls.UserControl
 {
     public static readonly DependencyProperty VideoCardGridWidthProperty = DependencyProperty.Register(nameof(VideoCardGridWidth), typeof(double), typeof(ScreenRecordListWindow), new PropertyMetadata(228d));
-    public static readonly DependencyProperty VideoCardWidthProperty = DependencyProperty.Register(nameof(VideoCardWidth), typeof(double), typeof(ScreenRecordListWindow), new PropertyMetadata(216d));
-    public static readonly DependencyProperty VideoCardCoverHeightProperty = DependencyProperty.Register(nameof(VideoCardCoverHeight), typeof(double), typeof(ScreenRecordListWindow), new PropertyMetadata(117d));
+    public static readonly DependencyProperty VideoCardColumnCountProperty = DependencyProperty.Register(nameof(VideoCardColumnCount), typeof(int), typeof(ScreenRecordListWindow), new PropertyMetadata(1));
+    public static readonly DependencyProperty VideoCardWidthProperty = DependencyProperty.Register(nameof(VideoCardWidth), typeof(double), typeof(ScreenRecordListWindow), new PropertyMetadata(378d));
+    public static readonly DependencyProperty VideoCardHeightProperty = DependencyProperty.Register(nameof(VideoCardHeight), typeof(double), typeof(ScreenRecordListWindow), new PropertyMetadata(115d));
+    public static readonly DependencyProperty VideoCardCoverWidthProperty = DependencyProperty.Register(nameof(VideoCardCoverWidth), typeof(double), typeof(ScreenRecordListWindow), new PropertyMetadata(136d));
+    public static readonly DependencyProperty VideoCardCoverHeightProperty = DependencyProperty.Register(nameof(VideoCardCoverHeight), typeof(double), typeof(ScreenRecordListWindow), new PropertyMetadata(91d));
     public static readonly DependencyProperty VideoCardMarginProperty = DependencyProperty.Register(nameof(VideoCardMargin), typeof(Thickness), typeof(ScreenRecordListWindow), new PropertyMetadata(new Thickness(6d)));
-    public static readonly DependencyProperty VideoCardItemSizeProperty = DependencyProperty.Register(nameof(VideoCardItemSize), typeof(Size), typeof(ScreenRecordListWindow), new PropertyMetadata(new Size(228d, 179d)));
+    public static readonly DependencyProperty VideoCardPaddingProperty = DependencyProperty.Register(nameof(VideoCardPadding), typeof(Thickness), typeof(ScreenRecordListWindow), new PropertyMetadata(new Thickness(12d)));
+    public static readonly DependencyProperty VideoCardInfoMarginProperty = DependencyProperty.Register(nameof(VideoCardInfoMargin), typeof(Thickness), typeof(ScreenRecordListWindow), new PropertyMetadata(new Thickness(12d, 0d, 0d, 0d)));
+    public static readonly DependencyProperty VideoCardFileNameHeightProperty = DependencyProperty.Register(nameof(VideoCardFileNameHeight), typeof(double), typeof(ScreenRecordListWindow), new PropertyMetadata(30d));
+    public static readonly DependencyProperty VideoCardFileNameFontSizeProperty = DependencyProperty.Register(nameof(VideoCardFileNameFontSize), typeof(double), typeof(ScreenRecordListWindow), new PropertyMetadata(13d));
+    public static readonly DependencyProperty VideoCardFileNameLineHeightProperty = DependencyProperty.Register(nameof(VideoCardFileNameLineHeight), typeof(double), typeof(ScreenRecordListWindow), new PropertyMetadata(16d));
+    public static readonly DependencyProperty VideoCardSecondaryFontSizeProperty = DependencyProperty.Register(nameof(VideoCardSecondaryFontSize), typeof(double), typeof(ScreenRecordListWindow), new PropertyMetadata(11d));
+    public static readonly DependencyProperty VideoCardSecondaryLineHeightProperty = DependencyProperty.Register(nameof(VideoCardSecondaryLineHeight), typeof(double), typeof(ScreenRecordListWindow), new PropertyMetadata(13d));
+    public static readonly DependencyProperty VideoCardDetailFontSizeProperty = DependencyProperty.Register(nameof(VideoCardDetailFontSize), typeof(double), typeof(ScreenRecordListWindow), new PropertyMetadata(10d));
+    public static readonly DependencyProperty VideoCardDetailLineHeightProperty = DependencyProperty.Register(nameof(VideoCardDetailLineHeight), typeof(double), typeof(ScreenRecordListWindow), new PropertyMetadata(12d));
+    public static readonly DependencyProperty VideoCardStatusHeightProperty = DependencyProperty.Register(nameof(VideoCardStatusHeight), typeof(double), typeof(ScreenRecordListWindow), new PropertyMetadata(17d));
+    public static readonly DependencyProperty VideoCardStatusPaddingProperty = DependencyProperty.Register(nameof(VideoCardStatusPadding), typeof(Thickness), typeof(ScreenRecordListWindow), new PropertyMetadata(new Thickness(7d, 0d, 7d, 0d)));
+    public static readonly DependencyProperty VideoCardFormatMarginProperty = DependencyProperty.Register(nameof(VideoCardFormatMargin), typeof(Thickness), typeof(ScreenRecordListWindow), new PropertyMetadata(new Thickness(8d, 0d, 0d, 0d)));
+    public static readonly DependencyProperty VideoCardCoverIconSizeProperty = DependencyProperty.Register(nameof(VideoCardCoverIconSize), typeof(double), typeof(ScreenRecordListWindow), new PropertyMetadata(24d));
 
-    private const double UiXVideoCardBaseWidth = 216d;
+    private const double UiXVideoCardBaseWidth = 378d;
+    private const double UiXVideoCardMinimumWidth = 227d;
+    private const double UiXVideoCardMaximumWidth = 432d;
+    private const double UiXVideoCardInformationWidthRatio = 1.5d;
+    private const double UiXVideoCardMinimumInformationWidthRatio = 1.5d;
+    private const double UiXVideoCardCoverAspectWidth = 3d;
+    private const double UiXVideoCardCoverAspectHeight = 2d;
+    private const double UiXVideoCardFileNameFontSize = 13d;
+    private const double UiXVideoCardFileNameLineHeight = 16d;
+    private const double UiXVideoCardSecondaryFontSize = 11d;
+    private const double UiXVideoCardSecondaryLineHeight = 13d;
+    private const double UiXVideoCardDetailFontSize = 10d;
+    private const double UiXVideoCardDetailLineHeight = 12d;
+    private const double UiXVideoCardStatusHeight = 17d;
+    private const double UiXVideoCardColumnHysteresis = 16d;
     private const double UiXVideoCardHorizontalGap = 12d;
     private const double UiXVideoCardVerticalGap = 12d;
-    private const double UiXVideoCardContentInset = 42d;
-    private const double UiXVideoCardDetailsHeight = 50d;
+    private const double UiXVideoListFallbackContentInset = 42d;
     private readonly DispatcherTimer visibleVideoLoadTimer = new() { Interval = TimeSpan.FromMilliseconds(180) };
+    private readonly DispatcherTimer videoMarqueeAutoScrollTimer = new() { Interval = TimeSpan.FromMilliseconds(30) };
     private Task? visibleVideoRefreshTask;
+    private int videoCardColumnCount;
     private bool videoMarqueeCandidate;
     private bool isVideoMarqueeSelecting;
     private Point videoMarqueeStart;
+    private Point videoMarqueePointer;
+    private readonly HashSet<RecordedVideoItem> videoMarqueeItems = [];
     private RecordedVideoItem? videoMarqueePressedItem;
     private int videoMarqueeClickCount;
     private IDisposable? videoSelectionRegistration;
     private bool extensionUiSubscribed;
     private bool videoCardMetricsRefreshPending;
-    private int videoCardColumnCount = 1;
     private MainWindow? hostMainWindow;
 
     public ScreenRecordListViewModel ViewModel { get; } = new();
@@ -64,10 +95,28 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         set => SetValue(VideoCardGridWidthProperty, value);
     }
 
+    public int VideoCardColumnCount
+    {
+        get => (int)GetValue(VideoCardColumnCountProperty);
+        set => SetValue(VideoCardColumnCountProperty, value);
+    }
+
     public double VideoCardWidth
     {
         get => (double)GetValue(VideoCardWidthProperty);
         set => SetValue(VideoCardWidthProperty, value);
+    }
+
+    public double VideoCardHeight
+    {
+        get => (double)GetValue(VideoCardHeightProperty);
+        set => SetValue(VideoCardHeightProperty, value);
+    }
+
+    public double VideoCardCoverWidth
+    {
+        get => (double)GetValue(VideoCardCoverWidthProperty);
+        set => SetValue(VideoCardCoverWidthProperty, value);
     }
 
     public double VideoCardCoverHeight
@@ -82,31 +131,28 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         set => SetValue(VideoCardMarginProperty, value);
     }
 
-    public Size VideoCardItemSize
-    {
-        get => (Size)GetValue(VideoCardItemSizeProperty);
-        set => SetValue(VideoCardItemSizeProperty, value);
-    }
-
     public ScreenRecordListWindow()
     {
         DataContext = ViewModel;
         InitializeComponent();
         VideoListModalOverlay.IsVisibleChanged += (_, _) => DialogBlurScope.ApplyBackdropBrush(VideoListModalOverlay);
         visibleVideoLoadTimer.Tick += VisibleVideoLoadTimerTick;
+        videoMarqueeAutoScrollTimer.Tick += VideoMarqueeAutoScrollTimerTick;
         ViewModel.VisibleItemsChanged += (_, _) =>
         {
             ScheduleVisibleVideoLoading();
-            QueueVideoCardMetricsRefresh();
         };
         Loaded += ScreenRecordListWindowLoaded;
         Unloaded += ScreenRecordListWindowUnloaded;
         IsVisibleChanged += ScreenRecordListWindowIsVisibleChanged;
-        SizeChanged += (_, _) =>
+        SizeChanged += (_, e) =>
         {
             ScheduleVisibleVideoLoading();
             UpdateVideoListEdgeFades();
-            QueueVideoCardMetricsRefresh();
+            if (e.WidthChanged)
+            {
+                QueueVideoCardMetricsRefresh();
+            }
         };
         PreviewKeyDown += ScreenRecordListWindowPreviewKeyDown;
     }
@@ -218,52 +264,235 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         Dispatcher.BeginInvoke(() =>
         {
             videoCardMetricsRefreshPending = false;
-            UpdateVideoCardMetrics(VideoListBox.ActualWidth);
-        }, DispatcherPriority.Loaded);
+            UpdateVideoCardMetrics(GetVideoCardContentWidth());
+        }, DispatcherPriority.Render);
+    }
+
+    public Thickness VideoCardPadding
+    {
+        get => (Thickness)GetValue(VideoCardPaddingProperty);
+        set => SetValue(VideoCardPaddingProperty, value);
+    }
+
+    public Thickness VideoCardInfoMargin
+    {
+        get => (Thickness)GetValue(VideoCardInfoMarginProperty);
+        set => SetValue(VideoCardInfoMarginProperty, value);
+    }
+
+    public double VideoCardFileNameHeight
+    {
+        get => (double)GetValue(VideoCardFileNameHeightProperty);
+        set => SetValue(VideoCardFileNameHeightProperty, value);
+    }
+
+    public double VideoCardFileNameFontSize
+    {
+        get => (double)GetValue(VideoCardFileNameFontSizeProperty);
+        set => SetValue(VideoCardFileNameFontSizeProperty, value);
+    }
+
+    public double VideoCardFileNameLineHeight
+    {
+        get => (double)GetValue(VideoCardFileNameLineHeightProperty);
+        set => SetValue(VideoCardFileNameLineHeightProperty, value);
+    }
+
+    public double VideoCardSecondaryFontSize
+    {
+        get => (double)GetValue(VideoCardSecondaryFontSizeProperty);
+        set => SetValue(VideoCardSecondaryFontSizeProperty, value);
+    }
+
+    public double VideoCardSecondaryLineHeight
+    {
+        get => (double)GetValue(VideoCardSecondaryLineHeightProperty);
+        set => SetValue(VideoCardSecondaryLineHeightProperty, value);
+    }
+
+    public double VideoCardDetailFontSize
+    {
+        get => (double)GetValue(VideoCardDetailFontSizeProperty);
+        set => SetValue(VideoCardDetailFontSizeProperty, value);
+    }
+
+    public double VideoCardDetailLineHeight
+    {
+        get => (double)GetValue(VideoCardDetailLineHeightProperty);
+        set => SetValue(VideoCardDetailLineHeightProperty, value);
+    }
+
+    public double VideoCardStatusHeight
+    {
+        get => (double)GetValue(VideoCardStatusHeightProperty);
+        set => SetValue(VideoCardStatusHeightProperty, value);
+    }
+
+    public Thickness VideoCardStatusPadding
+    {
+        get => (Thickness)GetValue(VideoCardStatusPaddingProperty);
+        set => SetValue(VideoCardStatusPaddingProperty, value);
+    }
+
+    public Thickness VideoCardFormatMargin
+    {
+        get => (Thickness)GetValue(VideoCardFormatMarginProperty);
+        set => SetValue(VideoCardFormatMarginProperty, value);
+    }
+
+    public double VideoCardCoverIconSize
+    {
+        get => (double)GetValue(VideoCardCoverIconSizeProperty);
+        set => SetValue(VideoCardCoverIconSizeProperty, value);
+    }
+
+    private double GetVideoCardContentWidth()
+    {
+        return Math.Max(1d, VideoListBox.ActualWidth - UiXVideoListFallbackContentInset);
     }
 
     private void UpdateVideoCardMetrics(double width)
     {
-        if (double.IsNaN(width) || double.IsInfinity(width) || width <= 0d)
+        if (hostMainWindow?.ViewModel.StatusOfIsUiXEnabled != true
+            || double.IsNaN(width)
+            || double.IsInfinity(width)
+            || width <= 0d)
         {
             return;
         }
 
-        double availableWidth = Math.Max(UiXVideoCardBaseWidth + UiXVideoCardHorizontalGap, width - UiXVideoCardContentInset);
-        (int candidateColumns, _, _) = MainWindow.CalculateRoomCardLayout(
+        double availableWidth = Math.Max(1d, width);
+        (int columns, double cardWidth, double slotWidth) = CalculateVideoCardLayout(
             availableWidth,
             UiXVideoCardBaseWidth,
-            1d,
-            UiXVideoCardHorizontalGap);
-        int columns = MainWindow.StabilizeRoomCardColumns(
-            videoCardColumnCount,
-            candidateColumns,
-            availableWidth,
-            UiXVideoCardBaseWidth,
-            UiXVideoCardHorizontalGap);
-        int visibleItemCount = ViewModel.Videos.Cast<RecordedVideoItem>().Count();
-        if (visibleItemCount > 0)
-        {
-            columns = Math.Min(columns, visibleItemCount);
-        }
-
-        double cardWidth = MainWindow.GetCardWidthForColumns(
-            availableWidth,
-            columns,
+            UiXVideoCardMinimumWidth,
+            UiXVideoCardMaximumWidth,
             UiXVideoCardHorizontalGap,
-            UiXVideoCardBaseWidth);
-        double slotWidth = cardWidth + UiXVideoCardHorizontalGap;
-        double coverHeight = WindowSizing.RoundLayoutValue(Math.Max(1d, cardWidth - 8d) * 9d / 16d);
-        double itemHeight = WindowSizing.RoundLayoutValue(coverHeight + UiXVideoCardDetailsHeight + UiXVideoCardVerticalGap);
+            videoCardColumnCount);
+        double scale = cardWidth / UiXVideoCardBaseWidth;
+        double padding = WindowSizing.RoundLayoutValue(12d * scale);
+        double informationGap = WindowSizing.RoundLayoutValue(12d * scale);
+        double fileNameLineHeight = WindowSizing.RoundLayoutValue(UiXVideoCardFileNameLineHeight * scale);
+        double fileNameHeight = fileNameLineHeight * 2d;
+        double secondaryLineHeight = WindowSizing.RoundLayoutValue(UiXVideoCardSecondaryLineHeight * scale);
+        double detailLineHeight = WindowSizing.RoundLayoutValue(UiXVideoCardDetailLineHeight * scale);
+        double statusHeight = WindowSizing.RoundLayoutValue(UiXVideoCardStatusHeight * scale);
+        double coverWidth = CalculateVideoCardCoverWidth(
+            cardWidth,
+            padding,
+            informationGap,
+            UiXVideoCardInformationWidthRatio,
+            UiXVideoCardMinimumInformationWidthRatio);
+        double coverHeight = CalculateVideoCardCoverHeight(
+            coverWidth,
+            UiXVideoCardCoverAspectWidth,
+            UiXVideoCardCoverAspectHeight);
+        double informationHeight = fileNameHeight + secondaryLineHeight + detailLineHeight * 2d + statusHeight;
+        double cardHeight = CalculateVideoCardHeight(padding, coverHeight, informationHeight);
+        double gridWidth = WindowSizing.RoundLayoutValue(columns * slotWidth);
         double horizontalMargin = WindowSizing.RoundLayoutValue(UiXVideoCardHorizontalGap / 2d);
         double verticalMargin = WindowSizing.RoundLayoutValue(UiXVideoCardVerticalGap / 2d);
 
-        videoCardColumnCount = Math.Max(1, columns);
-        VideoCardGridWidth = WindowSizing.RoundLayoutValue(videoCardColumnCount * slotWidth);
+        VideoCardGridWidth = gridWidth;
+        VideoCardColumnCount = columns;
+        videoCardColumnCount = columns;
         VideoCardWidth = cardWidth;
+        VideoCardHeight = cardHeight;
+        VideoCardCoverWidth = coverWidth;
         VideoCardCoverHeight = coverHeight;
         VideoCardMargin = new Thickness(horizontalMargin, verticalMargin, horizontalMargin, verticalMargin);
-        VideoCardItemSize = new Size(WindowSizing.RoundLayoutValue(slotWidth), itemHeight);
+        VideoCardPadding = new Thickness(padding);
+        VideoCardInfoMargin = new Thickness(informationGap, 0d, 0d, 0d);
+        VideoCardFileNameHeight = fileNameHeight;
+        VideoCardFileNameFontSize = WindowSizing.RoundLayoutValue(UiXVideoCardFileNameFontSize * scale);
+        VideoCardFileNameLineHeight = fileNameLineHeight;
+        VideoCardSecondaryFontSize = WindowSizing.RoundLayoutValue(UiXVideoCardSecondaryFontSize * scale);
+        VideoCardSecondaryLineHeight = secondaryLineHeight;
+        VideoCardDetailFontSize = WindowSizing.RoundLayoutValue(UiXVideoCardDetailFontSize * scale);
+        VideoCardDetailLineHeight = detailLineHeight;
+        VideoCardStatusHeight = statusHeight;
+        VideoCardStatusPadding = new Thickness(WindowSizing.RoundLayoutValue(7d * scale), 0d, WindowSizing.RoundLayoutValue(7d * scale), 0d);
+        VideoCardFormatMargin = new Thickness(WindowSizing.RoundLayoutValue(8d * scale), 0d, 0d, 0d);
+        VideoCardCoverIconSize = WindowSizing.RoundLayoutValue(24d * scale);
+    }
+
+    internal static int CalculateVideoCardColumns(double availableWidth, double baseCardWidth, double horizontalGap)
+    {
+        double preferredSlotWidth = Math.Max(1d, baseCardWidth + horizontalGap);
+        return Math.Max(1, (int)Math.Floor(Math.Max(1d, availableWidth) / preferredSlotWidth));
+    }
+
+    internal static double CalculateVideoCardCoverWidth(
+        double cardWidth,
+        double padding,
+        double informationGap,
+        double preferredInformationWidthRatio,
+        double minimumInformationWidthRatio)
+    {
+        double innerWidth = Math.Max(1d, cardWidth - Math.Max(0d, padding) * 2d - Math.Max(0d, informationGap));
+        double informationWidthRatio = Math.Max(minimumInformationWidthRatio, preferredInformationWidthRatio);
+        return Math.Max(1d, Math.Floor(innerWidth / (1d + Math.Max(0d, informationWidthRatio))));
+    }
+
+    internal static double CalculateVideoCardCoverHeight(double coverWidth, double aspectWidth, double aspectHeight)
+    {
+        return WindowSizing.RoundLayoutValue(Math.Max(1d, coverWidth) * Math.Max(1d, aspectHeight) / Math.Max(1d, aspectWidth));
+    }
+
+    internal static double CalculateVideoCardHeight(double padding, double coverHeight, double informationHeight)
+    {
+        return WindowSizing.RoundLayoutValue(Math.Max(coverHeight, informationHeight) + Math.Max(0d, padding) * 2d);
+    }
+
+    internal static (int Columns, double CardWidth, double SlotWidth) CalculateVideoCardLayout(
+        double availableWidth,
+        double baseCardWidth,
+        double minimumCardWidth,
+        double maximumCardWidth,
+        double horizontalGap,
+        int currentColumns = 0)
+    {
+        double normalizedWidth = Math.Max(1d, availableWidth);
+        int candidateColumns = CalculateVideoCardColumns(normalizedWidth, baseCardWidth, horizontalGap);
+        int columns = StabilizeVideoCardColumns(
+            currentColumns,
+            candidateColumns,
+            normalizedWidth,
+            baseCardWidth,
+            horizontalGap,
+            UiXVideoCardColumnHysteresis);
+        double naturalCardWidth = Math.Max(1d, Math.Floor(normalizedWidth / columns) - horizontalGap);
+        double cardWidth = Math.Clamp(naturalCardWidth, minimumCardWidth, maximumCardWidth);
+        double slotWidth = cardWidth + horizontalGap;
+        return (
+            columns,
+            WindowSizing.RoundLayoutValue(cardWidth),
+            slotWidth);
+    }
+
+    internal static int StabilizeVideoCardColumns(
+        int currentColumns,
+        int candidateColumns,
+        double availableWidth,
+        double minimumCardWidth,
+        double horizontalGap,
+        double hysteresis)
+    {
+        int normalizedCandidate = Math.Max(1, candidateColumns);
+        if (currentColumns <= 0 || currentColumns == normalizedCandidate)
+        {
+            return normalizedCandidate;
+        }
+
+        double minimumSlotWidth = Math.Max(1d, minimumCardWidth + horizontalGap);
+        if (normalizedCandidate > currentColumns)
+        {
+            double growthThreshold = normalizedCandidate * minimumSlotWidth + Math.Max(0d, hysteresis);
+            return availableWidth >= growthThreshold ? normalizedCandidate : currentColumns;
+        }
+
+        double currentFitThreshold = currentColumns * minimumSlotWidth;
+        return availableWidth >= currentFitThreshold ? currentColumns : normalizedCandidate;
     }
 
     private async void ScreenRecordListWindowIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -385,6 +614,10 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
 
         double offset = Math.Max(0d, scrollViewer.VerticalOffset - e.Delta * 0.25d);
         scrollViewer.ScrollToVerticalOffset(Math.Min(scrollViewer.ScrollableHeight, offset));
+        if (isVideoMarqueeSelecting)
+        {
+            UpdateVideoMarquee(Mouse.GetPosition(VideoListBox));
+        }
         e.Handled = true;
     }
 
@@ -400,7 +633,7 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         }
 
         videoMarqueeCandidate = true;
-        videoMarqueeStart = e.GetPosition(VideoListBox);
+        videoMarqueeStart = GetVideoMarqueeContentPoint(e.GetPosition(VideoListBox));
         videoMarqueePressedItem = item?.DataContext as RecordedVideoItem;
         videoMarqueeClickCount = e.ClickCount;
         if (item != null)
@@ -438,8 +671,9 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
             return;
         }
 
-        bool moved = Math.Abs(position.X - videoMarqueeStart.X) >= SystemParameters.MinimumHorizontalDragDistance
-            || Math.Abs(position.Y - videoMarqueeStart.Y) >= SystemParameters.MinimumVerticalDragDistance;
+        Point contentPosition = GetVideoMarqueeContentPoint(position);
+        bool moved = Math.Abs(contentPosition.X - videoMarqueeStart.X) >= SystemParameters.MinimumHorizontalDragDistance
+            || Math.Abs(contentPosition.Y - videoMarqueeStart.Y) >= SystemParameters.MinimumVerticalDragDistance;
         if (!moved)
         {
             return;
@@ -447,6 +681,7 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
 
         videoMarqueeCandidate = false;
         isVideoMarqueeSelecting = true;
+        videoMarqueeItems.Clear();
         VideoSelectionRectangle.Visibility = Visibility.Visible;
         VideoListBox.CaptureMouse();
         UpdateVideoMarquee(position);
@@ -512,20 +747,77 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
 
     private void UpdateVideoMarquee(Point position)
     {
-        Rect selection = CreateSelectionRect(videoMarqueeStart, position);
-        Canvas.SetLeft(VideoSelectionRectangle, WindowSizing.RoundLayoutValue(selection.Left));
-        Canvas.SetTop(VideoSelectionRectangle, WindowSizing.RoundLayoutValue(selection.Top));
-        VideoSelectionRectangle.Width = WindowSizing.RoundLayoutValue(selection.Width);
-        VideoSelectionRectangle.Height = WindowSizing.RoundLayoutValue(selection.Height);
+        videoMarqueePointer = position;
+        Rect contentSelection = CreateSelectionRect(videoMarqueeStart, GetVideoMarqueeContentPoint(position));
+        Rect viewportSelection = ProjectVideoMarqueeToViewport(contentSelection);
+        Canvas.SetLeft(VideoSelectionRectangle, WindowSizing.RoundLayoutValue(viewportSelection.Left));
+        Canvas.SetTop(VideoSelectionRectangle, WindowSizing.RoundLayoutValue(viewportSelection.Top));
+        VideoSelectionRectangle.Width = WindowSizing.RoundLayoutValue(viewportSelection.Width);
+        VideoSelectionRectangle.Height = WindowSizing.RoundLayoutValue(viewportSelection.Height);
+        AccumulateVideoMarqueeItems(contentSelection);
+        UpdateVideoMarqueeAutoScroll();
+    }
+
+    private void AccumulateVideoMarqueeItems(Rect selection)
+    {
+        foreach (ListBoxItem item in EnumerateVisualDescendants<ListBoxItem>(VideoListBox))
+        {
+            if (TryGetElementBounds(item, VideoListBox, out Rect bounds)
+                && selection.IntersectsWith(ProjectVideoMarqueeToContent(bounds))
+                && item.DataContext is RecordedVideoItem video)
+            {
+                videoMarqueeItems.Add(video);
+            }
+        }
+    }
+
+    private void UpdateVideoMarqueeAutoScroll()
+    {
+        double delta = MarqueeAutoScroll.GetDelta(videoMarqueePointer.Y, VideoListBox.ActualHeight);
+        if (Math.Abs(delta) > 0d)
+        {
+            if (!videoMarqueeAutoScrollTimer.IsEnabled)
+            {
+                videoMarqueeAutoScrollTimer.Start();
+            }
+        }
+        else
+        {
+            videoMarqueeAutoScrollTimer.Stop();
+        }
+    }
+
+    private void VideoMarqueeAutoScrollTimerTick(object? sender, EventArgs e)
+    {
+        if (!isVideoMarqueeSelecting
+            || FindVisualChild<ScrollViewer>(VideoListBox) is not ScrollViewer scrollViewer)
+        {
+            videoMarqueeAutoScrollTimer.Stop();
+            return;
+        }
+
+        videoMarqueePointer = Mouse.GetPosition(VideoListBox);
+        double delta = MarqueeAutoScroll.GetDelta(videoMarqueePointer.Y, VideoListBox.ActualHeight);
+        double targetOffset = Math.Clamp(scrollViewer.VerticalOffset + delta, 0d, scrollViewer.ScrollableHeight);
+        if (Math.Abs(targetOffset - scrollViewer.VerticalOffset) < 0.5d)
+        {
+            videoMarqueeAutoScrollTimer.Stop();
+            return;
+        }
+
+        scrollViewer.ScrollToVerticalOffset(targetOffset);
+        UpdateVideoMarquee(videoMarqueePointer);
     }
 
     private void FinishVideoMarquee(bool commit)
     {
-        Rect selection = CreateSelectionRect(videoMarqueeStart, Mouse.GetPosition(VideoListBox));
+        Rect selection = CreateSelectionRect(videoMarqueeStart, GetVideoMarqueeContentPoint(Mouse.GetPosition(VideoListBox)));
+        AccumulateVideoMarqueeItems(selection);
         isVideoMarqueeSelecting = false;
         videoMarqueeCandidate = false;
         videoMarqueePressedItem = null;
         videoMarqueeClickCount = 0;
+        videoMarqueeAutoScrollTimer.Stop();
         VideoSelectionRectangle.Visibility = Visibility.Collapsed;
         if (VideoListBox.IsMouseCaptured)
         {
@@ -534,20 +826,50 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
 
         if (!commit || selection.Width < 1d || selection.Height < 1d)
         {
+            videoMarqueeItems.Clear();
             return;
         }
 
-        List<RecordedVideoItem> selectedItems = [];
-        foreach (ListBoxItem item in EnumerateVisualDescendants<ListBoxItem>(VideoListBox))
+        ViewModel.SelectItems(videoMarqueeItems);
+        videoMarqueeItems.Clear();
+    }
+
+    private Point GetVideoMarqueeContentPoint(Point viewportPoint)
+    {
+        if (FindVisualChild<ScrollViewer>(VideoListBox) is not ScrollViewer scrollViewer)
         {
-            if (TryGetElementBounds(item, VideoListBox, out Rect bounds)
-                && selection.IntersectsWith(bounds)
-                && item.DataContext is RecordedVideoItem video)
-            {
-                selectedItems.Add(video);
-            }
+            return viewportPoint;
         }
-        ViewModel.SelectItems(selectedItems);
+
+        return new Point(viewportPoint.X + scrollViewer.HorizontalOffset, viewportPoint.Y + scrollViewer.VerticalOffset);
+    }
+
+    private Rect ProjectVideoMarqueeToViewport(Rect contentRect)
+    {
+        if (FindVisualChild<ScrollViewer>(VideoListBox) is not ScrollViewer scrollViewer)
+        {
+            return contentRect;
+        }
+
+        return new Rect(
+            contentRect.X - scrollViewer.HorizontalOffset,
+            contentRect.Y - scrollViewer.VerticalOffset,
+            contentRect.Width,
+            contentRect.Height);
+    }
+
+    private Rect ProjectVideoMarqueeToContent(Rect viewportRect)
+    {
+        if (FindVisualChild<ScrollViewer>(VideoListBox) is not ScrollViewer scrollViewer)
+        {
+            return viewportRect;
+        }
+
+        return new Rect(
+            viewportRect.X + scrollViewer.HorizontalOffset,
+            viewportRect.Y + scrollViewer.VerticalOffset,
+            viewportRect.Width,
+            viewportRect.Height);
     }
 
     private void VideoSelectionHostPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
@@ -1306,6 +1628,9 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
     [ObservableProperty]
     private int selectedTimeRangeIndex;
 
+    [ObservableProperty]
+    private string? selectedTimeRange;
+
     partial void OnSelectedTimeRangeIndexChanged(int value)
     {
         int next = Math.Clamp(value, 0, Math.Max(0, TimeRangeOptions.Count - 1));
@@ -1316,6 +1641,12 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         }
 
         ApplyFilters();
+    }
+
+    partial void OnSelectedTimeRangeChanged(string? value)
+    {
+        int index = string.IsNullOrEmpty(value) ? 0 : TimeRangeOptions.IndexOf(value);
+        SelectedTimeRangeIndex = Math.Max(0, index);
     }
 
     private void OnCultureChanged(object? sender, EventArgs e)
@@ -1370,6 +1701,8 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             }
 
             UpdateStreamerOptions();
+            SelectedTimeRangeIndex = Math.Clamp(SelectedTimeRangeIndex, 0, Math.Max(0, TimeRangeOptions.Count - 1));
+            SelectedTimeRange = TimeRangeOptions.Count == 0 ? null : TimeRangeOptions[SelectedTimeRangeIndex];
         }
         finally
         {
@@ -1977,22 +2310,32 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
         System.Windows.Controls.TextBox input = new()
         {
-            MinWidth = 420,
+            MinWidth = UiXDialogContent.IsEnabled ? 0d : 420d,
+            MinHeight = 40d,
+            VerticalContentAlignment = VerticalAlignment.Center,
             Text = Path.GetFileNameWithoutExtension(item.FileName),
         };
         input.SelectAll();
         ContentDialog dialog = new()
         {
             Title = "RenameVideo".Tr(),
-            Content = input,
+            Content = UiXDialogContent.IsEnabled
+                ? UiXDialogContent.CreateForm(
+                    item.FileName,
+                    input,
+                    Wpf.Ui.Controls.FontSymbols.Rename,
+                    minimumWidth: 460d)
+                : input,
             CloseButtonText = "ButtonOfCancel".Tr(),
             PrimaryButtonText = "Rename".Tr(),
             DefaultButton = ContentDialogButton.Primary,
-            Style = Application.Current.TryFindResource("DefaultVioletaContentDialogStyle") as Style,
+            Style = Application.Current.TryFindResource("EmerdeContentDialogStyle") as Style,
         };
 
         Window owner = Application.Current.MainWindow;
-        using DialogBlurScope blurScope = DialogBlurScope.ForDialog(owner, dialog);
+        using DialogBlurScope blurScope = UiXDialogContent.IsEnabled
+            ? DialogBlurScope.ForLightDismiss(owner, dialog)
+            : DialogBlurScope.ForDialog(owner, dialog);
         ContentDialogResult result = await WindowSizing.ShowContentDialogAsync(dialog, owner);
         if (result != ContentDialogResult.Primary)
         {
@@ -2062,7 +2405,20 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             }
             else
             {
-                Toast.Warning(GetResourceText("TranscodeFailed", "Transcoding failed"));
+                OperationProgressText = GetResourceText("RepairingVideo", "Repairing recording...");
+                VideoRepairResult repairResult = await new VideoRepairService().RepairAsync(item.FullPath, options.TargetFormat);
+                switch (repairResult.Status)
+                {
+                    case VideoRepairStatus.Repaired:
+                        Toast.Success(GetResourceText("RepairVideoComplete", "Recording repaired"));
+                        break;
+                    case VideoRepairStatus.PartiallyRepaired:
+                        Toast.Warning(GetResourceText("RepairVideoPartial", "Recoverable content was saved, but the timeline remains incomplete"));
+                        break;
+                    case VideoRepairStatus.Failed:
+                        Toast.Warning(GetResourceText("TranscodeFailed", "Transcoding failed"));
+                        break;
+                }
             }
             await RefreshForDisplayAsync();
         }
@@ -2079,6 +2435,109 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
                 OnPropertyChanged(nameof(IsIdle));
             }
         }
+    }
+
+    [RelayCommand]
+    private async Task RepairVideoAsync(RecordedVideoItem? item)
+    {
+        if (item == null || !item.CanRepair || !CanModifyVideo(item) || IsOperating)
+        {
+            return;
+        }
+        string? targetExtension = await ConfirmVideoRepairAsync();
+        if (targetExtension == null)
+        {
+            return;
+        }
+        if (!File.Exists(item.FullPath) || !item.CanRepair || !CanModifyVideo(item) || IsOperating)
+        {
+            return;
+        }
+
+        IsOperating = true;
+        OperationProgressText = GetResourceText("RepairingVideo", "Repairing recording...");
+        OnPropertyChanged(nameof(IsIdle));
+        try
+        {
+            VideoRepairResult result = await new VideoRepairService().RepairAsync(item.FullPath, targetExtension);
+            switch (result.Status)
+            {
+                case VideoRepairStatus.Repaired:
+                    Toast.Success(GetResourceText("RepairVideoComplete", "Recording repaired"));
+                    break;
+                case VideoRepairStatus.PartiallyRepaired:
+                    Toast.Warning(GetResourceText("RepairVideoPartial", "Recoverable content was saved, but the timeline remains incomplete"));
+                    break;
+                case VideoRepairStatus.Failed:
+                    Toast.Warning(GetResourceText("RepairVideoFailed", "Recording could not be repaired"));
+                    break;
+            }
+            await RefreshForDisplayAsync();
+        }
+        finally
+        {
+            IsOperating = false;
+            OperationProgressText = string.Empty;
+            OnPropertyChanged(nameof(IsIdle));
+        }
+    }
+
+    private static async Task<string?> ConfirmVideoRepairAsync()
+    {
+        System.Windows.Controls.ComboBox formatSelector = new()
+        {
+            MinWidth = 240d,
+            Items =
+            {
+                new ComboBoxItem { Content = "MKV" },
+                new ComboBoxItem { Content = "MP4" },
+            },
+            SelectedIndex = 0,
+        };
+        TextBlock description = new()
+        {
+            Text = GetResourceText("RepairVideoDescription", "Creates a new file from readable audio and video data. MKV is recommended for damaged recordings; MP4 requires compatible streams. The original is not changed, and missing content cannot be recreated."),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 12, 0, 0),
+            MaxWidth = 420d,
+        };
+        description.SetResourceReference(
+            TextBlock.ForegroundProperty,
+            UiXDialogContent.IsEnabled ? "UiXTextSecondaryBrush" : "TextFillColorSecondaryBrush");
+        StackPanel content = new()
+        {
+            Width = 420d,
+            Children =
+            {
+                formatSelector,
+                description,
+            },
+        };
+        ContentDialog dialog = new()
+        {
+            Title = GetResourceText("RepairVideo", "Repair recording"),
+            Content = UiXDialogContent.IsEnabled
+                ? UiXDialogContent.CreateForm(
+                    GetResourceText("TargetFormat", "Target format"),
+                    content,
+                    Wpf.Ui.Controls.FontSymbols.Video,
+                    minimumWidth: 420d)
+                : content,
+            CloseButtonText = GetResourceText("ButtonOfCancel", "Cancel"),
+            PrimaryButtonText = GetResourceText("StartButton", "Start"),
+            DefaultButton = ContentDialogButton.Primary,
+            Style = Application.Current.TryFindResource("EmerdeContentDialogStyle") as Style,
+        };
+        Window owner = Application.Current.MainWindow;
+        using DialogBlurScope blurScope = UiXDialogContent.IsEnabled
+            ? DialogBlurScope.ForLightDismiss(owner, dialog)
+            : DialogBlurScope.ForDialog(owner, dialog);
+        ContentDialogResult result = await WindowSizing.ShowContentDialogAsync(dialog, owner);
+        if (result != ContentDialogResult.Primary)
+        {
+            return null;
+        }
+        return formatSelector.SelectedIndex == 1 ? ".mp4" : ".mkv";
     }
 
     private static async Task<ConverterOptions?> ShowTranscodeOptionsAsync()
@@ -2113,28 +2572,45 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             optimizeAudio.Visibility = isMp4 ? Visibility.Visible : Visibility.Collapsed;
             description.Visibility = isMp4 ? Visibility.Visible : Visibility.Collapsed;
         };
+        TextBlock targetFormatLabel = new()
+        {
+            Text = GetResourceText("TargetFormat", "Target format"),
+            Margin = new Thickness(0, 0, 0, 8),
+        };
         StackPanel content = new()
         {
-            MinWidth = 360,
+            MinWidth = UiXDialogContent.IsEnabled ? 0d : 360d,
             Children =
             {
-                new TextBlock { Text = GetResourceText("TargetFormat", "Target format"), Margin = new Thickness(0, 0, 0, 8) },
+                targetFormatLabel,
                 formatSelector,
                 optimizeAudio,
                 description,
             },
         };
+        if (UiXDialogContent.IsEnabled)
+        {
+            content.Children.Remove(targetFormatLabel);
+        }
         ContentDialog dialog = new()
         {
             Title = GetResourceText("TranscodeVideo", "Transcode"),
-            Content = content,
+            Content = UiXDialogContent.IsEnabled
+                ? UiXDialogContent.CreateForm(
+                    GetResourceText("TargetFormat", "Target format"),
+                    content,
+                    Wpf.Ui.Controls.FontSymbols.Video,
+                    minimumWidth: 460d)
+                : content,
             CloseButtonText = GetResourceText("ButtonOfCancel", "Cancel"),
             PrimaryButtonText = GetResourceText("StartButton", "Start"),
             DefaultButton = ContentDialogButton.Primary,
-            Style = Application.Current.TryFindResource("DefaultVioletaContentDialogStyle") as Style,
+            Style = Application.Current.TryFindResource("EmerdeContentDialogStyle") as Style,
         };
         Window owner = Application.Current.MainWindow;
-        using DialogBlurScope blurScope = DialogBlurScope.ForDialog(owner, dialog);
+        using DialogBlurScope blurScope = UiXDialogContent.IsEnabled
+            ? DialogBlurScope.ForLightDismiss(owner, dialog)
+            : DialogBlurScope.ForDialog(owner, dialog);
         ContentDialogResult result = await WindowSizing.ShowContentDialogAsync(dialog, owner);
         if (result != ContentDialogResult.Primary)
         {
@@ -2424,12 +2900,25 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             return;
         }
 
-        System.Windows.MessageBoxResult result;
-        using (DialogBlurScope blurScope = DialogBlurScope.ForMessageBox(Application.Current.MainWindow))
+        string prompt = FormatResourceText("ConfirmDeleteVideos", "Delete {0} video files?", items.Count);
+        bool confirmed;
+        if (UiXDialogContent.IsEnabled)
         {
-            result = await MessageBox.QuestionAsync(FormatResourceText("ConfirmDeleteVideos", "Delete {0} video files?", items.Count));
+            confirmed = await UiXDialogContent.ConfirmAsync(
+                Application.Current.MainWindow,
+                GetResourceText("DeleteButton", "Delete"),
+                prompt,
+                GetResourceText("DeleteButton", "Delete"),
+                "ButtonOfCancel".Tr(),
+                Wpf.Ui.Controls.FontSymbols.Delete,
+                UiXDialogTone.Danger);
         }
-        if (result != System.Windows.MessageBoxResult.Yes)
+        else
+        {
+            using DialogBlurScope blurScope = DialogBlurScope.ForMessageBox(Application.Current.MainWindow);
+            confirmed = await MessageBox.QuestionAsync(prompt) == System.Windows.MessageBoxResult.Yes;
+        }
+        if (!confirmed)
         {
             return;
         }
@@ -4544,6 +5033,7 @@ public partial class RecordedVideoItem : ObservableObject
     internal DateTime MetadataLastWriteTimeUtc { get; init; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UiXWrappedFileName))]
     private string fileName = string.Empty;
 
     [ObservableProperty]
@@ -4559,6 +5049,7 @@ public partial class RecordedVideoItem : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StreamerChipText))]
+    [NotifyPropertyChangedFor(nameof(UiXStreamerText))]
     [NotifyPropertyChangedFor(nameof(UiXSummaryText))]
     private string nickName = string.Empty;
 
@@ -4582,6 +5073,7 @@ public partial class RecordedVideoItem : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RecordingDetailsText))]
+    [NotifyPropertyChangedFor(nameof(RecordingTimeText))]
     [NotifyPropertyChangedFor(nameof(UiXSummaryText))]
     [NotifyPropertyChangedFor(nameof(DateGroupKey))]
     private DateTime createdAt;
@@ -4593,6 +5085,7 @@ public partial class RecordedVideoItem : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanModify))]
     [NotifyPropertyChangedFor(nameof(CanTranscode))]
+    [NotifyPropertyChangedFor(nameof(CanRepair))]
     private bool isInProgress;
 
     [ObservableProperty]
@@ -4605,6 +5098,7 @@ public partial class RecordedVideoItem : ObservableObject
     [NotifyPropertyChangedFor(nameof(CanSelect))]
     [NotifyPropertyChangedFor(nameof(CanModify))]
     [NotifyPropertyChangedFor(nameof(CanTranscode))]
+    [NotifyPropertyChangedFor(nameof(CanRepair))]
     private bool isRecordingFile;
 
     [ObservableProperty]
@@ -4618,6 +5112,8 @@ public partial class RecordedVideoItem : ObservableObject
 
     public bool HasThumbnail => !string.IsNullOrWhiteSpace(ThumbnailPath) && File.Exists(ThumbnailPath);
 
+    public string UiXWrappedFileName => string.Concat(FileName.Select(character => $"{character}\u200B"));
+
     public DateTime DateGroupKey => CreatedAt.Date;
 
     public string FormatText => ScreenRecordListViewModel.GetVideoFormatText(FullPath);
@@ -4627,6 +5123,8 @@ public partial class RecordedVideoItem : ObservableObject
     public bool CanModify => !IsInProgress && !IsRecordingFile;
 
     public bool CanTranscode => SupportsTranscode && !IsInProgress && !IsRecordingFile;
+
+    public bool CanRepair => SupportsTranscode && !IsInProgress && !IsRecordingFile;
 
     public bool CanSelect => !IsRecordingFile;
 
@@ -4643,6 +5141,7 @@ public partial class RecordedVideoItem : ObservableObject
     internal void RefreshLocalizedText()
     {
         OnPropertyChanged(nameof(StreamerChipText));
+        OnPropertyChanged(nameof(UiXStreamerText));
         OnPropertyChanged(nameof(ResolutionChipText));
         OnPropertyChanged(nameof(BitrateChipText));
         OnPropertyChanged(nameof(RecordingDetailsText));
@@ -4653,6 +5152,10 @@ public partial class RecordedVideoItem : ObservableObject
         "StreamerChip",
         "Streamer {0}",
         string.IsNullOrWhiteSpace(NickName) ? ScreenRecordListViewModel.GetResourceText("CommonUnknown", "Unknown") : NickName);
+
+    public string UiXStreamerText => string.IsNullOrWhiteSpace(NickName)
+        ? ScreenRecordListViewModel.GetResourceText("CommonUnknown", "Unknown")
+        : NickName;
 
     public string ResolutionChipText => ScreenRecordListViewModel.FormatResourceText(
         "ResolutionChip",
@@ -4665,6 +5168,10 @@ public partial class RecordedVideoItem : ObservableObject
         string.IsNullOrWhiteSpace(Bitrate) ? ScreenRecordListViewModel.GetResourceText("CommonUnknown", "Unknown") : Bitrate);
 
     public string RecordingDetailsText => $"{CreatedAt:yyyy-MM-dd HH:mm:ss}  ·  {ScreenRecordListViewModel.FormatFileSize(SourceLength)}";
+
+    public string RecordingTimeText => CreatedAt.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.CurrentCulture);
+
+    public string FileSizeText => ScreenRecordListViewModel.FormatFileSize(SourceLength);
 
     public string UiXSummaryText => $"{(string.IsNullOrWhiteSpace(NickName) ? ScreenRecordListViewModel.GetResourceText("CommonUnknown", "Unknown") : NickName)}  ·  {RecordingDetailsText}";
 }

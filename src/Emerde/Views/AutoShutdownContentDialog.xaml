@@ -11,17 +11,15 @@
                    d:DesignWidth="NaN"
                    FontSize="14"
                    SnapsToDevicePixels="True"
-                   Style="{StaticResource DefaultVioletaContentDialogStyle}"
+                   Style="{StaticResource EmerdeContentDialogStyle}"
                    UseLayoutRounding="True"
                    mc:Ignorable="d">
-    <ui:StackPanel MinWidth="560"
-                   Spacing="18"
+    <ui:StackPanel Spacing="18"
                    controls:MotionAssist.IsEntranceEnabled="True"
                    controls:MotionAssist.EntranceOffsetY="8"
                    controls:MotionAssist.EntranceScale="0.98">
-        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                   Text="{Binding Description}"
-                   TextWrapping="Wrap" />
+        <TextBlock Style="{StaticResource EmerdeDialogSecondaryTextStyle}"
+                   Text="{Binding Description}" />
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />

@@ -17,11 +17,17 @@
              UseLayoutRounding="True"
              mc:Ignorable="d">
     <UserControl.Resources>
+        <Style x:Key="UiXLocalSettingsGroupStyle" TargetType="{x:Type Border}">
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="Background" Value="{DynamicResource UiXDialogSectionBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="{StaticResource UiXSurfaceCornerRadius}" />
+        </Style>
         <Style x:Key="UiXLocalSettingsFadeStyle" TargetType="{x:Type Border}">
             <Setter Property="Background" Value="{DynamicResource EmerdeSurfaceBrush}" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource UiXPanelBrush}" />
+                    <Setter Property="Background" Value="{DynamicResource UiXDialogSurfaceBrush}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -57,7 +63,7 @@
             </Setter>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource UiXCardBrush}" />
+                    <Setter Property="Background" Value="{DynamicResource UiXDialogSectionBrush}" />
                     <Setter Property="BorderThickness" Value="0" />
                 </DataTrigger>
             </Style.Triggers>
@@ -76,7 +82,7 @@
             <Setter Property="ContentPadding" Value="0,8,0,14" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource UiXCardBrush}" />
+                    <Setter Property="Background" Value="{DynamicResource UiXDialogSectionBrush}" />
                     <Setter Property="BorderThickness" Value="0" />
                 </DataTrigger>
             </Style.Triggers>
@@ -85,12 +91,12 @@
     <Border Background="Transparent">
         <Border x:Name="LocalSettingsSurface"
                 Padding="0"
-                Background="{DynamicResource EmerdeSurfaceBrush}"
                 ClipToBounds="True"
                 CornerRadius="{StaticResource Win11ControlCornerRadius}"
                 Focusable="False"
                 FocusVisualStyle="{x:Null}"
                 SizeChanged="LocalSettingsSurfaceSizeChanged"
+                Style="{StaticResource EmerdeDialogSurfaceStyle}"
                 controls:MotionAssist.IsEntranceEnabled="True"
                 controls:MotionAssist.EntranceOffsetY="8"
                 controls:MotionAssist.EntranceScale="0.98">
@@ -123,7 +129,8 @@
                     </ui:StackPanel>
                 </Grid>
 
-                <ui:Card Grid.Row="1"
+                <ui:Card x:Name="SettingsModeCard"
+                         Grid.Row="1"
                          MinHeight="64"
                          Margin="14,10,14,8"
                          Padding="14,8"
@@ -143,16 +150,57 @@
                     </Grid>
                 </ui:Card>
 
+                <Border Grid.Row="2"
+                        Margin="14,12,14,14"
+                        Padding="20">
+                    <Border.Style>
+                        <Style TargetType="{x:Type Border}" BasedOn="{StaticResource UiXLocalSettingsGroupStyle}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding IsUiXEnabled}" Value="True" />
+                                        <Condition Binding="{Binding IsFollowGlobalSettings}" Value="True" />
+                                        <Condition Binding="{Binding ShowSettingsHeader}" Value="True" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <ui:FontIcon Grid.Column="0"
+                                     Margin="0,0,14,0"
+                                     VerticalAlignment="Center"
+                                     FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                                     FontSize="20"
+                                     Foreground="{DynamicResource UiXTextSecondaryBrush}"
+                                     Glyph="{x:Static ui:FontSymbols.Sync}" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource UiXSectionTitleTextStyle}" Text="{I18N FollowGlobalSettings}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
                 <Border Grid.Row="2">
                     <Border.Style>
                         <Style TargetType="{x:Type Border}">
-                            <Setter Property="Opacity" Value="1" />
                             <Setter Property="IsEnabled" Value="True" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsFollowGlobalSettings}" Value="True">
-                                    <Setter Property="Opacity" Value="0.55" />
                                     <Setter Property="IsEnabled" Value="False" />
                                 </DataTrigger>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding IsUiXEnabled}" Value="True" />
+                                        <Condition Binding="{Binding IsFollowGlobalSettings}" Value="True" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
@@ -166,8 +214,8 @@
                                       PanningMode="VerticalOnly"
                                       ScrollViewer.CanContentScroll="False"
                                       VerticalScrollBarVisibility="Visible">
-                            <ui:StackPanel Margin="0,0,8,0" Spacing="10">
-                                <ui:Card Padding="14">
+                            <ui:StackPanel x:Name="LocalSettingsItemsPanel" Margin="0,0,8,0" Spacing="10">
+                                <ui:Card x:Name="RoomActionsCard" Padding="14">
                                     <Grid MinHeight="54">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
@@ -186,7 +234,7 @@
                                     </Grid>
                                 </ui:Card>
 
-                                <ui:Card>
+                                <ui:Card x:Name="QualityCard">
                                     <Grid MinHeight="35">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
@@ -220,7 +268,7 @@
                                     </Grid>
                                 </ui:Card>
 
-                                <ui:Card Visibility="{Binding IsRoutineSchedulePreset, Converter={x:Static c:BoolToVisibilityConverter.Instance}}">
+                                <ui:Card x:Name="SchedulePresetCard" Visibility="{Binding IsRoutineSchedulePreset, Converter={x:Static c:BoolToVisibilityConverter.Instance}}">
                                     <Grid MinHeight="35">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
@@ -257,7 +305,8 @@
                                     </Grid>
                                 </ui:Card>
 
-                                <ui:CardExpander IsExpanded="True"
+                                <ui:CardExpander x:Name="ScheduleCustomCard"
+                                                 IsExpanded="True"
                                                  Visibility="{Binding IsRoutineScheduleCustom, Converter={x:Static c:BoolToVisibilityConverter.Instance}}">
                                     <ui:CardExpander.Header>
                                         <Grid>
@@ -345,7 +394,7 @@
                                     </ui:StackPanel>
                                 </ui:CardExpander>
 
-                                <ui:Card>
+                                <ui:Card x:Name="RoutineIntervalCard">
                                     <Grid MinHeight="35">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
@@ -386,7 +435,7 @@
                                     </Grid>
                                 </ui:Card>
 
-                                <ui:CardExpander>
+                                <ui:CardExpander x:Name="RecordFormatCard">
                                     <ui:CardExpander.Header>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
@@ -421,17 +470,18 @@
                                             </ComboBox>
                                         </Grid>
                                     </ui:CardExpander.Header>
-                                    <ui:StackPanel Margin="42,0,28,0" Spacing="12">
+                                    <StackPanel Margin="42,0,28,0">
                                         <CheckBox Content="{I18N CreateOptimizedAudioTrack}"
+                                                  Margin="0,0,0,12"
                                                   IsChecked="{Binding IsOptimizeAudio, Mode=TwoWay}"
                                                   Visibility="{Binding IsMp4RecordFormat, Converter={x:Static c:BoolToVisibilityConverter.Instance}}" />
                                         <CheckBox Content="{I18N RecordFormatAutoRemove}"
                                                   IsChecked="{Binding IsRemoveTs, Mode=TwoWay}"
                                                   Visibility="{Binding IsTranscodedRecordFormat, Converter={x:Static c:BoolToVisibilityConverter.Instance}}" />
-                                    </ui:StackPanel>
+                                    </StackPanel>
                                 </ui:CardExpander>
 
-                                <ui:Card>
+                                <ui:Card x:Name="SegmentCard">
                                     <Grid MinHeight="35">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
@@ -477,7 +527,7 @@
                                     </Grid>
                                 </ui:Card>
 
-                                <ui:CardExpander>
+                                <ui:CardExpander x:Name="SaveCard">
                                     <ui:CardExpander.Header>
                                         <Grid>
                                             <Grid.ColumnDefinitions>

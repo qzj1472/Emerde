@@ -25,6 +25,21 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+        <ControlTemplate x:Key="UiXSettingsCardTemplate" TargetType="{x:Type ui:Card}">
+            <Border MinHeight="{TemplateBinding MinHeight}"
+                    Padding="{TemplateBinding Padding}"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="{StaticResource UiXSurfaceCornerRadius}"
+                    SnapsToDevicePixels="True">
+                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                  Content="{TemplateBinding Content}"
+                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                  RecognizesAccessKey="True" />
+            </Border>
+        </ControlTemplate>
         <Style TargetType="{x:Type ui:Card}" BasedOn="{StaticResource {x:Type ui:Card}}">
             <Setter Property="controls:MotionAssist.IsEntranceEnabled" Value="True" />
             <Setter Property="controls:MotionAssist.IsDataContextEntranceEnabled" Value="True" />
@@ -59,6 +74,11 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsUiXEnabled}" Value="True">
+                    <Setter Property="Template" Value="{StaticResource UiXSettingsCardTemplate}" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
         <Style TargetType="{x:Type ui:CardExpander}" BasedOn="{StaticResource {x:Type ui:CardExpander}}">
             <Setter Property="controls:MotionAssist.IsEntranceEnabled" Value="True" />
@@ -230,7 +250,7 @@
                     BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="{TemplateBinding BorderThickness}"
                     ClipToBounds="True"
-                    CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                    CornerRadius="{StaticResource UiXSurfaceCornerRadius}"
                     SnapsToDevicePixels="True">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -253,6 +273,64 @@
                 </Grid>
             </Border>
         </ControlTemplate>
+        <Style x:Key="SettingsFocusButtonStyle" TargetType="{x:Type RadioButton}">
+            <Setter Property="MinWidth" Value="84" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Foreground" Value="{DynamicResource UiXTextSecondaryBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type RadioButton}">
+                        <Border x:Name="Chrome"
+                                Padding="14,0"
+                                Background="Transparent"
+                                CornerRadius="8">
+                            <Grid>
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Border x:Name="Indicator"
+                                        Width="20"
+                                        Height="2"
+                                        Margin="0,0,0,3"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Bottom"
+                                        Background="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                        CornerRadius="1"
+                                        Opacity="0" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource UiXSubtleFillBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource UiXSelectionFillBrush}" />
+                                <Setter TargetName="Indicator" Property="Opacity" Value="1" />
+                                <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SettingsReadOnlyValueStyle" TargetType="{x:Type ui:TextBox}" BasedOn="{StaticResource {x:Type ui:TextBox}}">
+            <Setter Property="Background" Value="{DynamicResource EmerdeCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource EmerdeTextInputBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsUiXEnabled}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource UiXDialogSubtleBrush}" />
+                    <Setter Property="BorderBrush" Value="Transparent" />
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
     <Grid x:Name="SettingsDialogContent"
           controls:MotionAssist.IsEntranceEnabled="True"
@@ -751,26 +829,30 @@
                             </UniformGrid>
                             <ui:Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="{I18N TimeRange}" />
-                                <controls:CompactNumberBox Grid.Column="1"
+                                <controls:CompactNumberBox x:Name="RoutineScheduleStartHourInput"
+                                                           Grid.Column="1"
                                                            Width="112"
                                                            Margin="12,0,0,0"
                                                            Maximum="23"
                                                            Minimum="0"
                                                            Value="{Binding RoutineScheduleStartHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 <TextBlock Grid.Column="2" Margin="6,0" VerticalAlignment="Center" Text=":" />
-                                <controls:CompactNumberBox Grid.Column="3"
+                                <controls:CompactNumberBox x:Name="RoutineScheduleStartMinuteInput"
+                                                           Grid.Column="3"
                                                            Width="112"
                                                            Maximum="59"
                                                            Minimum="0"
                                                            Value="{Binding RoutineScheduleStartMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 <TextBlock Grid.Column="4" Margin="12,0" VerticalAlignment="Center" Text="{I18N To}" />
-                                <controls:CompactNumberBox Grid.Column="5"
+                                <controls:CompactNumberBox x:Name="RoutineScheduleEndHourInput"
+                                                           Grid.Column="5"
                                                            Width="112"
                                                            Maximum="23"
                                                            Minimum="0"
                                                            Value="{Binding RoutineScheduleEndHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                 <TextBlock Grid.Column="6" Margin="6,0" VerticalAlignment="Center" Text=":" />
-                                <controls:CompactNumberBox Grid.Column="7"
+                                <controls:CompactNumberBox x:Name="RoutineScheduleEndMinuteInput"
+                                                           Grid.Column="7"
                                                            Width="112"
                                                            Maximum="59"
                                                            Minimum="0"
@@ -914,64 +996,79 @@
                                         Command="{Binding OpenSaveFolderCommand}"
                                         Content="{I18N OpenFolder}" />
                             </ui:Grid>
-                            <ui:Grid Margin="42,0,28,0" ColumnDefinitions="Auto,*,Auto">
-                                <TextBlock Grid.Column="0"
-                                           VerticalAlignment="Center"
-                                           Text="{I18N SavePathLevel}" />
-                                <ComboBox Grid.Column="2"
-                                          Width="220"
-                                          Margin="10,0,0,0"
-                                          SelectedIndex="{Binding SaveFolderPathLevelIndex, Mode=TwoWay}">
-                                    <ComboBoxItem Content="{I18N SavePathLevelRootOnly}" />
-                                    <ComboBoxItem Content="{I18N SavePathLevelAuthor}" />
-                                    <ComboBoxItem Content="{I18N SavePathLevelAuthorYearMonth}" />
-                                    <ComboBoxItem Content="{I18N SavePathLevelAuthorDate}" />
-                                </ComboBox>
-                            </ui:Grid>
-                            <ui:Grid Margin="42,0,28,0"
-                                     ColumnDefinitions="Auto,*,Auto,Auto,Auto"
-                                     ToolTip="{I18N DataRetentionHint}">
-                                <TextBlock Grid.Column="0"
-                                           VerticalAlignment="Center"
-                                           Text="{I18N DataRetention}" />
-                                <ui:ToggleSwitch Grid.Column="2"
-                                                 Margin="10,0,0,0"
-                                                 IsChecked="{Binding IsDataRetentionEnabled, Mode=TwoWay}" />
-                                <controls:CompactNumberBox x:Name="DataRetentionValueInput"
-                                                            Grid.Column="3"
-                                                            Width="72"
-                                                            Margin="10,0,0,0"
-                                                            Maximum="9999"
-                                                            Minimum="1"
-                                                            IsEnabled="{Binding IsDataRetentionEnabled}"
-                                                            Value="{Binding DataRetentionValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                <ComboBox x:Name="DataRetentionUnitSelector"
-                                          Grid.Column="4"
-                                          Width="86"
-                                          Margin="8,0,0,0"
-                                          DisplayMemberPath="DisplayName"
-                                          IsEnabled="{Binding IsDataRetentionEnabled}"
-                                          ItemsSource="{Binding DataRetentionUnitOptions}"
-                                          SelectedValue="{Binding DataRetentionUnitIndex, Mode=TwoWay}"
-                                          SelectedValuePath="Value" />
-                            </ui:Grid>
-                            <ui:StackPanel Margin="42,10,28,0"
+                            <Grid x:Name="SaveMetadataLayout" Margin="42,0,28,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid x:Name="SavePathLevelPanel">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock VerticalAlignment="Center" Text="{I18N SavePathLevel}" />
+                                    <ComboBox x:Name="SavePathLevelSelector"
+                                              Grid.Column="2"
+                                              Width="168"
+                                              Margin="10,0,0,0"
+                                              SelectedIndex="{Binding SaveFolderPathLevelIndex, Mode=TwoWay}">
+                                        <ComboBoxItem Content="{I18N SavePathLevelRootOnly}" />
+                                        <ComboBoxItem Content="{I18N SavePathLevelAuthor}" />
+                                        <ComboBoxItem Content="{I18N SavePathLevelAuthorYearMonth}" />
+                                        <ComboBoxItem Content="{I18N SavePathLevelAuthorDate}" />
+                                    </ComboBox>
+                                </Grid>
+                                <Grid x:Name="DataRetentionPanel"
+                                      Grid.Column="2"
+                                      ToolTip="{I18N DataRetentionHint}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock VerticalAlignment="Center" Text="{I18N DataRetention}" />
+                                    <StackPanel x:Name="DataRetentionControls" Grid.Column="2" HorizontalAlignment="Right" Orientation="Horizontal">
+                                        <controls:CompactNumberBox x:Name="DataRetentionValueInput"
+                                                                    Width="112"
+                                                                    Maximum="9999"
+                                                                    Minimum="1"
+                                                                    IsEnabled="{Binding IsDataRetentionEnabled}"
+                                                                    Value="{Binding DataRetentionValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <ComboBox x:Name="DataRetentionUnitSelector"
+                                                  Width="86"
+                                                  Margin="8,0,0,0"
+                                                  DisplayMemberPath="DisplayName"
+                                                  IsEnabled="{Binding IsDataRetentionEnabled}"
+                                                  ItemsSource="{Binding DataRetentionUnitOptions}"
+                                                  SelectedValue="{Binding DataRetentionUnitIndex, Mode=TwoWay}"
+                                                  SelectedValuePath="Value" />
+                                        <ui:ToggleSwitch x:Name="DataRetentionSwitch"
+                                                         Margin="10,0,0,0"
+                                                         VerticalAlignment="Center"
+                                                         IsChecked="{Binding IsDataRetentionEnabled, Mode=TwoWay}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                            <ui:StackPanel Margin="52,12,28,0"
                                            Spacing="10">
-                                <Border Height="1"
-                                        Margin="0,0,0,2"
-                                        Background="{DynamicResource ControlStrokeColorDefaultBrush}"
-                                        Opacity="0.65" />
                                 <ui:Grid ColumnDefinitions="Auto,*,Auto,Auto">
                                     <TextBlock Grid.Column="0"
                                                VerticalAlignment="Center"
                                                Text="{I18N CustomRule}" />
                                     <ui:TextBox Grid.Column="1"
-                                                Margin="16,0,0,0"
+                                                Margin="12,0,0,0"
                                                 Cursor="Arrow"
                                                 Focusable="False"
                                                 IsReadOnly="True"
                                                 IsTabStop="False"
                                                 PlaceholderText="{}{主播名}_{录制时间}"
+                                                Style="{StaticResource SettingsReadOnlyValueStyle}"
                                                 Text="{Binding SaveFileNameCustomRule, Mode=OneWay}" />
                                     <Button Grid.Column="2"
                                             Width="34"
@@ -994,10 +1091,7 @@
                                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.CalculatorMultiply}" />
                                     </Button>
                                 </ui:Grid>
-                                <Border Height="1"
-                                        Background="{DynamicResource ControlStrokeColorDefaultBrush}"
-                                        Opacity="0.65" />
-                                <WrapPanel>
+                                <WrapPanel Margin="24,0,0,0">
                                     <Button Margin="0,0,8,8" Command="{Binding AppendSaveFileNameTokenCommand}" CommandParameter="{}{主播名}" Content="{I18N TokenAuthor}" />
                                     <Button Margin="0,0,8,8" Command="{Binding AppendSaveFileNameTokenCommand}" CommandParameter="{}{录制时间}" Content="{I18N TokenRecordTime}" />
                                     <Button Margin="0,0,8,8" Command="{Binding AppendSaveFileNameTokenCommand}" CommandParameter="{}{日期}" Content="{I18N TokenDate}" />
@@ -1349,9 +1443,6 @@
                                                Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
                                                Text="{I18N UserAgentHint}" />
                                 </ui:Grid>
-                                <Grid Grid.Column="2" Margin="0,0,12,0">
-                                    <!--  EMPTY  -->
-                                </Grid>
                             </ui:Grid>
                         </ui:CardExpander.Header>
                         <ui:StackPanel Spacing="12">
@@ -1373,13 +1464,58 @@
                             <Setter Property="TextWrapping" Value="Wrap" />
                             <Setter Property="TextTrimming" Value="None" />
                         </Style>
+                        <Style BasedOn="{StaticResource {x:Type controls:CompactNumberBox}}" TargetType="{x:Type controls:CompactNumberBox}">
+                            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                        </Style>
+                        <Style BasedOn="{StaticResource {x:Type ui:ToggleSwitch}}" TargetType="{x:Type ui:ToggleSwitch}">
+                            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                        </Style>
                     </Grid.Resources>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
+                    <WrapPanel Grid.Row="0" Margin="0,0,0,14">
+                        <RadioButton Click="SettingsFocusButtonClick"
+                                     CommandParameter="0"
+                                     Content="{I18N UiXWorkspaceAll}"
+                                     GroupName="SettingsFocus"
+                                     IsChecked="True"
+                                     Style="{StaticResource SettingsFocusButtonStyle}" />
+                        <RadioButton Click="SettingsFocusButtonClick"
+                                     CommandParameter="1"
+                                     Content="{I18N AppearanceSettings}"
+                                     GroupName="SettingsFocus"
+                                     Style="{StaticResource SettingsFocusButtonStyle}" />
+                        <RadioButton Click="SettingsFocusButtonClick"
+                                     CommandParameter="2"
+                                     Content="{I18N UiXWorkspaceRun}"
+                                     GroupName="SettingsFocus"
+                                     Style="{StaticResource SettingsFocusButtonStyle}" />
+                        <RadioButton Click="SettingsFocusButtonClick"
+                                     CommandParameter="3"
+                                     Content="{I18N UiXWorkspaceRecording}"
+                                     GroupName="SettingsFocus"
+                                     Style="{StaticResource SettingsFocusButtonStyle}" />
+                        <RadioButton Click="SettingsFocusButtonClick"
+                                     CommandParameter="4"
+                                     Content="{I18N UiXWorkspaceOutput}"
+                                     GroupName="SettingsFocus"
+                                     Style="{StaticResource SettingsFocusButtonStyle}" />
+                        <RadioButton Click="SettingsFocusButtonClick"
+                                     CommandParameter="5"
+                                     Content="{I18N LongRunningSettings}"
+                                     GroupName="SettingsFocus"
+                                     Style="{StaticResource SettingsFocusButtonStyle}" />
+                        <RadioButton Click="SettingsFocusButtonClick"
+                                     CommandParameter="6"
+                                     Content="{I18N NetworkSettings}"
+                                     GroupName="SettingsFocus"
+                                     Style="{StaticResource SettingsFocusButtonStyle}" />
+                    </WrapPanel>
                     <Grid x:Name="SettingsUiXColumns"
-                          Grid.Row="0">
+                          Grid.Row="1">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition x:Name="SettingsUiXLeftColumnDefinition" Width="*" />
                             <ColumnDefinition x:Name="SettingsUiXGapColumnDefinition" Width="16" />
@@ -1393,7 +1529,7 @@
                                     HorizontalAlignment="Stretch" />
                     </Grid>
                     <ui:StackPanel x:Name="SettingsUiXBottomPanel"
-                                   Grid.Row="1"
+                                   Grid.Row="2"
                                    Margin="0,8,0,0"
                                    HorizontalAlignment="Stretch"
                                    Spacing="8" />

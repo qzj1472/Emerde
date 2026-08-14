@@ -1,27 +1,21 @@
 using Emerde.Core;
 using Emerde.Extensions;
-using System.ComponentModel;
-using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
+using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace Emerde.Views;
 
 public partial class TrayMenuWindow : Window
 {
-    private const int WhMouseLl = 14;
-    private const int WmLeftButtonDown = 0x0201;
-    private const int WmRightButtonDown = 0x0204;
-    private const int WmMiddleButtonDown = 0x0207;
-    private const int WmXButtonDown = 0x020B;
+    private const double TrayAnchorGap = 0d;
+    private const double WorkAreaMargin = 0d;
 
     private readonly Action<TrayMenuAction> actionRequested;
-    private readonly LowLevelMouseProc mouseHookCallback;
-    private nint mouseHook;
-    private bool openAbove;
-    private bool openLeft;
+    private bool closeRequested;
+    private TrayMenuAction? pendingAction;
 
     public string ShowMainWindowText { get; } = StripAccessKeySuffix("TrayMenuShowMainWindow".Tr());
     public string SettingsText { get; } = "Settings".Tr();
@@ -33,18 +27,20 @@ public partial class TrayMenuWindow : Window
     public bool IsMonitorRunning { get; }
     public bool IsRecordEnabled { get; }
     public bool IsAutoRun { get; }
+    public Visibility MonitorIndicatorVisibility => IsMonitorRunning ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility RecordIndicatorVisibility => IsRecordEnabled ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility AutoRunIndicatorVisibility => IsAutoRun ? Visibility.Visible : Visibility.Collapsed;
 
     internal TrayMenuWindow(TrayMenuState state, Action<TrayMenuAction> actionRequested)
     {
         this.actionRequested = actionRequested;
-        mouseHookCallback = MouseHookCallback;
         IsMonitorRunning = state.IsMonitorRunning;
         IsRecordEnabled = state.IsRecordEnabled;
         IsAutoRun = state.IsAutoRun;
         DataContext = this;
         InitializeComponent();
-        TrayContextMenu.CustomPopupPlacementCallback = PlaceContextMenu;
         Loaded += TrayMenuWindowLoaded;
+        SourceInitialized += TrayMenuWindowSourceInitialized;
         Closed += TrayMenuWindowClosed;
     }
 
@@ -74,122 +70,122 @@ public partial class TrayMenuWindow : Window
 
     private void TrayMenuWindowLoaded(object sender, RoutedEventArgs e)
     {
-        PositionPlacementTarget();
-        TrayContextMenu.PlacementTarget = PlacementTarget;
-        TrayContextMenu.IsOpen = true;
+        PositionMenuWindow();
+        Activate();
+        Focus();
     }
 
-    private void TrayContextMenuOpened(object sender, RoutedEventArgs e)
+    private void TrayMenuWindowSourceInitialized(object? sender, EventArgs e)
     {
-        StartMouseHook();
-        TrayContextMenu.Focus();
+        nint handle = new WindowInteropHelper(this).Handle;
+        if (handle == nint.Zero)
+        {
+            return;
+        }
+        HwndSource.FromHwnd(handle)?.AddHook(WindowMessageHook);
     }
 
-    private void TrayContextMenuClosed(object sender, RoutedEventArgs e)
+    private nint WindowMessageHook(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
     {
-        StopMouseHook();
-        Close();
+        const int wmActivate = 0x0006;
+        const int waInactive = 0;
+        if (message == wmActivate && (wParam.ToInt64() & 0xFFFF) == waInactive)
+        {
+            Dispatcher.BeginInvoke(CloseSafely, DispatcherPriority.Input);
+        }
+        return nint.Zero;
     }
 
-    internal static System.Windows.Point GetTrayMenuPlacementOffset(
-        System.Windows.Size popupSize,
-        System.Windows.Size targetSize,
-        bool openAbove,
-        bool openLeft = false)
+    internal static System.Windows.Point CalculateTrayMenuPosition(
+        System.Windows.Point cursor,
+        Rect workArea,
+        System.Windows.Size menuSize,
+        double anchorGap = TrayAnchorGap,
+        double workAreaMargin = WorkAreaMargin)
     {
-        return new System.Windows.Point(
-            openLeft ? -popupSize.Width : targetSize.Width,
-            openAbove ? -popupSize.Height : targetSize.Height);
+        double minimumX = workArea.Left + workAreaMargin;
+        double maximumX = Math.Max(minimumX, workArea.Right - menuSize.Width - workAreaMargin);
+        double minimumY = workArea.Top + workAreaMargin;
+        double maximumY = Math.Max(minimumY, workArea.Bottom - menuSize.Height - workAreaMargin);
+        double x = cursor.X + menuSize.Width <= workArea.Right - workAreaMargin
+            ? cursor.X
+            : maximumX;
+        double y = cursor.Y - menuSize.Height - anchorGap >= minimumY
+            ? cursor.Y - menuSize.Height - anchorGap
+            : cursor.Y + anchorGap;
+        return new System.Windows.Point(Math.Clamp(x, minimumX, maximumX), Math.Clamp(y, minimumY, maximumY));
     }
 
-    private void PositionPlacementTarget()
+    private void PositionMenuWindow()
     {
         System.Drawing.Point cursorPixels = System.Windows.Forms.Cursor.Position;
         System.Drawing.Rectangle workingAreaPixels = System.Windows.Forms.Screen.FromPoint(cursorPixels).WorkingArea;
-        int anchorX = Math.Clamp(cursorPixels.X, workingAreaPixels.Left, workingAreaPixels.Right - 1);
-        int anchorY = Math.Clamp(cursorPixels.Y, workingAreaPixels.Top, workingAreaPixels.Bottom - 1);
-        openAbove = cursorPixels.Y >= workingAreaPixels.Bottom
-            || anchorY - workingAreaPixels.Top > workingAreaPixels.Bottom - anchorY;
-        openLeft = anchorX - workingAreaPixels.Left > workingAreaPixels.Right - anchorX;
-        nint handle = new WindowInteropHelper(this).Handle;
-        _ = SetWindowPos(handle, nint.Zero, anchorX, anchorY, 1, 1, 0x0014);
+        System.Windows.Point cursor = PixelsToDeviceIndependent(new System.Windows.Point(cursorPixels.X, cursorPixels.Y));
+        System.Windows.Point workAreaTopLeft = PixelsToDeviceIndependent(new System.Windows.Point(workingAreaPixels.Left, workingAreaPixels.Top));
+        System.Windows.Point workAreaBottomRight = PixelsToDeviceIndependent(new System.Windows.Point(workingAreaPixels.Right, workingAreaPixels.Bottom));
+        Rect workArea = new(workAreaTopLeft, workAreaBottomRight);
+        System.Windows.Size menuSize = new(ActualWidth, ActualHeight);
+        System.Windows.Point position = CalculateTrayMenuPosition(cursor, workArea, menuSize);
+        Left = position.X;
+        Top = position.Y;
     }
 
-    private CustomPopupPlacement[] PlaceContextMenu(
-        System.Windows.Size popupSize,
-        System.Windows.Size targetSize,
-        System.Windows.Point offset)
+    private System.Windows.Point PixelsToDeviceIndependent(System.Windows.Point point)
     {
-        return
-        [
-            new CustomPopupPlacement(GetTrayMenuPlacementOffset(popupSize, targetSize, openAbove, openLeft), PopupPrimaryAxis.Vertical),
-            new CustomPopupPlacement(GetTrayMenuPlacementOffset(popupSize, targetSize, openAbove, !openLeft), PopupPrimaryAxis.Horizontal),
-            new CustomPopupPlacement(GetTrayMenuPlacementOffset(popupSize, targetSize, !openAbove, openLeft), PopupPrimaryAxis.Vertical),
-            new CustomPopupPlacement(GetTrayMenuPlacementOffset(popupSize, targetSize, !openAbove, !openLeft), PopupPrimaryAxis.Horizontal),
-        ];
+        PresentationSource? source = PresentationSource.FromVisual(this);
+        Matrix transform = source?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
+        return transform.Transform(point);
     }
 
-    private void StartMouseHook()
+    private void TrayMenuWindowDeactivated(object? sender, EventArgs e)
     {
-        if (mouseHook != nint.Zero)
-        {
-            return;
-        }
-
-        mouseHook = SetWindowsHookEx(WhMouseLl, mouseHookCallback, GetModuleHandle(null), 0);
-        if (mouseHook == nint.Zero)
-        {
-            AppSessionLogger.WriteException(new Win32Exception(Marshal.GetLastWin32Error()));
-        }
+        CloseSafely();
     }
 
-    private void StopMouseHook()
+    private void TrayMenuWindowPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (mouseHook == nint.Zero)
+        if (e.Key == Key.Escape)
         {
-            return;
+            CloseSafely();
+            e.Handled = true;
         }
-
-        if (!UnhookWindowsHookEx(mouseHook))
-        {
-            AppSessionLogger.WriteException(new Win32Exception(Marshal.GetLastWin32Error()));
-        }
-        mouseHook = nint.Zero;
-    }
-
-    private nint MouseHookCallback(int code, nint message, nint data)
-    {
-        try
-        {
-            if (code >= 0
-                && message is WmLeftButtonDown or WmRightButtonDown or WmMiddleButtonDown or WmXButtonDown
-                && PresentationSource.FromVisual(TrayContextMenu) is HwndSource source
-                && GetWindowRect(source.Handle, out NativeRect bounds))
-            {
-                NativePoint point = Marshal.PtrToStructure<MouseHookData>(data).Point;
-                if (point.X < bounds.Left || point.X >= bounds.Right || point.Y < bounds.Top || point.Y >= bounds.Bottom)
-                {
-                    _ = Dispatcher.BeginInvoke(DispatcherPriority.Input, () => TrayContextMenu.IsOpen = false);
-                }
-            }
-        }
-        catch (Exception e)
-        {
-            AppSessionLogger.WriteException(e);
-        }
-
-        return CallNextHookEx(mouseHook, code, message, data);
-    }
-
-    private void TrayMenuWindowClosed(object? sender, EventArgs e)
-    {
-        StopMouseHook();
     }
 
     private void InvokeAction(TrayMenuAction action)
     {
+        if (closeRequested)
+        {
+            return;
+        }
+
+        pendingAction = action;
+        CloseSafely();
+    }
+
+    private void CloseSafely()
+    {
+        if (closeRequested)
+        {
+            return;
+        }
+
+        closeRequested = true;
         Close();
-        actionRequested(action);
+    }
+
+    private void TrayMenuWindowClosed(object? sender, EventArgs e)
+    {
+        TrayMenuAction? action = pendingAction;
+        pendingAction = null;
+        if (action.HasValue)
+        {
+            Dispatcher.BeginInvoke(() => actionRequested(action.Value), DispatcherPriority.Input);
+        }
+    }
+
+    internal void RequestClose()
+    {
+        CloseSafely();
     }
 
     private void ShowMainWindowClick(object sender, RoutedEventArgs e) => InvokeAction(TrayMenuAction.ShowMainWindow);
@@ -200,54 +196,6 @@ public partial class TrayMenuWindow : Window
     private void RestartClick(object sender, RoutedEventArgs e) => InvokeAction(TrayMenuAction.Restart);
     private void ExitClick(object sender, RoutedEventArgs e) => InvokeAction(TrayMenuAction.Exit);
 
-    private delegate nint LowLevelMouseProc(int code, nint message, nint data);
-
-    [StructLayout(LayoutKind.Sequential)]
-    private readonly struct NativePoint
-    {
-        public readonly int X;
-        public readonly int Y;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private readonly struct MouseHookData
-    {
-        public readonly NativePoint Point;
-        public readonly uint MouseData;
-        public readonly uint Flags;
-        public readonly uint Time;
-        public readonly nint ExtraInfo;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private readonly struct NativeRect
-    {
-        public readonly int Left;
-        public readonly int Top;
-        public readonly int Right;
-        public readonly int Bottom;
-    }
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern nint SetWindowsHookEx(int hookId, LowLevelMouseProc callback, nint module, uint threadId);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool UnhookWindowsHookEx(nint hook);
-
-    [DllImport("user32.dll")]
-    private static extern nint CallNextHookEx(nint hook, int code, nint message, nint data);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetWindowRect(nint window, out NativeRect bounds);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetWindowPos(nint window, nint insertAfter, int x, int y, int width, int height, uint flags);
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-    private static extern nint GetModuleHandle(string? moduleName);
 }
 
 internal readonly record struct TrayMenuState(

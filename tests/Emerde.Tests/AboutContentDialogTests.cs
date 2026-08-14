@@ -8,13 +8,25 @@ namespace Emerde.Tests;
 public class AboutContentDialogTests
 {
     [Fact]
+    public void Navigation_ProvidesOverviewAndSharedReleaseNotesCatalog()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml"));
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml"));
+
+        Assert.Contains("CommandParameter=\"Overview\"", xaml);
+        Assert.Contains("CommandParameter=\"ReleaseNotes\"", xaml);
+        Assert.Contains("ItemsSource=\"{Binding ReleaseNotes}\"", xaml);
+        Assert.Contains("ItemsSource=\"{Binding SelectedReleaseNote.Items}\"", xaml);
+        Assert.Contains(document.Descendants(), element => (string?)element.Attribute("DisplayMemberPath") == "VersionLabel");
+    }
+
+    [Fact]
     public void ContentCards_ReachTheHeroCardRightEdge()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
         XElement pagePadding = document.Descendants()
-            .First(element => element.Name.LocalName == "ScrollViewer")
-            .Elements()
-            .Single();
+            .Single(element => (string?)element.Attribute(xaml + "Name") == "AboutOverviewContent");
         XElement warningCard = document.Descendants()
             .Single(element => element.Name.LocalName == "Border" && (string?)element.Attribute("Background") == "#14D83B01");
         XElement[] cardRows = document.Descendants()

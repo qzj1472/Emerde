@@ -68,6 +68,35 @@ public sealed class DialogBlurScopeTests
         Assert.DoesNotContain("EnableOwnerWindow(ownerWindow)", preparation);
     }
 
+    [Fact]
+    public void DialogTemplate_KeepsTheContentBaseOpaque()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "DialogBlurScope.cs"));
+
+        Assert.DoesNotContain("baseBorder.Background = transparentBrush", source, StringComparison.Ordinal);
+        Assert.Contains("baseBorder.SetBinding", source, StringComparison.Ordinal);
+        Assert.Contains("nameof(WpfControl.Background)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UiXWorkspace_UsesThePackagedOverlayHost()
+    {
+        string mainSource = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
+        string mainXaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+
+        Assert.Contains("UiXWorkspaceHost.Content = workspace", mainSource, StringComparison.Ordinal);
+        Assert.Contains("DialogBlurScope.ForOverlay(this, UiXWorkspaceOverlay)", mainSource, StringComparison.Ordinal);
+        Assert.Contains("await workspace.WaitForResultAsync()", mainSource, StringComparison.Ordinal);
+        Assert.Contains("UiXWorkspaceOverlay", mainXaml, StringComparison.Ordinal);
+        Assert.Contains("UiXWorkspaceHost", mainXaml, StringComparison.Ordinal);
+
+        string workspaceSource = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "UiXRoomWorkspace.xaml.cs"));
+        string workspaceXaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "UiXRoomWorkspace.xaml"));
+        Assert.DoesNotContain("WorkspaceOverlayPreviewMouseLeftButtonDown", workspaceXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("WorkspaceSurface.IsMouseOver", workspaceSource, StringComparison.Ordinal);
+        Assert.Contains("CompleteCancellation()", workspaceSource, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryFile(params string[] parts)
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);

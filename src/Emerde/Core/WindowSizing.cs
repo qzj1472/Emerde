@@ -6,6 +6,10 @@ namespace Emerde.Core;
 
 internal static class WindowSizing
 {
+    private const string DialogMinWidthResource = "ContentDialogMinWidth";
+    private const string DialogMinHeightResource = "ContentDialogMinHeight";
+    private const string DialogMaxWidthResource = "ContentDialogMaxWidth";
+    private const string DialogMaxHeightResource = "ContentDialogMaxHeight";
     private const double ScreenRatio = 0.85d;
     private const double MainWindowWidthRatio = 0.70d;
     private const double MainWindowMaximumWidthRatio = 0.85d;
@@ -13,7 +17,6 @@ internal static class WindowSizing
     private const double MainWindowAspectRatio = 14d / 9d;
     private const double MainBaseWidth = 1440d;
     private const double MainBaseHeight = 926d;
-    private const double DialogMarginShortSideRatio = 0.10d;
     private static int openContentDialogCount;
 
     public static bool HasOpenContentDialog => openContentDialogCount > 0;
@@ -44,7 +47,7 @@ internal static class WindowSizing
         };
     }
 
-    public static async Task<ContentDialogResult> ShowContentDialogAsync(ContentDialog dialog, Window? owner = null)
+    public static async Task<ContentDialogResult> ShowContentDialogAsync(ContentDialog dialog, Window? owner = null, double? fixedWidth = null, double? fixedHeight = null)
     {
         if (HasOpenContentDialog)
         {
@@ -52,15 +55,15 @@ internal static class WindowSizing
         }
 
         openContentDialogCount++;
-        ApplyContentDialogSizeLimit(dialog, owner);
-        RoutedEventHandler? loadedHandler = null;
-        loadedHandler = (_, _) =>
+        RemoveContentDialogSizeLimits(dialog);
+        if (fixedWidth is > 0d && double.IsFinite(fixedWidth.Value))
         {
-            dialog.Loaded -= loadedHandler;
-            ApplyContentDialogSizeLimit(dialog, owner);
-        };
-        dialog.Loaded += loadedHandler;
-
+            ApplyFixedContentDialogWidth(dialog, fixedWidth.Value);
+        }
+        if (fixedHeight is > 0d && double.IsFinite(fixedHeight.Value))
+        {
+            ApplyFixedContentDialogHeight(dialog, fixedHeight.Value);
+        }
         try
         {
             return owner is { IsLoaded: true }
@@ -69,78 +72,38 @@ internal static class WindowSizing
         }
         finally
         {
-            dialog.Loaded -= loadedHandler;
             openContentDialogCount = Math.Max(0, openContentDialogCount - 1);
         }
     }
 
-    public static void ApplyContentDialogSizeLimit(ContentDialog dialog, Window? owner = null)
+    public static void RemoveContentDialogSizeLimits(ContentDialog dialog)
     {
-        if (dialog.Content is Views.LocalSettingsContentDialog or Views.ConfigRestoreContentDialog
-            || dialog.Resources["EmerdeWideContentDialog"] is true)
-        {
-            return;
-        }
+        dialog.MinWidth = 0d;
+        dialog.MinHeight = 0d;
+        dialog.MaxWidth = double.PositiveInfinity;
+        dialog.MaxHeight = double.PositiveInfinity;
+        dialog.Resources[DialogMinWidthResource] = 0d;
+        dialog.Resources[DialogMinHeightResource] = 0d;
+        dialog.Resources[DialogMaxWidthResource] = double.PositiveInfinity;
+        dialog.Resources[DialogMaxHeightResource] = double.PositiveInfinity;
+    }
 
-        Window? reference = owner ?? Application.Current?.MainWindow;
-        if (reference == null)
-        {
-            return;
-        }
+    internal static void ApplyFixedContentDialogWidth(ContentDialog dialog, double width)
+    {
+        dialog.Width = width;
+        dialog.MinWidth = width;
+        dialog.MaxWidth = width;
+        dialog.Resources[DialogMinWidthResource] = width;
+        dialog.Resources[DialogMaxWidthResource] = width;
+    }
 
-        double referenceWidth = GetWindowActualWidth(reference);
-        double referenceHeight = GetWindowActualHeight(reference);
-        if (referenceWidth <= 1d || referenceHeight <= 1d)
-        {
-            return;
-        }
-
-        double margin = Math.Min(referenceWidth, referenceHeight) * DialogMarginShortSideRatio;
-        double maxWidth = Math.Max(320d, RoundLayoutValue(referenceWidth - margin * 2d));
-        double maxHeight = Math.Max(240d, RoundLayoutValue(referenceHeight - margin * 2d));
-
-        dialog.MaxWidth = maxWidth;
-        dialog.MaxHeight = maxHeight;
-        if (!double.IsNaN(dialog.Width) && dialog.Width > maxWidth)
-        {
-            dialog.Width = maxWidth;
-        }
-        if (!double.IsNaN(dialog.Height) && dialog.Height > maxHeight)
-        {
-            dialog.Height = maxHeight;
-        }
-        if (dialog.MinWidth > maxWidth)
-        {
-            dialog.MinWidth = 0d;
-        }
-        if (dialog.MinHeight > maxHeight)
-        {
-            dialog.MinHeight = 0d;
-        }
-
-        if (dialog.Content is FrameworkElement content)
-        {
-            double contentMaxWidth = Math.Max(1d, maxWidth - 40d);
-            double contentMaxHeight = Math.Max(1d, maxHeight - 132d);
-            content.MaxWidth = contentMaxWidth;
-            content.MaxHeight = contentMaxHeight;
-            if (content.MinWidth > contentMaxWidth)
-            {
-                content.MinWidth = 0d;
-            }
-            if (content.MinHeight > contentMaxHeight)
-            {
-                content.MinHeight = 0d;
-            }
-            if (!double.IsNaN(content.Width) && content.Width > contentMaxWidth)
-            {
-                content.Width = contentMaxWidth;
-            }
-            if (!double.IsNaN(content.Height) && content.Height > contentMaxHeight)
-            {
-                content.Height = contentMaxHeight;
-            }
-        }
+    internal static void ApplyFixedContentDialogHeight(ContentDialog dialog, double height)
+    {
+        dialog.Height = height;
+        dialog.MinHeight = height;
+        dialog.MaxHeight = height;
+        dialog.Resources[DialogMinHeightResource] = height;
+        dialog.Resources[DialogMaxHeightResource] = height;
     }
 
     private static void ApplyScreenRelative(Window window, double baseWidth, double baseHeight)
@@ -290,26 +253,6 @@ internal static class WindowSizing
         }
 
         return reference.ActualHeight > 1d ? reference.ActualHeight : reference.Height;
-    }
-
-    private static double GetWindowActualWidth(Window window)
-    {
-        if (window.ActualWidth > 1d)
-        {
-            return window.ActualWidth;
-        }
-
-        return !double.IsNaN(window.Width) && window.Width > 1d ? window.Width : 0d;
-    }
-
-    private static double GetWindowActualHeight(Window window)
-    {
-        if (window.ActualHeight > 1d)
-        {
-            return window.ActualHeight;
-        }
-
-        return !double.IsNaN(window.Height) && window.Height > 1d ? window.Height : 0d;
     }
 
     private static void CenterWindow(Window window, Window? reference, System.Windows.Forms.Screen screen, DpiScale dpi, double width, double height)

@@ -14,5 +14,9 @@ public partial class StartupAboutNoticeContentDialog : ContentDialog
         Message = message;
         DataContext = this;
         InitializeComponent();
+        if (UiXDialogContent.IsEnabled)
+        {
+            Content = UiXDialogContent.CreateMessage(message, Wpf.Ui.Controls.FontSymbols.Info, UiXDialogTone.Information, minimumWidth: 520d);
+        }
     }
 }

@@ -29,21 +29,25 @@ public sealed class TrayMenuWindowTests
     }
 
     [Fact]
-    public void TrayMenuXaml_UsesWpfUiContextMenuStructure()
+    public void TrayMenuXaml_UsesStyledWindowSurface()
     {
         string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "TrayMenuWindow.xaml"));
 
-        Assert.Contains("<ContextMenu", xaml, StringComparison.Ordinal);
-        Assert.Contains("<MenuItem", xaml, StringComparison.Ordinal);
-        Assert.Contains("<Separator", xaml, StringComparison.Ordinal);
-        Assert.Contains("IsCheckable=\"True\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"MenuSurface\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("TrayMenuSelectionIndicatorStyle", xaml, StringComparison.Ordinal);
         Assert.Contains("Click=\"ToggleMonitorClick\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Click=\"ToggleRecordClick\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("StaysOpen=\"False\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Deactivated=\"TrayMenuWindowDeactivated\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<ContextMenu", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("IsCheckable=\"True\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("OpenVideoListClick", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("OpenSaveFolderClick", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("TrayActionButtonStyle", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("DropShadowEffect", xaml, StringComparison.Ordinal);
+        Assert.Contains("Width=\"188\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Value=\"34\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("CloseSafely", File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "TrayMenuWindow.xaml.cs")), StringComparison.Ordinal);
+        Assert.Contains("internal void RequestClose()", File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "TrayMenuWindow.xaml.cs")), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -70,19 +74,21 @@ public sealed class TrayMenuWindowTests
     }
 
     [Theory]
-    [InlineData(true, 1, -200)]
-    [InlineData(false, 1, 1)]
-    public void GetTrayMenuPlacementOffset_AnchorsMenuToTrayPoint(
-        bool openAbove,
+    [InlineData(1900, 1060, 1696, 820)]
+    [InlineData(100, 100, 100, 100)]
+    [InlineData(4, 500, 4, 260)]
+    public void CalculateTrayMenuPosition_ClampsToWorkArea(
+        double cursorX,
+        double cursorY,
         double expectedX,
         double expectedY)
     {
-        System.Windows.Point offset = TrayMenuWindow.GetTrayMenuPlacementOffset(
-            new System.Windows.Size(160, 200),
-            new System.Windows.Size(1, 1),
-            openAbove);
+        System.Windows.Point position = TrayMenuWindow.CalculateTrayMenuPosition(
+            new System.Windows.Point(cursorX, cursorY),
+            new System.Windows.Rect(0, 0, 1920, 1080),
+            new System.Windows.Size(224, 240));
 
-        Assert.Equal(new System.Windows.Point(expectedX, expectedY), offset);
+        Assert.Equal(new System.Windows.Point(expectedX, expectedY), position);
     }
 
     private static string FindRepositoryFile(params string[] parts)

@@ -248,14 +248,21 @@ public partial class ExtensionCenterViewModel : ObservableObject, IDisposable
         ContentDialog dialog = new()
         {
             Title = "RemoveExtensionTitle".Tr(),
-            Content = "ConfirmRemoveExtension".Tr(extension.Name),
+            Content = UiXDialogContent.IsEnabled
+                ? UiXDialogContent.CreateMessage(
+                    "ConfirmRemoveExtension".Tr(extension.Name),
+                    Wpf.Ui.Controls.FontSymbols.Delete,
+                    UiXDialogTone.Danger)
+                : "ConfirmRemoveExtension".Tr(extension.Name),
             PrimaryButtonText = "Yes".Tr(),
             CloseButtonText = "No".Tr(),
             DefaultButton = ContentDialogButton.Close,
             FocusVisualStyle = null,
-            Style = System.Windows.Application.Current?.TryFindResource("DefaultVioletaContentDialogStyle") as System.Windows.Style,
+            Style = System.Windows.Application.Current?.TryFindResource("EmerdeContentDialogStyle") as System.Windows.Style,
         };
-        using DialogBlurScope blurScope = DialogBlurScope.ForLightDismiss(owner, dialog);
+        using DialogBlurScope blurScope = UiXDialogContent.IsEnabled
+            ? DialogBlurScope.ForLightDismiss(owner, dialog)
+            : DialogBlurScope.ForDialog(owner, dialog);
         ContentDialogResult result = await WindowSizing.ShowContentDialogAsync(dialog, owner);
         if (result != ContentDialogResult.Primary)
         {

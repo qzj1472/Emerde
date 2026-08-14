@@ -16,8 +16,8 @@
     <SolidColorBrush x:Key="UiXPanelBrush" Color="#D0E5EBEE" />
     <SolidColorBrush x:Key="UiXCardBrush" Color="#E9EEF2F4" />
     <SolidColorBrush x:Key="UiXCardHoverBrush" Color="#F2FFFFFF" />
-    <SolidColorBrush x:Key="UiXVideoCardBrush" Color="#F0E2E9ED" />
-    <SolidColorBrush x:Key="UiXVideoCardHoverBrush" Color="#F6EAF0F3" />
+    <SolidColorBrush x:Key="UiXVideoCardBrush" Color="#F6F2F5F6" />
+    <SolidColorBrush x:Key="UiXVideoCardHoverBrush" Color="#FAFFFFFF" />
     <SolidColorBrush x:Key="UiXGroupBrush" Color="#B0E1E8EB" />
     <SolidColorBrush x:Key="UiXElevatedBrush" Color="#F3F7FAFB" />
     <SolidColorBrush x:Key="UiXMonitorCardBrush" Color="#F0D7E8FA" />
@@ -25,9 +25,12 @@
     <SolidColorBrush x:Key="UiXRecordingCardBrush" Color="#F2F6CDD2" />
     <SolidColorBrush x:Key="UiXMonitorFillBrush" Color="#664D82C7" />
     <SolidColorBrush x:Key="UiXLiveFillBrush" Color="#783B9B61" />
-    <SolidColorBrush x:Key="UiXRecordingFillBrush" Color="#78C94D5A" />
-    <SolidColorBrush x:Key="UiXTranscodeFillBrush" Color="#5AD98B3D" />
-    <SolidColorBrush x:Key="UiXStallFillBrush" Color="#5A4C8FD8" />
+    <SolidColorBrush x:Key="UiXRecordingFillBrush" Color="#24C94D5A" />
+    <SolidColorBrush x:Key="UiXTranscodeFillBrush" Color="#22D98B3D" />
+    <SolidColorBrush x:Key="UiXStallFillBrush" Color="#224C8FD8" />
+    <SolidColorBrush x:Key="UiXRecordingForegroundBrush" Color="#FF9F1726" />
+    <SolidColorBrush x:Key="UiXTranscodeForegroundBrush" Color="#FF8A4A00" />
+    <SolidColorBrush x:Key="UiXStallForegroundBrush" Color="#FF245FB4" />
     <SolidColorBrush x:Key="UiXDividerBrush" Color="#1216202A" />
     <SolidColorBrush x:Key="UiXSubtleFillBrush" Color="#0F16202A" />
     <SolidColorBrush x:Key="UiXStrokeBrush" Color="#1A16202A" />
@@ -38,6 +41,15 @@
     <SolidColorBrush x:Key="UiXDangerFillBrush" Color="#1AD1344B" />
     <SolidColorBrush x:Key="UiXTextPrimaryBrush" Color="#E8171B20" />
     <SolidColorBrush x:Key="UiXTextSecondaryBrush" Color="#A8171B20" />
+    <SolidColorBrush x:Key="UiXDialogSurfaceBrush" Color="#FFF1F4F5" />
+    <SolidColorBrush x:Key="UiXDialogSectionBrush" Color="#FFE7ECEF" />
+    <SolidColorBrush x:Key="UiXDialogElevatedBrush" Color="#FFF8FAFB" />
+    <SolidColorBrush x:Key="UiXDialogSubtleBrush" Color="#FFE0E6E9" />
+    <SolidColorBrush x:Key="UiXDialogSelectionBrush" Color="#FFDCE9ED" />
+    <SolidColorBrush x:Key="UiXDialogWarningBrush" Color="#FFF3E2CE" />
+    <SolidColorBrush x:Key="UiXDialogDangerBrush" Color="#FFF5DDE0" />
+    <SolidColorBrush x:Key="UiXDialogLiveBrush" Color="#FFD5E8DB" />
+    <SolidColorBrush x:Key="UiXDialogRecordingBrush" Color="#FFF0DADC" />
 
     <Style x:Key="UiXPanelBorderStyle" TargetType="{x:Type Border}">
         <Setter Property="Background" Value="{DynamicResource UiXPanelBrush}" />

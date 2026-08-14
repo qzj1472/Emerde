@@ -36,6 +36,14 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="RestoreOptionsSurfaceStyle" TargetType="{x:Type Border}">
+            <Setter Property="Background" Value="{DynamicResource EmerdeDialogBackgroundBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding MainWindow.DataContext.StatusOfIsUiXEnabled, Source={x:Static Application.Current}}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource EmerdeDialogBackgroundBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="RestoreOptionListBoxStyle" TargetType="{x:Type ListBox}">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
@@ -56,7 +64,7 @@
                                           VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}"
                                           ScrollChanged="OptionsScrollViewerScrollChanged">
                                 <Border Padding="0,16,0,8"
-                                        Background="{DynamicResource EmerdeSurfaceBrush}">
+                                        Style="{StaticResource RestoreOptionsSurfaceStyle}">
                                     <ItemsPresenter />
                                 </Border>
                             </ScrollViewer>
@@ -64,6 +72,25 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+        <Style x:Key="RestoreOptionCardStyle" TargetType="{x:Type Border}" BasedOn="{StaticResource EmerdeDialogSectionStyle}">
+            <Setter Property="Margin" Value="0,0,18,8" />
+            <Setter Property="Padding" Value="0" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding MainWindow.DataContext.StatusOfIsUiXEnabled, Source={x:Static Application.Current}}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource UiXDialogSectionBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="RestoreOptionStrokeStyle" TargetType="{x:Type Border}">
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlElevationBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding MainWindow.DataContext.StatusOfIsUiXEnabled, Source={x:Static Application.Current}}" Value="True">
+                    <Setter Property="BorderBrush" Value="{DynamicResource UiXStrokeBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
     </UserControl.Resources>
     <Grid x:Name="ContentRoot"
@@ -82,14 +109,11 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0" Margin="0,0,16,0">
-                <TextBlock Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
-                           Text="{I18N ConfigRestoreDescription}"
-                           TextWrapping="Wrap" />
+                <TextBlock Style="{StaticResource EmerdeDialogBodyTextStyle}"
+                           Text="{I18N ConfigRestoreDescription}" />
                 <TextBlock Margin="0,6,0,0"
-                           FontSize="11"
-                           Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
-                           Text="{I18N ConfigRestoreBackupHint}"
-                           TextWrapping="Wrap" />
+                           Style="{StaticResource EmerdeDialogSecondaryTextStyle}"
+                           Text="{I18N ConfigRestoreBackupHint}" />
             </StackPanel>
             <Button Grid.Column="1"
                     MinWidth="104"
@@ -114,17 +138,13 @@
                 <ListBox.ItemTemplate>
                     <DataTemplate DataType="{x:Type views:ConfigRestoreOption}">
                         <Border x:Name="Card"
-                                Margin="0,0,18,8"
                                 Padding="0"
-                                Background="{DynamicResource EmerdeCardBrush}"
-                                BorderBrush="Transparent"
                                 BorderThickness="0"
-                                CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                                Style="{StaticResource RestoreOptionCardStyle}">
                             <Grid>
                                 <Border x:Name="CardStrokeLayer"
-                                        BorderBrush="{DynamicResource ControlElevationBorderBrush}"
                                         BorderThickness="1"
-                                        CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                                        Style="{StaticResource RestoreOptionStrokeStyle}"
                                         IsHitTestVisible="False" />
                                 <Border Padding="13"
                                         Background="Transparent">
@@ -134,17 +154,15 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0">
-                                    <TextBlock FontSize="14"
-                                               FontWeight="SemiBold"
+                                    <TextBlock Style="{StaticResource EmerdeDialogSectionTitleTextStyle}"
                                                Text="{Binding Title}"
                                                TextWrapping="Wrap" />
                                     <TextBlock Margin="0,4,0,0"
-                                               Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
+                                               Style="{StaticResource EmerdeDialogSecondaryTextStyle}"
                                                Text="{Binding Subtitle}"
                                                TextWrapping="Wrap" />
                                     <TextBlock Margin="0,6,0,0"
-                                               FontSize="11"
-                                               Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
+                                               Style="{StaticResource EmerdeDialogSecondaryTextStyle}"
                                                Text="{Binding Detail}"
                                                TextWrapping="Wrap" />
                                 </StackPanel>
@@ -153,7 +171,7 @@
                                         Margin="12,0,0,0"
                                         Padding="9,4"
                                         VerticalAlignment="Top"
-                                        Background="#14337DFF"
+                                        Background="{DynamicResource UiXDialogSelectionBrush}"
                                         CornerRadius="{StaticResource Win11ControlCornerRadius}">
                                     <TextBlock x:Name="BadgeText"
                                                FontSize="11"
@@ -166,18 +184,18 @@
                         </Border>
                         <DataTemplate.Triggers>
                             <DataTrigger Binding="{Binding IsImported}" Value="True">
-                                <Setter TargetName="Badge" Property="Background" Value="#1420A060" />
-                                <Setter TargetName="BadgeText" Property="Foreground" Value="#20A060" />
+                                <Setter TargetName="Badge" Property="Background" Value="{DynamicResource UiXDialogLiveBrush}" />
+                                <Setter TargetName="BadgeText" Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
                             </DataTrigger>
                             <DataTrigger Binding="{Binding IsDefault}" Value="True">
-                                <Setter TargetName="Card" Property="Background" Value="#0CD97706" />
-                                <Setter TargetName="CardStrokeLayer" Property="BorderBrush" Value="#33D97706" />
-                                <Setter TargetName="Badge" Property="Background" Value="#14D97706" />
-                                <Setter TargetName="BadgeText" Property="Foreground" Value="#D97706" />
+                                <Setter TargetName="Card" Property="Background" Value="{DynamicResource UiXDialogWarningBrush}" />
+                                <Setter TargetName="CardStrokeLayer" Property="BorderBrush" Value="{DynamicResource UiXStrongStrokeBrush}" />
+                                <Setter TargetName="Badge" Property="Background" Value="{DynamicResource UiXDialogWarningBrush}" />
+                                <Setter TargetName="BadgeText" Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
                             </DataTrigger>
                             <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="True">
-                                <Setter TargetName="Card" Property="Background" Value="#18337DFF" />
-                                <Setter TargetName="CardStrokeLayer" Property="BorderBrush" Value="#60337DFF" />
+                                <Setter TargetName="Card" Property="Background" Value="{DynamicResource UiXDialogSelectionBrush}" />
+                                <Setter TargetName="CardStrokeLayer" Property="BorderBrush" Value="{DynamicResource UiXSelectionStrokeBrush}" />
                             </DataTrigger>
                         </DataTemplate.Triggers>
                     </DataTemplate>
@@ -187,7 +205,7 @@
                     x:Name="OptionsTopFade"
                     VerticalAlignment="Top"
                     Panel.ZIndex="10"
-                    Background="{DynamicResource EmerdeSurfaceBrush}"
+                    Style="{StaticResource RestoreOptionsSurfaceStyle}"
                     IsHitTestVisible="False"
                     OpacityMask="{StaticResource TopEdgeFadeOpacityMask}"
                     Visibility="Collapsed" />
@@ -195,7 +213,7 @@
                     x:Name="OptionsBottomFade"
                     VerticalAlignment="Bottom"
                     Panel.ZIndex="10"
-                    Background="{DynamicResource EmerdeSurfaceBrush}"
+                    Style="{StaticResource RestoreOptionsSurfaceStyle}"
                     IsHitTestVisible="False"
                     OpacityMask="{StaticResource BottomEdgeFadeOpacityMask}"
                     Visibility="Collapsed" />

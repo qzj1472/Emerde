@@ -65,6 +65,26 @@ public sealed class LayoutRoundingTests
         }
     }
 
+    [Fact]
+    public void SpacedWpfUiStackPanels_DoNotContainOnlyConditionalChildren()
+    {
+        XNamespace wpfUi = "http://schemas.lepo.co/wpfui/2022/xaml";
+        foreach (string path in EnumerateXamlFiles())
+        {
+            XDocument document = XDocument.Load(path);
+            IEnumerable<XElement> panels = document.Descendants(wpfUi + "StackPanel")
+                .Where(element => element.Attribute("Spacing") != null);
+            foreach (XElement panel in panels)
+            {
+                XElement[] children = panel.Elements().ToArray();
+                bool allChildrenAreConditional = children.Length > 0
+                    && children.All(child => child.Attribute("Visibility") != null);
+
+                Assert.False(allChildrenAreConditional, $"{path}: spaced StackPanel can measure a negative size when all children collapse");
+            }
+        }
+    }
+
     private static void AssertIntegerComponents(string path, XElement element, string property, string value)
     {
         foreach (string component in value.Split(','))

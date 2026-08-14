@@ -13,6 +13,7 @@
              UseLayoutRounding="True"
              mc:Ignorable="d">
     <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <Style x:Key="UiXAboutFadeStyle" TargetType="{x:Type Border}">
             <Setter Property="Background" Value="{DynamicResource EmerdeSurfaceBrush}" />
             <Style.Triggers>
@@ -164,18 +165,115 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="AboutNavigationButtonStyle" TargetType="{x:Type RadioButton}">
+            <Setter Property="MinWidth" Value="84" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type RadioButton}">
+                        <Border x:Name="NavigationChrome"
+                                Padding="{TemplateBinding Padding}"
+                                Background="Transparent"
+                                CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                            <Grid>
+                                <TextBlock HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           FontSize="{TemplateBinding FontSize}"
+                                           FontWeight="{TemplateBinding FontWeight}"
+                                           Foreground="{TemplateBinding Foreground}"
+                                           Text="{TemplateBinding Content}" />
+                                <Border x:Name="NavigationIndicator"
+                                        Width="20"
+                                        Height="2"
+                                        Margin="0,0,0,3"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Bottom"
+                                        Background="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                        CornerRadius="1"
+                                        Opacity="0" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                                <Setter TargetName="NavigationChrome" Property="CornerRadius" Value="{StaticResource UiXNavigationCornerRadius}" />
+                            </DataTrigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="NavigationChrome" Property="Background" Value="{DynamicResource UiXSubtleFillBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="NavigationChrome" Property="Background" Value="{DynamicResource UiXSelectionFillBrush}" />
+                                <Setter TargetName="NavigationIndicator" Property="Opacity" Value="1" />
+                                <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="AboutReleaseNotesSurfaceStyle" TargetType="{x:Type Border}">
+            <Setter Property="Padding" Value="18" />
+            <Setter Property="Background" Value="{DynamicResource EmerdeCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource UiXCardBrush}" />
+                    <Setter Property="BorderBrush" Value="Transparent" />
+                    <Setter Property="BorderThickness" Value="0" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <Grid ClipToBounds="True"
           controls:MotionAssist.IsEntranceEnabled="True"
           controls:MotionAssist.EntranceOffsetY="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <WrapPanel Grid.Row="0" Margin="20,10,20,10">
+            <RadioButton Click="AboutNavigationButtonClick"
+                         CommandParameter="Overview"
+                         Content="{Binding OverviewNavigationLabel}"
+                         GroupName="AboutNavigation"
+                         IsChecked="True"
+                         Style="{StaticResource AboutNavigationButtonStyle}" />
+            <RadioButton Click="AboutNavigationButtonClick"
+                         CommandParameter="ReleaseNotes"
+                         Content="{Binding ReleaseNotesNavigationLabel}"
+                         GroupName="AboutNavigation"
+                         Style="{StaticResource AboutNavigationButtonStyle}" />
+        </WrapPanel>
+        <Grid Grid.Row="1">
         <ScrollViewer BorderThickness="0"
                       Focusable="False"
                       IsTabStop="False"
                       FocusVisualStyle="{x:Null}"
                       HorizontalScrollBarVisibility="Disabled"
                       VerticalScrollBarVisibility="Auto">
-            <Border Padding="20,10,20,20">
+            <ScrollViewer.Style>
+                <Style TargetType="{x:Type ScrollViewer}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsReleaseNotesSelected}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ScrollViewer.Style>
+            <Border x:Name="AboutOverviewContent" Padding="20,10,20,20">
                 <ui:StackPanel HorizontalAlignment="Stretch" Spacing="18">
                     <Border Style="{StaticResource AboutHeroCardStyle}">
                         <Grid>
@@ -845,6 +943,107 @@
             </Border>
         </ScrollViewer>
 
+        <ScrollViewer BorderThickness="0"
+                      Focusable="False"
+                      FocusVisualStyle="{x:Null}"
+                      HorizontalScrollBarVisibility="Disabled"
+                      IsTabStop="False"
+                      VerticalScrollBarVisibility="Auto">
+            <ScrollViewer.Style>
+                <Style TargetType="{x:Type ScrollViewer}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsReleaseNotesSelected}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ScrollViewer.Style>
+            <Border x:Name="AboutReleaseNotesContent" Padding="20,4,20,20">
+                <ui:StackPanel Spacing="18">
+                    <ui:StackPanel Spacing="4">
+                        <TextBlock Style="{StaticResource AboutSectionTitleStyle}"
+                                   Margin="0"
+                                   Text="{Binding ReleaseNotesNavigationLabel}" />
+                        <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}"
+                                   Text="{Binding ReleaseNotesDescription}" />
+                    </ui:StackPanel>
+                    <ComboBox MinHeight="36"
+                              HorizontalAlignment="Stretch"
+                              DisplayMemberPath="VersionLabel"
+                              ItemsSource="{Binding ReleaseNotes}"
+                              SelectedItem="{Binding SelectedReleaseNote}" />
+                    <Border Style="{StaticResource AboutReleaseNotesSurfaceStyle}">
+                        <ui:StackPanel Spacing="12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Style="{StaticResource AboutCardTitleStyle}"
+                                           Margin="0"
+                                           FontSize="18"
+                                           Text="{Binding SelectedReleaseNote.Title}" />
+                                <TextBlock Grid.Column="1"
+                                           Margin="16,2,0,0"
+                                           Style="{StaticResource AboutBodyTextStyle}"
+                                           Text="{Binding SelectedReleaseNote.Date}" />
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding SelectedReleaseNote.Items}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Ellipse Width="5"
+                                                     Height="5"
+                                                     Margin="0,8,10,0"
+                                                     VerticalAlignment="Top"
+                                                     Fill="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                                            <TextBlock Grid.Column="1"
+                                                       Style="{StaticResource AboutBodyTextStyle}"
+                                                       Text="{Binding}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Border Height="1"
+                                    Margin="0,4,0,2"
+                                    Background="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                    Visibility="{Binding SelectedReleaseNote.HasAdditionalItems, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <TextBlock Style="{StaticResource AboutCardTitleStyle}"
+                                       FontSize="14"
+                                       Text="{I18N ReleaseNotesAdditionalLabel}"
+                                       Visibility="{Binding SelectedReleaseNote.HasAdditionalItems, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <ItemsControl ItemsSource="{Binding SelectedReleaseNote.AdditionalItems}"
+                                          Visibility="{Binding SelectedReleaseNote.HasAdditionalItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Ellipse Width="5"
+                                                     Height="5"
+                                                     Margin="0,8,10,0"
+                                                     VerticalAlignment="Top"
+                                                     Fill="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                                            <TextBlock Grid.Column="1"
+                                                       Style="{StaticResource AboutBodyTextStyle}"
+                                                       Text="{Binding}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ui:StackPanel>
+                    </Border>
+                </ui:StackPanel>
+            </Border>
+        </ScrollViewer>
+
         <Border Height="6"
                 VerticalAlignment="Top"
                 Panel.ZIndex="20"
@@ -857,5 +1056,6 @@
                 Style="{StaticResource UiXAboutFadeStyle}"
                 IsHitTestVisible="False"
                 OpacityMask="{StaticResource BottomEdgeFadeOpacityMask}" />
+        </Grid>
     </Grid>
 </UserControl>

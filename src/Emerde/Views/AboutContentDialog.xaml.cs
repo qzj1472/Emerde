@@ -1,12 +1,20 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Emerde.Core;
 using Windows.System;
+using AppResources = Emerde.Properties.Resources;
 
 namespace Emerde.Views;
 
 [ObservableObject]
 public partial class AboutContentDialog : System.Windows.Controls.UserControl
 {
+    [ObservableProperty]
+    private bool isReleaseNotesSelected;
+
+    [ObservableProperty]
+    private ReleaseNoteEntry selectedReleaseNote;
+
     [ObservableProperty]
     private double aboutCardWidth = 500;
 
@@ -15,9 +23,19 @@ public partial class AboutContentDialog : System.Windows.Controls.UserControl
 
     public AboutContentDialog()
     {
+        ReleaseNotes = ReleaseNotesCatalog.Entries;
+        selectedReleaseNote = ReleaseNotesCatalog.GetEntry(UpgradeNoticeService.GetCurrentVersion());
         DataContext = this;
         InitializeComponent();
     }
+
+    public IReadOnlyList<ReleaseNoteEntry> ReleaseNotes { get; }
+
+    public string OverviewNavigationLabel => GetText("AboutOverviewNavigation", "Overview");
+
+    public string ReleaseNotesNavigationLabel => GetText("AboutReleaseNotesNavigation", "Release notes");
+
+    public string ReleaseNotesDescription => GetText("AboutReleaseNotesDescription", "Review changes and improvements from recent versions.");
 
     private void AboutContentDialogSizeChanged(object sender, System.Windows.SizeChangedEventArgs e)
     {
@@ -32,6 +50,19 @@ public partial class AboutContentDialog : System.Windows.Controls.UserControl
         double cardWidth = Math.Max(0, Core.WindowSizing.RoundLayoutValue((availableWidth - 12 * (cardColumns - 1)) / cardColumns));
         double workflowWidth = Math.Max(0, Core.WindowSizing.RoundLayoutValue((availableWidth - 12 * (workflowColumns - 1)) / workflowColumns));
         return (cardWidth, workflowWidth);
+    }
+
+    private void AboutNavigationButtonClick(object sender, System.Windows.RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.RadioButton { CommandParameter: string parameter })
+        {
+            IsReleaseNotesSelected = string.Equals(parameter, "ReleaseNotes", StringComparison.Ordinal);
+        }
+    }
+
+    private static string GetText(string key, string fallback)
+    {
+        return AppResources.ResourceManager.GetString(key, AppResources.Culture) ?? fallback;
     }
 
     [RelayCommand]

@@ -913,7 +913,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         AutoShutdownContentDialog dialog = new(this);
         autoShutdownDialog = dialog;
-        using DialogBlurScope blurScope = DialogBlurScope.ForLightDismiss(Application.Current.MainWindow, dialog);
+        using DialogBlurScope blurScope = StatusOfIsUiXEnabled
+            ? DialogBlurScope.ForLightDismiss(Application.Current?.MainWindow, dialog)
+            : DialogBlurScope.ForDialog(Application.Current?.MainWindow, dialog);
         try
         {
             await ShowMainContentDialogAsync(dialog);
@@ -2406,8 +2408,28 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     [RelayCommand]
     private async Task AddRoomAsync()
     {
+        if (StatusOfIsUiXEnabled && Application.Current?.MainWindow is MainWindow uiXOwner)
+        {
+            UiXRoomWorkspaceResult uiXResult = await uiXOwner.ShowUiXRoomWorkspaceAsync(UiXRoomWorkspace.CreateForAdd());
+            if (!uiXResult.IsConfirmed)
+            {
+                return;
+            }
+
+            await AddConfirmedRoomAsync(
+                uiXResult.NickName,
+                uiXResult.RoomUrl,
+                uiXResult.SpiderResult,
+                uiXResult.IsFollowGlobalSettings,
+                uiXResult.IsToNotify,
+                uiXResult.IsToMonitor,
+                uiXResult.IsToRecord,
+                uiXResult.RecordingOptions);
+            return;
+        }
+
         AddRoomContentDialog dialog = new();
-        using DialogBlurScope blurScope = DialogBlurScope.ForLightDismiss(Application.Current.MainWindow, dialog);
+        using DialogBlurScope blurScope = DialogBlurScope.ForLightDismiss(Application.Current?.MainWindow, dialog);
         ContentDialogResult result = await ShowMainContentDialogAsync(dialog);
 
         if (result != ContentDialogResult.Primary ||
@@ -2572,12 +2594,47 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             CloseButtonText = "ButtonOfClose".Tr(),
             DefaultButton = ContentDialogButton.Close,
             FocusVisualStyle = null,
-            Style = Application.Current?.TryFindResource("DefaultVioletaContentDialogStyle") as Style,
+            Style = Application.Current?.TryFindResource("EmerdeContentDialogStyle") as Style,
         };
 
+        Window? owner = Application.Current?.MainWindow;
+        void ApplyRoomInformationDialogSize()
+        {
+            if (!LocalSettingsContentDialog.TryGetDialogVisualSize(owner, 0.42d, 0.72d, out double targetWidth, out double targetHeight))
+            {
+                return;
+            }
+
+            targetWidth = Math.Clamp(targetWidth, 560d, 680d);
+            dialog.Resources["EmerdeWideContentDialog"] = true;
+            LocalSettingsContentDialog.ApplyWideDialogVisualSize(dialog, targetWidth, targetHeight);
+            content.Width = double.NaN;
+            content.Height = double.NaN;
+            content.MinWidth = 0d;
+            content.MinHeight = 0d;
+            content.MaxWidth = double.PositiveInfinity;
+            content.MaxHeight = double.PositiveInfinity;
+            content.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
+            content.VerticalAlignment = System.Windows.VerticalAlignment.Stretch;
+        }
+
+        ApplyRoomInformationDialogSize();
+        RoutedEventHandler loadedHandler = (_, _) => ApplyRoomInformationDialogSize();
+        dialog.Loaded += loadedHandler;
+
         _ = UpdateRoomRecordingSummaryAsync(targetRoom, lastRecordedAtValue, lastEndedAtValue, storageUsageValue);
-        using DialogBlurScope blurScope = DialogBlurScope.ForLightDismiss(Application.Current?.MainWindow, dialog);
-        await ShowMainContentDialogAsync(dialog);
+        using DialogBlurScope blurScope = StatusOfIsUiXEnabled
+            ? DialogBlurScope.ForLightDismiss(owner, dialog)
+            : DialogBlurScope.ForDialog(owner, dialog);
+        try
+        {
+            await ShowMainContentDialogAsync(dialog);
+        }
+        finally
+        {
+            dialog.Loaded -= loadedHandler;
+            LocalSettingsContentDialog.ClearWideDialogVisualSize(dialog);
+        }
     }
 
     private FrameworkElement CreateRoomInformationContent(
@@ -2586,18 +2643,25 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         TextBlock lastEndedAtValue,
         TextBlock storageUsageValue)
     {
-        StackPanel panel = new()
+        if (StatusOfIsUiXEnabled)
         {
-            Width = 560,
-            MaxHeight = 560,
+            return CreateUiXRoomInformationContent(room, lastRecordedAtValue, lastEndedAtValue, storageUsageValue);
+        }
+
+        StackPanel panel = new();
+        Border contentPadding = new()
+        {
+            Padding = new Thickness(20, 8, 28, 20),
+            Child = panel,
         };
         ScrollViewer scrollViewer = new()
         {
+            MaxHeight = 620,
             BorderThickness = new Thickness(0),
             Focusable = false,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = panel,
+            Content = contentPadding,
         };
 
         panel.Children.Add(CreateRoomInformationHeader(room));
@@ -2611,6 +2675,13 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             ("RecordFormat".Tr(), CreateRoomInformationValueText(StatusOfRecordFormat)),
         ]));
         panel.Children.Add(CreateRoomInformationDivider());
+        panel.Children.Add(CreateRoomInformationSectionTitle("RoomRecordingStatistics".Tr()));
+        panel.Children.Add(CreateRoomInformationGrid([
+            ("RecentRecordingStarted".Tr(), lastRecordedAtValue),
+            ("RecentRecordingEnded".Tr(), lastEndedAtValue),
+            ("RoomRecordingStorageUsage".Tr(), storageUsageValue),
+        ]));
+        panel.Children.Add(CreateRoomInformationDivider());
         panel.Children.Add(CreateRoomInformationSectionTitle("LiveStream".Tr()));
         panel.Children.Add(CreateRoomInformationGrid([
             ("QualityLabel".Tr(), CreateRoomInformationValueText(room.QualityText)),
@@ -2619,18 +2690,140 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             ("RoomAddress".Tr(), CreateRoomInformationCopyRow(room.RoomUrl, "CopyRoomAddressToolTip")),
             ("LiveStream".Tr(), CreateRoomInformationCopyRow(room.LiveStreamText, "CopyLiveStreamToolTip")),
         ]));
-        panel.Children.Add(CreateRoomInformationDivider());
-        panel.Children.Add(CreateRoomInformationSectionTitle("RoomRecordingStatistics".Tr()));
-        panel.Children.Add(CreateRoomInformationGrid([
-            ("RecentRecordingStarted".Tr(), lastRecordedAtValue),
-            ("RecentRecordingEnded".Tr(), lastEndedAtValue),
-            ("RoomRecordingStorageUsage".Tr(), storageUsageValue),
-        ]));
 
         return scrollViewer;
     }
 
-    private static FrameworkElement CreateRoomInformationHeader(RoomStatusReactive room)
+    private FrameworkElement CreateUiXRoomInformationContent(
+        RoomStatusReactive room,
+        TextBlock lastRecordedAtValue,
+        TextBlock lastEndedAtValue,
+        TextBlock storageUsageValue)
+    {
+        StackPanel content = new()
+        {
+            Margin = new Thickness(0, 4, 18, 4),
+        };
+        content.Children.Add(CreateUiXRoomInformationHeader(room));
+
+        Border roomSection = UiXDialogContent.CreateSection(
+            "RoomInformation".Tr(),
+            [
+                UiXDialogContent.CreateValueRow("Platform".Tr(), CreateRoomInformationValueText(room.PlatformDisplayName)),
+                UiXDialogContent.CreateValueRow("LiveTitle".Tr(), CreateRoomInformationValueText(room.LiveTitleText)),
+                UiXDialogContent.CreateValueRow("StreamStatus".Tr(), CreateRoomInformationStatusValue(room.StreamStatusText)),
+                UiXDialogContent.CreateValueRow("RecordStatus".Tr(), CreateRoomInformationStatusValue(room.RecordStatusText)),
+                UiXDialogContent.CreateValueRow("RecordFormat".Tr(), CreateRoomInformationValueText(StatusOfRecordFormat), true),
+            ],
+            Wpf.Ui.Controls.FontSymbols.Info);
+        roomSection.Margin = new Thickness(0, 12, 0, 10);
+        content.Children.Add(roomSection);
+
+        Border recordingSection = UiXDialogContent.CreateSection(
+            "RoomRecordingStatistics".Tr(),
+            [
+                UiXDialogContent.CreateValueRow("RecentRecordingStarted".Tr(), lastRecordedAtValue),
+                UiXDialogContent.CreateValueRow("RecentRecordingEnded".Tr(), lastEndedAtValue),
+                UiXDialogContent.CreateValueRow("RoomRecordingStorageUsage".Tr(), storageUsageValue, true),
+            ],
+            Wpf.Ui.Controls.FontSymbols.Folder);
+        recordingSection.Margin = new Thickness(0, 0, 0, 10);
+        content.Children.Add(recordingSection);
+
+        content.Children.Add(UiXDialogContent.CreateSection(
+            "LiveStream".Tr(),
+            [
+                UiXDialogContent.CreateValueRow("QualityLabel".Tr(), CreateRoomInformationValueText(room.QualityText)),
+                UiXDialogContent.CreateValueRow("ResolutionLabel".Tr(), CreateRoomInformationValueText(room.ResolutionText)),
+                UiXDialogContent.CreateValueRow("BitrateLabel".Tr(), CreateRoomInformationValueText(room.BitrateText)),
+                UiXDialogContent.CreateValueRow("RoomAddress".Tr(), CreateRoomInformationCopyRow(room.RoomUrl, "CopyRoomAddressToolTip")),
+                UiXDialogContent.CreateValueRow("LiveStream".Tr(), CreateRoomInformationCopyRow(room.LiveStreamText, "CopyLiveStreamToolTip"), true),
+            ],
+            Wpf.Ui.Controls.FontSymbols.Video));
+
+        return new ScrollViewer
+        {
+            MaxHeight = 620d,
+            BorderThickness = new Thickness(0),
+            Focusable = true,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = content,
+        };
+    }
+
+    private FrameworkElement CreateUiXRoomInformationHeader(RoomStatusReactive room)
+    {
+        Grid grid = new()
+        {
+            MinHeight = 76d,
+        };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1d, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        Border avatar = new()
+        {
+            Width = 64d,
+            Height = 64d,
+            Margin = new Thickness(0, 0, 16, 0),
+            CornerRadius = new CornerRadius(8d),
+            ClipToBounds = true,
+        };
+        ImageBrush avatarBrush = new() { Stretch = Stretch.UniformToFill };
+        BindingOperations.SetBinding(avatarBrush, ImageBrush.ImageSourceProperty, new System.Windows.Data.Binding(nameof(RoomStatusReactive.AvatarDisplaySource))
+        {
+            Source = room,
+            Mode = BindingMode.OneWay,
+        });
+        avatar.Background = avatarBrush;
+        grid.Children.Add(avatar);
+
+        StackPanel identity = new()
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        TextBlock name = new()
+        {
+            Text = room.NickName,
+            FontSize = 20d,
+            FontWeight = FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        name.SetResourceReference(TextBlock.ForegroundProperty, "UiXTextPrimaryBrush");
+        TextBlock identityText = new()
+        {
+            Text = $"{room.PlatformDisplayName}  ·  UID {room.RoomCodeText}",
+            Margin = new Thickness(0, 5, 0, 0),
+            FontSize = 12d,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        identityText.SetResourceReference(TextBlock.ForegroundProperty, "UiXTextSecondaryBrush");
+        identity.Children.Add(name);
+        identity.Children.Add(identityText);
+        Grid.SetColumn(identity, 1);
+        grid.Children.Add(identity);
+
+        FrameworkElement state = CreateRoomInformationStatusValue(
+            room.IsRecordingOrStarting ? room.RecordStatusText : room.StreamStatusText);
+        state.Margin = new Thickness(16, 0, 0, 0);
+        state.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(state, 2);
+        grid.Children.Add(state);
+        return grid;
+    }
+
+    private FrameworkElement CreateRoomInformationStatusValue(string text)
+    {
+        TextBlock label = CreateRoomInformationValueText(text);
+        label.FontSize = 13d;
+        label.FontWeight = FontWeights.SemiBold;
+        label.TextWrapping = TextWrapping.NoWrap;
+        label.VerticalAlignment = VerticalAlignment.Center;
+        return label;
+    }
+
+    private FrameworkElement CreateRoomInformationHeader(RoomStatusReactive room)
     {
         Grid grid = new()
         {
@@ -2639,36 +2832,43 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        PersonPicture picture = new()
+        System.Windows.Shapes.Ellipse picture = new()
         {
-            Width = 44,
-            Height = 44,
-            DisplayName = room.NickName,
+            Width = 56,
+            Height = 56,
             VerticalAlignment = VerticalAlignment.Center,
+            SnapsToDevicePixels = true,
         };
+        ImageBrush avatarBrush = new() { Stretch = Stretch.UniformToFill };
+        BindingOperations.SetBinding(avatarBrush, ImageBrush.ImageSourceProperty, new System.Windows.Data.Binding(nameof(RoomStatusReactive.AvatarDisplaySource))
+        {
+            Source = room,
+            Mode = BindingMode.OneWay,
+        });
+        picture.Fill = avatarBrush;
         Grid.SetColumn(picture, 0);
         grid.Children.Add(picture);
 
         StackPanel textPanel = new()
         {
-            Margin = new Thickness(12, 0, 0, 0),
+            Margin = new Thickness(16, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center,
         };
         TextBlock name = new()
         {
             Text = room.NickName,
-            FontSize = 17,
+            FontSize = 18,
             FontWeight = FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
         TextBlock code = new()
         {
             Text = $"UID: {room.RoomCodeText}",
-            FontSize = 12,
-            Margin = new Thickness(0, 3, 0, 0),
+            FontSize = 13,
+            Margin = new Thickness(0, 4, 0, 0),
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
-        code.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        code.SetResourceReference(TextBlock.ForegroundProperty, GetRoomInformationSecondaryBrushKey());
         textPanel.Children.Add(name);
         textPanel.Children.Add(code);
         Grid.SetColumn(textPanel, 1);
@@ -2676,35 +2876,35 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         return grid;
     }
 
-    private static Border CreateRoomInformationDivider()
+    private Border CreateRoomInformationDivider()
     {
         Border divider = new()
         {
             Height = 1,
-            Margin = new Thickness(0, 12, 0, 12),
+            Margin = new Thickness(0, 16, 0, 16),
             Opacity = 0.65,
         };
-        divider.SetResourceReference(Border.BackgroundProperty, "ControlStrokeColorDefaultBrush");
+        divider.SetResourceReference(Border.BackgroundProperty, StatusOfIsUiXEnabled ? "UiXDividerBrush" : "ControlStrokeColorDefaultBrush");
         return divider;
     }
 
-    private static TextBlock CreateRoomInformationSectionTitle(string text)
+    private TextBlock CreateRoomInformationSectionTitle(string text)
     {
         TextBlock title = new()
         {
             Text = text,
-            FontSize = 13,
+            FontSize = 14,
             FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 0, 0, 8),
+            Margin = new Thickness(0, 0, 0, 10),
         };
-        title.SetResourceReference(TextBlock.ForegroundProperty, "SystemAccentColorPrimaryBrush");
+        title.SetResourceReference(TextBlock.ForegroundProperty, GetRoomInformationPrimaryBrushKey());
         return title;
     }
 
-    private static Grid CreateRoomInformationGrid(IReadOnlyList<(string Label, FrameworkElement Value)> rows)
+    private Grid CreateRoomInformationGrid(IReadOnlyList<(string Label, FrameworkElement Value)> rows)
     {
         Grid grid = new();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(112) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(132) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         for (int index = 0; index < rows.Count; index++)
@@ -2714,17 +2914,17 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             TextBlock label = new()
             {
                 Text = rows[index].Label,
-                FontSize = 12,
-                Margin = new Thickness(0, 0, 14, 7),
+                FontSize = 13,
+                Margin = new Thickness(0, 0, 18, 9),
                 VerticalAlignment = VerticalAlignment.Top,
             };
-            label.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+            label.SetResourceReference(TextBlock.ForegroundProperty, GetRoomInformationSecondaryBrushKey());
             Grid.SetRow(label, index);
             Grid.SetColumn(label, 0);
             grid.Children.Add(label);
 
             FrameworkElement value = rows[index].Value;
-            value.Margin = new Thickness(0, 0, 0, 7);
+            value.Margin = new Thickness(0, 0, 0, 9);
             Grid.SetRow(value, index);
             Grid.SetColumn(value, 1);
             grid.Children.Add(value);
@@ -2733,15 +2933,16 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         return grid;
     }
 
-    private static TextBlock CreateRoomInformationValueText(string? text)
+    private TextBlock CreateRoomInformationValueText(string? text)
     {
         TextBlock value = new()
         {
             Text = string.IsNullOrWhiteSpace(text) ? "-" : text,
-            FontSize = 12,
+            FontSize = 14,
+            LineHeight = 20,
             TextWrapping = TextWrapping.Wrap,
         };
-        value.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
+        value.SetResourceReference(TextBlock.ForegroundProperty, GetRoomInformationPrimaryBrushKey());
         return value;
     }
 
@@ -2752,30 +2953,44 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         TextBlock value = CreateRoomInformationValueText(text);
+        value.MaxHeight = 42;
+        value.TextTrimming = TextTrimming.CharacterEllipsis;
+        value.ToolTip = string.IsNullOrWhiteSpace(text) ? null : text;
         Grid.SetColumn(value, 0);
         grid.Children.Add(value);
 
         System.Windows.Controls.Button button = new()
         {
-            Width = 28,
-            Height = 28,
-            MinWidth = 28,
+            Width = 32,
+            Height = 32,
+            MinWidth = 32,
             Padding = new Thickness(0),
-            Margin = new Thickness(8, -5, 0, 0),
+            Margin = new Thickness(10, -4, 0, 0),
             ToolTip = toolTipKey.Tr(),
             IsEnabled = !string.IsNullOrWhiteSpace(text) && text != "-",
         };
         Wpf.Ui.Controls.FontIcon icon = new()
         {
             Glyph = Wpf.Ui.Controls.FontSymbols.Copy,
+            FontFamily = Application.Current?.TryFindResource("SymbolThemeFontFamily") as System.Windows.Media.FontFamily
+                ?? new System.Windows.Media.FontFamily("Segoe Fluent Icons"),
         };
-        icon.SetResourceReference(Wpf.Ui.Controls.FontIcon.FontFamilyProperty, "SymbolThemeFontFamily");
         button.Content = icon;
         button.Click += async (_, _) => await CopyTextToClipboardAsync(text);
         Grid.SetColumn(button, 1);
         grid.Children.Add(button);
 
         return grid;
+    }
+
+    private string GetRoomInformationPrimaryBrushKey()
+    {
+        return StatusOfIsUiXEnabled ? "UiXTextPrimaryBrush" : "TextFillColorPrimaryBrush";
+    }
+
+    private string GetRoomInformationSecondaryBrushKey()
+    {
+        return StatusOfIsUiXEnabled ? "UiXTextSecondaryBrush" : "TextFillColorSecondaryBrush";
     }
 
     private async Task UpdateRoomRecordingSummaryAsync(
@@ -4813,6 +5028,28 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return;
         }
 
+        RoomStatusReactive targetRoom = SelectedItem;
+        if (StatusOfIsUiXEnabled && Application.Current?.MainWindow is MainWindow uiXOwner)
+        {
+            UiXRoomWorkspaceResult uiXResult = await uiXOwner.ShowUiXRoomWorkspaceAsync(UiXRoomWorkspace.CreateForEdit(targetRoom));
+            if (!uiXResult.IsConfirmed)
+            {
+                return;
+            }
+
+            SelectedItem = targetRoom;
+            targetRoom.IsFollowGlobalSettings = uiXResult.IsFollowGlobalSettings;
+            targetRoom.IsToNotify = uiXResult.IsToNotify;
+            targetRoom.IsToMonitor = uiXResult.IsToMonitor;
+            targetRoom.IsToRecord = uiXResult.IsToRecord;
+            SaveSelectedRoomSettings(uiXResult.RecordingOptions);
+            RefreshRoomEffectiveStates();
+            await GlobalMonitor.RunRoomAsync(targetRoom.RoomUrl);
+            ReloadRoomStatus(targetRoom.RoomUrl);
+            Toast.Success("SuccOp".Tr());
+            return;
+        }
+
         LocalSettingsContentDialog content = new(SelectedItem);
         Window? owner = Application.Current?.MainWindow;
         ContentDialog dialog = new()
@@ -4823,7 +5060,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             CloseButtonText = "ButtonOfCancel".Tr(),
             DefaultButton = ContentDialogButton.Primary,
             FocusVisualStyle = null,
-            Style = Application.Current?.TryFindResource("DefaultVioletaContentDialogStyle") as Style,
+            Style = Application.Current?.TryFindResource("EmerdeContentDialogStyle") as Style,
         };
         content.ApplyDialogVisualSize(dialog, owner);
 
@@ -4854,12 +5091,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     [RelayCommand]
     private async Task RemoveRoomUrlAsync(RoomStatusReactive? roomStatus = null)
     {
-        RoomStatusReactive[] targets = ResolveRoomCommandTarget(roomStatus) is RoomStatusReactive targetRoom
-            ? [targetRoom]
-            : ResolveRoomRemovalTargets(
-                RoomStatuses,
-                SelectedItem,
-                IsRoomCardSelectionVisible);
+        RoomStatusReactive[] targets = ResolveRoomRemovalTargets(
+            RoomStatuses,
+            ResolveRoomCommandTarget(roomStatus) ?? SelectedItem,
+            IsRoomCardSelectionVisible || roomStatus != null);
         if (targets.Length == 0)
         {
             return;
@@ -4868,10 +5103,25 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         string prompt = targets.Length == 1
             ? "SureRemoveRoom".Tr(targets[0].NickName)
             : "ConfirmRemoveSelectedRooms".Tr(targets.Length);
-        using DialogBlurScope blurScope = DialogBlurScope.ForMessageBox(Application.Current.MainWindow);
-        MessageBoxResult result = await MessageBox.QuestionAsync(prompt);
+        bool confirmed;
+        if (StatusOfIsUiXEnabled)
+        {
+            confirmed = await UiXDialogContent.ConfirmAsync(
+                Application.Current.MainWindow,
+                "RemoveRoom".Tr(),
+                prompt,
+                "Yes".Tr(),
+                "No".Tr(),
+                Wpf.Ui.Controls.FontSymbols.Delete,
+                UiXDialogTone.Danger);
+        }
+        else
+        {
+            using DialogBlurScope blurScope = DialogBlurScope.ForMessageBox(Application.Current.MainWindow);
+            confirmed = await MessageBox.QuestionAsync(prompt) == MessageBoxResult.Yes;
+        }
 
-        if (result == MessageBoxResult.Yes)
+        if (confirmed)
         {
             RoomListHistoryState before = CaptureRoomListHistoryState();
             HashSet<string> roomUrls = targets.Select(room => room.RoomUrl).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -4954,22 +5204,36 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 // We not need to binding with two way, because we update the config through method `IsToRecord()`.
                 checkBox.SetBinding(CheckBox.IsCheckedProperty, nameof(RoomStatusReactive.IsToRecord));
 
-                content.Children.Add(new TextBlock()
+                checkBox.Margin = new Thickness(0, 14, 0, 0);
+                if (!StatusOfIsUiXEnabled)
                 {
-                    Text = "SureStopRecord".Tr(roomStatus.NickName)
-                });
-                content.Children.Add(checkBox);
+                    content.Children.Add(new TextBlock()
+                    {
+                        Text = "SureStopRecord".Tr(roomStatus.NickName),
+                        TextWrapping = TextWrapping.Wrap,
+                    });
+                    content.Children.Add(checkBox);
+                }
 
                 ContentDialog dialog = new()
                 {
                     Title = "StopRecord".Tr(),
-                    Content = content,
+                    Content = StatusOfIsUiXEnabled
+                        ? UiXDialogContent.CreateForm(
+                            "SureStopRecord".Tr(roomStatus.NickName),
+                            checkBox,
+                            Wpf.Ui.Controls.FontSymbols.Video,
+                            minimumWidth: 430d)
+                        : content,
                     CloseButtonText = "ButtonOfCancel".Tr(),
                     PrimaryButtonText = "StopRecord".Tr(),
                     DefaultButton = ContentDialogButton.Primary,
+                    Style = Application.Current?.TryFindResource("EmerdeContentDialogStyle") as Style,
                 };
 
-                using DialogBlurScope blurScope = DialogBlurScope.ForDialog(Application.Current.MainWindow, dialog);
+                using DialogBlurScope blurScope = StatusOfIsUiXEnabled
+                    ? DialogBlurScope.ForLightDismiss(Application.Current?.MainWindow, dialog)
+                    : DialogBlurScope.ForDialog(Application.Current?.MainWindow, dialog);
                 ContentDialogResult result = await ShowMainContentDialogAsync(dialog);
 
                 if (result == ContentDialogResult.Primary)

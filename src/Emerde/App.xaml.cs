@@ -24,6 +24,8 @@ public partial class App : Application
 
     private static Exception? cultureRecoveryException;
 
+    private int dispatcherExceptionReportActive;
+
     static App()
     {
         AppContext.SetSwitch("Switch.System.Windows.Input.Stylus.EnablePointerSupport", true);
@@ -62,12 +64,7 @@ public partial class App : Application
     {
         InitializeComponent();
 
-        DispatcherUnhandledException += (object s, DispatcherUnhandledExceptionEventArgs e) =>
-        {
-            e.Handled = true;
-            AppSessionLogger.WriteException(e.Exception);
-            ExceptionReport.Show(e.Exception);
-        };
+        DispatcherUnhandledException += HandleDispatcherUnhandledException;
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
@@ -104,6 +101,31 @@ public partial class App : Application
         }
 
         AppThemeBrushes.Apply();
+    }
+
+    private void HandleDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    {
+        e.Handled = true;
+        AppSessionLogger.WriteException(e.Exception);
+        if (Interlocked.Exchange(ref dispatcherExceptionReportActive, 1) != 0)
+        {
+            Shutdown(-1);
+            return;
+        }
+
+        try
+        {
+            ExceptionReport.Show(e.Exception);
+        }
+        catch (Exception reportException)
+        {
+            AppSessionLogger.WriteException(reportException);
+            Shutdown(-1);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref dispatcherExceptionReportActive, 0);
+        }
     }
 
     private static bool IsInvalidConfiguration(string configurationPath)

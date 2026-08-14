@@ -1,0 +1,114 @@
+<UserControl x:Class="Emerde.Views.UiXExportLogsContent"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Emerde.Controls"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             Focusable="False"
+             FocusVisualStyle="{x:Null}"
+             SnapsToDevicePixels="True"
+             UseLayoutRounding="True">
+    <UserControl.Resources>
+        <Style x:Key="LogRangeOptionStyle" TargetType="{x:Type RadioButton}">
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type RadioButton}">
+                        <Border x:Name="Surface"
+                                MinHeight="72"
+                                Padding="14"
+                                Background="{DynamicResource UiXDialogSectionBrush}"
+                                CornerRadius="8"
+                                controls:MotionAssist.IsPressEnabled="True">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="40"
+                                        Height="40"
+                                        Margin="0,0,14,0"
+                                        Background="{DynamicResource UiXDialogSubtleBrush}"
+                                        CornerRadius="8">
+                                    <ContentPresenter HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Content="{TemplateBinding Tag}" />
+                                </Border>
+                                <ContentPresenter Grid.Column="1"
+                                                  VerticalAlignment="Center"
+                                                  Content="{TemplateBinding Content}" />
+                                <Border x:Name="Indicator"
+                                        Grid.Column="2"
+                                        Width="18"
+                                        Height="18"
+                                        Margin="14,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Background="Transparent"
+                                        BorderBrush="{DynamicResource UiXStrongStrokeBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="9">
+                                    <Ellipse x:Name="IndicatorDot"
+                                             Width="8"
+                                             Height="8"
+                                             Fill="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                             Opacity="0" />
+                                </Border>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="{DynamicResource UiXDialogElevatedBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="{DynamicResource UiXDialogSelectionBrush}" />
+                                <Setter TargetName="Indicator" Property="BorderBrush" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                                <Setter TargetName="IndicatorDot" Property="Opacity" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+    <StackPanel MinWidth="460" Margin="0,4,0,0">
+        <TextBlock Margin="0,0,0,16"
+                   FontSize="13"
+                   Foreground="{DynamicResource UiXTextSecondaryBrush}"
+                   Text="{I18N ExportLogsPrompt}"
+                   TextWrapping="Wrap" />
+        <RadioButton x:Name="TodayOption"
+                     IsChecked="True"
+                     Style="{StaticResource LogRangeOptionStyle}">
+            <RadioButton.Tag>
+                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                             FontSize="18"
+                             Foreground="{DynamicResource UiXTextPrimaryBrush}"
+                             Glyph="{x:Static ui:FontSymbols.Calendar}" />
+            </RadioButton.Tag>
+            <StackPanel>
+                <TextBlock FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource UiXTextPrimaryBrush}"
+                           Text="{I18N ExportToday}" />
+            </StackPanel>
+        </RadioButton>
+        <RadioButton x:Name="AllOption"
+                     Style="{StaticResource LogRangeOptionStyle}">
+            <RadioButton.Tag>
+                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
+                             FontSize="18"
+                             Foreground="{DynamicResource UiXTextPrimaryBrush}"
+                             Glyph="{x:Static ui:FontSymbols.Document}" />
+            </RadioButton.Tag>
+            <StackPanel>
+                <TextBlock FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource UiXTextPrimaryBrush}"
+                           Text="{I18N ExportAll}" />
+            </StackPanel>
+        </RadioButton>
+    </StackPanel>
+</UserControl>

@@ -16,11 +16,10 @@
                    PrimaryButtonClick="OnPrimaryButtonClick"
                    PrimaryButtonText="{I18N ButtonOfAdd}"
                    SnapsToDevicePixels="True"
-                   Style="{StaticResource DefaultVioletaContentDialogStyle}"
+                   Style="{StaticResource EmerdeContentDialogStyle}"
                    UseLayoutRounding="True"
                    mc:Ignorable="d">
     <Grid x:Name="AddRoomSurface"
-          MinWidth="420"
           ClipToBounds="True"
           Focusable="False"
           FocusVisualStyle="{x:Null}"
@@ -32,7 +31,17 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <ui:StackPanel Grid.Row="0" Spacing="10">
-            <TextBlock Text="{I18N EnterRoomUrl}" />
+            <ui:StackPanel.Style>
+                <Style TargetType="{x:Type ui:StackPanel}">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsUiXEnabled}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ui:StackPanel.Style>
+            <TextBlock Style="{StaticResource EmerdeDialogSectionTitleTextStyle}" Text="{I18N EnterRoomUrl}" />
             <Grid>
                 <ui:TextBox x:Name="RoomUrlTextBox"
                             BorderBrush="Transparent"
@@ -53,11 +62,9 @@
                         IsHitTestVisible="False" />
             </Grid>
             <Border x:Name="RoomDetectionSummary"
-                    Padding="10,8"
-                    Background="{DynamicResource ControlFillColorDefaultBrush}"
-                    BorderBrush="Transparent"
+                    Padding="14,10"
                     BorderThickness="0"
-                    CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                    Style="{StaticResource EmerdeDialogSectionStyle}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -70,22 +77,39 @@
                     <TextBlock Grid.Row="0"
                                Grid.Column="0"
                                Margin="0,0,12,4"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Style="{StaticResource EmerdeDialogSecondaryTextStyle}"
                                Text="{I18N Platform}" />
                     <TextBlock Grid.Row="0"
                                Grid.Column="1"
                                Margin="0,0,0,4"
-                               FontWeight="SemiBold"
-                               Text="{Binding DetectedPlatformName}" />
+                               Text="{Binding DetectedPlatformName}">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource EmerdeDialogSectionTitleTextStyle}">
+                                <Setter Property="Foreground" Value="{DynamicResource UiXTextSecondaryBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsDetectedPlatformSupported}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                                    </DataTrigger>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding HasRoomUrl}" Value="True" />
+                                            <Condition Binding="{Binding IsDetectedPlatformSupported}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Foreground" Value="{DynamicResource UiXDangerForegroundBrush}" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                     <TextBlock Grid.Row="1"
                                Grid.Column="0"
                                Margin="0,0,12,0"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Style="{StaticResource EmerdeDialogSecondaryTextStyle}"
                                Text="{I18N Supported}" />
                     <TextBlock Grid.Row="1"
                                Grid.Column="1"
-                               Text="{Binding SupportedPlatformsText}"
-                               TextWrapping="Wrap" />
+                               Style="{StaticResource EmerdeDialogBodyTextStyle}"
+                               Text="{Binding SupportedPlatformsText}" />
                 </Grid>
             </Border>
             <ui:StackPanel Margin="0,2,0,0" Spacing="6">
@@ -95,6 +119,102 @@
                           IsChecked="{Binding IsFollowGlobalSettings, Mode=TwoWay}" />
             </ui:StackPanel>
         </ui:StackPanel>
+        <StackPanel Grid.Row="0">
+            <StackPanel.Style>
+                <Style TargetType="{x:Type StackPanel}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsUiXEnabled}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </StackPanel.Style>
+            <Border Padding="20"
+                    Background="{DynamicResource UiXDialogSectionBrush}"
+                    CornerRadius="{StaticResource UiXSurfaceCornerRadius}">
+                <StackPanel>
+                    <TextBlock FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource UiXTextPrimaryBrush}"
+                               Text="{I18N EnterRoomUrl}" />
+                    <TextBlock Margin="0,4,0,14"
+                               FontSize="12"
+                               Foreground="{DynamicResource UiXTextSecondaryBrush}"
+                               Text="{Binding SupportedPlatformsText}"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding SupportedPlatformsText}" />
+                    <Grid Height="44">
+                        <ui:TextBox x:Name="UiXRoomUrlTextBox"
+                                    BorderBrush="Transparent"
+                                    BorderThickness="0"
+                                    FocusVisualStyle="{x:Null}"
+                                    IsKeyboardFocusWithinChanged="RoomUrlTextBoxFocusWithinChanged"
+                                    PlaceholderText="https://live.douyin.com/xxx / https://live.bilibili.com/xxx"
+                                    Text="{Binding Url, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <Border x:Name="UiXRoomUrlInputBorder"
+                                BorderBrush="{DynamicResource UiXStrongStrokeBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{DynamicResource ControlCornerRadius}"
+                                IsHitTestVisible="False" />
+                    </Grid>
+                    <Grid Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse Width="8" Height="8" Margin="0,0,8,0">
+                                <Ellipse.Style>
+                                    <Style TargetType="{x:Type Ellipse}">
+                                        <Setter Property="Fill" Value="{DynamicResource UiXTextSecondaryBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDetectedPlatformSupported}" Value="True">
+                                                 <Setter Property="Fill" Value="{DynamicResource UiXDialogLiveBrush}" />
+                                            </DataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding HasRoomUrl}" Value="True" />
+                                                    <Condition Binding="{Binding IsDetectedPlatformSupported}" Value="False" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Fill" Value="{DynamicResource UiXDangerForegroundBrush}" />
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock FontWeight="SemiBold"
+                                       Foreground="{DynamicResource UiXTextPrimaryBrush}"
+                                       Text="{Binding DetectedPlatformName}" />
+                        </StackPanel>
+                        <CheckBox Grid.Column="1"
+                                  Content="{Binding SkipValidationText}"
+                                  IsChecked="{Binding IsForcedAdd, Mode=TwoWay}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+            <Border Margin="0,14,0,0"
+                    Padding="8"
+                    Background="{DynamicResource UiXDialogSectionBrush}"
+                    CornerRadius="{StaticResource UiXSurfaceCornerRadius}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ToggleButton Grid.Column="0"
+                                  MinHeight="40"
+                                  Margin="0,0,4,0"
+                                  Content="{Binding FollowGlobalSettingsText}"
+                                  IsChecked="{Binding IsFollowGlobalSettings, Mode=TwoWay}" />
+                    <ToggleButton Grid.Column="1"
+                                  MinHeight="40"
+                                  Margin="4,0,0,0"
+                                  Content="{I18N Custom}"
+                                  IsChecked="{Binding IsUsingCustomSettings, Mode=TwoWay}" />
+                </Grid>
+            </Border>
+        </StackPanel>
         <ContentControl Grid.Row="1"
                         Margin="0,10,0,0"
                         HorizontalContentAlignment="Stretch"

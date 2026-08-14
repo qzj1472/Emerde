@@ -6,7 +6,6 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Resources;
 using System.Windows.Threading;
 using Wpf.Ui.Violeta.Controls;
 
@@ -16,10 +15,6 @@ namespace Emerde.Views;
 public sealed partial class AddRoomContentDialog : ContentDialog
 {
     private const double ExpandedDialogHeightRatio = 0.95d;
-    private const int LoadingFrameCount = 40;
-    private const int LoadingAtlasColumns = 8;
-    private const int LoadingAtlasFrameSize = 328;
-    private const double LoadingFrameRate = 60000d / 1001d;
     private readonly CancellationTokenSource lifetimeCancellation = new();
     private readonly Stopwatch loadingAnimationClock = new();
     private BitmapSource[]? loadingFrames;
@@ -48,7 +43,9 @@ public sealed partial class AddRoomContentDialog : ContentDialog
 
     partial void OnUrlChanged(string? value)
     {
-        string platformName = string.IsNullOrWhiteSpace(value) ? string.Empty : Spider.GetPlatformName(value);
+        HasRoomUrl = !string.IsNullOrWhiteSpace(value);
+        string platformName = HasRoomUrl ? Spider.GetPlatformName(value!) : string.Empty;
+        IsDetectedPlatformSupported = !string.IsNullOrWhiteSpace(platformName);
         DetectedPlatformName = string.IsNullOrWhiteSpace(platformName) ? "Unsupported".Tr() : PlatformDisplayName.Get(platformName);
         SettingsEditor?.SetPlatformName(platformName);
     }
@@ -63,12 +60,30 @@ public sealed partial class AddRoomContentDialog : ContentDialog
     private string detectedPlatformName = "Unsupported".Tr();
 
     [ObservableProperty]
+    private bool hasRoomUrl;
+
+    [ObservableProperty]
+    private bool isDetectedPlatformSupported;
+
+    [ObservableProperty]
     private bool isFollowGlobalSettings = true;
 
     partial void OnIsFollowGlobalSettingsChanged(bool value)
     {
+        IsUsingCustomSettings = !value;
         UpdateDialogSize();
     }
+
+    [ObservableProperty]
+    private bool isUsingCustomSettings;
+
+    partial void OnIsUsingCustomSettingsChanged(bool value)
+    {
+        IsFollowGlobalSettings = !value;
+    }
+
+    [ObservableProperty]
+    private bool isUiXEnabled;
 
     public string SupportedPlatformsText => string.Join(" / ", Spider.SupportedPlatformNames.Select(PlatformDisplayName.Get));
 
@@ -101,12 +116,14 @@ public sealed partial class AddRoomContentDialog : ContentDialog
 
     private void AddRoomContentDialogLoaded(object sender, System.Windows.RoutedEventArgs e)
     {
+        IsUiXEnabled = Application.Current?.MainWindow?.DataContext is MainViewModel { StatusOfIsUiXEnabled: true };
         _ = Dispatcher.BeginInvoke(
             DispatcherPriority.ContextIdle,
             new Action(() =>
             {
-                RoomUrlTextBox.Focus();
-                Keyboard.Focus(RoomUrlTextBox);
+                FrameworkElement input = IsUiXEnabled ? UiXRoomUrlTextBox : RoomUrlTextBox;
+                input.Focus();
+                Keyboard.Focus(input);
                 UpdateRoomUrlInputBorder();
                 UpdateDialogSize();
             }));
@@ -119,7 +136,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
             return;
         }
 
-        if (IsFollowGlobalSettings)
+        if (!IsUiXEnabled && IsFollowGlobalSettings)
         {
             LocalSettingsContentDialog.ClearWideDialogVisualSize(this);
             Width = double.NaN;
@@ -130,21 +147,33 @@ public sealed partial class AddRoomContentDialog : ContentDialog
             MaxHeight = double.PositiveInfinity;
             AddRoomSurface.Width = double.NaN;
             AddRoomSurface.Height = double.NaN;
-            AddRoomSurface.MinWidth = 420d;
+            AddRoomSurface.MinWidth = 0d;
             AddRoomSurface.MinHeight = 0d;
             AddRoomSurface.MaxWidth = double.PositiveInfinity;
             AddRoomSurface.MaxHeight = double.PositiveInfinity;
-            WindowSizing.ApplyContentDialogSizeLimit(this, Application.Current?.MainWindow);
             return;
         }
 
+        double widthRatio = IsUiXEnabled
+            ? IsFollowGlobalSettings ? 0.62d : 0.78d
+            : LocalSettingsContentDialog.DialogWidthRatioValue;
+        double heightRatio = IsUiXEnabled
+            ? IsFollowGlobalSettings ? 0.58d : 0.84d
+            : ExpandedDialogHeightRatio;
         if (!LocalSettingsContentDialog.TryGetDialogVisualSize(
                 Application.Current?.MainWindow,
-                ExpandedDialogHeightRatio,
+                widthRatio,
+                heightRatio,
                 out double targetWidth,
                 out double targetHeight))
         {
             return;
+        }
+
+        if (IsUiXEnabled)
+        {
+            targetWidth = Math.Min(targetWidth, IsFollowGlobalSettings ? 900d : 1120d);
+            targetHeight = Math.Min(targetHeight, IsFollowGlobalSettings ? 620d : 880d);
         }
 
         LocalSettingsContentDialog.ApplyWideDialogVisualSize(this, targetWidth, targetHeight);
@@ -163,10 +192,11 @@ public sealed partial class AddRoomContentDialog : ContentDialog
 
     private void UpdateRoomUrlInputBorder()
     {
-        string brushKey = RoomUrlTextBox.IsKeyboardFocusWithin
+        string brushKey = (IsUiXEnabled ? UiXRoomUrlTextBox : RoomUrlTextBox).IsKeyboardFocusWithin
             ? "SystemAccentColorPrimaryBrush"
-            : "ControlStrokeColorDefaultBrush";
-        RoomUrlInputBorder.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, brushKey);
+            : IsUiXEnabled ? "UiXStrongStrokeBrush" : "ControlStrokeColorDefaultBrush";
+        (IsUiXEnabled ? UiXRoomUrlInputBorder : RoomUrlInputBorder)
+            .SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, brushKey);
     }
 
     private async void OnPrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs e)
@@ -184,95 +214,31 @@ public sealed partial class AddRoomContentDialog : ContentDialog
         CancellationToken token = lifetimeCancellation.Token;
         try
         {
-            if (string.IsNullOrWhiteSpace(Url))
-            {
-                Toast.Warning("EnterRoomUrl".Tr());
-                e.Cancel = true;
-                return;
-            }
-
-            string inputUrl = Url;
-            string? normalizedRoomUrl = await Task.Run(() => Spider.ParseUrl(inputUrl, allowNetwork: !IsForcedAdd, token), token);
-            token.ThrowIfCancellationRequested();
-            if (string.IsNullOrWhiteSpace(normalizedRoomUrl))
+            AddRoomResolution result = await AddRoomResolutionService.ResolveAsync(Url, IsForcedAdd, token);
+            if (!result.IsSuccess)
             {
                 e.Cancel = true;
-                Toast.Error("ErrorRoomUrl".Tr());
+                if (result.IsWarning)
+                {
+                    Toast.Warning(result.ErrorMessage);
+                }
+                else
+                {
+                    Toast.Error(result.ErrorMessage);
+                }
                 return;
             }
 
-            if (HasDuplicateRoom(normalizedRoomUrl))
+            NickName = result.NickName;
+            RoomUrl = result.RoomUrl;
+            SpiderResult = result.SpiderResult;
+            if (result.IsDeferred)
             {
-                e.Cancel = true;
-                Toast.Warning("AddRoomErrorDuplicated".Tr(normalizedRoomUrl));
-                return;
+                Toast.Warning("AddRoomSucc".Tr(NickName));
             }
-
-            if (IsForcedAdd)
+            else
             {
-                if (!ExternalStreamResolver.IsPersistableRoomUrl(normalizedRoomUrl))
-                {
-                    e.Cancel = true;
-                    Toast.Error("ErrorRoomUrl".Tr());
-                    return;
-                }
-
-                NickName = normalizedRoomUrl;
-                RoomUrl = normalizedRoomUrl;
-
-                Toast.Success("AddRoomSucc".Tr(RoomUrl));
-                return;
-            }
-
-            try
-            {
-                string preferredQuality = RoomRecordingSettings.GetGlobal().PreferredStreamQuality;
-                ISpiderResult? spider = await GlobalMonitor.GetManualSpiderResultAsync(normalizedRoomUrl, preferredQuality, token);
-                token.ThrowIfCancellationRequested();
-                string roomUrl = string.IsNullOrWhiteSpace(spider?.RoomUrl)
-                    ? normalizedRoomUrl
-                    : Spider.ParseUrl(spider.RoomUrl!) ?? spider.RoomUrl!;
-
-                if (spider == null && CanDeferRoomInfoResolution(normalizedRoomUrl, ExternalStreamResolver.GetLastError(normalizedRoomUrl)))
-                {
-                    NickName = normalizedRoomUrl;
-                    RoomUrl = normalizedRoomUrl;
-                    Toast.Warning("AddRoomSucc".Tr(RoomUrl));
-                    return;
-                }
-
-                if (spider == null
-                    || !HasAddableRoomInfo(spider, roomUrl)
-                    || !ExternalStreamResolver.IsPersistableRoomUrl(roomUrl))
-                {
-                    e.Cancel = true;
-                    Toast.Error(GetRoomInfoErrorMessage(normalizedRoomUrl));
-                    return;
-                }
-
-                if (HasDuplicateRoom(roomUrl, spider.PlatformName, spider.Uid))
-                {
-                    e.Cancel = true;
-                    Toast.Warning("AddRoomErrorDuplicated".Tr(GetConfirmedNickName(spider)));
-                    return;
-                }
-
-                NickName = GetConfirmedNickName(spider);
-                RoomUrl = roomUrl;
-                spider.RoomUrl = roomUrl;
-                SpiderResult = spider;
-
                 Toast.Success("AddRoomSucc".Tr(NickName));
-            }
-            catch (OperationCanceledException) when (token.IsCancellationRequested)
-            {
-                e.Cancel = true;
-            }
-            catch (Exception exception)
-            {
-                e.Cancel = true;
-                AppSessionLogger.WriteException(exception);
-                Toast.Error(GetRoomInfoErrorMessage(Url, exception.Message));
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -313,7 +279,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
     {
         try
         {
-            loadingFrames ??= LoadLoadingFrames();
+            loadingFrames ??= RoomLoadingAtlas.Frames;
         }
         catch (Exception exception)
         {
@@ -348,7 +314,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
             return;
         }
 
-        int frameIndex = (int)(loadingAnimationClock.Elapsed.TotalSeconds * LoadingFrameRate) % LoadingFrameCount;
+        int frameIndex = (int)(loadingAnimationClock.Elapsed.TotalSeconds * RoomLoadingAtlas.FrameRate) % RoomLoadingAtlas.FrameCount;
         SetLoadingFrame(frameIndex);
     }
 
@@ -363,95 +329,18 @@ public sealed partial class AddRoomContentDialog : ContentDialog
         loadingFrameIndex = frameIndex;
     }
 
-    private static BitmapSource[] LoadLoadingFrames()
-    {
-        Uri resourceUri = new("/Emerde;component/Assets/RoomLoadingAtlas.png", UriKind.Relative);
-        StreamResourceInfo? resource = Application.GetResourceStream(resourceUri);
-        if (resource == null)
-        {
-            throw new InvalidOperationException("RoomLoadingAtlas.png resource is unavailable.");
-        }
-
-        using (resource.Stream)
-        {
-            BitmapFrame atlas = BitmapFrame.Create(
-                resource.Stream,
-                BitmapCreateOptions.PreservePixelFormat,
-                BitmapCacheOption.OnLoad);
-            atlas.Freeze();
-
-            int expectedRows = (LoadingFrameCount + LoadingAtlasColumns - 1) / LoadingAtlasColumns;
-            if (atlas.PixelWidth != LoadingAtlasColumns * LoadingAtlasFrameSize
-                || atlas.PixelHeight != expectedRows * LoadingAtlasFrameSize)
-            {
-                throw new InvalidOperationException(
-                    $"RoomLoadingAtlas.png has an invalid size: {atlas.PixelWidth}x{atlas.PixelHeight}.");
-            }
-
-            BitmapSource[] frames = new BitmapSource[LoadingFrameCount];
-            for (int index = 0; index < frames.Length; index++)
-            {
-                int column = index % LoadingAtlasColumns;
-                int row = index / LoadingAtlasColumns;
-                CroppedBitmap frame = new(
-                    atlas,
-                    new Int32Rect(
-                        column * LoadingAtlasFrameSize,
-                        row * LoadingAtlasFrameSize,
-                        LoadingAtlasFrameSize,
-                        LoadingAtlasFrameSize));
-                frame.Freeze();
-                frames[index] = frame;
-            }
-
-            return frames;
-        }
-    }
-
     internal static bool HasAddableRoomInfo(ISpiderResult? spider, string? roomUrl)
     {
-        if (spider == null || string.IsNullOrWhiteSpace(roomUrl))
-        {
-            return false;
-        }
-
-        string platformName = string.IsNullOrWhiteSpace(spider.PlatformName)
-            ? Spider.GetPlatformName(roomUrl)
-            : spider.PlatformName;
-        if (string.IsNullOrWhiteSpace(platformName))
-        {
-            return false;
-        }
-
-        return !string.IsNullOrWhiteSpace(spider.Nickname)
-            || !string.IsNullOrWhiteSpace(spider.Uid)
-            || spider.IsLiveStreaming == true
-            || !string.IsNullOrWhiteSpace(spider.FlvUrl)
-            || !string.IsNullOrWhiteSpace(spider.HlsUrl)
-            || !string.IsNullOrWhiteSpace(spider.RecordUrl);
+        return AddRoomResolutionService.HasAddableRoomInfo(spider, roomUrl);
     }
 
     internal static bool CanDeferRoomInfoResolution(string? roomUrl, string? error)
     {
-        return !string.IsNullOrWhiteSpace(roomUrl)
-            && ExternalStreamResolver.IsPersistableRoomUrl(roomUrl)
-            && string.Equals(Spider.GetPlatformName(roomUrl), "Douyin", StringComparison.OrdinalIgnoreCase)
-            && StreamResolver.IsTransientDouyinFailure(error);
+        return AddRoomResolutionService.CanDeferRoomInfoResolution(roomUrl, error);
     }
 
     internal static string GetConfirmedNickName(ISpiderResult spider)
     {
-        return string.IsNullOrWhiteSpace(spider.Nickname) ? spider.RoomUrl ?? string.Empty : spider.Nickname;
-    }
-
-    private static bool HasDuplicateRoom(string roomUrl, string? platformName = null, string? uid = null)
-    {
-        return (Configurations.Rooms.Get() ?? []).Any(room => ExternalStreamResolver.IsSameRoom(
-            room.RoomUrl,
-            room.PlatformName,
-            room.Uid,
-            roomUrl,
-            platformName,
-            uid));
+        return AddRoomResolutionService.GetConfirmedNickName(spider);
     }
 }

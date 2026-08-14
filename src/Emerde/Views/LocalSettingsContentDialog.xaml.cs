@@ -24,16 +24,16 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
     private const int Hours = 3;
     private const double DialogWidthRatio = 0.72d;
     private const double DialogHeightRatio = 0.85d;
-    private const string DialogMinWidthResource = "ContentDialogMinWidth";
-    private const string DialogMinHeightResource = "ContentDialogMinHeight";
-    private const string DialogMaxWidthResource = "ContentDialogMaxWidth";
-    private const string DialogMaxHeightResource = "ContentDialogMaxHeight";
+    internal const double DialogWidthRatioValue = DialogWidthRatio;
     private int routineIntervalMilliseconds;
     private bool isUpdatingRoutineInterval;
     private long segmentRawValue;
     private int segmentRawUnit;
     private bool isUpdatingSegmentTime;
     private readonly bool useGlobalQualityOptionsWhenPlatformUnknown;
+
+    [ObservableProperty]
+    private bool isUiXEnabled;
 
     public sealed record UnitOption(int Value, string DisplayName);
 
@@ -74,6 +74,10 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
 
     partial void OnIsFollowGlobalSettingsChanged(bool value)
     {
+        if (!value)
+        {
+            InitializeFromGlobalSettings();
+        }
         OnPropertyChanged(nameof(CanEditLocalSettings));
     }
 
@@ -272,14 +276,15 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         RoomStatusReactive room,
         bool showIdentityHeader,
         bool showSettingsHeader,
-        bool useGlobalQualityOptions)
+        bool useGlobalQualityOptions,
+        bool initializeView = true)
     {
         NickName = room.NickName;
         RoomUrl = room.RoomUrl;
         IsFollowGlobalSettings = room.IsFollowGlobalSettings;
         IsToNotify = room.IsToNotify;
-        IsToMonitor = room.IsToMonitor;
-        IsToRecord = room.IsToRecord;
+        IsToMonitor = room.IsFollowGlobalSettings ? Configurations.IsToMonitor.Get() : room.IsToMonitor;
+        IsToRecord = room.IsFollowGlobalSettings ? Configurations.IsToRecord.Get() : room.IsToRecord;
         ShowIdentityHeader = showIdentityHeader;
         ShowSettingsHeader = showSettingsHeader;
         useGlobalQualityOptionsWhenPlatformUnknown = useGlobalQualityOptions;
@@ -289,18 +294,24 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
 
         Room? storedRoom = Configurations.Rooms.Get()
             .FirstOrDefault(item => string.Equals(item.RoomUrl, room.RoomUrl, StringComparison.OrdinalIgnoreCase));
-        InitializeRecordingOptions(storedRoom == null ? RoomRecordingSettings.GetGlobal() : RoomRecordingSettings.Get(storedRoom));
+        InitializeRecordingOptions(room.IsFollowGlobalSettings || storedRoom == null
+            ? RoomRecordingSettings.GetGlobal()
+            : RoomRecordingSettings.Get(storedRoom));
 
-        DataContext = this;
-        InitializeComponent();
-        Loaded += LocalSettingsContentDialogLoaded;
-        Unloaded += LocalSettingsContentDialogUnloaded;
+        if (initializeView)
+        {
+            DataContext = this;
+            InitializeComponent();
+            Loaded += LocalSettingsContentDialogLoaded;
+            Unloaded += LocalSettingsContentDialogUnloaded;
+        }
     }
 
     private void LocalSettingsContentDialogLoaded(object sender, RoutedEventArgs e)
     {
         Locale.CultureChanged -= LocaleCultureChanged;
         Locale.CultureChanged += LocaleCultureChanged;
+        IsUiXEnabled = Application.Current?.MainWindow?.DataContext is MainViewModel { StatusOfIsUiXEnabled: true };
     }
 
     private void LocalSettingsContentDialogUnloaded(object sender, RoutedEventArgs e)
@@ -427,9 +438,19 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
     {
         void ApplySize()
         {
-            if (!TryGetDialogVisualSize(owner, out double targetWidth, out double targetHeight))
+            bool uiXEnabled = Application.Current?.MainWindow?.DataContext is MainViewModel { StatusOfIsUiXEnabled: true };
+            if (!TryGetDialogVisualSize(owner, uiXEnabled ? 0.78d : DialogWidthRatio, uiXEnabled ? 0.82d : DialogHeightRatio, out double targetWidth, out double targetHeight))
             {
                 return;
+            }
+
+            if (uiXEnabled)
+            {
+                Window? reference = owner ?? Application.Current?.MainWindow;
+                double availableWidth = reference?.ActualWidth > 1d ? reference.ActualWidth - 32d : 1120d;
+                double availableHeight = reference?.ActualHeight > 1d ? reference.ActualHeight - 32d : 860d;
+                targetWidth = Math.Min(Math.Clamp(targetWidth, 760d, 1120d), Math.Max(1d, availableWidth));
+                targetHeight = Math.Min(Math.Clamp(targetHeight, 560d, 860d), Math.Max(1d, availableHeight));
             }
 
             ApplyWideDialogVisualSize(dialog, targetWidth, targetHeight);
@@ -461,22 +482,16 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
     {
         dialog.Width = targetWidth;
         dialog.Height = targetHeight;
-        dialog.MinWidth = targetWidth;
-        dialog.MinHeight = targetHeight;
-        dialog.MaxWidth = targetWidth;
-        dialog.MaxHeight = targetHeight;
-        dialog.Resources[DialogMinWidthResource] = targetWidth;
-        dialog.Resources[DialogMinHeightResource] = targetHeight;
-        dialog.Resources[DialogMaxWidthResource] = targetWidth;
-        dialog.Resources[DialogMaxHeightResource] = targetHeight;
+        dialog.MinWidth = 0d;
+        dialog.MinHeight = 0d;
+        dialog.MaxWidth = double.PositiveInfinity;
+        dialog.MaxHeight = double.PositiveInfinity;
+        WindowSizing.RemoveContentDialogSizeLimits(dialog);
     }
 
     internal static void ClearWideDialogVisualSize(Wpf.Ui.Violeta.Controls.ContentDialog dialog)
     {
-        dialog.Resources.Remove(DialogMinWidthResource);
-        dialog.Resources.Remove(DialogMinHeightResource);
-        dialog.Resources.Remove(DialogMaxWidthResource);
-        dialog.Resources.Remove(DialogMaxHeightResource);
+        WindowSizing.RemoveContentDialogSizeLimits(dialog);
     }
 
     internal static bool TryGetDialogVisualSize(
@@ -493,6 +508,16 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         out double targetWidth,
         out double targetHeight)
     {
+        return TryGetDialogVisualSize(owner, DialogWidthRatio, heightRatio, out targetWidth, out targetHeight);
+    }
+
+    internal static bool TryGetDialogVisualSize(
+        Window? owner,
+        double widthRatio,
+        double heightRatio,
+        out double targetWidth,
+        out double targetHeight)
+    {
         Window? reference = owner ?? Application.Current?.MainWindow;
         double ownerWidth = reference?.ActualWidth > 1d ? reference.ActualWidth : reference?.Width ?? 0d;
         double ownerHeight = reference?.ActualHeight > 1d ? reference.ActualHeight : reference?.Height ?? 0d;
@@ -503,7 +528,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
             return false;
         }
 
-        targetWidth = Math.Max(1d, WindowSizing.RoundLayoutValue(ownerWidth * DialogWidthRatio));
+        targetWidth = Math.Max(1d, WindowSizing.RoundLayoutValue(ownerWidth * widthRatio));
         targetHeight = Math.Max(1d, WindowSizing.RoundLayoutValue(ownerHeight * heightRatio));
         return true;
     }
@@ -593,9 +618,14 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         RoutineScheduleEndMinute = Math.Clamp(settings.RoutineScheduleEndMinute, 0, 59);
         SaveFolder = settings.SaveFolder;
         SaveFolderPathLevelIndex = Math.Clamp(settings.SaveFolderPathLevel, 0, 3);
-        SaveFileNameCustomRule = string.Equals(settings.SaveFileNameCustomRule, "{主播名}_{录制时间}", StringComparison.Ordinal)
-            ? string.Empty
-            : settings.SaveFileNameCustomRule;
+        SaveFileNameCustomRule = settings.SaveFileNameCustomRule;
+    }
+
+    internal void InitializeFromGlobalSettings()
+    {
+        IsToMonitor = Configurations.IsToMonitor.Get();
+        IsToRecord = Configurations.IsToRecord.Get();
+        InitializeRecordingOptions(RoomRecordingSettings.GetGlobal());
     }
 
     [RelayCommand]

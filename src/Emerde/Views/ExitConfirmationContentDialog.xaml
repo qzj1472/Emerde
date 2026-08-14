@@ -13,12 +13,10 @@
                    FontSize="14"
                    PrimaryButtonText="{I18N Yes}"
                    SnapsToDevicePixels="True"
-                   Style="{StaticResource DefaultVioletaContentDialogStyle}"
+                   Style="{StaticResource EmerdeContentDialogStyle}"
                    UseLayoutRounding="True"
                    mc:Ignorable="d">
-    <Grid MinWidth="460"
-          MaxWidth="560"
-          Margin="0,2,0,0"
+    <Grid Margin="0,2,0,0"
           controls:MotionAssist.IsEntranceEnabled="True"
           controls:MotionAssist.EntranceOffsetY="8"
           controls:MotionAssist.EntranceScale="0.98">
@@ -31,21 +29,19 @@
                 Height="36"
                 Margin="0,2,18,0"
                 VerticalAlignment="Top"
-                BorderBrush="#3CCBF4"
+                BorderBrush="{DynamicResource SystemAccentColorPrimaryBrush}"
                 BorderThickness="2"
                 CornerRadius="18">
             <TextBlock HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        FontSize="24"
                        FontWeight="SemiBold"
-                       Foreground="#3CCBF4"
+                       Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                        Text="?" />
         </Border>
         <TextBlock Grid.Column="1"
                    VerticalAlignment="Center"
-                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                   LineHeight="20"
-                   Text="{Binding Message}"
-                   TextWrapping="Wrap" />
+                   Style="{StaticResource EmerdeDialogBodyTextStyle}"
+                   Text="{Binding Message}" />
     </Grid>
 </vio:ContentDialog>

@@ -97,10 +97,11 @@ public sealed class FocusVisualTests
         Assert.DoesNotContain("PlayContentDialogExitTransformAsync(LocalSettingsSurface)", source);
         Assert.DoesNotContain("args.GetDeferral()", source);
         Assert.DoesNotContain("ExpandDialogVisualPath", source);
-        Assert.Contains("dialog.Resources[DialogMinWidthResource] = targetWidth", source);
-        Assert.Contains("dialog.Resources[DialogMaxWidthResource] = targetWidth", source);
-        Assert.Contains("dialog.Resources[DialogMinHeightResource] = targetHeight", source);
-        Assert.Contains("dialog.Resources[DialogMaxHeightResource] = targetHeight", source);
+        Assert.Contains("WindowSizing.RemoveContentDialogSizeLimits(dialog)", source);
+        Assert.DoesNotContain("dialog.MinWidth = targetWidth", source);
+        Assert.DoesNotContain("dialog.MaxWidth = targetWidth", source);
+        Assert.DoesNotContain("dialog.MinHeight = targetHeight", source);
+        Assert.DoesNotContain("dialog.MaxHeight = targetHeight", source);
 
         string viewModelSource = File.ReadAllText(FindRepositoryFile("src", "Emerde", "ViewModels", "MainViewModel.cs"));
         int methodStart = viewModelSource.IndexOf("private async Task OpenLocalSettingsDialogAsync()", StringComparison.Ordinal);
@@ -390,7 +391,7 @@ public sealed class FocusVisualTests
             && (string?)element.Attribute("Color") == "Transparent");
 
         string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "AddRoomContentDialog.xaml.cs"));
-        Assert.Contains("RoomUrlTextBox.IsKeyboardFocusWithin", source);
+        Assert.Contains("(IsUiXEnabled ? UiXRoomUrlTextBox : RoomUrlTextBox).IsKeyboardFocusWithin", source);
         Assert.Contains("SystemAccentColorPrimaryBrush", source);
         Assert.Contains("ControlStrokeColorDefaultBrush", source);
     }
@@ -551,10 +552,154 @@ public sealed class FocusVisualTests
         XElement dialog = document.Root!;
 
         Assert.Equal("ContentDialog", dialog.Name.LocalName);
-        Assert.Equal("{StaticResource DefaultVioletaContentDialogStyle}", (string?)dialog.Attribute("Style"));
+        Assert.Equal("{StaticResource EmerdeContentDialogStyle}", (string?)dialog.Attribute("Style"));
         Assert.Equal("Primary", (string?)dialog.Attribute("DefaultButton"));
         Assert.Equal("{I18N Yes}", (string?)dialog.Attribute("PrimaryButtonText"));
         Assert.Equal("{I18N No}", (string?)dialog.Attribute("CloseButtonText"));
+    }
+
+    [Fact]
+    public void GlobalComboBoxStyle_CommitsSelectionOnEnter()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Resources.xaml"));
+        XElement style = document.Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute("TargetType") == "{x:Type ComboBox}"
+                && element.Attribute(XName.Get("Key", XamlNamespace)) == null);
+
+        Assert.Contains(style.Elements().Where(element => element.Name.LocalName == "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "controls:InputAssist.CommitOnEnter"
+            && (string?)setter.Attribute("Value") == "True");
+    }
+
+    [Fact]
+    public void UiXDialogs_UseTheApplicationSurfaceHierarchy()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Resources.xaml"));
+        XNamespace x = XamlNamespace;
+        XElement borderBrush = document.Descendants()
+            .Single(element => element.Name.LocalName == "StaticResource"
+                && (string?)element.Attribute(x + "Key") == "ContentDialogBorderBrush");
+        XElement backgroundBrush = document.Descendants()
+            .Single(element => element.Name.LocalName == "SolidColorBrush"
+                && (string?)element.Attribute(x + "Key") == "EmerdeDialogBackgroundBrush");
+        XElement outerBorderBrush = document.Descendants()
+            .Single(element => element.Name.LocalName == "SolidColorBrush"
+                && (string?)element.Attribute(x + "Key") == "EmerdeDialogOuterBorderBrush");
+        XElement dialogStyle = document.Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute(x + "Key") == "EmerdeContentDialogStyle");
+        XElement surfaceStyle = document.Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute(x + "Key") == "EmerdeDialogSurfaceStyle");
+        XElement sectionStyle = document.Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute(x + "Key") == "EmerdeDialogSectionStyle");
+
+        Assert.Equal("EmerdeDialogOuterBorderBrush", (string?)borderBrush.Attribute("ResourceKey"));
+        Assert.StartsWith("#FF", (string?)backgroundBrush.Attribute("Color"), StringComparison.OrdinalIgnoreCase);
+        Assert.StartsWith("#FF", (string?)outerBorderBrush.Attribute("Color"), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(dialogStyle.Elements(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Background"
+            && (string?)element.Attribute("Value") == "{DynamicResource EmerdeDialogBackgroundBrush}");
+        Assert.DoesNotContain(dialogStyle.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Background"
+            && (string?)element.Attribute("Value") == "{DynamicResource UiXWindowFallbackBrush}");
+        Assert.Contains(dialogStyle.Elements(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "BorderThickness"
+            && (string?)element.Attribute("Value") == "0");
+        Assert.Contains(surfaceStyle.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Background"
+            && (string?)element.Attribute("Value") == "{DynamicResource UiXDialogSurfaceBrush}");
+        Assert.Contains(sectionStyle.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Background"
+            && (string?)element.Attribute("Value") == "{DynamicResource UiXDialogSectionBrush}");
+        XElement messageBoxStyle = document.Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute("TargetType") == "{x:Type vio:MessageBoxDialog}");
+        Assert.Contains(messageBoxStyle.Elements(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "BorderThickness"
+            && (string?)element.Attribute("Value") == "1");
+    }
+
+    [Fact]
+    public void ConfigRestoreDialog_UsesOneOpaqueOuterSurface()
+    {
+        XDocument resources = XDocument.Load(FindRepositoryFile("src", "Emerde", "Resources.xaml"));
+        XElement sharedDialogStyle = resources.Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "EmerdeContentDialogStyle");
+
+        Assert.Contains(sharedDialogStyle.Elements(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Background"
+            && (string?)element.Attribute("Value") == "{DynamicResource EmerdeDialogBackgroundBrush}");
+
+        string viewModel = File.ReadAllText(FindRepositoryFile("src", "Emerde", "ViewModels", "SettingsViewModel.cs"));
+        Assert.Contains("Content = content", viewModel, StringComparison.Ordinal);
+        Assert.Contains("DialogBlurScope.ForLightDismiss(OwnerWindow, dialog)", viewModel, StringComparison.Ordinal);
+        Assert.Contains("WindowSizing.ShowContentDialogAsync(dialog, OwnerWindow)", viewModel, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConfigRestoreWindow", viewModel, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UiXRoomWorkspace_UsesOneOpaqueOuterSurface()
+    {
+        XDocument mainDocument = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XDocument workspaceDocument = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "UiXRoomWorkspace.xaml"));
+        XElement shell = mainDocument.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "UiXWorkspaceShell");
+        XElement background = shell.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "UiXWorkspaceBackground");
+        XElement stroke = shell.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "UiXWorkspaceStroke");
+        XElement host = shell.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "UiXWorkspaceHost");
+        XElement surface = workspaceDocument.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "WorkspaceSurface");
+        XElement[] shellLayers = shell.Elements().ToArray();
+
+        Assert.Equal("Grid", shell.Name.LocalName);
+        Assert.Equal([background, host, stroke], shellLayers);
+        Assert.Equal("{DynamicResource EmerdeDialogBackgroundBrush}", (string?)background.Attribute("Background"));
+        Assert.Equal("8", (string?)background.Attribute("CornerRadius"));
+        Assert.Equal("{DynamicResource ControlElevationBorderBrush}", (string?)stroke.Attribute("BorderBrush"));
+        Assert.Equal("1", (string?)stroke.Attribute("BorderThickness"));
+        Assert.Equal("8", (string?)stroke.Attribute("CornerRadius"));
+        Assert.Equal("False", (string?)stroke.Attribute("IsHitTestVisible"));
+        Assert.Equal("True", (string?)stroke.Attribute("SnapsToDevicePixels"));
+        Assert.Null(host.Attribute("Margin"));
+        Assert.Null(surface.Attribute("Style"));
+        Assert.Equal("Transparent", (string?)surface.Attribute("Background"));
+        Assert.Null(surface.Attribute("BorderBrush"));
+        Assert.Equal("0", (string?)surface.Attribute("BorderThickness"));
+        Assert.Equal("0", (string?)surface.Attribute("CornerRadius"));
+        Assert.Null(surface.Attribute("Opacity"));
+    }
+
+    [Fact]
+    public void RoomInformation_UsesTheLiveAvatarSourceAndShowsStatisticsBeforeStreamDetails()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "ViewModels", "MainViewModel.cs"));
+        int statisticsIndex = source.IndexOf("RoomRecordingStatistics\".Tr()", StringComparison.Ordinal);
+        int streamIndex = source.IndexOf("CreateRoomInformationSectionTitle(\"LiveStream\".Tr())", StringComparison.Ordinal);
+
+        Assert.Contains("nameof(RoomStatusReactive.AvatarDisplaySource)", source, StringComparison.Ordinal);
+        Assert.Contains("TryGetDialogVisualSize(owner, 0.42d, 0.72d", source, StringComparison.Ordinal);
+        Assert.Contains("Math.Clamp(targetWidth, 560d, 680d)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("MinWidth = 680", source, StringComparison.Ordinal);
+        Assert.Contains("Padding = new Thickness(20, 8, 28, 20)", source, StringComparison.Ordinal);
+        Assert.Contains("dialog.Resources[\"EmerdeWideContentDialog\"] = true", source, StringComparison.Ordinal);
+        Assert.Contains("LocalSettingsContentDialog.ApplyWideDialogVisualSize(dialog, targetWidth, targetHeight)", source, StringComparison.Ordinal);
+        Assert.Contains("LocalSettingsContentDialog.ClearWideDialogVisualSize(dialog)", source, StringComparison.Ordinal);
+        Assert.True(statisticsIndex >= 0);
+        Assert.True(streamIndex > statisticsIndex);
     }
 
     [Theory]
@@ -767,11 +912,11 @@ public sealed class FocusVisualTests
         Assert.Null(monitor.Attribute("InputGestureText"));
         Assert.Null(record.Attribute("InputGestureText"));
         Assert.Null(remove.Attribute("InputGestureText"));
-        Assert.Equal("{I18N PreviewCurrentRoomToolTip}", (string?)preview.Attribute("ToolTip"));
-        Assert.Equal("{I18N OpenCurrentRoomToolTip}", (string?)gotoRoom.Attribute("ToolTip"));
-        Assert.Equal("{I18N ToggleCurrentMonitorToolTip}", (string?)monitor.Attribute("ToolTip"));
-        Assert.Equal("{I18N ToggleCurrentRecordingToolTip}", (string?)record.Attribute("ToolTip"));
-        Assert.Equal("{I18N RemoveRoomShortcutHint}", (string?)remove.Attribute("ToolTip"));
+        Assert.Equal("{I18N PreviewRoomMenuToolTip}", (string?)preview.Attribute("ToolTip"));
+        Assert.Equal("{I18N OpenRoomMenuToolTip}", (string?)gotoRoom.Attribute("ToolTip"));
+        Assert.Equal("{I18N MonitorRoomMenuToolTip}", (string?)monitor.Attribute("ToolTip"));
+        Assert.Equal("{I18N RecordRoomMenuToolTip}", (string?)record.Attribute("ToolTip"));
+        Assert.Equal("{I18N RemoveRoomMenuToolTip}", (string?)remove.Attribute("ToolTip"));
         Assert.Equal("{StaticResource SelectedContextMenuOptionStyle}", (string?)preview.Attribute("Style"));
         Assert.Equal("{StaticResource SelectedContextMenuOptionStyle}", (string?)gotoRoom.Attribute("Style"));
         Assert.Equal("{StaticResource SelectedContextMenuOptionStyle}", (string?)remove.Attribute("Style"));
@@ -795,6 +940,26 @@ public sealed class FocusVisualTests
             element.Name.LocalName == "Setter"
             && (string?)element.Attribute("Property") == "MinHeight"
             && (string?)element.Attribute("Value") == "36");
+    }
+
+    [Fact]
+    public void HomeBackgroundContextMenu_UsesSidebarStyleSelectionIndicators()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XElement style = document.Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "SelectedContextMenuIndicatorStyle");
+
+        Assert.Contains(style.Elements(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Width"
+            && (string?)element.Attribute("Value") == "3");
+        Assert.Contains(style.Elements(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Height"
+            && (string?)element.Attribute("Value") == "20");
+        Assert.Contains(document.Descendants(), element => element.Name.LocalName == "MenuItem"
+            && (string?)element.Attribute("Header") == "{I18N SizeLarge}"
+            && element.Descendants().Any(descendant => descendant.Name.LocalName == "Border"
+                && (string?)descendant.Attribute("Style") == "{StaticResource SelectedContextMenuIndicatorStyle}"));
     }
 
     [Fact]
@@ -841,12 +1006,11 @@ public sealed class FocusVisualTests
         Assert.Contains("UiXRoomCardAvatarSize", uiX.ToString(), StringComparison.Ordinal);
         Assert.Contains("UiXRoomCardNameFontSize", uiX.ToString(), StringComparison.Ordinal);
         Assert.Contains("UiXRoomCardTitleFontSize", uiX.ToString(), StringComparison.Ordinal);
-        Assert.Contains("UiXRoomCardStatusFontSize", uiX.ToString(), StringComparison.Ordinal);
-        Assert.Contains("UiXInformationBandStyle", uiX.ToString(), StringComparison.Ordinal);
-        Assert.Contains("UiXStatusDotStyle", uiX.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("{Binding StreamStatusText}", uiX.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("{Binding RecordStatusText}", uiX.ToString(), StringComparison.Ordinal);
         Assert.Contains("UiXRoomCardBaseWidth = 200d", source, StringComparison.Ordinal);
         Assert.Contains("ViewModel.StatusOfIsUiXEnabled ? 0.72d : 2d / 3d", source, StringComparison.Ordinal);
-        Assert.Contains("UiXRoomCardStatusFontSize = Math.Clamp(WindowSizing.RoundLayoutValue(13d * scale), 12d, 14d)", source, StringComparison.Ordinal);
+        Assert.Contains(": Math.Clamp(WindowSizing.RoundLayoutValue(13d * scale), 12d, 14d)", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -964,10 +1128,10 @@ public sealed class FocusVisualTests
 
         Assert.Contains("UiXCardBrush", about, StringComparison.Ordinal);
         Assert.Contains("UiXCardBrush", extensions, StringComparison.Ordinal);
-        Assert.Contains("UiXCardBrush", localSettings, StringComparison.Ordinal);
+        Assert.Contains("UiXDialogSectionBrush", localSettings, StringComparison.Ordinal);
         Assert.DoesNotContain("SettingsUiXCardExpanderTemplate", settings, StringComparison.Ordinal);
         Assert.Contains("UiXVideoCardBrush", videos, StringComparison.Ordinal);
-        Assert.Contains("UiXElevatedBrush", releaseNotes, StringComparison.Ordinal);
+        Assert.Contains("UiXDialogElevatedBrush", releaseNotes, StringComparison.Ordinal);
         Assert.Contains("<Setter Property=\"TextWrapping\" Value=\"Wrap\" />", settings, StringComparison.Ordinal);
     }
 
@@ -1001,7 +1165,7 @@ public sealed class FocusVisualTests
             && (string?)setter.Attribute("Value") == "14");
         Assert.Contains(paddingStyle.Descendants().Where(element => element.Name.LocalName == "Setter"), setter =>
             (string?)setter.Attribute("Property") == "Padding"
-            && (string?)setter.Attribute("Value") == "4");
+            && ((string?)setter.Attribute("Value"))?.StartsWith("{Binding VideoCardPadding", StringComparison.Ordinal) == true);
         Assert.DoesNotContain(document.Descendants(), element =>
             element.Name.LocalName == "Setter"
             && (string?)element.Attribute("TargetName") == "VideoCardShell"
@@ -1023,19 +1187,26 @@ public sealed class FocusVisualTests
         XElement groupPanel = document.Descendants()
             .Single(element => element.Name.LocalName == "ItemsPanelTemplate"
                 && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "UiXVideoGroupPanelTemplate");
-        XElement rootListPanel = listStyle.Elements()
+        XElement legacyListPanel = listStyle.Elements()
             .Single(element => element.Name.LocalName == "Setter"
                 && (string?)element.Attribute("Property") == "ItemsPanel")
             .Descendants()
             .Single(element => element.Name.LocalName == "ItemsPanelTemplate");
+        XElement uiXListPanel = listStyle.Descendants()
+            .Where(element => element.Name.LocalName == "Setter"
+                && (string?)element.Attribute("Property") == "ItemsPanel")
+            .Skip(1)
+            .Single()
+            .Descendants()
+            .Single(element => element.Name.LocalName == "ItemsPanelTemplate");
 
-        Assert.Contains(rootListPanel.Descendants(), element => element.Name.LocalName == "VirtualizingStackPanel");
-        Assert.DoesNotContain(rootListPanel.Descendants(), element => element.Name.LocalName == "VirtualizingWrapPanel");
-        Assert.Contains(groupPanel.Descendants(), element => element.Name.LocalName == "VirtualizingWrapPanel"
+        Assert.Contains(legacyListPanel.Descendants(), element => element.Name.LocalName == "VirtualizingStackPanel"
             && (string?)element.Attribute("IsItemsHost") == "True");
-        Assert.Contains(groupPanel.Descendants(), element => element.Name.LocalName == "VirtualizingWrapPanel"
-            && (string?)element.Attribute("Orientation") == "Vertical"
-            && ((string?)element.Attribute("ItemSize"))?.StartsWith("{Binding VideoCardItemSize", StringComparison.Ordinal) == true);
+        Assert.Contains(uiXListPanel.Descendants(), element => element.Name.LocalName == "UniformGrid"
+            && (string?)element.Attribute("IsItemsHost") == "True"
+            && ((string?)element.Attribute("Columns"))?.StartsWith("{Binding VideoCardColumnCount", StringComparison.Ordinal) == true);
+        Assert.Contains(groupPanel.Descendants(), element => element.Name.LocalName == "VirtualizingStackPanel"
+            && (string?)element.Attribute("Orientation") == "Vertical");
         Assert.Contains(document.Descendants(), element =>
             element.Name.LocalName == "ControlTemplate"
             && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "UiXVideoGroupTemplate");
@@ -1053,17 +1224,40 @@ public sealed class FocusVisualTests
         Assert.Contains(uiX.Descendants(), element =>
             element.Name.LocalName == "Border"
             && ((string?)element.Attribute("Height"))?.StartsWith("{Binding VideoCardCoverHeight", StringComparison.Ordinal) == true);
+        XElement cover = uiX.Descendants()
+            .Single(element => element.Name.LocalName == "Border"
+                && ((string?)element.Attribute("Height"))?.StartsWith("{Binding VideoCardCoverHeight", StringComparison.Ordinal) == true);
+        Assert.Equal("{StaticResource UiXNestedCornerRadius}", (string?)cover.Attribute("CornerRadius"));
+        XElement statusRow = uiX.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "VideoCardStatusRow");
+        Assert.Equal("4", (string?)statusRow.Attribute("Grid.Row"));
+        Assert.Null(statusRow.Attribute("Margin"));
         Assert.DoesNotContain(uiX.Descendants(), element => element.Name.LocalName == "Button");
         Assert.Contains(uiX.Descendants(), element =>
             element.Name.LocalName == "TextBlock"
-            && (string?)element.Attribute("Text") == "{Binding FileName}");
+            && (string?)element.Attribute("Text") == "{Binding UiXWrappedFileName}");
         Assert.Contains(uiX.Descendants(), element =>
             element.Name.LocalName == "TextBlock"
-            && (string?)element.Attribute("Text") == "{Binding NickName}");
+            && (string?)element.Attribute("Text") == "{Binding UiXStreamerText}");
+        Assert.Contains(uiX.Descendants(), element =>
+            element.Name.LocalName == "TextBlock"
+            && (string?)element.Attribute("Text") == "{Binding RecordingTimeText}");
+        Assert.Contains(uiX.Descendants(), element =>
+            element.Name.LocalName == "TextBlock"
+            && (string?)element.Attribute("Text") == "{Binding FileSizeText}");
+        Assert.DoesNotContain(uiX.Descendants(), element =>
+            element.Name.LocalName == "TextBlock"
+            && (string?)element.Attribute("Text") is "{Binding UiXSummaryText}" or "{Binding ResolutionChipText}");
+        Assert.Contains(document.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Height"
+            && ((string?)element.Attribute("Value"))?.StartsWith("{Binding VideoCardHeight", StringComparison.Ordinal) == true);
         Assert.Contains(uiX.Descendants(), element =>
             element.Name.LocalName == "Border"
-            && (string?)element.Attribute("Style") == "{StaticResource UiXInformationBandStyle}");
+            && ((string?)element.Attribute("Width"))?.StartsWith("{Binding VideoCardCoverWidth", StringComparison.Ordinal) == true);
         Assert.DoesNotContain(uiX.Descendants(), element => element.Name.LocalName == "Run");
+        Assert.DoesNotContain(uiX.Descendants(), element =>
+            ((string?)element.Attribute("CornerRadius"))?.Contains("Binding", StringComparison.Ordinal) == true);
     }
 
     [Fact]
@@ -1107,7 +1301,7 @@ public sealed class FocusVisualTests
             element.Name.LocalName == "Setter"
             && (string?)element.Attribute("TargetName") == "CardStrokeLayer"
             && (string?)element.Attribute("Property") == "BorderBrush"
-            && (string?)element.Attribute("Value") == "#60337DFF");
+            && (string?)element.Attribute("Value") == "{DynamicResource UiXSelectionStrokeBrush}");
     }
 
     [Fact]
@@ -1149,7 +1343,6 @@ public sealed class FocusVisualTests
     [InlineData("AutoShutdownContentDialog.xaml")]
     [InlineData("ExitConfirmationContentDialog.xaml")]
     [InlineData("ConfigRestoreContentDialog.xaml")]
-    [InlineData("ConfigRestoreWindow.xaml")]
     [InlineData("LocalSettingsContentDialog.xaml")]
     [InlineData("UpdateReleaseNotesContentDialog.xaml")]
     [InlineData("SettingsWindow.xaml")]

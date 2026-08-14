@@ -30,9 +30,90 @@
     <SolidColorBrush x:Key="EmerdeSurfaceBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="EmerdePanelBrush" Color="#F8F8F8" />
     <SolidColorBrush x:Key="EmerdeCardBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="EmerdeDialogBackgroundBrush" Color="#FFF1F4F5" />
+    <SolidColorBrush x:Key="EmerdeDialogOuterBorderBrush" Color="#FF000000" />
     <StaticResource x:Key="EmerdeTextInputBorderBrush" ResourceKey="ControlStrokeColorDefaultBrush" />
     <SolidColorBrush x:Key="EmerdeExtensionInputBorderBrush" Color="#24000000" />
     <SolidColorBrush x:Key="ControlElevationBorderBrush" Color="#24000000" />
+    <StaticResource x:Key="ContentDialogBackground" ResourceKey="EmerdeDialogBackgroundBrush" />
+    <StaticResource x:Key="ContentDialogTopOverlay" ResourceKey="EmerdeDialogBackgroundBrush" />
+    <StaticResource x:Key="ContentDialogBorderBrush" ResourceKey="EmerdeDialogOuterBorderBrush" />
+
+    <Style x:Key="EmerdeContentDialogStyle"
+           TargetType="{x:Type vio:ContentDialog}"
+           BasedOn="{StaticResource DefaultVioletaContentDialogStyle}">
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Background" Value="{DynamicResource EmerdeDialogBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ContentDialogBorderBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="IsShadowEnabled" Value="False" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="UseLayoutRounding" Value="True" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding MainWindow.DataContext.StatusOfIsUiXEnabled, Source={x:Static Application.Current}}" Value="True">
+                <Setter Property="Background" Value="{DynamicResource EmerdeDialogBackgroundBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource ContentDialogBorderBrush}" />
+                <Setter Property="BorderThickness" Value="0" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="{x:Type vio:ContentDialog}"
+           BasedOn="{StaticResource EmerdeContentDialogStyle}" />
+
+    <Style x:Key="EmerdeDialogSurfaceStyle" TargetType="{x:Type Border}">
+        <Setter Property="Background" Value="{DynamicResource EmerdeSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding MainWindow.DataContext.StatusOfIsUiXEnabled, Source={x:Static Application.Current}}" Value="True">
+                <Setter Property="Background" Value="{DynamicResource UiXDialogSurfaceBrush}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="EmerdeDialogSectionStyle" TargetType="{x:Type Border}">
+        <Setter Property="Background" Value="{DynamicResource EmerdePanelBrush}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
+        <Setter Property="Padding" Value="14,12" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding MainWindow.DataContext.StatusOfIsUiXEnabled, Source={x:Static Application.Current}}" Value="True">
+                <Setter Property="Background" Value="{DynamicResource UiXDialogSectionBrush}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="EmerdeDialogBodyTextStyle" TargetType="{x:Type TextBlock}">
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="LineHeight" Value="20" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding MainWindow.DataContext.StatusOfIsUiXEnabled, Source={x:Static Application.Current}}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="EmerdeDialogSecondaryTextStyle" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource EmerdeDialogBodyTextStyle}">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="LineHeight" Value="18" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding MainWindow.DataContext.StatusOfIsUiXEnabled, Source={x:Static Application.Current}}" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource UiXTextSecondaryBrush}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="EmerdeDialogSectionTitleTextStyle" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource EmerdeDialogBodyTextStyle}">
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
     <SolidColorBrush x:Key="CircleElevationBorderBrush" Color="#24000000" />
     <SolidColorBrush x:Key="AccentControlElevationBorderBrush" Color="Transparent" />
     <SolidColorBrush x:Key="DialogMaskLightBrush" Color="#33FFFFFF" />
@@ -197,6 +278,9 @@
 
     <Style TargetType="{x:Type vio:MessageBoxDialog}" BasedOn="{StaticResource {x:Type vio:MessageBoxDialog}}">
         <Setter Property="CornerRadius" Value="{StaticResource ContentDialogCornerRadius}" />
+        <Setter Property="Background" Value="{DynamicResource EmerdeDialogBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ContentDialogBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
     </Style>
 
     <Style TargetType="{x:Type TextBox}" BasedOn="{StaticResource {x:Type TextBox}}">
@@ -283,6 +367,7 @@
         <Setter Property="Effect" Value="{x:Null}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+        <Setter Property="controls:InputAssist.CommitOnEnter" Value="True" />
         <Style.Triggers>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
                 <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />

@@ -25,11 +25,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         Interval = TimeSpan.FromMilliseconds(1200),
     };
 
-    private readonly System.Windows.Threading.DispatcherTimer previewClickTimer = new()
-    {
-        Interval = TimeSpan.FromMilliseconds(Vanara.PInvoke.User32.GetDoubleClickTime()),
-    };
-
     private readonly System.Windows.Threading.DispatcherTimer previewRoomTransitionTimeoutTimer = new()
     {
         Interval = TimeSpan.FromSeconds(3),
@@ -43,7 +38,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     private bool isVideoPresentationSuspended;
     private bool isPreviewClosingTransitionActive;
     private bool isFullScreen;
-    private bool suppressNextPreviewPointerUp;
     private System.Windows.Thickness normalPanelPadding;
     private System.Windows.Thickness normalPanelBorderThickness;
     private System.Windows.CornerRadius normalPanelCornerRadius;
@@ -113,11 +107,6 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         controlsIdleTimer.Tick += (_, _) => HidePreviewControls();
         topFeedbackTimer.Tick += (_, _) => HideFeedback(TopFeedback, topFeedbackTimer);
         bottomFeedbackTimer.Tick += (_, _) => HideFeedback(BottomFeedback, bottomFeedbackTimer);
-        previewClickTimer.Tick += (_, _) =>
-        {
-            previewClickTimer.Stop();
-            TogglePreviewPlayback();
-        };
         previewRoomTransitionTimeoutTimer.Tick += (_, _) =>
         {
             previewRoomTransitionTimeoutTimer.Stop();
@@ -131,9 +120,7 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             controlsIdleTimer.Stop();
             topFeedbackTimer.Stop();
             bottomFeedbackTimer.Stop();
-            previewClickTimer.Stop();
             previewRoomTransitionTimeoutTimer.Stop();
-            suppressNextPreviewPointerUp = false;
             CancelVideoLayoutRefresh();
             HidePreviewControlsImmediately();
             DetachMediaPlayerEvents();
@@ -804,7 +791,18 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
                 Math.Max(1d, Math.Round(surfacePixelWidth * videoHeight / videoWidth, MidpointRounding.AwayFromZero)));
         }
 
-        return new System.Windows.Size(surfacePixelWidth / dpiScaleX, surfacePixelHeight / dpiScaleY);
+        double surfaceWidth = surfacePixelWidth / dpiScaleX;
+        double surfaceHeight = surfacePixelHeight / dpiScaleY;
+        if (viewportPixelWidth / viewportPixelHeight > (double)videoWidth / videoHeight)
+        {
+            surfaceHeight = viewportHeight;
+        }
+        else
+        {
+            surfaceWidth = viewportWidth;
+        }
+
+        return new System.Windows.Size(surfaceWidth, surfaceHeight);
     }
 
     private bool TryGetVideoDimensions(out uint width, out uint height)
@@ -836,39 +834,8 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             return;
         }
 
-        previewClickTimer.Stop();
-        suppressNextPreviewPointerUp = true;
         TogglePreviewFullScreen();
         e.Handled = true;
-    }
-
-    private void PreviewTouchLayer_OnMouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
-    {
-        if (e.ChangedButton != System.Windows.Input.MouseButton.Left)
-        {
-            return;
-        }
-
-        e.Handled = true;
-        if (suppressNextPreviewPointerUp)
-        {
-            suppressNextPreviewPointerUp = false;
-            return;
-        }
-
-        previewClickTimer.Stop();
-        previewClickTimer.Start();
-    }
-
-    private void TogglePreviewPlayback()
-    {
-        if (attachedViewModel is not { IsPreviewing: true, IsPreviewTransitioning: false } viewModel
-            || !viewModel.TogglePreviewPauseCommand.CanExecute(null))
-        {
-            return;
-        }
-
-        viewModel.TogglePreviewPauseCommand.Execute(null);
     }
 
     private void PreviewControls_OnMouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
