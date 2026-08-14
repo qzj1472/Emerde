@@ -739,6 +739,44 @@ public sealed class RecordingRecoveryServiceTests
     }
 
     [Fact]
+    public void SourceProcessingKeys_CoalesceOverlappingSourcesAndSeparateOptions()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"emerde-recovery-key-{Guid.NewGuid():N}");
+        string pattern = Path.Combine(root, "record_%03d.ts");
+        string first = Path.Combine(root, "record_000.ts");
+        string second = Path.Combine(root, "record_001.ts");
+
+        string[] ordered = RecordingRecoveryService.CreateSourceProcessingKeys(
+            [first, second],
+            ".mkv",
+            removeSource: false,
+            optimizeAudio: false,
+            mergeSessionParts: true);
+        string[] reversed = RecordingRecoveryService.CreateSourceProcessingKeys(
+            [second, first],
+            ".MKV",
+            removeSource: false,
+            optimizeAudio: false,
+            mergeSessionParts: true);
+        string[] overlapping = RecordingRecoveryService.CreateSourceProcessingKeys(
+            [first],
+            ".mkv",
+            removeSource: false,
+            optimizeAudio: false,
+            mergeSessionParts: false);
+        string[] differentOptions = RecordingRecoveryService.CreateSourceProcessingKeys(
+            [first],
+            ".mkv",
+            removeSource: true,
+            optimizeAudio: false,
+            mergeSessionParts: true);
+
+        Assert.Equal(ordered.Order(), reversed.Order());
+        Assert.Contains(overlapping[0], ordered);
+        Assert.DoesNotContain(differentOptions[0], ordered);
+    }
+
+    [Fact]
     public async Task ProcessSourcePatternAsync_DoesNotCreateTargetsForInvalidSessionParts()
     {
         string directory = Path.Combine(Path.GetTempPath(), $"emerde-recovery-merge-{Guid.NewGuid():N}");

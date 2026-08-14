@@ -7,6 +7,9 @@ public sealed record ConverterOptions(string TargetFormat, bool OptimizeAudio = 
 
 public sealed class Converter
 {
+    private const double MaximumTrackTimelineDifferenceSeconds = 5d;
+    private const double MinimumRecordingDurationToleranceSeconds = 15d;
+    private const double RecordingDurationToleranceRatio = 0.0025d;
     private static readonly object TargetReservationLock = new();
     private static readonly HashSet<string> ReservedTargetPaths = new(StringComparer.OrdinalIgnoreCase);
     public static int ActiveConversionCount => MediaOperationRegistry.Count(MediaOperationKind.Conversion);
@@ -188,6 +191,10 @@ public sealed class Converter
                 return false;
             }
             FfmpegMediaProbeResult[] sourceProbes = probeBatch.Probes;
+            double probedSourceDuration = sourceProbes.Sum(probe => Math.Max(0d, probe.DurationSeconds));
+            double recordingExpectedDuration = NormalizeRecordingExpectedDuration(
+                GetRecordingExpectedDuration(metadata, sourceFileInfos),
+                probedSourceDuration);
             bool optimizedAudioRequested = optimizeAudio;
             optimizeAudio = optimizedAudioRequested && sourceProbes.All(probe => probe.HasAudio);
             string[] sourcePaths = sourceFileInfos.Select(file => file.FullName).ToArray();
@@ -215,7 +222,7 @@ public sealed class Converter
                 throw new OperationCanceledException(token);
             }
 
-            (bool succeeded, string validationError) = await ValidateConversionAsync(result, temporaryTargetFileName, sourceProbes, optimizeAudio, token);
+            (bool succeeded, string validationError) = await ValidateConversionAsync(result, temporaryTargetFileName, sourceProbes, optimizeAudio, recordingExpectedDuration, token);
             if (!succeeded && optimizeAudio)
             {
                 AppSessionLogger.Event("warn", "converter", "optimized_audio_fallback", "optimized audio conversion failed and plain remux will be attempted", new
@@ -236,7 +243,7 @@ public sealed class Converter
                 {
                     throw new OperationCanceledException(token);
                 }
-                (succeeded, validationError) = await ValidateConversionAsync(result, temporaryTargetFileName, sourceProbes, optimizedAudioExpected: false, token: token);
+                (succeeded, validationError) = await ValidateConversionAsync(result, temporaryTargetFileName, sourceProbes, optimizedAudioExpected: false, recordingExpectedDuration, token);
             }
             if (succeeded)
             {
@@ -322,6 +329,7 @@ public sealed class Converter
         string temporaryTargetFileName,
         IReadOnlyList<FfmpegMediaProbeResult> sourceProbes,
         bool optimizedAudioExpected,
+        double recordingExpectedDuration,
         CancellationToken token)
     {
         if (result.ExitCode != 0)
@@ -339,6 +347,7 @@ public sealed class Converter
                 sourceProbes,
                 optimizedAudioExpected,
                 result.ProcessedDurationSeconds,
+                recordingExpectedDuration,
                 token),
             token);
         return (string.IsNullOrEmpty(validationError), validationError);
@@ -455,7 +464,7 @@ public sealed class Converter
         bool optimizedAudioExpected,
         CancellationToken token = default)
     {
-        return string.IsNullOrEmpty(GetOutputValidationError(path, sourceProbes, optimizedAudioExpected, 0d, token));
+        return string.IsNullOrEmpty(GetOutputValidationError(path, sourceProbes, optimizedAudioExpected, 0d, 0d, token));
     }
 
     private static string GetOutputValidationError(
@@ -463,6 +472,7 @@ public sealed class Converter
         IReadOnlyList<FfmpegMediaProbeResult> sourceProbes,
         bool optimizedAudioExpected,
         double processedDurationSeconds,
+        double recordingExpectedDuration,
         CancellationToken token)
     {
         try
@@ -505,9 +515,13 @@ public sealed class Converter
 
             double probedDuration = sourceProbes.Sum(probe => Math.Max(0, probe.DurationSeconds));
             double expectedDuration = SelectExpectedDuration(probedDuration, processedDurationSeconds);
-            return IsDurationWithinTolerance(expectedDuration, output.DurationSeconds)
+            if (!IsDurationWithinTolerance(expectedDuration, output.DurationSeconds))
+            {
+                return $"duration_mismatch:expected={expectedDuration:F3},actual={output.DurationSeconds:F3},probed={probedDuration:F3},processed={processedDurationSeconds:F3}";
+            }
+            return IsRecordingDurationComplete(recordingExpectedDuration, output.DurationSeconds)
                 ? string.Empty
-                : $"duration_mismatch:expected={expectedDuration:F3},actual={output.DurationSeconds:F3},probed={probedDuration:F3},processed={processedDurationSeconds:F3}";
+                : $"recording_duration_incomplete:expected={recordingExpectedDuration:F3},actual={output.DurationSeconds:F3},missing={recordingExpectedDuration - output.DurationSeconds:F3}";
         }
         catch (Exception e)
         {
@@ -533,6 +547,44 @@ public sealed class Converter
         return processedDuration > 0d ? processedDuration : Math.Max(0d, probedDuration);
     }
 
+    internal static bool IsRecordingDurationComplete(double expectedDuration, double actualDuration)
+    {
+        if (expectedDuration <= 0d)
+        {
+            return true;
+        }
+        if (actualDuration <= 0d)
+        {
+            return false;
+        }
+        double tolerance = Math.Max(MinimumRecordingDurationToleranceSeconds, expectedDuration * RecordingDurationToleranceRatio);
+        return actualDuration + tolerance >= expectedDuration;
+    }
+
+    internal static double GetRecordingExpectedDuration(VideoRecordingMetadata metadata, IReadOnlyList<FileInfo> sources)
+    {
+        if (metadata.RecordedAt <= DateTime.MinValue || sources.Count == 0)
+        {
+            return 0d;
+        }
+        DateTime recordedAt = metadata.RecordedAt.Kind == DateTimeKind.Utc
+            ? metadata.RecordedAt.ToLocalTime()
+            : metadata.RecordedAt;
+        DateTime completedAt = sources.Max(source => source.LastWriteTime);
+        double duration = (completedAt - recordedAt).TotalSeconds;
+        return duration > 0d ? duration : 0d;
+    }
+
+    internal static double NormalizeRecordingExpectedDuration(double wallClockDuration, double mediaDuration)
+    {
+        if (wallClockDuration <= 0d || mediaDuration <= 0d)
+        {
+            return wallClockDuration;
+        }
+        double maximumPlausibleGap = Math.Max(300d, mediaDuration * 0.1d);
+        return wallClockDuration - mediaDuration <= maximumPlausibleGap ? wallClockDuration : 0d;
+    }
+
     internal static bool IsTrackTimelineWithinTolerance(double audioEndSeconds, double videoEndSeconds)
     {
         return audioEndSeconds <= 0d
@@ -549,6 +601,10 @@ public sealed class Converter
         if (IsTrackTimelineWithinTolerance(audioEndSeconds, videoEndSeconds))
         {
             return true;
+        }
+        if (Math.Abs(audioEndSeconds - videoEndSeconds) > MaximumTrackTimelineDifferenceSeconds)
+        {
+            return false;
         }
         if (sourceAudioEndSeconds <= 0d || sourceVideoEndSeconds <= 0d)
         {

@@ -19,6 +19,8 @@ internal static class RecordingRecoveryService
     };
 
     private static readonly ConcurrentDictionary<string, RecoveryProcessingTask> ProcessingTasks = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, SourceProcessingTask> SourceProcessingTasks = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object SourceProcessingTasksSync = new();
     private static readonly SemaphoreSlim PendingOptionsUpdateGate = new(1, 1);
     private static readonly SemaphoreSlim RecoveryOperationGate = new(2, 2);
     private static readonly object PendingMarkerMutationLock = new();
@@ -355,7 +357,7 @@ internal static class RecordingRecoveryService
         }
         RecoveryProcessingTask processing = ProcessingTasks.GetOrAdd(
             lockKey,
-            _ => new RecoveryProcessingTask(taskToken => ProcessCoreAsync(path, taskToken)));
+            _ => new RecoveryProcessingTask(taskToken => ProcessDeduplicatedAsync(path, taskToken)));
         using CancellationTokenRegistration registration = token.CanBeCanceled
             ? token.Register(static state => ((CancellationTokenSource)state!).Cancel(), processing.Cancellation)
             : default;
@@ -384,7 +386,137 @@ internal static class RecordingRecoveryService
         }
     }
 
-    private static async Task ProcessCoreAsync(string path, CancellationToken token)
+    private static async Task ProcessDeduplicatedAsync(string path, CancellationToken token)
+    {
+        PendingRecording? item = Load(path, out _);
+        string[] sourceFiles = item == null ? [] : GetSourceFiles(item.SourcePattern);
+        string[] sourceKeys = item == null ? [] : CreateSourceProcessingKeys(item, sourceFiles);
+        if (sourceKeys.Length == 0)
+        {
+            _ = await ProcessCoreAsync(path, token);
+            return;
+        }
+
+        SourceProcessingTask candidate = new(
+            sourceKeys,
+            taskToken => ProcessCoreAsync(path, taskToken),
+            token);
+        SourceProcessingTask processing;
+        bool ownsProcessing;
+        lock (SourceProcessingTasksSync)
+        {
+            processing = sourceKeys
+                .Select(sourceKey => SourceProcessingTasks.GetValueOrDefault(sourceKey))
+                .FirstOrDefault(task => task != null)
+                ?? candidate;
+            ownsProcessing = ReferenceEquals(candidate, processing);
+            if (ownsProcessing)
+            {
+                foreach (string sourceKey in sourceKeys)
+                {
+                    SourceProcessingTasks[sourceKey] = candidate;
+                }
+            }
+        }
+        if (ownsProcessing)
+        {
+            try
+            {
+                _ = await processing.Task.Value;
+            }
+            finally
+            {
+                lock (SourceProcessingTasksSync)
+                {
+                    foreach (string sourceKey in sourceKeys)
+                    {
+                        if (SourceProcessingTasks.TryGetValue(sourceKey, out SourceProcessingTask? current)
+                            && ReferenceEquals(current, processing))
+                        {
+                            _ = SourceProcessingTasks.Remove(sourceKey);
+                        }
+                    }
+                }
+            }
+            return;
+        }
+
+        bool completed = await processing.Task.Value.WaitAsync(token);
+        if (completed && sourceKeys.Order().SequenceEqual(processing.SourceKeys.Order(), StringComparer.OrdinalIgnoreCase))
+        {
+            DeleteMarker(path);
+            AppSessionLogger.Event("info", "recovery", "duplicate_recovery_coalesced", "duplicate recovery marker reused the completed source operation", new
+            {
+                path,
+                sourceFiles,
+            });
+            return;
+        }
+
+        await ProcessDeduplicatedAsync(path, token);
+    }
+
+    internal static string[] CreateSourceProcessingKeys(
+        IEnumerable<string> sourceFiles,
+        string targetFormat,
+        bool removeSource,
+        bool optimizeAudio,
+        bool mergeSessionParts)
+    {
+        string[] normalizedSources;
+        try
+        {
+            normalizedSources = sourceFiles
+                .Where(source => !string.IsNullOrWhiteSpace(source))
+                .Select(Path.GetFullPath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Order(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return [];
+        }
+        if (normalizedSources.Length == 0)
+        {
+            return [];
+        }
+
+        string optionKey = $"{targetFormat.ToLowerInvariant()}:{removeSource}:{optimizeAudio}";
+        return normalizedSources
+            .Select(source => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{source}\n{optionKey}"))))
+            .ToArray();
+    }
+
+    private static string[] CreateSourceProcessingKeys(PendingRecording item, IEnumerable<string> sourceFiles)
+    {
+        return CreateSourceProcessingKeys(
+            sourceFiles,
+            item.TargetFormat,
+            item.RemoveSource,
+            item.OptimizeAudio,
+            item.MergeSessionParts);
+    }
+
+    private sealed class SourceProcessingTask
+    {
+        public SourceProcessingTask(
+            string[] sourceKeys,
+            Func<CancellationToken, Task<bool>> taskFactory,
+            CancellationToken token)
+        {
+            SourceKeys = sourceKeys;
+            Task = new Lazy<Task<bool>>(
+                () => taskFactory(token),
+                LazyThreadSafetyMode.ExecutionAndPublication);
+        }
+
+        public string[] SourceKeys { get; }
+
+        public Lazy<Task<bool>> Task { get; }
+    }
+
+    private static async Task<bool> ProcessCoreAsync(string path, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         PendingRecording? item = Load(path, out string? invalidReason);
@@ -394,7 +526,7 @@ internal static class RecordingRecoveryService
             {
                 QuarantineInvalidMarker(path, invalidReason);
             }
-            return;
+            return false;
         }
 
         string[] sourceFiles = GetSourceFiles(item.SourcePattern);
@@ -408,7 +540,7 @@ internal static class RecordingRecoveryService
 
             if (!Save(path, item))
             {
-                return;
+                return false;
             }
         }
         string sourceStateFingerprint = CreateSourceStateFingerprint(sourceFiles);
@@ -419,13 +551,13 @@ internal static class RecordingRecoveryService
                 && !canFinalizeExistingOutput
                 && string.Equals(item.BlockedSourceStateFingerprint, sourceStateFingerprint, StringComparison.Ordinal))
             {
-                return;
+                return false;
             }
 
             ResetFailureState(item);
             if (!Save(path, item))
             {
-                return;
+                return false;
             }
         }
 
@@ -438,7 +570,7 @@ internal static class RecordingRecoveryService
             item.SegmentReason = VideoRecordingMetadataStore.TimelineStallSegmentReason;
             if (!Save(path, item))
             {
-                return;
+                return false;
             }
         }
         if (isStallSegment)
@@ -453,8 +585,9 @@ internal static class RecordingRecoveryService
             {
                 await PublishFinalizedMediaAsync(path, item, sourceFiles, sourceMetadata, token);
                 DeleteMarker(path);
+                return true;
             }
-            return;
+            return false;
         }
 
         using CancellationTokenSource operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -524,14 +657,14 @@ internal static class RecordingRecoveryService
         {
             await PublishFinalizedMediaAsync(path, item, sourceFiles, sourceMetadata, token);
             DeleteMarker(path);
-            return;
+            return true;
         }
 
         string[] remainingSources = GetSourceFiles(item.SourcePattern);
         if (remainingSources.Length == 0)
         {
             DeleteMarker(path);
-            return;
+            return true;
         }
 
         if (!string.IsNullOrWhiteSpace(failureReason))
@@ -555,6 +688,7 @@ internal static class RecordingRecoveryService
             }
             _ = Save(path, item);
         }
+        return false;
     }
 
     private static async Task PublishFinalizedMediaAsync(

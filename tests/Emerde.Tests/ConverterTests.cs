@@ -22,8 +22,10 @@ public sealed class ConverterTests
     }
 
     [Theory]
-    [InlineData(4257.260, 4278.433, 4257.100, 4278.300, true)]
-    [InlineData(22255.046, 22348.884, 22255.000, 22348.762, true)]
+    [InlineData(4257.260, 4278.433, 4257.100, 4278.300, false)]
+    [InlineData(22255.046, 22348.884, 22255.000, 22348.762, false)]
+    [InlineData(96, 100, 96, 100, true)]
+    [InlineData(94.999, 100, 94, 100, false)]
     [InlineData(90, 100, 100, 100, false)]
     [InlineData(110, 100, 90, 100, false)]
     [InlineData(0, 100, 0, 100, true)]
@@ -86,6 +88,52 @@ public sealed class ConverterTests
     public void ExpectedDuration_PrefersProcessedPacketTimeline(double probed, double processed, double expected)
     {
         Assert.Equal(expected, Converter.SelectExpectedDuration(probed, processed));
+    }
+
+    [Theory]
+    [InlineData(22278.651, 22082.523, false)]
+    [InlineData(3600, 3585, true)]
+    [InlineData(3600, 3584.9, false)]
+    [InlineData(20, 8, true)]
+    [InlineData(0, 0, true)]
+    public void RecordingDurationValidation_RejectsMaterialTimelineLoss(double expected, double actual, bool accepted)
+    {
+        Assert.Equal(accepted, Converter.IsRecordingDurationComplete(expected, actual));
+    }
+
+    [Fact]
+    public void RecordingExpectedDuration_UsesRecordedAtAndLastSourceWrite()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-duration-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string sourcePath = Path.Combine(directory, "session.flv");
+        File.WriteAllBytes(sourcePath, [1]);
+        DateTime recordedAt = new(2026, 8, 12, 22, 4, 55, DateTimeKind.Local);
+        File.SetLastWriteTime(sourcePath, recordedAt.AddSeconds(22278.651));
+        try
+        {
+            double duration = Converter.GetRecordingExpectedDuration(
+                new VideoRecordingMetadata { RecordedAt = recordedAt },
+                [new FileInfo(sourcePath)]);
+
+            Assert.Equal(22278.651, duration, 3);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Theory]
+    [InlineData(22278.651, 22082.523, 22278.651)]
+    [InlineData(7200, 3600, 0)]
+    [InlineData(0, 3600, 0)]
+    public void RecordingExpectedDuration_IgnoresImplausibleCopiedFileTimestamps(
+        double wallClockDuration,
+        double mediaDuration,
+        double expected)
+    {
+        Assert.Equal(expected, Converter.NormalizeRecordingExpectedDuration(wallClockDuration, mediaDuration), 3);
     }
 
     [Theory]

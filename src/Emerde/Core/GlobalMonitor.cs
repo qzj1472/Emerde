@@ -22,8 +22,8 @@ internal static class GlobalMonitor
 {
     private const int DefaultSchedulerPeriodMilliseconds = MonitorTiming.MinimumRoutineIntervalMilliseconds;
     private const int MaximumMonitorConcurrency = MonitorTiming.MonitorBatchLimit;
-    private const int MaximumBatchSize = 20;
-    private const int MaximumRecordingBatchSize = 10;
+    private const int MaximumBatchSize = MaximumMonitorConcurrency;
+    private const int MaximumRecordingBatchSize = MaximumRecordingConcurrency;
     private const int MaximumRecordingConcurrency = 4;
     private static readonly TimeSpan MaximumSchedulerDelay = TimeSpan.FromDays(1);
     internal const long FixedRoomMetadataRefreshIntervalMilliseconds = 60 * 60 * 1000;
@@ -34,6 +34,8 @@ internal static class GlobalMonitor
     internal static readonly TimeSpan RoutineRoomCheckTimeout = TimeSpan.FromSeconds(6);
     internal static readonly TimeSpan ForcedRoomCheckTimeout = TimeSpan.FromSeconds(10);
     internal static readonly TimeSpan RoomCheckDispatchDelayWarning = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan RoomCheckDispatchDelayLogInterval = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan RoomCheckDispatchDelaySummaryInterval = TimeSpan.FromMinutes(5);
     internal static readonly TimeSpan RecordingStartupOfflineGuardWindow = TimeSpan.FromSeconds(45);
     internal static readonly TimeSpan RoomRecordStartPause = TimeSpan.FromMinutes(2);
 
@@ -62,6 +64,8 @@ internal static class GlobalMonitor
 
     private static readonly ConcurrentDictionary<string, byte> ScheduledRoomChecks = new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly ConcurrentDictionary<string, long> DispatchDelayLogTimestamps = new(StringComparer.OrdinalIgnoreCase);
+
     private static readonly SemaphoreSlim RoutineRoomCheckConcurrency = new(MaximumMonitorConcurrency, MaximumMonitorConcurrency);
 
     private static readonly SemaphoreSlim RecordingRoomCheckConcurrency = new(MaximumRecordingConcurrency, MaximumRecordingConcurrency);
@@ -71,6 +75,20 @@ internal static class GlobalMonitor
     private static readonly object ActiveSpiderResultTasksSync = new();
 
     private static int invalidEmailConfigurationLogged;
+
+    private static long averageRoutineCheckMilliseconds = 1000;
+
+    private static int routineLaneRoomCount = 1;
+
+    private static readonly object DispatchDelaySummarySync = new();
+
+    private static DateTime dispatchDelaySummaryStartedAt = DateTime.UtcNow;
+
+    private static int dispatchDelaySummaryCount;
+
+    private static double dispatchDelaySummaryTotalSeconds;
+
+    private static double dispatchDelaySummaryMaximumSeconds;
 
     public static PeriodicWait RoutinePeriodicWait = new(GetRoutinePeriod(), TimeSpan.Zero);
 
@@ -534,6 +552,7 @@ internal static class GlobalMonitor
             DateTime now = DateTime.Now;
 
             List<PendingRoomCheck> dueRooms = [];
+            int normalLaneRoomCount = 0;
 
             foreach (Room room in DistinctRoomsByUrl(rooms))
             {
@@ -554,6 +573,10 @@ internal static class GlobalMonitor
                 bool shouldNotify = isGlobalToNotify && room.IsToNotify;
                 bool shouldRecord = GetEffectiveRoomRecord(room) && !IsRecordStartBlocked;
                 bool shouldMonitor = GetEffectiveRoomMonitor(room) && IsRoutineScheduleActive(now, settings);
+                if (shouldMonitor && !isRecordingLaneRoom)
+                {
+                    normalLaneRoomCount++;
+                }
 
                 if (shouldMonitor)
                 {
@@ -583,6 +606,7 @@ internal static class GlobalMonitor
                     }
                 }
             }
+            Volatile.Write(ref routineLaneRoomCount, Math.Max(1, normalLaneRoomCount));
 
             if (dueRooms.Count == 0)
             {
@@ -769,6 +793,23 @@ internal static class GlobalMonitor
         return startedAt - dueAt > RoomCheckDispatchDelayWarning;
     }
 
+    internal static TimeSpan GetBackpressuredRoutineInterval(
+        int configuredIntervalMilliseconds,
+        int roomCount,
+        long averageCheckMilliseconds,
+        int concurrency = MaximumMonitorConcurrency)
+    {
+        long normalizedInterval = MonitorTiming.NormalizeRoutineInterval(configuredIntervalMilliseconds);
+        long cycleMilliseconds = DivideRoundUp(Math.Max(1, roomCount), Math.Max(1, concurrency))
+            * Math.Max(1, averageCheckMilliseconds);
+        return TimeSpan.FromMilliseconds(Math.Max(normalizedInterval, cycleMilliseconds));
+    }
+
+    private static long DivideRoundUp(long value, long divisor)
+    {
+        return (value + divisor - 1) / divisor;
+    }
+
     internal static int GetRoomCheckPriority(StreamStatus streamStatus, RecordStatus recordStatus)
     {
         if (recordStatus == RecordStatus.Recording)
@@ -837,6 +878,8 @@ internal static class GlobalMonitor
         IDisposable? roomLock = null;
         StreamStatus previousStreamStatus = default;
         bool ranCheck = false;
+        long startedTimestamp = 0;
+        bool recordingLane = UsesRecordingCheckLane(roomStatus.RecordStatus);
 
         try
         {
@@ -852,6 +895,7 @@ internal static class GlobalMonitor
             previousStreamStatus = roomStatus.StreamStatus;
             ReserveRoomCheck(room.RoomUrl, settings, roomStatus.StreamStatus, startedAt);
             ranCheck = true;
+            startedTimestamp = Stopwatch.GetTimestamp();
             await RunRoomCheckAsync(room, roomStatus, shouldNotify, shouldRecord, settings, force, token);
         }
         catch (OperationCanceledException)
@@ -873,6 +917,10 @@ internal static class GlobalMonitor
             {
                 if (ranCheck && IsCurrentRoomStatus(room.RoomUrl, roomStatus))
                 {
+                    if (!force && !recordingLane && startedTimestamp != 0)
+                    {
+                        UpdateAverageRoutineCheckDuration(Stopwatch.GetElapsedTime(startedTimestamp));
+                    }
                     DateTime completedAt = DateTime.Now;
                     if (GetEffectiveRoomMonitor(room) && IsRoutineScheduleActive(completedAt, settings))
                     {
@@ -1315,13 +1363,63 @@ internal static class GlobalMonitor
             return;
         }
 
+        double delaySeconds = (startedAt - dueAt).TotalSeconds;
+        ObserveDispatchDelay(delaySeconds, startedAt.ToUniversalTime());
+        long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        long previousTimestamp = DispatchDelayLogTimestamps.GetOrAdd(room.RoomUrl, 0);
+        if (previousTimestamp > 0
+            && currentTimestamp - previousTimestamp < RoomCheckDispatchDelayLogInterval.TotalMilliseconds)
+        {
+            return;
+        }
+        DispatchDelayLogTimestamps[room.RoomUrl] = currentTimestamp;
         AppSessionLogger.Event("warn", "business", "room_check_dispatch_delayed", "room check started later than its due time", new
         {
             room.RoomUrl,
             room.NickName,
-            delaySeconds = (startedAt - dueAt).TotalSeconds,
+            delaySeconds,
             force,
         });
+    }
+
+    private static void ObserveDispatchDelay(double delaySeconds, DateTime observedAtUtc)
+    {
+        lock (DispatchDelaySummarySync)
+        {
+            dispatchDelaySummaryCount++;
+            dispatchDelaySummaryTotalSeconds += delaySeconds;
+            dispatchDelaySummaryMaximumSeconds = Math.Max(dispatchDelaySummaryMaximumSeconds, delaySeconds);
+            if (observedAtUtc - dispatchDelaySummaryStartedAt < RoomCheckDispatchDelaySummaryInterval)
+            {
+                return;
+            }
+
+            AppSessionLogger.Event("warn", "business", "room_check_dispatch_delay_summary", "room check dispatch delays were aggregated", new
+            {
+                count = dispatchDelaySummaryCount,
+                averageDelaySeconds = dispatchDelaySummaryTotalSeconds / dispatchDelaySummaryCount,
+                maximumDelaySeconds = dispatchDelaySummaryMaximumSeconds,
+                scheduledChecks = ScheduledRoomChecks.Count,
+                averageCheckMilliseconds = Volatile.Read(ref averageRoutineCheckMilliseconds),
+            });
+            dispatchDelaySummaryStartedAt = observedAtUtc;
+            dispatchDelaySummaryCount = 0;
+            dispatchDelaySummaryTotalSeconds = 0;
+            dispatchDelaySummaryMaximumSeconds = 0;
+        }
+    }
+
+    private static void UpdateAverageRoutineCheckDuration(TimeSpan elapsed)
+    {
+        long sample = Math.Max(1, (long)elapsed.TotalMilliseconds);
+        long current;
+        long updated;
+        do
+        {
+            current = Volatile.Read(ref averageRoutineCheckMilliseconds);
+            updated = Math.Max(1, (current * 7 + sample) / 8);
+        }
+        while (Interlocked.CompareExchange(ref averageRoutineCheckMilliseconds, updated, current) != current);
     }
 
     public static void RefreshRoutineInterval()
@@ -1609,7 +1707,7 @@ internal static class GlobalMonitor
         RoomCheckScheduleState state = RoomCheckSchedules.GetOrAdd(roomUrl, _ => new RoomCheckScheduleState());
         lock (state)
         {
-            state.NextCheckAt = now + GetFallbackInterval(streamStatus, settings.RoutineInterval, state.LastClosedAt, now);
+            state.NextCheckAt = now + GetEffectiveFallbackInterval(streamStatus, settings.RoutineInterval, state.LastClosedAt, now);
         }
     }
 
@@ -1630,8 +1728,23 @@ internal static class GlobalMonitor
                 state.LastClosedAt = now;
             }
 
-            state.NextCheckAt = now + GetFallbackInterval(currentStatus, settings.RoutineInterval, state.LastClosedAt, now);
+            state.NextCheckAt = now + GetEffectiveFallbackInterval(currentStatus, settings.RoutineInterval, state.LastClosedAt, now);
         }
+    }
+
+    private static TimeSpan GetEffectiveFallbackInterval(StreamStatus streamStatus, int routineInterval, DateTime? lastClosedAt, DateTime now)
+    {
+        TimeSpan fallback = GetFallbackInterval(streamStatus, routineInterval, lastClosedAt, now);
+        if (streamStatus == StreamStatus.Streaming)
+        {
+            return fallback;
+        }
+
+        TimeSpan backpressured = GetBackpressuredRoutineInterval(
+            routineInterval,
+            Volatile.Read(ref routineLaneRoomCount),
+            Volatile.Read(ref averageRoutineCheckMilliseconds));
+        return fallback >= backpressured ? fallback : backpressured;
     }
 
     internal static TimeSpan GetFallbackInterval(StreamStatus streamStatus, int routineInterval, DateTime? lastClosedAt, DateTime now)

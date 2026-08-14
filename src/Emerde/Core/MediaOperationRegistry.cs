@@ -9,6 +9,7 @@ internal enum MediaOperationKind
 {
     Recording,
     Conversion,
+    Repair,
     Split,
     Merge,
 }

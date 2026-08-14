@@ -347,7 +347,7 @@ public sealed class GlobalMonitorTests
     }
 
     [Theory]
-    [InlineData(22, false, 20)]
+    [InlineData(22, false, 5)]
     [InlineData(3, false, 3)]
     [InlineData(22, true, 22)]
     public void GetRoutineBatchSize_LimitsRoutineBatchesAndKeepsForceAll(int roomCount, bool force, int expected)
@@ -356,9 +356,9 @@ public sealed class GlobalMonitorTests
     }
 
     [Theory]
-    [InlineData(8, false, 8)]
-    [InlineData(8, true, 8)]
-    [InlineData(22, true, 10)]
+    [InlineData(8, false, 5)]
+    [InlineData(8, true, 4)]
+    [InlineData(22, true, 4)]
     public void GetRoutineBatchSize_AllowsLargerRecordingLaneBatches(int roomCount, bool recordingLane, int expected)
     {
         Assert.Equal(expected, GlobalMonitor.GetRoutineBatchSize(roomCount, force: false, recordingLane));
@@ -409,6 +409,24 @@ public sealed class GlobalMonitorTests
 
         Assert.False(GlobalMonitor.ShouldLogRoomCheckDispatchDelay(dueAt, dueAt.AddSeconds(5)));
         Assert.True(GlobalMonitor.ShouldLogRoomCheckDispatchDelay(dueAt, dueAt.AddSeconds(6)));
+    }
+
+    [Theory]
+    [InlineData(5000, 5, 1000, 5000)]
+    [InlineData(5000, 30, 2000, 12000)]
+    [InlineData(1000, 100, 6000, 120000)]
+    public void GetBackpressuredRoutineInterval_UsesAchievableCycleTime(
+        int configuredMilliseconds,
+        int roomCount,
+        long averageCheckMilliseconds,
+        int expectedMilliseconds)
+    {
+        Assert.Equal(
+            TimeSpan.FromMilliseconds(expectedMilliseconds),
+            GlobalMonitor.GetBackpressuredRoutineInterval(
+                configuredMilliseconds,
+                roomCount,
+                averageCheckMilliseconds));
     }
 
     [Theory]

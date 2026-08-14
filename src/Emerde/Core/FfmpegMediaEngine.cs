@@ -50,7 +50,9 @@ internal sealed record FfmpegMediaRunResult(
     bool HadMediaProgress,
     string ErrorOutput,
     double ProcessedDurationSeconds = 0d,
-    bool RequiresInputRestart = false);
+    bool RequiresInputRestart = false,
+    int RecoveredReadErrors = 0,
+    int DiscardedPackets = 0);
 
 internal enum FfmpegTimelineEventKind
 {
@@ -59,6 +61,7 @@ internal enum FfmpegTimelineEventKind
     AudioStalled,
     VideoRecovered,
     InitialAligned,
+    AudioRecovered,
 }
 
 internal readonly record struct FfmpegPacketProgress(
@@ -76,6 +79,7 @@ internal static unsafe partial class FfmpegMediaEngine
     internal const long InitialMediaSyncMaximumDurationMicroseconds = 10L * 1_000_000;
     internal const long InitialMediaSyncMaximumBytes = 64L * 1024 * 1024;
     private const long InitialMediaSyncLogThresholdMicroseconds = 250_000;
+    private const int MaximumRepairReadRecoveryAttempts = 32768;
     private const int InputFormatFlags = ffmpeg.AVFMT_FLAG_GENPTS
         | ffmpeg.AVFMT_FLAG_DISCARD_CORRUPT
         | ffmpeg.AVFMT_FLAG_SORT_DTS;
@@ -138,6 +142,16 @@ internal static unsafe partial class FfmpegMediaEngine
         Action<long>? onProgress = null)
     {
         return Remux(sourceFileNames, targetFileName, metadata, null, token, onProgress);
+    }
+
+    public static FfmpegMediaRunResult RepairFile(
+        string sourceFileName,
+        string targetFileName,
+        VideoRecordingMetadata metadata,
+        CancellationToken token,
+        Action<long>? onProgress = null)
+    {
+        return Remux([sourceFileName], targetFileName, metadata, null, token, onProgress, salvageDamagedFile: true);
     }
 
     public static FfmpegMediaRunResult RecordStream(
@@ -1064,6 +1078,8 @@ internal static unsafe partial class FfmpegMediaEngine
         private long quarantinedAudioEndTimestamp = ffmpeg.AV_NOPTS_VALUE;
         private bool awaitingRecoveryKeyframe;
         private bool awaitingRecoveryAudio;
+        private bool awaitingAudioRecovery;
+        private bool awaitingAudioRecoveryVideo;
         private bool audioStallReported;
 
         public MediaTimelineRecoveryResult Observe(
@@ -1092,6 +1108,15 @@ internal static unsafe partial class FfmpegMediaEngine
                         : Math.Max(quarantinedAudioEndTimestamp, observedEndTimestamp);
                     return new(true, audioTimestampCorrection, FfmpegTimelineEventKind.None, 0);
                 }
+                FfmpegTimelineEventKind audioEventKind = FfmpegTimelineEventKind.None;
+                if (awaitingAudioRecovery)
+                {
+                    audioTimestampCorrection = SubtractSaturated(recoveryAnchorTimestamp, packetStartTimestamp);
+                    awaitingAudioRecovery = false;
+                    awaitingAudioRecoveryVideo = true;
+                    audioStallReported = false;
+                    audioEventKind = FfmpegTimelineEventKind.AudioRecovered;
+                }
                 if (awaitingRecoveryAudio)
                 {
                     audioTimestampCorrection = SubtractSaturated(recoveryAnchorTimestamp, packetStartTimestamp);
@@ -1111,6 +1136,7 @@ internal static unsafe partial class FfmpegMediaEngine
                     {
                         awaitingRecoveryKeyframe = true;
                         awaitingRecoveryAudio = false;
+                        awaitingAudioRecoveryVideo = false;
                         recoveryAnchorTimestamp = GetLatestTimelineEnd(audioEndTimestamp, videoEndTimestamp);
                         quarantinedAudioEndTimestamp = candidateEndTimestamp;
                         return new(true, audioTimestampCorrection, FfmpegTimelineEventKind.VideoStalled, gap);
@@ -1118,12 +1144,17 @@ internal static unsafe partial class FfmpegMediaEngine
                 }
 
                 audioEndTimestamp = candidateEndTimestamp;
-                return new(false, audioTimestampCorrection, FfmpegTimelineEventKind.None, 0);
+                return new(false, audioTimestampCorrection, audioEventKind, 0);
             }
 
             if (!isVideo)
             {
                 return new(false, 0, FfmpegTimelineEventKind.None, 0);
+            }
+
+            if (awaitingAudioRecovery)
+            {
+                return new(true, videoTimestampCorrection, FfmpegTimelineEventKind.None, 0);
             }
 
             if (awaitingRecoveryKeyframe && !isKeyframe)
@@ -1146,6 +1177,11 @@ internal static unsafe partial class FfmpegMediaEngine
                 quarantinedAudioEndTimestamp = ffmpeg.AV_NOPTS_VALUE;
                 eventKind = FfmpegTimelineEventKind.VideoRecovered;
             }
+            else if (awaitingAudioRecoveryVideo)
+            {
+                videoTimestampCorrection = SubtractSaturated(recoveryAnchorTimestamp, packetStartTimestamp);
+                awaitingAudioRecoveryVideo = false;
+            }
 
             long correctedStartTimestamp = AddSaturated(packetStartTimestamp, videoTimestampCorrection);
             long candidateVideoEndTimestamp = GetNormalizedTimelineEnd(
@@ -1161,13 +1197,16 @@ internal static unsafe partial class FfmpegMediaEngine
                     long gap = SubtractSaturated(candidateVideoEndTimestamp, comparisonTimestamp);
                     if (gap >= stallThresholdMicroseconds)
                     {
-                        videoEndTimestamp = candidateVideoEndTimestamp;
                         if (!audioStallReported)
                         {
+                            recoveryAnchorTimestamp = GetLatestTimelineEnd(audioEndTimestamp, videoEndTimestamp);
+                            awaitingRecoveryAudio = false;
+                            awaitingAudioRecovery = true;
+                            awaitingAudioRecoveryVideo = false;
                             audioStallReported = true;
-                            return new(false, videoTimestampCorrection, FfmpegTimelineEventKind.AudioStalled, gap);
+                            return new(true, videoTimestampCorrection, FfmpegTimelineEventKind.AudioStalled, gap);
                         }
-                        return new(false, videoTimestampCorrection, FfmpegTimelineEventKind.None, 0);
+                        return new(true, videoTimestampCorrection, FfmpegTimelineEventKind.None, 0);
                     }
                 }
                 audioStallReported = false;
@@ -1626,7 +1665,8 @@ internal static unsafe partial class FfmpegMediaEngine
         CancellationToken token,
         Action<long>? onProgress,
         Action<FfmpegPacketProgress>? onPacketProgress = null,
-        Action<bool, bool>? onStreamsDiscovered = null)
+        Action<bool, bool>? onStreamsDiscovered = null,
+        bool salvageDamagedFile = false)
     {
         if (sourceFileNames.Count == 0 || string.IsNullOrWhiteSpace(targetFileName))
         {
@@ -1641,6 +1681,8 @@ internal static unsafe partial class FfmpegMediaEngine
         long[]? lastPacketEnds = null;
         long timelineOffset = 0;
         bool hadProgress = false;
+        int recoveredReadErrors = 0;
+        int discardedPackets = 0;
 
         try
         {
@@ -1745,7 +1787,7 @@ internal static unsafe partial class FfmpegMediaEngine
                     SegmentClock sourceClock = new();
                     MediaTimelineRecovery timelineRecovery = new(
                         VideoTimelineStallThresholdMicroseconds,
-                        inputOptions?.IsLive == true);
+                        inputOptions?.IsLive == true || salvageDamagedFile);
                     bool awaitingVideoKeyframe = false;
                     bool awaitingInitialVideoKeyframe = inputOptions?.IsLive == true
                         && inputContext->streams[referenceStreamIndex]->codecpar->codec_type == AVMediaType.AVMEDIA_TYPE_VIDEO;
@@ -1783,6 +1825,19 @@ internal static unsafe partial class FfmpegMediaEngine
                                 }
                                 if (readResult == ffmpeg.AVERROR_EOF)
                                 {
+                                    break;
+                                }
+
+                                if (salvageDamagedFile
+                                    && recoveredReadErrors < MaximumRepairReadRecoveryAttempts
+                                    && TryAdvanceDamagedFileInput(inputContext, sourceFileNames[sourceIndex]))
+                                {
+                                    recoveredReadErrors++;
+                                    continue;
+                                }
+                                if (salvageDamagedFile && sourceHadReferenceProgress)
+                                {
+                                    recoveredReadErrors++;
                                     break;
                                 }
 
@@ -1931,6 +1986,7 @@ internal static unsafe partial class FfmpegMediaEngine
                             inputStreamIndex == referenceStreamIndex,
                             ref awaitingVideoKeyframe))
                         {
+                            discardedPackets++;
                             ffmpeg.av_packet_unref(packet);
                             continue;
                         }
@@ -1950,6 +2006,7 @@ internal static unsafe partial class FfmpegMediaEngine
                         }
                         if (timelineRecoveryResult.DiscardPacket)
                         {
+                            discardedPackets++;
                             ffmpeg.av_packet_unref(packet);
                             continue;
                         }
@@ -1998,7 +2055,9 @@ internal static unsafe partial class FfmpegMediaEngine
                     {
                         return new FfmpegMediaRunResult(1, false, hadProgress, $"source {sourceIndex + 1} contains no readable media packets");
                     }
-                    if (inputOptions == null && !IsFileInputFullyConsumed(inputContext, sourceFileNames[sourceIndex]))
+                    if (!salvageDamagedFile
+                        && inputOptions == null
+                        && !IsFileInputFullyConsumed(inputContext, sourceFileNames[sourceIndex]))
                     {
                         return new FfmpegMediaRunResult(1, false, hadProgress, $"source {sourceIndex + 1} ended before the physical file end");
                     }
@@ -2039,7 +2098,9 @@ internal static unsafe partial class FfmpegMediaEngine
                     false,
                     hadProgress,
                     string.Empty,
-                    Math.Max(0d, timelineOffset / (double)ffmpeg.AV_TIME_BASE));
+                    Math.Max(0d, timelineOffset / (double)ffmpeg.AV_TIME_BASE),
+                    RecoveredReadErrors: recoveredReadErrors,
+                    DiscardedPackets: discardedPackets);
         }
         catch (Exception e)
         {
@@ -2174,6 +2235,20 @@ internal static unsafe partial class FfmpegMediaEngine
             return true;
         }
         return ffmpeg.avio_tell(input) >= inputSize;
+    }
+
+    private static bool TryAdvanceDamagedFileInput(AVFormatContext* inputContext, string sourceFileName)
+    {
+        if (!Path.GetExtension(sourceFileName).Equals(".ts", StringComparison.OrdinalIgnoreCase)
+            || inputContext->pb == null
+            || inputContext->pb->seekable == 0)
+        {
+            return false;
+        }
+
+        long before = ffmpeg.avio_tell(inputContext->pb);
+        long after = ffmpeg.avio_skip(inputContext->pb, 188);
+        return after > before;
     }
 
     private static long AddSaturated(long value, long offset)

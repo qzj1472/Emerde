@@ -116,11 +116,13 @@ internal static class MediaWorker
                     {
                         string eventCode = packetProgress.TimelineEvent switch
                         {
-                            FfmpegTimelineEventKind.VideoStalled => "s",
-                            FfmpegTimelineEventKind.AudioStalled => "a",
-                            FfmpegTimelineEventKind.InitialAligned => "i",
-                            _ => "r",
-                        };
+                             FfmpegTimelineEventKind.VideoStalled => "s",
+                             FfmpegTimelineEventKind.AudioStalled => "a",
+                             FfmpegTimelineEventKind.VideoRecovered => "r",
+                             FfmpegTimelineEventKind.AudioRecovered => "u",
+                             FfmpegTimelineEventKind.InitialAligned => "i",
+                             _ => string.Empty,
+                         };
                         Console.Out.WriteLine($"timeline|{eventCode}|{packetProgress.TimelineGapMicroseconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{videoPackets.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{audioPackets.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
                         Console.Out.Flush();
                     }

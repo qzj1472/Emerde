@@ -75,6 +75,18 @@ public sealed class DouyinCookieIsolationTests
     }
 
     [Fact]
+    public void DouyinWebViewObservesInitializationBeforeDisposal()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "DouyinWebViewResolver.cs"));
+
+        Assert.Contains("browserInitializationTask", source, StringComparison.Ordinal);
+        Assert.Contains("ObserveInitializationAndDisposeAsync", source, StringComparison.Ordinal);
+        Assert.Contains("ObserveTaskFailure(environmentTask)", source, StringComparison.Ordinal);
+        Assert.Contains("browserInitializationGeneration", source, StringComparison.Ordinal);
+        Assert.Contains("or COMException", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void BilibiliResolverStillReadsConfiguredCookie()
     {
         string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "SpiderImpl", "BilibiliSpider.cs"));

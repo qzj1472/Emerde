@@ -10,6 +10,7 @@ public sealed class LivePreviewPlaybackTerminatedEventArgs(string sessionKey) : 
 public sealed class LivePreviewPlayer : IDisposable
 {
     internal static readonly TimeSpan PlaybackStartTimeout = TimeSpan.FromSeconds(3);
+    internal static readonly TimeSpan PlaybackFinalStartTimeout = TimeSpan.FromSeconds(8);
     internal static readonly TimeSpan PlaybackStopTimeout = TimeSpan.FromMilliseconds(250);
     internal static readonly TimeSpan StandbyRetention = TimeSpan.FromSeconds(4);
     internal static readonly TimeSpan AudioTrackRestoreStep = TimeSpan.FromMilliseconds(10);
@@ -717,7 +718,18 @@ public sealed class LivePreviewPlayer : IDisposable
                     cancellationToken.ThrowIfCancellationRequested();
                     if (!ReferenceEquals(completed, playbackStarted.Task))
                     {
-                        throw new TimeoutException("Live preview playback did not start in time.");
+                        AppSessionLogger.Event("info", "preview", "preview_playback_slow_start", "live preview playback was still opening after the initial wait", new
+                        {
+                            initialTimeoutSeconds = PlaybackStartTimeout.TotalSeconds,
+                            finalTimeoutSeconds = PlaybackFinalStartTimeout.TotalSeconds,
+                        });
+                        TimeSpan remaining = PlaybackFinalStartTimeout - PlaybackStartTimeout;
+                        completed = await Task.WhenAny(playbackStarted.Task, Task.Delay(remaining, cancellationToken));
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (!ReferenceEquals(completed, playbackStarted.Task))
+                        {
+                            throw new TimeoutException("Live preview playback did not start in time.");
+                        }
                     }
 
                     await playbackStarted.Task;

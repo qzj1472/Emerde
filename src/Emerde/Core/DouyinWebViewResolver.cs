@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
@@ -19,6 +20,8 @@ internal static class DouyinWebViewResolver
     private static string browserProxyKey = string.Empty;
     private static bool browserCookiesSanitized;
     private static bool riskControlCookiesApplied;
+    private static Task? browserInitializationTask;
+    private static long browserInitializationGeneration;
     private static TaskCompletionSource? interactiveClosed;
     private static bool allowClose;
 
@@ -28,7 +31,10 @@ internal static class DouyinWebViewResolver
         {
             return !string.IsNullOrWhiteSpace(CoreWebView2Environment.GetAvailableBrowserVersionString());
         }
-        catch (WebView2RuntimeNotFoundException)
+        catch (Exception e) when (e is WebView2RuntimeNotFoundException
+            or DllNotFoundException
+            or BadImageFormatException
+            or COMException)
         {
             return false;
         }
@@ -74,12 +80,7 @@ internal static class DouyinWebViewResolver
         ShutdownCancellation.Cancel();
         allowClose = true;
         interactiveClosed?.TrySetResult();
-        browser?.Dispose();
-        browser = null;
-        browserCookiesSanitized = false;
-        riskControlCookiesApplied = false;
-        hostWindow?.Close();
-        hostWindow = null;
+        DisposeBrowser();
     }
 
     private static async Task<DouyinWebViewSnapshot> ResolveAsync(
@@ -158,6 +159,15 @@ internal static class DouyinWebViewResolver
         string proxyKey = GetProxyKey();
         if (browser != null && string.Equals(browserProxyKey, proxyKey, StringComparison.OrdinalIgnoreCase))
         {
+            if (browserInitializationTask != null)
+            {
+                await browserInitializationTask.WaitAsync(BrowserInitializationTimeout, cancellationToken);
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            if (browser.CoreWebView2 == null)
+            {
+                throw new InvalidOperationException("WebView2 initialization did not complete.");
+            }
             ShowHiddenWindow();
             return browser;
         }
@@ -167,11 +177,20 @@ internal static class DouyinWebViewResolver
         CoreWebView2EnvironmentOptions options = new(GetBrowserArguments(proxyKey));
         using CancellationTokenSource initializationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         initializationCancellation.CancelAfter(BrowserInitializationTimeout);
-        CoreWebView2Environment environment = await CoreWebView2Environment.CreateAsync(
-                null,
-                AppPaths.DouyinWebViewDataDirectory,
-                options)
-            .WaitAsync(initializationCancellation.Token);
+        Task<CoreWebView2Environment> environmentTask = CoreWebView2Environment.CreateAsync(
+            null,
+            AppPaths.DouyinWebViewDataDirectory,
+            options);
+        CoreWebView2Environment environment;
+        try
+        {
+            environment = await environmentTask.WaitAsync(initializationCancellation.Token);
+        }
+        catch
+        {
+            ObserveTaskFailure(environmentTask);
+            throw;
+        }
         WebView2 createdBrowser = new();
         Window createdWindow = new()
         {
@@ -191,10 +210,18 @@ internal static class DouyinWebViewResolver
         hostWindow = createdWindow;
         browser = createdBrowser;
         browserProxyKey = proxyKey;
+        long generation = Interlocked.Increment(ref browserInitializationGeneration);
         ShowHiddenWindow();
+        Task initializationTask = createdBrowser.EnsureCoreWebView2Async(environment);
+        browserInitializationTask = initializationTask;
         try
         {
-            await createdBrowser.EnsureCoreWebView2Async(environment).WaitAsync(initializationCancellation.Token);
+            await initializationTask.WaitAsync(initializationCancellation.Token);
+            if (generation != Volatile.Read(ref browserInitializationGeneration)
+                || !ReferenceEquals(browser, createdBrowser))
+            {
+                throw new OperationCanceledException("WebView2 initialization was superseded.");
+            }
             ApplyProxyCredentials(createdBrowser.CoreWebView2, proxyKey);
             createdBrowser.CoreWebView2.Settings.AreDevToolsEnabled = false;
             createdBrowser.CoreWebView2.Settings.IsPasswordAutosaveEnabled = false;
@@ -442,16 +469,80 @@ internal static class DouyinWebViewResolver
 
     private static void DisposeBrowser()
     {
-        browser?.Dispose();
+        WebView2? detachedBrowser = browser;
+        Window? detachedWindow = hostWindow;
+        Task? initializationTask = browserInitializationTask;
+        Interlocked.Increment(ref browserInitializationGeneration);
         browser = null;
+        hostWindow = null;
+        browserInitializationTask = null;
         browserCookiesSanitized = false;
         riskControlCookiesApplied = false;
-        if (hostWindow != null)
+        if (detachedBrowser == null && detachedWindow == null)
         {
-            allowClose = true;
-            hostWindow.Close();
-            allowClose = false;
-            hostWindow = null;
+            return;
         }
+
+        if (initializationTask is { IsCompleted: false })
+        {
+            _ = ObserveInitializationAndDisposeAsync(initializationTask, detachedBrowser, detachedWindow);
+            return;
+        }
+
+        if (initializationTask != null)
+        {
+            _ = initializationTask.Exception;
+        }
+        DisposeBrowserInstances(detachedBrowser, detachedWindow);
+    }
+
+    private static async Task ObserveInitializationAndDisposeAsync(
+        Task initializationTask,
+        WebView2? detachedBrowser,
+        Window? detachedWindow)
+    {
+        try
+        {
+            await initializationTask.ConfigureAwait(false);
+        }
+        catch
+        {
+        }
+
+        if (detachedWindow?.Dispatcher is { HasShutdownStarted: false } dispatcher)
+        {
+            try
+            {
+                await dispatcher.InvokeAsync(() => DisposeBrowserInstances(detachedBrowser, detachedWindow));
+            }
+            catch (TaskCanceledException)
+            {
+            }
+            catch (InvalidOperationException) when (dispatcher.HasShutdownStarted)
+            {
+            }
+        }
+    }
+
+    private static void ObserveTaskFailure(Task task)
+    {
+        _ = task.ContinueWith(
+            completed => _ = completed.Exception,
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
+
+    private static void DisposeBrowserInstances(WebView2? detachedBrowser, Window? detachedWindow)
+    {
+        detachedBrowser?.Dispose();
+        if (detachedWindow == null)
+        {
+            return;
+        }
+
+        allowClose = true;
+        detachedWindow.Close();
+        allowClose = false;
     }
 }

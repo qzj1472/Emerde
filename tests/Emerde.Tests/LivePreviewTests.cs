@@ -10,6 +10,28 @@ namespace Emerde.Tests;
 
 public sealed class LivePreviewTests
 {
+    [Theory]
+    [InlineData(0, 5, 1, 1)]
+    [InlineData(4, 5, 1, 0)]
+    [InlineData(0, 5, -1, 4)]
+    [InlineData(3, 5, -1, 2)]
+    public void PageCycle_WrapsInBothDirections(int currentPage, int pageCount, int direction, int expectedPage)
+    {
+        Assert.Equal(expectedPage, MainWindow.GetCycledPageIndex(currentPage, pageCount, direction));
+    }
+
+    [Fact]
+    public void PreviewSurface_DoubleClickOnlyTogglesFullscreen()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "LivePreviewPanel.xaml"));
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "LivePreviewPanel.xaml.cs"));
+
+        Assert.Contains("MouseLeftButtonDown=\"PreviewTouchLayer_OnMouseLeftButtonDown\"", xaml);
+        Assert.DoesNotContain("MouseLeftButtonUp=\"PreviewTouchLayer_OnMouseLeftButtonUp\"", xaml);
+        Assert.DoesNotContain("previewClickTimer", source);
+        Assert.DoesNotContain("TogglePreviewPlayback", source);
+    }
+
     [Fact]
     public void GridLengthAnimation_ClonesItsEasingFunction()
     {
@@ -74,6 +96,7 @@ public sealed class LivePreviewTests
     {
         Assert.Equal(80, LivePreviewPlayer.CacheMilliseconds);
         Assert.Equal(TimeSpan.FromSeconds(3), LivePreviewPlayer.PlaybackStartTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(8), LivePreviewPlayer.PlaybackFinalStartTimeout);
         Assert.Equal(TimeSpan.FromMilliseconds(250), LivePreviewPlayer.PlaybackStopTimeout);
         Assert.Equal(TimeSpan.FromSeconds(4), LivePreviewPlayer.StandbyRetention);
         Assert.Equal(3, LivePreviewPlayer.MaximumSessionCount);
@@ -429,6 +452,35 @@ public sealed class LivePreviewTests
         Assert.Equal(
             new System.Windows.Size(0d, 0d),
             LivePreviewPanel.CalculateVideoSurfaceSize(0d, 480d, 1920, 1080, 1.5d, 1.5d));
+    }
+
+    [Theory]
+    [InlineData(471.7, 480, 1.5, true)]
+    [InlineData(900, 500.3, 1.25, false)]
+    public void CalculateVideoSurfaceSize_PreservesTheViewportEdgeWithoutCropping(
+        double viewportWidth,
+        double viewportHeight,
+        double dpiScale,
+        bool widthConstrained)
+    {
+        System.Windows.Size size = LivePreviewPanel.CalculateVideoSurfaceSize(
+            viewportWidth,
+            viewportHeight,
+            1920,
+            1080,
+            dpiScale,
+            dpiScale);
+
+        if (widthConstrained)
+        {
+            Assert.Equal(viewportWidth, size.Width, 6);
+            Assert.True(size.Height < viewportHeight);
+        }
+        else
+        {
+            Assert.Equal(viewportHeight, size.Height, 6);
+            Assert.True(size.Width < viewportWidth);
+        }
     }
 
     [Fact]

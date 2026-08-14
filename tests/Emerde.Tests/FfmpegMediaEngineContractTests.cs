@@ -547,6 +547,71 @@ public sealed class FfmpegMediaEngineContractTests
 
         Assert.Equal(FfmpegTimelineEventKind.AudioStalled, stalled.EventKind);
         Assert.Equal(3_020_000, stalled.GapMicroseconds);
+        Assert.True(stalled.DiscardPacket);
+    }
+
+    [Fact]
+    public void MediaTimelineRecovery_QuarantinesVideoUntilAudioReturnsAndReanchorsBothTracks()
+    {
+        FfmpegMediaEngine.MediaTimelineRecovery recovery = new(
+            FfmpegMediaEngine.VideoTimelineStallThresholdMicroseconds,
+            detectAudioStalls: true);
+
+        _ = recovery.Observe(true, false, 0, 40_000, true);
+        _ = recovery.Observe(false, true, 20_000, 20_000, false);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult stalled = recovery.Observe(
+            true,
+            false,
+            3_040_000,
+            40_000,
+            false);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult quarantinedVideo = recovery.Observe(
+            true,
+            false,
+            3_080_000,
+            40_000,
+            true);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult recoveredAudio = recovery.Observe(
+            false,
+            true,
+            53_000_000,
+            20_000,
+            false);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult recoveredVideo = recovery.Observe(
+            true,
+            false,
+            3_120_000,
+            40_000,
+            false);
+
+        Assert.Equal(FfmpegTimelineEventKind.AudioStalled, stalled.EventKind);
+        Assert.True(stalled.DiscardPacket);
+        Assert.True(quarantinedVideo.DiscardPacket);
+        Assert.Equal(FfmpegTimelineEventKind.AudioRecovered, recoveredAudio.EventKind);
+        Assert.False(recoveredAudio.DiscardPacket);
+        Assert.Equal(40_000, 53_000_000 + recoveredAudio.PacketTimestampCorrection);
+        Assert.Equal(40_000, 3_120_000 + recoveredVideo.PacketTimestampCorrection);
+    }
+
+    [Fact]
+    public void MediaTimelineRecovery_HandlesRepeatedAudioStalls()
+    {
+        FfmpegMediaEngine.MediaTimelineRecovery recovery = new(
+            FfmpegMediaEngine.VideoTimelineStallThresholdMicroseconds,
+            detectAudioStalls: true);
+
+        _ = recovery.Observe(true, false, 0, 40_000, true);
+        _ = recovery.Observe(false, true, 0, 20_000, false);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult firstStall = recovery.Observe(true, false, 3_000_000, 40_000, false);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult firstRecovery = recovery.Observe(false, true, 4_000_000, 20_000, false);
+        _ = recovery.Observe(true, false, 4_000_000, 40_000, false);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult secondStall = recovery.Observe(true, false, 7_000_000, 40_000, false);
+        FfmpegMediaEngine.MediaTimelineRecoveryResult secondRecovery = recovery.Observe(false, true, 8_000_000, 20_000, false);
+
+        Assert.Equal(FfmpegTimelineEventKind.AudioStalled, firstStall.EventKind);
+        Assert.Equal(FfmpegTimelineEventKind.AudioRecovered, firstRecovery.EventKind);
+        Assert.Equal(FfmpegTimelineEventKind.AudioStalled, secondStall.EventKind);
+        Assert.Equal(FfmpegTimelineEventKind.AudioRecovered, secondRecovery.EventKind);
     }
 
     [Fact]

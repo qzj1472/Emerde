@@ -266,6 +266,8 @@ public sealed class RecorderTests
         Assert.Contains("outputTask = process.StandardOutput.ReadToEndAsync();", source);
         Assert.Contains("errorTask = process.StandardError.ReadToEndAsync();", source);
         Assert.Contains("reference stream unavailable; local timeline stall requires restart", source);
+        Assert.Contains("record_cross_stream_retry_scheduled", source);
+        Assert.Contains("RunCrossStreamVerificationOnceAsync", source);
         Assert.DoesNotContain("record_quarantine_segment_discarded", source);
     }
 
@@ -447,6 +449,7 @@ public sealed class RecorderTests
     [InlineData("timeline|a|3020000|150|210", 2, 3_020_000, 150, 210)]
     [InlineData("timeline|r|2960000|76|421", 3, 2_960_000, 76, 421)]
     [InlineData("timeline|i|2700000|0|0", 4, 2_700_000, 0, 0)]
+    [InlineData("timeline|u|3020000|151|211", 5, 3_020_000, 151, 211)]
     public void MediaWorkerTimelineEvent_ParsesTrackStallDiagnostics(
         string line,
         int expectedEvent,

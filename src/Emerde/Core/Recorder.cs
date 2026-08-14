@@ -1184,6 +1184,31 @@ public sealed class Recorder
         FfmpegInputOptions inputOptions,
         CancellationToken token)
     {
+        FfmpegCrossStreamAnalysisResult first = await RunCrossStreamVerificationOnceAsync(
+            selectedUrl,
+            referenceUrl,
+            inputOptions,
+            token);
+        if (first.IsConclusive || token.IsCancellationRequested)
+        {
+            return first;
+        }
+
+        AppSessionLogger.Event("warn", "recorder", "record_cross_stream_retry_scheduled", "cross-stream verification was inconclusive and one final sample will be attempted", new
+        {
+            first.TimelineDifferenceSeconds,
+            first.Error,
+        });
+        await Task.Delay(TimeSpan.FromSeconds(1), token);
+        return await RunCrossStreamVerificationOnceAsync(selectedUrl, referenceUrl, inputOptions, token);
+    }
+
+    private static async Task<FfmpegCrossStreamAnalysisResult> RunCrossStreamVerificationOnceAsync(
+        string selectedUrl,
+        string referenceUrl,
+        FfmpegInputOptions inputOptions,
+        CancellationToken token)
+    {
         string commandPath = string.Empty;
         Process? process = null;
         Task<string>? outputTask = null;
@@ -1390,17 +1415,21 @@ public sealed class Recorder
                     bool audioStalled = timelineEvent == FfmpegTimelineEventKind.AudioStalled;
                     string action = timelineEvent switch
                     {
-                        FfmpegTimelineEventKind.VideoStalled => "record_video_timeline_stalled",
-                        FfmpegTimelineEventKind.AudioStalled => "record_audio_timeline_stalled",
-                        FfmpegTimelineEventKind.InitialAligned => "record_initial_timeline_aligned",
-                        _ => "record_video_timeline_recovered",
+                         FfmpegTimelineEventKind.VideoStalled => "record_video_timeline_stalled",
+                         FfmpegTimelineEventKind.AudioStalled => "record_audio_timeline_stalled",
+                         FfmpegTimelineEventKind.VideoRecovered => "record_video_timeline_recovered",
+                         FfmpegTimelineEventKind.AudioRecovered => "record_audio_timeline_recovered",
+                         FfmpegTimelineEventKind.InitialAligned => "record_initial_timeline_aligned",
+                         _ => "record_timeline_event",
                     };
                     string message = timelineEvent switch
                     {
-                        FfmpegTimelineEventKind.VideoStalled => "audio continued while video packets stopped",
-                        FfmpegTimelineEventKind.AudioStalled => "video continued while audio packets stopped",
-                        FfmpegTimelineEventKind.InitialAligned => "video and audio startup timelines were aligned before recording output",
-                        _ => "video timeline resumed on a keyframe and was aligned with audio",
+                         FfmpegTimelineEventKind.VideoStalled => "audio continued while video packets stopped",
+                         FfmpegTimelineEventKind.AudioStalled => "video continued while audio packets stopped",
+                         FfmpegTimelineEventKind.VideoRecovered => "video timeline resumed on a keyframe and was aligned with audio",
+                         FfmpegTimelineEventKind.AudioRecovered => "audio timeline resumed and both tracks were aligned at the last safe timestamp",
+                         FfmpegTimelineEventKind.InitialAligned => "video and audio startup timelines were aligned before recording output",
+                         _ => "media timeline state changed",
                     };
                     AppSessionLogger.Event(
                         videoStalled || audioStalled ? "warn" : "info",
@@ -1556,9 +1585,10 @@ public sealed class Recorder
         timelineEvent = parts[1] switch
         {
             "s" => FfmpegTimelineEventKind.VideoStalled,
-            "a" => FfmpegTimelineEventKind.AudioStalled,
-            "r" => FfmpegTimelineEventKind.VideoRecovered,
-            "i" => FfmpegTimelineEventKind.InitialAligned,
+             "a" => FfmpegTimelineEventKind.AudioStalled,
+             "r" => FfmpegTimelineEventKind.VideoRecovered,
+             "u" => FfmpegTimelineEventKind.AudioRecovered,
+             "i" => FfmpegTimelineEventKind.InitialAligned,
             _ => FfmpegTimelineEventKind.None,
         };
         return timelineEvent != FfmpegTimelineEventKind.None;
