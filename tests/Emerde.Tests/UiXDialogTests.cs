@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using Emerde.ViewModels;
 
 namespace Emerde.Tests;
 
@@ -78,9 +79,26 @@ public sealed class UiXDialogTests
         Assert.Contains("UiXDialogContent.CreateSection", source, StringComparison.Ordinal);
         Assert.Contains("CreateRoomInformationStatusValue(room.StreamStatusText)", source, StringComparison.Ordinal);
         Assert.DoesNotContain("CreateRoomInformationStatusValue(room.StreamStatusText,", source, StringComparison.Ordinal);
+        Assert.Contains("CreateRoomInformationRecordStatusValue(room)", source, StringComparison.Ordinal);
+        Assert.Contains("roomInformationDurationTimer?.Stop()", source, StringComparison.Ordinal);
         Assert.Contains("return scrollViewer;", source, StringComparison.Ordinal);
         Assert.Contains("nameof(RoomStatusReactive.AvatarDisplaySource)", source, StringComparison.Ordinal);
         Assert.Contains("UpdateRoomRecordingSummaryAsync", source, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    public void RecordingDurationTimer_RunsGloballyOnlyForActiveLegacyUi(
+        bool hasActiveRecording,
+        bool isUiXEnabled,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            MainViewModel.ShouldRunGlobalRecordingDurationTimer(hasActiveRecording, isUiXEnabled));
     }
 
     [Fact]

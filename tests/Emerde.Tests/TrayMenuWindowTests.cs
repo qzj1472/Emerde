@@ -35,6 +35,11 @@ public sealed class TrayMenuWindowTests
 
         Assert.Contains("x:Name=\"MenuSurface\"", xaml, StringComparison.Ordinal);
         Assert.Contains("TrayMenuSelectionIndicatorStyle", xaml, StringComparison.Ordinal);
+        Assert.Contains("TrayMenuSelectionTextStyle", xaml, StringComparison.Ordinal);
+        Assert.Contains("Tag=\"{Binding IsMonitorRunning}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Tag=\"{Binding IsRecordEnabled}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Tag=\"{Binding IsAutoRun}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Foreground\" Value=\"{DynamicResource SystemAccentColorPrimaryBrush}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Click=\"ToggleMonitorClick\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Click=\"ToggleRecordClick\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Deactivated=\"TrayMenuWindowDeactivated\"", xaml, StringComparison.Ordinal);

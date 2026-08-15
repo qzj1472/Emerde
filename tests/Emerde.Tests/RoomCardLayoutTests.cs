@@ -22,6 +22,48 @@ public sealed class RoomCardLayoutTests
     }
 
     [Fact]
+    public void UiXHomeBaseWidthDropsTenPercentWithoutChangingPreview()
+    {
+        Assert.Equal(180d, MainWindow.GetUiXRoomCardBaseWidth(false));
+        Assert.Equal(200d, MainWindow.GetUiXRoomCardBaseWidth(true));
+    }
+
+    [Theory]
+    [InlineData(0, 1d, 0.5d)]
+    [InlineData(1, 0.5d, 1d)]
+    [InlineData(2, 0.5d, 1.5d)]
+    [InlineData(99, 1d, 1d)]
+    public void StoredRoomCardSizePreferenceRestoresKnownValues(int storedValue, double fallback, double expected)
+    {
+        Assert.Equal(expected, MainWindow.GetStoredRoomCardSizePreference(storedValue, fallback));
+    }
+
+    [Theory]
+    [InlineData(0.5d, 0)]
+    [InlineData(1d, 1)]
+    [InlineData(1.5d, 2)]
+    public void RoomCardSizePreferenceUsesStableStoredValues(double preference, int expected)
+    {
+        Assert.Equal(expected, MainWindow.GetStoredRoomCardSizeValue(preference));
+    }
+
+    [Fact]
+    public void RoomCardSizeAndSortPreferencesArePersisted()
+    {
+        string configurations = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Configurations.cs"));
+        string window = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
+        string viewModel = File.ReadAllText(FindRepositoryFile("src", "Emerde", "ViewModels", "MainViewModel.cs"));
+
+        Assert.Contains("RoomCardSizePreference), 1", configurations, StringComparison.Ordinal);
+        Assert.Contains("PreviewRoomCardSizePreference), 0", configurations, StringComparison.Ordinal);
+        Assert.Contains("IsRoomSortByName), false", configurations, StringComparison.Ordinal);
+        Assert.Contains("Configurations.RoomCardSizePreference.Set", window, StringComparison.Ordinal);
+        Assert.Contains("Configurations.PreviewRoomCardSizePreference.Set", window, StringComparison.Ordinal);
+        Assert.Contains("Configurations.IsRoomSortByName.Get()", viewModel, StringComparison.Ordinal);
+        Assert.Contains("Configurations.IsRoomSortByName.Set(sortByName)", viewModel, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PreviewWidth_KeepsMediumCardsOnOneColumn()
     {
         (int columns, _, _) = MainWindow.CalculateRoomCardLayout(276d, 264d, 1d, 12d);
@@ -38,7 +80,7 @@ public sealed class RoomCardLayoutTests
     }
 
     [Fact]
-    public void PreviewMode_UsesTheSameCardScalingRulesAsTheHomeGrid()
+    public void PreviewMode_UsesSharedScalingWithoutSparseHomeSizing()
     {
         string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
 
@@ -53,8 +95,9 @@ public sealed class RoomCardLayoutTests
         Assert.DoesNotContain("columns = Math.Min(2, columns)", code, StringComparison.Ordinal);
         Assert.Contains("fillAvailableWidth", code, StringComparison.Ordinal);
         Assert.Contains("GetRoomCardLayoutWidth(width, ViewModel.StatusOfIsUiXEnabled)", code, StringComparison.Ordinal);
-        Assert.Contains("previewRoomCardSizePreference = RoomCardSmallSizeScale", code, StringComparison.Ordinal);
-        Assert.Contains("boundedUiXCardWidth = GetCardWidthForColumns", code, StringComparison.Ordinal);
+        Assert.Contains("Configurations.PreviewRoomCardSizePreference.Get()", code, StringComparison.Ordinal);
+        Assert.Contains("bool isSparseHomeRow = !isUiXPreviewMode", code, StringComparison.Ordinal);
+        Assert.Contains(": GetCardWidthForColumns(availableWidth, columns, horizontalGap, range)", code, StringComparison.Ordinal);
         Assert.Contains("CalculateResponsiveCardLayout", code, StringComparison.Ordinal);
         Assert.Contains("GetCurrentRoomCardLayoutWidth", code, StringComparison.Ordinal);
         Assert.Contains("RoomCardPanelContent.ActualWidth", code, StringComparison.Ordinal);
@@ -161,65 +204,101 @@ public sealed class RoomCardLayoutTests
     }
 
     [Theory]
-    [InlineData(820d)]
-    [InlineData(824d)]
-    [InlineData(1048d)]
-    [InlineData(1054d)]
-    public void ResponsiveCardLayout_IsDeterministicInsideElasticSafetyGaps(double availableWidth)
+    [InlineData(160d, 160d, 178d, 160d)]
+    [InlineData(200d, 183d, 228d, 200d)]
+    [InlineData(260d, 233d, 260d, 260d)]
+    public void SparseHomeRows_KeepTheSelectedSizeTarget(
+        double targetWidth,
+        double minimumWidth,
+        double maximumWidth,
+        double expectedWidth)
     {
-        (int firstColumns, double firstSlotWidth, double firstCardWidth) = MainWindow.CalculateResponsiveCardLayout(
-            availableWidth,
-            1,
-            457d,
-            1d,
-            12d,
-            0.8d,
-            1d,
-            1.3d);
-        (int secondColumns, double secondSlotWidth, double secondCardWidth) = MainWindow.CalculateResponsiveCardLayout(
-            availableWidth,
-            8,
-            457d,
-            1d,
-            12d,
-            0.8d,
-            1d,
-            1.3d);
+        double cardWidth = MainWindow.GetSparseHomeRoomCardWidth(
+            targetWidth,
+            new MainWindow.CardWidthRange(minimumWidth, maximumWidth));
 
-        Assert.Equal(firstColumns, secondColumns);
-        Assert.Equal(firstSlotWidth, secondSlotWidth);
-        Assert.Equal(firstCardWidth, secondCardWidth);
+        Assert.Equal(expectedWidth, cardWidth);
     }
 
     [Theory]
-    [InlineData(720d)]
-    [InlineData(960d)]
-    [InlineData(1280d)]
-    [InlineData(1600d)]
-    public void ResponsiveCardLayout_DoesNotDependOnThePreviousColumnCount(double availableWidth)
+    [InlineData(548.4d, 3, 12d, 171d, 170d)]
+    [InlineData(320.8d, 2, 12d, 180d, 148d)]
+    [InlineData(120d, 1, 12d, 144d, 108d)]
+    public void ResponsiveCardWidth_NeverExceedsItsAvailableSlot(
+        double availableWidth,
+        int columns,
+        double horizontalGap,
+        double cardWidth,
+        double expectedWidth)
     {
-        (int firstColumns, double firstSlotWidth, double firstCardWidth) = MainWindow.CalculateResponsiveCardLayout(
+        double fittedWidth = MainWindow.FitRoomCardWidthToAvailableSpace(
             availableWidth,
-            1,
-            200d,
-            1d,
-            12d,
-            0.8d,
-            1d,
-            1.3d);
-        (int secondColumns, double secondSlotWidth, double secondCardWidth) = MainWindow.CalculateResponsiveCardLayout(
-            availableWidth,
-            12,
-            200d,
-            1d,
-            12d,
-            0.8d,
-            1d,
-            1.3d);
+            columns,
+            horizontalGap,
+            cardWidth);
 
-        Assert.Equal(firstColumns, secondColumns);
-        Assert.Equal(firstSlotWidth, secondSlotWidth);
-        Assert.Equal(firstCardWidth, secondCardWidth);
+        Assert.Equal(expectedWidth, fittedWidth);
+        Assert.True(columns * (fittedWidth + horizontalGap) <= availableWidth);
+    }
+
+    [Fact]
+    public void SparseHomeRows_DoNotStretchAcrossUnusedColumns()
+    {
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
+
+        Assert.Contains("int layoutCapacityColumns = columns", code, StringComparison.Ordinal);
+        Assert.Contains("!isUiXPreviewMode && visibleItemCount < layoutCapacityColumns", code, StringComparison.Ordinal);
+        Assert.Contains("GetSparseHomeRoomCardWidth(targetCardWidth, range)", code, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(530d, 2)]
+    [InlineData(542d, 3)]
+    public void ResponsiveCardColumns_KeepCurrentCountUntilGrowthHysteresisIsCrossed(
+        double availableWidth,
+        int expectedColumns)
+    {
+        int columns = MainWindow.StabilizeResponsiveCardColumns(
+            2,
+            3,
+            availableWidth,
+            212d,
+            100d,
+            12d);
+
+        Assert.Equal(expectedColumns, columns);
+    }
+
+    [Theory]
+    [InlineData(519d, 3)]
+    [InlineData(518d, 2)]
+    public void ResponsiveCardColumns_KeepCurrentCountUntilShrinkHysteresisIsCrossed(
+        double availableWidth,
+        int expectedColumns)
+    {
+        int columns = MainWindow.StabilizeResponsiveCardColumns(
+            3,
+            2,
+            availableWidth,
+            212d,
+            100d,
+            12d);
+
+        Assert.Equal(expectedColumns, columns);
+    }
+
+    [Fact]
+    public void ResponsiveCardColumns_ReduceImmediatelyWhenCurrentCardsNoLongerFit()
+    {
+        int columns = MainWindow.StabilizeResponsiveCardColumns(
+            3,
+            3,
+            500d,
+            212d,
+            180d,
+            12d);
+
+        Assert.Equal(2, columns);
     }
 
     [Theory]
@@ -330,9 +409,13 @@ public sealed class RoomCardLayoutTests
         string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
 
         Assert.Contains("bool isCompactPreviewCard = visualScale <= RoomCardSmallSizeScale", code, StringComparison.Ordinal);
-        Assert.Contains("UiXRoomCardAvatarSize = isCompactPreviewCard", code, StringComparison.Ordinal);
+        Assert.True(MainWindow.ShouldUseCompactUiXMetrics(true, false, 0.72d));
+        Assert.False(MainWindow.ShouldUseCompactUiXMetrics(true, false, 0.73d));
+        Assert.True(MainWindow.ShouldUseCompactUiXMetrics(false, true, 0.90d));
+        Assert.False(MainWindow.ShouldUseCompactUiXMetrics(false, false, 0.50d));
+        Assert.Contains("UiXRoomCardAvatarSize = useCompactUiXMetrics", code, StringComparison.Ordinal);
         Assert.Contains("? 28d", code, StringComparison.Ordinal);
-        Assert.Contains("UiXRoomCardNameFontSize = isCompactPreviewCard", code, StringComparison.Ordinal);
+        Assert.Contains("UiXRoomCardNameFontSize = useCompactUiXMetrics", code, StringComparison.Ordinal);
         Assert.Contains("? 11d", code, StringComparison.Ordinal);
         Assert.Contains("? new Thickness(4, 3, 4, 0)", code, StringComparison.Ordinal);
         Assert.Contains(": new Thickness(6, 8, 6, 0)", code, StringComparison.Ordinal);

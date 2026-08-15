@@ -77,6 +77,15 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Visibility" Value="Collapsed" />
         </Style>
+        <Style x:Key="TrayMenuSelectionTextStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Style.Triggers>
+                <Trigger Property="Tag" Value="True">
+                    <Setter Property="Foreground" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="TrayMenuDividerStyle" TargetType="{x:Type Border}">
             <Setter Property="Height" Value="1" />
             <Setter Property="Margin" Value="8,4" />
@@ -129,7 +138,7 @@
                     </Grid.ColumnDefinitions>
                     <Border Grid.Column="0" Style="{StaticResource TrayMenuSelectionIndicatorStyle}" Visibility="{Binding MonitorIndicatorVisibility}" />
                     <ui:FontIcon Grid.Column="2" Style="{StaticResource TrayMenuIconStyle}" Glyph="{x:Static ui:FontSymbols.Radar}" />
-                    <TextBlock Grid.Column="4" VerticalAlignment="Center" Text="{Binding MonitorText}" />
+                    <TextBlock Grid.Column="4" Style="{StaticResource TrayMenuSelectionTextStyle}" Tag="{Binding IsMonitorRunning}" Text="{Binding MonitorText}" />
                 </Grid>
             </Button>
             <Button Click="ToggleRecordClick" Style="{StaticResource TrayMenuButtonStyle}">
@@ -143,7 +152,7 @@
                     </Grid.ColumnDefinitions>
                     <Border Grid.Column="0" Style="{StaticResource TrayMenuSelectionIndicatorStyle}" Visibility="{Binding RecordIndicatorVisibility}" />
                     <ui:FontIcon Grid.Column="2" Style="{StaticResource TrayMenuIconStyle}" Glyph="{x:Static ui:FontSymbols.Record}" />
-                    <TextBlock Grid.Column="4" VerticalAlignment="Center" Text="{Binding RecordText}" />
+                    <TextBlock Grid.Column="4" Style="{StaticResource TrayMenuSelectionTextStyle}" Tag="{Binding IsRecordEnabled}" Text="{Binding RecordText}" />
                 </Grid>
             </Button>
             <Button Click="ToggleAutoRunClick" Style="{StaticResource TrayMenuButtonStyle}">
@@ -157,7 +166,7 @@
                     </Grid.ColumnDefinitions>
                     <Border Grid.Column="0" Style="{StaticResource TrayMenuSelectionIndicatorStyle}" Visibility="{Binding AutoRunIndicatorVisibility}" />
                     <ui:FontIcon Grid.Column="2" Style="{StaticResource TrayMenuIconStyle}" Glyph="{x:Static ui:FontSymbols.Play}" />
-                    <TextBlock Grid.Column="4" VerticalAlignment="Center" Text="{Binding AutoRunText}" />
+                    <TextBlock Grid.Column="4" Style="{StaticResource TrayMenuSelectionTextStyle}" Tag="{Binding IsAutoRun}" Text="{Binding AutoRunText}" />
                 </Grid>
             </Button>
 

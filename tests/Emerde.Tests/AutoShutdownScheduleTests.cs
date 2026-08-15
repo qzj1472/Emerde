@@ -5,6 +5,24 @@ namespace Emerde.Tests;
 
 public sealed class AutoShutdownScheduleTests
 {
+    [Theory]
+    [InlineData(false, false, false, false, false, false)]
+    [InlineData(true, false, false, false, false, true)]
+    [InlineData(false, true, false, false, false, true)]
+    [InlineData(false, false, true, false, false, true)]
+    [InlineData(false, false, false, true, false, true)]
+    [InlineData(false, false, false, false, true, true)]
+    public void AutoShutdownPendingWork_IncludesEveryMediaOperation(
+        bool recording,
+        bool conversion,
+        bool repair,
+        bool split,
+        bool merge,
+        bool expected)
+    {
+        Assert.Equal(expected, MainViewModel.HasAutoShutdownPendingWork(recording, conversion, repair, split, merge));
+    }
+
     [Fact]
     public void ResolveCloseTarget_DefaultsToApplication()
     {

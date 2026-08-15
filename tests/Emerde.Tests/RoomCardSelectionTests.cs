@@ -315,6 +315,15 @@ public sealed class RoomCardSelectionTests
         Assert.Contains(result, platform => platform.Equals("Twitch", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void NormalizePlatformFilter_TreatsEmptyValuesAsAllPlatforms(string? value)
+    {
+        Assert.Equal(MainViewModel.AllPlatformFilter, MainViewModel.NormalizePlatformFilter(value));
+    }
+
     [Fact]
     public void BuildRoomSortDescriptions_UsesSelectedSortMode()
     {

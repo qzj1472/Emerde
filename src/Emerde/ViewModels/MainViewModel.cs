@@ -190,11 +190,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     [NotifyPropertyChangedFor(nameof(IsPlatformFilterActive))]
     private string selectedPlatformFilter = AllPlatformFilter;
 
-    public bool IsPlatformFilterActive => SelectedPlatformFilter != AllPlatformFilter;
+    public bool IsPlatformFilterActive => NormalizePlatformFilter(SelectedPlatformFilter) != AllPlatformFilter;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsRoomSortByAddedAt))]
-    private bool isRoomSortByName;
+    private bool isRoomSortByName = Configurations.IsRoomSortByName.Get();
 
     public bool IsRoomSortByAddedAt => !IsRoomSortByName;
 
@@ -205,18 +205,30 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     public string GetPlatformFilterDisplayName(string value)
     {
-        return value == AllPlatformFilter ? "AllPlatforms".Tr() : global::Emerde.Core.PlatformDisplayName.Get(value);
+        string normalizedValue = NormalizePlatformFilter(value);
+        return normalizedValue == AllPlatformFilter ? "AllPlatforms".Tr() : global::Emerde.Core.PlatformDisplayName.Get(normalizedValue);
     }
 
     public void EnsureSelectedPlatformFilterAvailable()
     {
-        if (SelectedPlatformFilter != AllPlatformFilter
-            && !RoomStatuses.Any(room => string.Equals(room.PlatformName, SelectedPlatformFilter, StringComparison.OrdinalIgnoreCase)))
+        string normalizedSelection = NormalizePlatformFilter(SelectedPlatformFilter);
+        if (!string.Equals(SelectedPlatformFilter, normalizedSelection, StringComparison.Ordinal))
+        {
+            SelectedPlatformFilter = normalizedSelection;
+        }
+
+        if (normalizedSelection != AllPlatformFilter
+            && !RoomStatuses.Any(room => string.Equals(room.PlatformName, normalizedSelection, StringComparison.OrdinalIgnoreCase)))
         {
             SelectedPlatformFilter = AllPlatformFilter;
         }
 
         OnPropertyChanged(nameof(PlatformFilterOptions));
+    }
+
+    internal static string NormalizePlatformFilter(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? AllPlatformFilter : value;
     }
 
     public string PlatformSummaryText
@@ -774,6 +786,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         StatusOfAutoShutdownTime = Configurations.AutoShutdownTime.Get();
         StatusOfRecordFormat = Configurations.RecordFormat.Get();
         StatusOfRoutineInterval = MonitorTiming.NormalizeRoutineInterval(Configurations.RoutineInterval.Get());
+        UpdateRecordingDurationTimer(IsRecording);
 
         if (refreshRoomEffectiveStates)
         {
@@ -793,7 +806,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     private void UpdateRecordingDurationTimer(bool hasActiveRecording)
     {
-        if (hasActiveRecording)
+        if (ShouldRunGlobalRecordingDurationTimer(hasActiveRecording, StatusOfIsUiXEnabled))
         {
             if (!RecordingDurationDispatcherTimer.IsEnabled)
             {
@@ -803,6 +816,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
 
         RecordingDurationDispatcherTimer.Stop();
+    }
+
+    internal static bool ShouldRunGlobalRecordingDurationTimer(bool hasActiveRecording, bool isUiXEnabled)
+    {
+        return hasActiveRecording && !isUiXEnabled;
     }
 
     private void OnAutoShutdownTimerTick()
@@ -982,8 +1000,16 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             {
                 activeRecorders = GlobalMonitor.HasActiveRecorders,
                 activeConversions = Converter.ActiveConversionCount,
+                activeRepairs = MediaOperationRegistry.Count(MediaOperationKind.Repair),
+                activeSplits = MediaOperationRegistry.Count(MediaOperationKind.Split),
+                activeMerges = MediaOperationRegistry.Count(MediaOperationKind.Merge),
             });
-            while (!token.IsCancellationRequested && (GlobalMonitor.HasActiveRecorders || Converter.HasActiveConversions))
+            while (!token.IsCancellationRequested && HasAutoShutdownPendingWork(
+                GlobalMonitor.HasActiveRecorders,
+                Converter.HasActiveConversions,
+                MediaOperationRegistry.HasActive(MediaOperationKind.Repair),
+                MediaOperationRegistry.HasActive(MediaOperationKind.Split),
+                MediaOperationRegistry.HasActive(MediaOperationKind.Merge)))
             {
                 await Task.Delay(500, token);
             }
@@ -1014,13 +1040,27 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return true;
         }
 
-        bool succeeded = Interop.ExitWindowsEx(User32.ExitWindowsFlags.EWX_SHUTDOWN | User32.ExitWindowsFlags.EWX_FORCE);
+        bool succeeded = Interop.ExitWindowsEx(User32.ExitWindowsFlags.EWX_SHUTDOWN);
         if (!succeeded)
         {
             AppSessionLogger.Event("error", "shutdown", "system_shutdown_failed", "system shutdown request failed");
             Toast.Error("AutoShutdownComputerFailed".Tr());
         }
         return succeeded;
+    }
+
+    internal static bool HasAutoShutdownPendingWork(
+        bool hasActiveRecorders,
+        bool hasActiveConversions,
+        bool hasActiveRepairs,
+        bool hasActiveSplits,
+        bool hasActiveMerges)
+    {
+        return hasActiveRecorders
+            || hasActiveConversions
+            || hasActiveRepairs
+            || hasActiveSplits
+            || hasActiveMerges;
     }
 
     private void ResetAutoShutdownReadiness()
@@ -2621,17 +2661,27 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         ApplyRoomInformationDialogSize();
         RoutedEventHandler loadedHandler = (_, _) => ApplyRoomInformationDialogSize();
         dialog.Loaded += loadedHandler;
+        ForeverDispatcherTimer? roomInformationDurationTimer = null;
+        if (StatusOfIsUiXEnabled)
+        {
+            targetRoom.RefreshDuration();
+            roomInformationDurationTimer = new(TimeSpan.FromSeconds(1), targetRoom.RefreshDuration);
+            roomInformationDurationTimer.Start();
+        }
 
         _ = UpdateRoomRecordingSummaryAsync(targetRoom, lastRecordedAtValue, lastEndedAtValue, storageUsageValue);
-        using DialogBlurScope blurScope = StatusOfIsUiXEnabled
-            ? DialogBlurScope.ForLightDismiss(owner, dialog)
-            : DialogBlurScope.ForDialog(owner, dialog);
+        DialogBlurScope? blurScope = null;
         try
         {
+            blurScope = StatusOfIsUiXEnabled
+                ? DialogBlurScope.ForLightDismiss(owner, dialog)
+                : DialogBlurScope.ForDialog(owner, dialog);
             await ShowMainContentDialogAsync(dialog);
         }
         finally
         {
+            roomInformationDurationTimer?.Stop();
+            blurScope?.Dispose();
             dialog.Loaded -= loadedHandler;
             LocalSettingsContentDialog.ClearWideDialogVisualSize(dialog);
         }
@@ -2712,7 +2762,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 UiXDialogContent.CreateValueRow("Platform".Tr(), CreateRoomInformationValueText(room.PlatformDisplayName)),
                 UiXDialogContent.CreateValueRow("LiveTitle".Tr(), CreateRoomInformationValueText(room.LiveTitleText)),
                 UiXDialogContent.CreateValueRow("StreamStatus".Tr(), CreateRoomInformationStatusValue(room.StreamStatusText)),
-                UiXDialogContent.CreateValueRow("RecordStatus".Tr(), CreateRoomInformationStatusValue(room.RecordStatusText)),
+                UiXDialogContent.CreateValueRow("RecordStatus".Tr(), CreateRoomInformationRecordStatusValue(room)),
                 UiXDialogContent.CreateValueRow("RecordFormat".Tr(), CreateRoomInformationValueText(StatusOfRecordFormat), true),
             ],
             Wpf.Ui.Controls.FontSymbols.Info);
@@ -2804,8 +2854,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         Grid.SetColumn(identity, 1);
         grid.Children.Add(identity);
 
-        FrameworkElement state = CreateRoomInformationStatusValue(
-            room.IsRecordingOrStarting ? room.RecordStatusText : room.StreamStatusText);
+        FrameworkElement state = room.IsRecordingOrStarting
+            ? CreateRoomInformationRecordStatusValue(room)
+            : CreateRoomInformationStatusValue(room.StreamStatusText);
         state.Margin = new Thickness(16, 0, 0, 0);
         state.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(state, 2);
@@ -2820,6 +2871,17 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         label.FontWeight = FontWeights.SemiBold;
         label.TextWrapping = TextWrapping.NoWrap;
         label.VerticalAlignment = VerticalAlignment.Center;
+        return label;
+    }
+
+    private FrameworkElement CreateRoomInformationRecordStatusValue(RoomStatusReactive room)
+    {
+        TextBlock label = (TextBlock)CreateRoomInformationStatusValue(room.RecordStatusText);
+        BindingOperations.SetBinding(label, TextBlock.TextProperty, new System.Windows.Data.Binding(nameof(RoomStatusReactive.RecordStatusText))
+        {
+            Source = room,
+            Mode = BindingMode.OneWay,
+        });
         return label;
     }
 
@@ -3284,14 +3346,20 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     [RelayCommand]
     private void SortRoomsByName()
     {
-        IsRoomSortByName = true;
-        ApplyRoomSort();
+        SetRoomSort(true);
     }
 
     [RelayCommand]
     private void SortRoomsByAddedAt()
     {
-        IsRoomSortByName = false;
+        SetRoomSort(false);
+    }
+
+    private void SetRoomSort(bool sortByName)
+    {
+        IsRoomSortByName = sortByName;
+        Configurations.IsRoomSortByName.Set(sortByName);
+        ConfigurationSaveScheduler.Request();
         ApplyRoomSort();
     }
 
@@ -5418,8 +5486,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return false;
         }
 
-        return SelectedPlatformFilter == AllPlatformFilter
-            || string.Equals(room.PlatformName, SelectedPlatformFilter, StringComparison.OrdinalIgnoreCase);
+        string selectedPlatform = NormalizePlatformFilter(SelectedPlatformFilter);
+        return selectedPlatform == AllPlatformFilter
+            || string.Equals(room.PlatformName, selectedPlatform, StringComparison.OrdinalIgnoreCase);
     }
 
     private void OnCultureChanged(object? sender, EventArgs e)
