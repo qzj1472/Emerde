@@ -7,7 +7,6 @@ internal sealed record MediaFileWorkflowResult(
 
 internal static class MediaFileWorkflow
 {
-    private static readonly SemaphoreSlim OperationStartGate = new(1, 1);
 
     public static async Task<MediaFileWorkflowResult> SplitAsync(
         string sourcePath,
@@ -187,7 +186,7 @@ internal static class MediaFileWorkflow
             && signatures.Distinct(StringComparer.Ordinal).Count() == 1;
     }
 
-    internal static async Task<IDisposable?> TryRegisterOperationAsync(
+    internal static Task<IDisposable?> TryRegisterOperationAsync(
         MediaOperationKind kind,
         IEnumerable<string> sourcePaths,
         Func<IEnumerable<string?>> protectedPaths,
@@ -201,19 +200,8 @@ internal static class MediaFileWorkflow
             .Select(path => path!)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        await OperationStartGate.WaitAsync(cancellationToken);
-        try
-        {
-            if (paths.Any(MediaOperationRegistry.IsPathProtected))
-            {
-                return null;
-            }
-            return MediaOperationRegistry.Register(kind, () => paths, cancel);
-        }
-        finally
-        {
-            OperationStartGate.Release();
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(MediaOperationRegistry.TryRegister(kind, paths, cancel));
     }
 
     private static string[] GetSplitTemporaryOutputs(string directory, string temporaryStem, string extension, string temporaryPattern)

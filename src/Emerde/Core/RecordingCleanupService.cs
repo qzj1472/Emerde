@@ -39,6 +39,7 @@ internal static class RecordingCleanupService
     private const int MaximumExpirationBatchSize = 32;
     private static readonly SemaphoreSlim RunGate = new(1, 1);
     private static readonly object ScheduleLock = new();
+    private static readonly object WorkerLock = new();
     private static readonly PriorityQueue<ScheduledRecording, long> Schedule = new();
     private static readonly Dictionary<string, ScheduledRecording> ScheduledEntries = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, ScheduledRecording> TrackedDuringRebuild = new(StringComparer.OrdinalIgnoreCase);
@@ -54,10 +55,14 @@ internal static class RecordingCleanupService
     private static int queuedRunRequested;
     private static int queuedWorkerRunning;
     private static int expirationWorkerRunning;
+    private static int workersStopping;
     private static bool scheduleRebuildActive;
     private static bool stateLoaded;
     private static bool embeddedMetadataMigrationCompleted;
     private static string? stateFilePathOverride;
+    private static CancellationTokenSource workerCancellation = new();
+    private static Task? queuedWorkerTask;
+    private static Task? expirationWorkerTask;
 
     public static void QueueRun()
     {
@@ -100,6 +105,9 @@ internal static class RecordingCleanupService
                 cancellationToken);
             CompleteScheduleRebuild(scanResult.Recordings, scanResult.Completed);
             scheduleReplaced = true;
+            await Task.Run(
+                () => DeleteOrphanedRepairReports(scanResult.OrphanedRepairReports, cancellationToken),
+                cancellationToken);
             await Task.Run(() => ProcessExpiredRecordings(cancellationToken), cancellationToken);
         }
         catch (OperationCanceledException)
@@ -121,25 +129,37 @@ internal static class RecordingCleanupService
 
     private static void StartQueuedWorker()
     {
+        if (Volatile.Read(ref workersStopping) != 0)
+        {
+            return;
+        }
         if (Interlocked.CompareExchange(ref queuedWorkerRunning, 1, 0) == 0)
         {
-            _ = Task.Run(ProcessQueuedRunsAsync);
+            lock (WorkerLock)
+            {
+                CancellationToken token = workerCancellation.Token;
+                queuedWorkerTask = Task.Run(() => ProcessQueuedRunsAsync(token), token);
+            }
         }
     }
 
-    private static async Task ProcessQueuedRunsAsync()
+    private static async Task ProcessQueuedRunsAsync(CancellationToken token)
     {
         try
         {
             while (Interlocked.Exchange(ref queuedRunRequested, 0) != 0)
             {
-                await RunAsync();
+                token.ThrowIfCancellationRequested();
+                await RunAsync(token);
             }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
         }
         finally
         {
             Interlocked.Exchange(ref queuedWorkerRunning, 0);
-            if (Volatile.Read(ref queuedRunRequested) != 0)
+            if (Volatile.Read(ref queuedRunRequested) != 0 && Volatile.Read(ref workersStopping) == 0)
             {
                 StartQueuedWorker();
             }
@@ -175,7 +195,7 @@ internal static class RecordingCleanupService
     {
         if (!Configurations.IsDataRetentionEnabled.Get())
         {
-            return new CleanupScanResult([], true);
+            return new CleanupScanResult([], [], true);
         }
 
         TimeSpan retention = GetConfiguredRetention();
@@ -185,6 +205,7 @@ internal static class RecordingCleanupService
             allowEmbeddedMetadataProbe = !embeddedMetadataMigrationCompleted;
         }
         List<ScheduledRecording> recordings = [];
+        List<string> orphanedRepairReports = [];
         bool completed = true;
         foreach (string root in roots.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase))
         {
@@ -197,6 +218,12 @@ internal static class RecordingCleanupService
             foreach (string filePath in EnumerateFilesSafe(root, () => completed = false))
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                if (VideoRepairService.IsOrphanedRepairReport(filePath))
+                {
+                    orphanedRepairReports.Add(filePath);
+                    continue;
+                }
+
                 if (TryCreateScheduledRecording(filePath, retention, allowEmbeddedMetadataProbe, out ScheduledRecording recording))
                 {
                     if (TryAcceptRebuiltRecording(recording, out ScheduledRecording accepted))
@@ -207,7 +234,35 @@ internal static class RecordingCleanupService
             }
         }
 
-        return new CleanupScanResult([.. recordings], completed);
+        return new CleanupScanResult([.. recordings], [.. orphanedRepairReports], completed);
+    }
+
+    private static void DeleteOrphanedRepairReports(IEnumerable<string> reportPaths, CancellationToken cancellationToken)
+    {
+        int deletedCount = 0;
+        foreach (string reportPath in reportPaths.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                if (!VideoRepairService.IsOrphanedRepairReport(reportPath))
+                {
+                    continue;
+                }
+
+                File.Delete(reportPath);
+                deletedCount++;
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                AppSessionLogger.WriteException(exception);
+            }
+        }
+
+        if (deletedCount > 0)
+        {
+            AppSessionLogger.Write($"cleanup deleted {deletedCount} orphaned repair reports");
+        }
     }
 
     private static bool TryAcceptRebuiltRecording(ScheduledRecording recording, out ScheduledRecording accepted)
@@ -412,25 +467,36 @@ internal static class RecordingCleanupService
 
     private static void StartExpirationWorker()
     {
+        if (Volatile.Read(ref workersStopping) != 0)
+        {
+            return;
+        }
         if (Interlocked.CompareExchange(ref expirationWorkerRunning, 1, 0) == 0)
         {
-            _ = Task.Run(ProcessExpirationTimerAsync);
+            lock (WorkerLock)
+            {
+                CancellationToken token = workerCancellation.Token;
+                expirationWorkerTask = Task.Run(() => ProcessExpirationTimerAsync(token), token);
+            }
         }
     }
 
-    private static async Task ProcessExpirationTimerAsync()
+    private static async Task ProcessExpirationTimerAsync(CancellationToken token)
     {
         try
         {
-            await RunGate.WaitAsync();
+            await RunGate.WaitAsync(token);
             try
             {
-                await Task.Run(() => ProcessExpiredRecordings(CancellationToken.None));
+                await Task.Run(() => ProcessExpiredRecordings(token), token);
             }
             finally
             {
                 RunGate.Release();
             }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
         }
         catch (Exception exception)
         {
@@ -444,6 +510,92 @@ internal static class RecordingCleanupService
                 ScheduleNextTimerLocked();
             }
         }
+    }
+
+    public static void CancelScheduledWork()
+    {
+        Interlocked.Exchange(ref workersStopping, 1);
+        Interlocked.Exchange(ref queuedRunRequested, 0);
+        lock (WorkerLock)
+        {
+            workerCancellation.Cancel();
+        }
+        PauseSchedule();
+    }
+
+    public static async Task WaitForScheduledWorkAsync(TimeSpan timeout)
+    {
+        Task[] tasks;
+        lock (WorkerLock)
+        {
+            tasks = new[] { queuedWorkerTask, expirationWorkerTask }
+                .Where(task => task != null)
+                .Cast<Task>()
+                .Distinct()
+                .ToArray();
+        }
+        if (tasks.Length == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await Task.WhenAll(tasks).WaitAsync(timeout);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (TimeoutException)
+        {
+        }
+        catch (Exception exception)
+        {
+            AppSessionLogger.WriteException(exception);
+        }
+    }
+
+    public static void ResumeScheduledWork()
+    {
+        Task[] stoppingTasks;
+        lock (WorkerLock)
+        {
+            stoppingTasks = new[] { queuedWorkerTask, expirationWorkerTask }
+                .Where(task => task != null && !task.IsCompleted)
+                .Cast<Task>()
+                .Distinct()
+                .ToArray();
+        }
+        if (stoppingTasks.Length == 0)
+        {
+            RestartScheduledWork();
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.WhenAll(stoppingTasks);
+            }
+            catch
+            {
+            }
+            RestartScheduledWork();
+        });
+    }
+
+    private static void RestartScheduledWork()
+    {
+        lock (WorkerLock)
+        {
+            workerCancellation.Dispose();
+            workerCancellation = new CancellationTokenSource();
+            queuedWorkerTask = null;
+            expirationWorkerTask = null;
+            Interlocked.Exchange(ref workersStopping, 0);
+        }
+        QueueRun();
     }
 
     private static void ProcessExpiredRecordings(CancellationToken cancellationToken)
@@ -526,6 +678,7 @@ internal static class RecordingCleanupService
 
                 file.Delete();
                 VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(recording.Path);
+                VideoRepairService.TryDeleteRepairReport(recording.Path);
                 RemoveEmptyParentDirectories(recording.Path, configuredRoots);
                 deletedCount++;
             }
@@ -552,6 +705,12 @@ internal static class RecordingCleanupService
         if (deletedCount > 0)
         {
             AppSessionLogger.Write($"cleanup deleted {deletedCount} expired recording files");
+        }
+
+        int deletedDirectoryCount = RemoveEmptyDirectoryTrees(configuredRoots, cancellationToken);
+        if (deletedDirectoryCount > 0)
+        {
+            AppSessionLogger.Write($"cleanup deleted {deletedDirectoryCount} empty recording directories");
         }
     }
 
@@ -600,6 +759,7 @@ internal static class RecordingCleanupService
     {
         RemoveSupersededEntriesLocked();
         if (!Configurations.IsDataRetentionEnabled.Get()
+            || Volatile.Read(ref workersStopping) != 0
             || !Schedule.TryPeek(out _, out long priority))
         {
             ExpirationTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
@@ -971,12 +1131,69 @@ internal static class RecordingCleanupService
         }
     }
 
+    internal static int RemoveEmptyDirectoryTrees(IEnumerable<string> roots, CancellationToken cancellationToken = default)
+    {
+        int deleted = 0;
+        EnumerationOptions options = new()
+        {
+            IgnoreInaccessible = true,
+            RecurseSubdirectories = true,
+            AttributesToSkip = FileAttributes.ReparsePoint,
+        };
+
+        foreach (string root in roots.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!Directory.Exists(root))
+            {
+                continue;
+            }
+
+            string[] directories;
+            try
+            {
+                directories = Directory.EnumerateDirectories(root, "*", options)
+                    .OrderByDescending(path => path.Length)
+                    .ToArray();
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                AppSessionLogger.Write($"cleanup skipped empty directory scan: {exception.Message}");
+                continue;
+            }
+
+            foreach (string directory in directories)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    if (Directory.Exists(directory)
+                        && !MediaOperationRegistry.IsPathProtected(directory)
+                        && !Directory.EnumerateFileSystemEntries(directory).Any())
+                    {
+                        Directory.Delete(directory);
+                        deleted++;
+                    }
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    AppSessionLogger.Write($"cleanup skipped empty directory {directory}: {exception.Message}");
+                }
+            }
+        }
+
+        return deleted;
+    }
+
     private sealed record CleanupState(
         int Version,
         bool EmbeddedMetadataMigrationCompleted,
         List<ScheduledRecording> Recordings);
 
-    private sealed record CleanupScanResult(ScheduledRecording[] Recordings, bool Completed);
+    private sealed record CleanupScanResult(
+        ScheduledRecording[] Recordings,
+        string[] OrphanedRepairReports,
+        bool Completed);
 
     private sealed record ScheduledRecording(
         string Path,

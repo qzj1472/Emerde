@@ -31,10 +31,10 @@ public sealed class RecorderTests
     private static readonly DateTime Timestamp = new(2026, 7, 3, 12, 34, 56);
 
     [Theory]
-    [InlineData(true, true, "Host_2026-07-03_12-34-56_%03d.ts")]
-    [InlineData(false, true, "Host_2026-07-03_12-34-56_%03d.ts")]
-    [InlineData(true, false, "Host_2026-07-03_12-34-56.ts")]
-    [InlineData(false, false, "Host_2026-07-03_12-34-56.flv")]
+    [InlineData(true, true, "录制中-Host_%03d.ts")]
+    [InlineData(false, true, "录制中-Host_%03d.ts")]
+    [InlineData(true, false, "录制中-Host.ts")]
+    [InlineData(false, false, "录制中-Host.flv")]
     public void BuildOutputFileName_SelectsExpectedSuffix(bool isHls, bool isToSegment, string expectedFileName)
     {
         string result = Recorder.BuildOutputFileName("D:\\records", "Host", Timestamp, isToSegment, isHls);
@@ -46,31 +46,66 @@ public sealed class RecorderTests
     [InlineData(".", "recording.flv")]
     [InlineData("CON", "_CON.flv")]
     [InlineData("  custom.  ", "custom.flv")]
-    public void BuildOutputFileName_SanitizesInvalidCustomRule(string rule, string expectedFileName)
+    public void FinalFileName_SanitizesInvalidCustomRule(string rule, string expectedFileName)
     {
-        RecorderStartInfo startInfo = new()
+        VideoRecordingMetadata metadata = new()
         {
             NickName = "Host",
-            Options = new RoomRecordingOptions { SaveFileNameCustomRule = rule },
+            RecordedAt = Timestamp,
         };
 
-        string result = Recorder.BuildOutputFileName("D:\\records", startInfo, Timestamp, false, false);
+        string result = RecordingFinalizationService.BuildFinalStem(rule, metadata).SanitizeFileName() + ".flv";
 
-        Assert.Equal(Path.Combine("D:\\records", expectedFileName), result);
+        Assert.Equal(expectedFileName, result);
     }
 
     [Fact]
-    public void BuildOutputFileName_LimitsCustomRuleLength()
+    public void FinalFileName_LimitsCustomRuleLength()
     {
-        RecorderStartInfo startInfo = new()
-        {
-            NickName = "Host",
-            Options = new RoomRecordingOptions { SaveFileNameCustomRule = new string('a', 300) },
-        };
+        VideoRecordingMetadata metadata = new() { RecordedAt = Timestamp };
 
-        string result = Recorder.BuildOutputFileName("D:\\records", startInfo, Timestamp, false, false);
+        string result = RecordingFinalizationService.BuildFinalStem(new string('a', 300), metadata).SanitizeFileName() + ".flv";
 
         Assert.Equal(124, Path.GetFileName(result).Length);
+    }
+
+    [Fact]
+    public void FinalFileName_RendersAllSupportedMetadataTokens()
+    {
+        VideoRecordingMetadata metadata = new()
+        {
+            NickName = "Host",
+            Platform = "Platform",
+            Title = "Title",
+            RoomId = "Room42",
+            Resolution = "1920x1080",
+            Bitrate = "8 Mbps",
+            FrameRate = 60,
+            Quality = "Original",
+            VideoCodec = "h264",
+            AudioCodec = "aac",
+            HasOptimizedAudio = true,
+            RecordedAt = Timestamp,
+            EndedAt = Timestamp.AddMinutes(90),
+            DurationSeconds = 5400,
+        };
+        const string rule = "{主播名}|{平台}|{直播标题}|{房间号}|{分辨率}|{码率}|{帧率}|{画质}|{视频编码}|{音频编码}|{优化音频}|{录制开始时间}|{录制结束时间}|{视频时长}";
+
+        string result = RecordingFinalizationService.BuildFinalStem(rule, metadata);
+
+        Assert.Equal($"Host|Platform|Title|Room42|1920x1080|8 Mbps|60fps|Original|h264|aac|{"OptimizedAudioTrack".Tr()}|2026-07-03_12-34-56|2026-07-03_14-04-56|01-30-00", result);
+    }
+
+    [Fact]
+    public void FinalFileName_OmitsUnavailableOptimizedAudioToken()
+    {
+        VideoRecordingMetadata metadata = new()
+        {
+            NickName = "Host",
+            HasOptimizedAudio = false,
+        };
+
+        Assert.Equal("Host", RecordingFinalizationService.BuildFinalStem("{主播名}_{优化音频}", metadata));
     }
 
     [Theory]
@@ -228,12 +263,17 @@ public sealed class RecorderTests
             "sessionPendingRecordingPath = RecordingRecoveryService.RegisterSessionParts(",
             StringComparison.Ordinal);
         int optimizeAudioArgument = source.IndexOf(
-            "recordingOptions.IsOptimizeAudio);",
+            "recordingOptions.IsOptimizeAudio,",
             initialRegistration,
+            StringComparison.Ordinal);
+        int finalizeNameArgument = source.IndexOf(
+            "finalizeName: true);",
+            optimizeAudioArgument,
             StringComparison.Ordinal);
 
         Assert.True(initialRegistration >= 0);
         Assert.True(optimizeAudioArgument > initialRegistration);
+        Assert.True(finalizeNameArgument > optimizeAudioArgument);
     }
 
     [Fact]

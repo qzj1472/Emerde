@@ -7,6 +7,16 @@ namespace Emerde.Tests;
 [Collection("MediaOperationRegistry")]
 public sealed class RecordingRecoveryServiceTests
 {
+    [Fact]
+    public void PendingProcessingQueueCreatesAndCancelsWorkByBatch()
+    {
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "RecordingRecoveryService.cs"));
+
+        Assert.Contains("paths.Chunk(PendingProcessingBatchSize)", code, StringComparison.Ordinal);
+        Assert.Contains("QueueProcessAsync(batch, token)", code, StringComparison.Ordinal);
+        Assert.Contains("CancellationTokenSource.CreateLinkedTokenSource(token)", code, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("output_track_timeline_mismatch:audio=1.000,video=4.000", true)]
     [InlineData("duration_mismatch:expected=10.000,actual=1.000", true)]
@@ -80,6 +90,97 @@ public sealed class RecordingRecoveryServiceTests
             Assert.True(File.Exists(sourcePath));
             Assert.True(File.Exists(targetPath));
             Assert.False(File.Exists(Path.Combine(directory, "session_2.mkv")));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData("host_2026-08-14_000.ts", "host_2026-08-14_%03d.ts")]
+    [InlineData("host_2026-08-14_0123.flv", "host_2026-08-14_%03d.flv")]
+    [InlineData("host_2026-08-14.ts", "host_2026-08-14.ts")]
+    public void BuildRecoverySourcePattern_GroupsSessionParts(string fileName, string expectedFileName)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "emerde-recovery-pattern");
+
+        Assert.Equal(
+            Path.Combine(directory, expectedFileName),
+            RecordingRecoveryService.BuildRecoverySourcePattern(Path.Combine(directory, fileName)));
+    }
+
+    [Theory]
+    [InlineData("host_20260815.ts", "host_20260815.ts", "host_20260815.ts")]
+    [InlineData("host_20260815.ts", "host.ts", "host_%03d.ts")]
+    [InlineData("host.ts", "host.ts", "host.ts")]
+    public void ResolveRecoverySourcePattern_UsesMetadataToDistinguishStandaloneFiles(
+        string sourceFileName,
+        string metadataFileName,
+        string expectedFileName)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "emerde-recovery-pattern");
+        string sourcePath = Path.Combine(directory, sourceFileName);
+
+        Assert.Equal(
+            Path.Combine(directory, expectedFileName),
+            RecordingRecoveryService.ResolveRecoverySourcePattern(
+                sourcePath,
+                new VideoRecordingMetadata { FileName = metadataFileName }));
+    }
+
+    [Theory]
+    [InlineData("record", "record", true)]
+    [InlineData("record", "record_2", true)]
+    [InlineData("record", "record_27", true)]
+    [InlineData("record", "record_000", false)]
+    [InlineData("record", "record_001", false)]
+    [InlineData("record", "record_02", false)]
+    [InlineData("record", "record_1", false)]
+    [InlineData("record", "record_backup", false)]
+    [InlineData("record", "record_2_backup", false)]
+    [InlineData("record", "recording", false)]
+    public void IsCompletedOutputStem_AcceptsOnlyReservedNumericSuffixes(
+        string expectedStem,
+        string candidateStem,
+        bool expected)
+    {
+        Assert.Equal(expected, RecordingRecoveryService.IsCompletedOutputStem(expectedStem, candidateStem));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_RetriesBlockedMarkerFromPreviousRecoveryPolicy()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-recovery-policy-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string markerPath = Path.Combine(directory, "pending.json");
+        string sourcePath = Path.Combine(directory, "session.ts");
+        File.WriteAllBytes(sourcePath, [1, 2, 3, 4]);
+        _ = VideoRecordingMetadataStore.WriteSidecar(
+            directory,
+            "session",
+            new VideoRecordingMetadata { RoomUrl = "https://live.example/room" });
+        JsonObject marker = new()
+        {
+            ["SourcePattern"] = sourcePath,
+            ["TargetFormat"] = ".mkv",
+            ["RemoveSource"] = false,
+            ["MergeSessionParts"] = false,
+            ["FailureCount"] = 3,
+            ["LastFailureReason"] = "duration_mismatch:expected=10.000,actual=1.000",
+            ["RetryBlocked"] = true,
+            ["BlockedSourceStateFingerprint"] = RecordingRecoveryService.CreateSourceStateFingerprint([sourcePath]),
+        };
+        File.WriteAllText(markerPath, marker.ToJsonString());
+
+        try
+        {
+            await RecordingRecoveryService.ProcessAsync(markerPath);
+
+            JsonNode saved = JsonNode.Parse(File.ReadAllText(markerPath))!;
+            Assert.Equal(1, saved["RecoveryPolicyVersion"]!.GetValue<int>());
+            Assert.Equal(1, saved["FailureCount"]!.GetValue<int>());
+            Assert.False(saved["RetryBlocked"]!.GetValue<bool>());
         }
         finally
         {
@@ -189,6 +290,7 @@ public sealed class RecordingRecoveryServiceTests
         {
             Assert.Contains($"\"RoomUrl\": \"{roomUrl}\"", File.ReadAllText(markerPath!));
             Assert.Contains("\"OptimizeAudio\": true", File.ReadAllText(markerPath!));
+            Assert.Contains("\"FinalizeName\": false", File.ReadAllText(markerPath!));
         }
         finally
         {
@@ -739,41 +841,74 @@ public sealed class RecordingRecoveryServiceTests
     }
 
     [Fact]
-    public void SourceProcessingKeys_CoalesceOverlappingSourcesAndSeparateOptions()
+    public void SourceProcessingKeys_CoalesceOverlappingSourcesAndSemanticKeyIncludesAllOptions()
     {
         string root = Path.Combine(Path.GetTempPath(), $"emerde-recovery-key-{Guid.NewGuid():N}");
         string pattern = Path.Combine(root, "record_%03d.ts");
         string first = Path.Combine(root, "record_000.ts");
         string second = Path.Combine(root, "record_001.ts");
 
-        string[] ordered = RecordingRecoveryService.CreateSourceProcessingKeys(
-            [first, second],
-            ".mkv",
-            removeSource: false,
-            optimizeAudio: false,
-            mergeSessionParts: true);
-        string[] reversed = RecordingRecoveryService.CreateSourceProcessingKeys(
-            [second, first],
-            ".MKV",
-            removeSource: false,
-            optimizeAudio: false,
-            mergeSessionParts: true);
-        string[] overlapping = RecordingRecoveryService.CreateSourceProcessingKeys(
-            [first],
-            ".mkv",
-            removeSource: false,
-            optimizeAudio: false,
-            mergeSessionParts: false);
-        string[] differentOptions = RecordingRecoveryService.CreateSourceProcessingKeys(
-            [first],
-            ".mkv",
-            removeSource: true,
-            optimizeAudio: false,
-            mergeSessionParts: true);
+        string[] ordered = RecordingRecoveryService.CreateSourceProcessingKeys([first, second]);
+        string[] reversed = RecordingRecoveryService.CreateSourceProcessingKeys([second, first]);
+        string[] overlapping = RecordingRecoveryService.CreateSourceProcessingKeys([first]);
+        string orderedSemanticKey = RecordingRecoveryService.CreateRecoverySemanticKey(
+            [first, second], ".mkv", removeSource: false, optimizeAudio: false, mergeSessionParts: true);
+        string reversedSemanticKey = RecordingRecoveryService.CreateRecoverySemanticKey(
+            [second, first], ".MKV", removeSource: false, optimizeAudio: false, mergeSessionParts: true);
+        string differentRemoveSource = RecordingRecoveryService.CreateRecoverySemanticKey(
+            [first, second], ".mkv", removeSource: true, optimizeAudio: false, mergeSessionParts: true);
+        string differentMergeMode = RecordingRecoveryService.CreateRecoverySemanticKey(
+            [first, second], ".mkv", removeSource: false, optimizeAudio: false, mergeSessionParts: false);
 
         Assert.Equal(ordered.Order(), reversed.Order());
         Assert.Contains(overlapping[0], ordered);
-        Assert.DoesNotContain(differentOptions[0], ordered);
+        Assert.Equal(orderedSemanticKey, reversedSemanticKey);
+        Assert.NotEqual(orderedSemanticKey, differentRemoveSource);
+        Assert.NotEqual(orderedSemanticKey, differentMergeMode);
+    }
+
+    [Fact]
+    public void Register_FinalNameOptionSurvivesSettingsUpdate()
+    {
+        string sourcePattern = Path.Combine(Path.GetTempPath(), $"emerde-recording-{Guid.NewGuid():N}.ts");
+        string? markerPath = RecordingRecoveryService.Register(
+            sourcePattern,
+            new RoomRecordingOptions { RecordFormat = "TS/FLV -> MKV" },
+            finalizeName: true);
+
+        Assert.NotNull(markerPath);
+        try
+        {
+            Assert.True(RecordingRecoveryService.UpdateOptions(markerPath!, new RoomRecordingOptions
+            {
+                RecordFormat = "TS/FLV -> MP4",
+                SaveFileNameCustomRule = "{主播名}_{录制结束时间}",
+            }));
+
+            JsonObject marker = JsonNode.Parse(File.ReadAllText(markerPath!))!.AsObject();
+            Assert.True(marker["FinalizeName"]!.GetValue<bool>());
+            Assert.Equal("{主播名}_{录制结束时间}", marker["FileNameRule"]!.GetValue<string>());
+        }
+        finally
+        {
+            File.Delete(markerPath);
+            File.Delete(markerPath + ".tmp");
+        }
+    }
+
+    [Fact]
+    public void IsCompletedMediaOutput_RejectsNonemptyCorruptFile()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"emerde-invalid-output-{Guid.NewGuid():N}.mkv");
+        File.WriteAllBytes(path, [1, 2, 3, 4]);
+        try
+        {
+            Assert.False(RecordingRecoveryService.IsCompletedMediaOutput(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     [Fact]
@@ -814,5 +949,21 @@ public sealed class RecordingRecoveryServiceTests
 
         Assert.True(RecordingRecoveryService.IsPathWithinRoot(inside, root));
         Assert.False(RecordingRecoveryService.IsPathWithinRoot(sibling, root));
+    }
+
+    private static string FindRepositoryFile(params string[] parts)
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory != null)
+        {
+            string candidate = Path.Combine([directory.FullName, .. parts]);
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException(string.Join(Path.DirectorySeparatorChar, parts));
     }
 }

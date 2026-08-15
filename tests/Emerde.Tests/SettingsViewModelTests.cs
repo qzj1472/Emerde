@@ -328,6 +328,87 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
+    public void SettingsUiX_UsesOneBorderPaletteForEveryInputType()
+    {
+        XDocument settings = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml"));
+        XDocument resources = XDocument.Load(FindRepositoryFile("src", "Emerde", "Resources.xaml"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement uiXPanel = settings.Descendants()
+            .Single(element => (string?)element.Attribute(xaml + "Name") == "SettingsUiXPanel");
+        XElement panelResources = uiXPanel.Elements()
+            .Single(element => element.Name.LocalName == "Grid.Resources");
+
+        Assert.Contains(panelResources.Elements(), element => element.Name.LocalName == "StaticResource"
+            && (string?)element.Attribute(xaml + "Key") == "EmerdeTextInputBorderBrush"
+            && (string?)element.Attribute("ResourceKey") == "UiXStrongStrokeBrush");
+        Assert.Contains(panelResources.Elements(), element => element.Name.LocalName == "StaticResource"
+            && (string?)element.Attribute(xaml + "Key") == "EmerdeTextInputFocusedBorderBrush"
+            && (string?)element.Attribute("ResourceKey") == "UiXSelectionStrokeBrush");
+
+        string[] inputTypes =
+        [
+            "{x:Type TextBox}",
+            "{x:Type ui:TextBox}",
+            "{x:Type ui:PasswordBox}",
+            "{x:Type ui:NumberBox}",
+        ];
+        foreach (string inputType in inputTypes)
+        {
+            XElement style = resources.Root!.Elements()
+                .Single(element => element.Name.LocalName == "Style"
+                    && element.Attribute(xaml + "Key") is null
+                    && (string?)element.Attribute("TargetType") == inputType);
+            Assert.Contains(style.Elements(), element => element.Name.LocalName == "Setter"
+                && (string?)element.Attribute("Property") == "BorderBrush"
+                && (string?)element.Attribute("Value") == "{DynamicResource EmerdeTextInputBorderBrush}");
+            Assert.Contains(style.Descendants(), element => element.Name.LocalName == "Setter"
+                && (string?)element.Attribute("Property") == "BorderBrush"
+                && (string?)element.Attribute("Value") == "{DynamicResource EmerdeTextInputFocusedBorderBrush}");
+        }
+
+        XElement comboStyle = resources.Root!.Elements()
+            .Single(element => element.Name.LocalName == "Style"
+                && element.Attribute(xaml + "Key") is null
+                && (string?)element.Attribute("TargetType") == "{x:Type ComboBox}");
+        Assert.Contains(comboStyle.Elements(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "BorderBrush"
+            && (string?)element.Attribute("Value") == "{DynamicResource ControlStrokeColorDefaultBrush}");
+        Assert.Contains(comboStyle.Descendants(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "BorderBrush"
+            && (string?)element.Attribute("Value") == "{DynamicResource EmerdeTextInputFocusedBorderBrush}");
+
+        XElement uiXComboStyle = panelResources.Elements()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute("TargetType") == "{x:Type ComboBox}");
+        Assert.Equal("{StaticResource {x:Type ComboBox}}", (string?)uiXComboStyle.Attribute("BasedOn"));
+        Assert.Contains(uiXComboStyle.Elements(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "BorderBrush"
+            && (string?)element.Attribute("Value") == "{DynamicResource EmerdeTextInputBorderBrush}");
+
+        XElement compactStyle = resources.Root!.Elements()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute("TargetType") == "{x:Type controls:CompactNumberBox}");
+        Assert.Contains(compactStyle.Elements(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "BorderBrush"
+            && (string?)element.Attribute("Value") == "{DynamicResource ControlStrokeColorDefaultBrush}");
+        XElement compactBorder = compactStyle.Descendants()
+            .Single(element => element.Name.LocalName == "Border"
+                && (string?)element.Attribute(xaml + "Name") == "RootBorder");
+        Assert.Equal("{TemplateBinding BorderBrush}", (string?)compactBorder.Attribute("BorderBrush"));
+        Assert.Contains(compactStyle.Descendants(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("TargetName") == "RootBorder"
+            && (string?)element.Attribute("Property") == "BorderBrush"
+            && (string?)element.Attribute("Value") == "{DynamicResource EmerdeTextInputFocusedBorderBrush}");
+
+        XElement uiXCompactStyle = panelResources.Elements()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute("TargetType") == "{x:Type controls:CompactNumberBox}");
+        Assert.Contains(uiXCompactStyle.Elements(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "BorderBrush"
+            && (string?)element.Attribute("Value") == "{DynamicResource EmerdeTextInputBorderBrush}");
+    }
+
+    [Fact]
     public void UiXSettings_UsesCompleteFocusNavigationAndResponsiveOutputRows()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml"));
@@ -349,12 +430,17 @@ public sealed class SettingsViewModelTests
         XElement saveMetadataLayout = document.Descendants()
             .Single(element => (string?)element.Attribute(xaml + "Name") == "SaveMetadataLayout");
         Assert.Contains(saveMetadataLayout.Descendants(), element => (string?)element.Attribute(xaml + "Name") == "SavePathLevelSelector");
+        Assert.Equal("48", saveMetadataLayout.Elements()
+            .Single(element => element.Name.LocalName == "Grid.ColumnDefinitions")
+            .Elements()
+            .ElementAt(1)
+            .Attribute("Width")?.Value);
         XElement retentionPanel = saveMetadataLayout.Descendants()
             .Single(element => (string?)element.Attribute(xaml + "Name") == "DataRetentionPanel");
         XElement retentionControls = retentionPanel.Descendants()
             .Single(element => (string?)element.Attribute(xaml + "Name") == "DataRetentionControls");
         Assert.Equal(["CompactNumberBox", "ComboBox", "ToggleSwitch"], retentionControls.Elements().Select(element => element.Name.LocalName));
-        Assert.Contains("bool keepOnOneRow = availableWidth >= 680d", code, StringComparison.Ordinal);
+        Assert.Contains("bool keepOnOneRow = availableWidth >= 712d", code, StringComparison.Ordinal);
         Assert.Contains("SavePathLevelSelector.Width = ShouldUseSettingsUiXTwoColumns() ? 148d : 168d", code, StringComparison.Ordinal);
         Assert.Contains("DataRetentionControls.Children.Add(DataRetentionSwitch)", code, StringComparison.Ordinal);
         Assert.Contains("DataRetentionControls.Children.Add(DataRetentionValueInput)", code, StringComparison.Ordinal);
@@ -416,15 +502,21 @@ public sealed class SettingsViewModelTests
             .Single(element => element.Name.LocalName == "Border"
                 && ((string?)element.Attribute("Visibility"))?.Contains("IsRoutineScheduleCustom", StringComparison.Ordinal) == true);
         Assert.DoesNotContain(customSchedule.Descendants(), element => element.Name.LocalName == "DockPanel");
-        Assert.Contains(customSchedule.Descendants(), element => element.Name.LocalName == "WrapPanel");
-        Assert.Contains(customSchedule.Descendants(), element => element.Name.LocalName == "StackPanel"
-            && (string?)element.Attribute("Orientation") == "Horizontal"
-            && (string?)element.Attribute("Margin") == "0,8,0,0");
+        Assert.Equal(2, customSchedule.Descendants().Count(element => element.Name.LocalName == "DatePicker"));
+        Assert.Contains(customSchedule.Descendants(), element => element.Name.LocalName == "UniformGrid"
+            && (string?)element.Attribute("Columns") == "7");
+        Assert.Contains(customSchedule.Descendants(), element => element.Name.LocalName == "ToggleSwitch"
+            && ((string?)element.Attribute("IsChecked"))?.Contains("RoutineScheduleUseDays", StringComparison.Ordinal) == true);
+        Assert.Contains(customSchedule.Descendants(), element => element.Name.LocalName == "ToggleSwitch"
+            && ((string?)element.Attribute("IsChecked"))?.Contains("RoutineScheduleUseTimeRange", StringComparison.Ordinal) == true);
 
         XElement saveFolder = document.Descendants()
             .Single(element => element.Name.LocalName == "TextBox"
                 && ((string?)element.Attribute("Text"))?.Contains("Editor.SaveFolder", StringComparison.Ordinal) == true);
         Assert.Equal("EmerdeDownloads", (string?)saveFolder.Attribute("PlaceholderText"));
+        Assert.Contains("RoutineScheduleStartDate = settings.RoutineScheduleStartDate", editorCode, StringComparison.Ordinal);
+        Assert.Contains("RoutineScheduleUseDays = settings.RoutineScheduleUseDays", editorCode, StringComparison.Ordinal);
+        Assert.Contains("RoutineScheduleUseTimeRange = settings.RoutineScheduleUseTimeRange", editorCode, StringComparison.Ordinal);
         Assert.Contains("SaveFileNameCustomRule = settings.SaveFileNameCustomRule", editorCode, StringComparison.Ordinal);
         Assert.DoesNotContain("? string.Empty\n            : settings.SaveFileNameCustomRule", editorCode, StringComparison.Ordinal);
     }
@@ -639,6 +731,20 @@ public sealed class SettingsViewModelTests
         bool expected)
     {
         Assert.Equal(expected, SettingsViewModel.ShouldCancelConversionsOnRecordFormatChange(previousRecordFormat, nextRecordFormatIndex));
+    }
+
+    [Theory]
+    [InlineData("TS/FLV", 1, true)]
+    [InlineData("TS/FLV", 2, true)]
+    [InlineData("TS/FLV -> MP4", 0, true)]
+    [InlineData("TS/FLV -> MP4", 1, false)]
+    [InlineData("TS/FLV", -1, false)]
+    public void ShouldApplyPendingRecordingFormatChange_HandlesBothDirections(
+        string previousRecordFormat,
+        int nextRecordFormatIndex,
+        bool expected)
+    {
+        Assert.Equal(expected, SettingsViewModel.ShouldApplyPendingRecordingFormatChange(previousRecordFormat, nextRecordFormatIndex));
     }
 
     [Theory]

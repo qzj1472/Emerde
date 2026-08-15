@@ -49,7 +49,20 @@ public sealed class VideoRecordingMetadataStoreTests
             Assert.Equal(Path.GetFileName(mediaPath), loaded.FileName);
             Assert.Equal(metadata.NickName, loaded.NickName);
             Assert.Equal(metadata.RoomUrl, loaded.RoomUrl);
+            Assert.Equal(metadata.RoomId, loaded.RoomId);
+            Assert.Equal(metadata.Platform, loaded.Platform);
             Assert.Equal(metadata.Title, loaded.Title);
+            Assert.Equal(metadata.Resolution, loaded.Resolution);
+            Assert.Equal(metadata.Bitrate, loaded.Bitrate);
+            Assert.Equal(metadata.Quality, loaded.Quality);
+            Assert.Equal(metadata.FrameRate, loaded.FrameRate);
+            Assert.Equal(metadata.VideoCodec, loaded.VideoCodec);
+            Assert.Equal(metadata.AudioCodec, loaded.AudioCodec);
+            Assert.Equal(metadata.HasOptimizedAudio, loaded.HasOptimizedAudio);
+            Assert.Equal(metadata.RecordedAt, loaded.RecordedAt);
+            Assert.Equal(metadata.EndedAt, loaded.EndedAt);
+            Assert.Equal(metadata.DurationSeconds, loaded.DurationSeconds);
+            Assert.Equal(metadata.FileNameRule, loaded.FileNameRule);
             Assert.Equal(metadata.SegmentReason, loaded.SegmentReason);
         }
         finally
@@ -87,12 +100,21 @@ public sealed class VideoRecordingMetadataStoreTests
             FileName = "recording.ts",
             NickName = "主播",
             RoomUrl = "https://example.test/live",
+            RoomId = "room-42",
             Platform = "Test",
             Title = "直播标题",
             Resolution = "1920x1080",
             Bitrate = "8 Mbps",
+            Quality = "Original",
+            FrameRate = 60,
+            VideoCodec = "h264",
+            AudioCodec = "aac",
+            HasOptimizedAudio = true,
             SegmentReason = VideoRecordingMetadataStore.TimelineStallSegmentReason,
             RecordedAt = new DateTime(2026, 7, 23, 12, 34, 56),
+            EndedAt = new DateTime(2026, 7, 23, 13, 34, 56),
+            DurationSeconds = 3600,
+            FileNameRule = "{主播名}_{录制开始时间}",
         };
     }
 }

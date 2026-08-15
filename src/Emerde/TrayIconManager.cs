@@ -106,9 +106,13 @@ internal sealed class TrayIconManager : IDisposable
         {
             GlobalMonitor.Stop();
             GlobalMonitor.StopAllRecorders(deferPostProcessing: true);
+            RecordingRecoveryService.CancelMaintenance();
+            RecordingCleanupService.CancelScheduledWork();
             MediaOperationRegistry.CancelAll();
             await Task.WhenAll(
                 GlobalMonitor.WaitForRecordersAsync(TimeSpan.FromSeconds(5)),
+                RecordingRecoveryService.WaitForMaintenanceAsync(TimeSpan.FromSeconds(5)),
+                RecordingCleanupService.WaitForScheduledWorkAsync(TimeSpan.FromSeconds(5)),
                 MediaOperationRegistry.WaitForCompletionAsync(TimeSpan.FromSeconds(5)));
         }
         finally
@@ -146,9 +150,13 @@ internal sealed class TrayIconManager : IDisposable
             Application.Current.MainWindow?.Hide();
             GlobalMonitor.Stop();
             GlobalMonitor.StopAllRecorders(deferPostProcessing: true);
+            RecordingRecoveryService.CancelMaintenance();
+            RecordingCleanupService.CancelScheduledWork();
             MediaOperationRegistry.CancelAll();
             await Task.WhenAll(
                 GlobalMonitor.WaitForRecordersAsync(TimeSpan.FromSeconds(5)),
+                RecordingRecoveryService.WaitForMaintenanceAsync(TimeSpan.FromSeconds(5)),
+                RecordingCleanupService.WaitForScheduledWorkAsync(TimeSpan.FromSeconds(5)),
                 MediaOperationRegistry.WaitForCompletionAsync(TimeSpan.FromSeconds(5)));
 
             bool restarted = RuntimeHelper.Restart(forced: true, beforeExit: () =>
@@ -162,6 +170,8 @@ internal sealed class TrayIconManager : IDisposable
             });
             if (!restarted)
             {
+                RecordingRecoveryService.QueueRun();
+                RecordingCleanupService.ResumeScheduledWork();
                 ActivateMainWindow();
             }
         }

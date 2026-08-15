@@ -113,7 +113,7 @@ internal sealed class ExtensionRecordingService : IExtensionRecordingService
     public Task ProcessPendingAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return RecordingRecoveryService.ProcessPendingAsync().WaitAsync(cancellationToken);
+        return RecordingRecoveryService.ProcessPendingAsync(cancellationToken);
     }
 
     private static RoomStatus EnsureRoomExists(string roomUrl)

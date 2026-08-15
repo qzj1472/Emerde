@@ -315,21 +315,47 @@
                                     <Border Style="{StaticResource WorkspaceChildSectionStyle}"
                                             Visibility="{Binding Editor.IsRoutineScheduleCustom, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}">
                                         <StackPanel>
-                                            <StackPanel>
-                                                <WrapPanel>
-                                                <ToggleButton MinWidth="56" Margin="0,0,8,8" Content="{I18N Monday}" IsChecked="{Binding Editor.RoutineScheduleMonday, Mode=TwoWay}" />
-                                                <ToggleButton MinWidth="56" Margin="0,0,8,8" Content="{I18N Tuesday}" IsChecked="{Binding Editor.RoutineScheduleTuesday, Mode=TwoWay}" />
-                                                <ToggleButton MinWidth="56" Margin="0,0,8,8" Content="{I18N Wednesday}" IsChecked="{Binding Editor.RoutineScheduleWednesday, Mode=TwoWay}" />
-                                                <ToggleButton MinWidth="56" Margin="0,0,8,8" Content="{I18N Thursday}" IsChecked="{Binding Editor.RoutineScheduleThursday, Mode=TwoWay}" />
-                                                <ToggleButton MinWidth="56" Margin="0,0,8,8" Content="{I18N Friday}" IsChecked="{Binding Editor.RoutineScheduleFriday, Mode=TwoWay}" />
-                                                <ToggleButton MinWidth="56" Margin="0,0,8,8" Content="{I18N Saturday}" IsChecked="{Binding Editor.RoutineScheduleSaturday, Mode=TwoWay}" />
-                                                <ToggleButton MinWidth="56" Margin="0,0,0,8" Content="{I18N Sunday}" IsChecked="{Binding Editor.RoutineScheduleSunday, Mode=TwoWay}" />
-                                                </WrapPanel>
-                                                <StackPanel Margin="0,8,0,0"
-                                                            HorizontalAlignment="Right"
-                                                            VerticalAlignment="Center"
-                                                            Orientation="Horizontal">
-                                                    <TextBlock Margin="0,0,10,0" VerticalAlignment="Center" Text="{I18N TimeRange}" />
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="92" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock VerticalAlignment="Center" Text="{I18N Date}" />
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                    <DatePicker Width="140" SelectedDate="{Binding Editor.RoutineScheduleStartDate, Mode=TwoWay}" />
+                                                    <TextBlock Margin="10,0" VerticalAlignment="Center" Text="{I18N To}" />
+                                                    <DatePicker Width="140" SelectedDate="{Binding Editor.RoutineScheduleEndDate, Mode=TwoWay}" />
+                                                </StackPanel>
+                                            </Grid>
+                                            <Grid Margin="0,12,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="92" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                                    <TextBlock VerticalAlignment="Center" Text="{I18N ScheduleDays}" />
+                                                    <ui:ToggleSwitch Margin="8,0,0,0" IsChecked="{Binding Editor.RoutineScheduleUseDays, Mode=TwoWay}" />
+                                                </StackPanel>
+                                                <UniformGrid Grid.Column="1" Columns="7" IsEnabled="{Binding Editor.RoutineScheduleUseDays}">
+                                                    <ToggleButton Margin="0,0,6,0" HorizontalAlignment="Stretch" Content="{I18N Monday}" IsChecked="{Binding Editor.RoutineScheduleMonday, Mode=TwoWay}" />
+                                                    <ToggleButton Margin="0,0,6,0" HorizontalAlignment="Stretch" Content="{I18N Tuesday}" IsChecked="{Binding Editor.RoutineScheduleTuesday, Mode=TwoWay}" />
+                                                    <ToggleButton Margin="0,0,6,0" HorizontalAlignment="Stretch" Content="{I18N Wednesday}" IsChecked="{Binding Editor.RoutineScheduleWednesday, Mode=TwoWay}" />
+                                                    <ToggleButton Margin="0,0,6,0" HorizontalAlignment="Stretch" Content="{I18N Thursday}" IsChecked="{Binding Editor.RoutineScheduleThursday, Mode=TwoWay}" />
+                                                    <ToggleButton Margin="0,0,6,0" HorizontalAlignment="Stretch" Content="{I18N Friday}" IsChecked="{Binding Editor.RoutineScheduleFriday, Mode=TwoWay}" />
+                                                    <ToggleButton Margin="0,0,6,0" HorizontalAlignment="Stretch" Content="{I18N Saturday}" IsChecked="{Binding Editor.RoutineScheduleSaturday, Mode=TwoWay}" />
+                                                    <ToggleButton HorizontalAlignment="Stretch" Content="{I18N Sunday}" IsChecked="{Binding Editor.RoutineScheduleSunday, Mode=TwoWay}" />
+                                                </UniformGrid>
+                                            </Grid>
+                                            <Grid Margin="0,12,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="92" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                                    <TextBlock VerticalAlignment="Center" Text="{I18N TimeRange}" />
+                                                    <ui:ToggleSwitch Margin="8,0,0,0" IsChecked="{Binding Editor.RoutineScheduleUseTimeRange, Mode=TwoWay}" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" IsEnabled="{Binding Editor.RoutineScheduleUseTimeRange}">
                                                     <controls:CompactNumberBox Width="60" Maximum="23" Minimum="0" Value="{Binding Editor.RoutineScheduleStartHour, Mode=TwoWay}" />
                                                     <TextBlock Margin="4,0" VerticalAlignment="Center" Text=":" />
                                                     <controls:CompactNumberBox Width="60" Maximum="59" Minimum="0" Value="{Binding Editor.RoutineScheduleStartMinute, Mode=TwoWay}" />
@@ -338,7 +364,7 @@
                                                     <TextBlock Margin="4,0" VerticalAlignment="Center" Text=":" />
                                                     <controls:CompactNumberBox Width="60" Maximum="59" Minimum="0" Value="{Binding Editor.RoutineScheduleEndMinute, Mode=TwoWay}" />
                                                 </StackPanel>
-                                            </StackPanel>
+                                            </Grid>
                                         </StackPanel>
                                     </Border>
                                     <Border Style="{StaticResource WorkspaceSettingRowStyle}">
@@ -527,13 +553,23 @@
                                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.CalculatorMultiply}" />
                                         </Button>
                                     </Grid>
-                                    <WrapPanel Margin="40,10,0,0">
+                                    <UniformGrid Margin="40,10,0,0" Columns="4">
                                         <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{主播名}" Content="{I18N TokenAuthor}" />
-                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{录制时间}" Content="{I18N TokenRecordTime}" />
-                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{日期}" Content="{I18N TokenDate}" />
-                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{时间}" Content="{I18N TokenTime}" />
                                         <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{平台}" Content="{I18N Platform}" />
-                                    </WrapPanel>
+                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{直播标题}" Content="{I18N TokenLiveTitle}" />
+                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{房间号}" Content="{I18N TokenRoomId}" />
+                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{分辨率}" Content="{I18N ResolutionLabel}" />
+                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{码率}" Content="{I18N TokenBitrate}" />
+                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{帧率}" Content="{I18N TokenFrameRate}" />
+                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{画质}" Content="{I18N TokenQuality}" />
+                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{视频编码}" Content="{I18N TokenVideoCodec}" />
+                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{音频编码}" Content="{I18N TokenAudioCodec}" />
+                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{优化音频}" Content="{I18N TokenOptimizedAudio}" />
+                                        <Border />
+                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{录制开始时间}" Content="{I18N TokenRecordStartTime}" />
+                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{录制结束时间}" Content="{I18N TokenRecordEndTime}" />
+                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{视频时长}" Content="{I18N TokenDuration}" />
+                                    </UniformGrid>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

@@ -25,8 +25,12 @@ internal sealed record FfmpegMediaProbeResult(
     double VideoEndSeconds,
     int Width,
     int Height,
+    double FrameRate,
     double DurationSeconds,
     long Bitrate,
+    string VideoCodec,
+    string AudioCodec,
+    bool HasOptimizedAudio,
     string StreamSignature,
     VideoRecordingMetadata Metadata,
     bool HasEmerdeMetadata);
@@ -1472,7 +1476,7 @@ internal static unsafe partial class FfmpegMediaEngine
         out string error,
         CancellationToken token = default)
     {
-        result = new FfmpegMediaProbeResult(false, false, 0, 0, 0, 0, 0, 0, 0, 0, string.Empty, new VideoRecordingMetadata(), false);
+        result = new FfmpegMediaProbeResult(false, false, 0, 0, 0, 0, 0, 0, 0, 0, 0, string.Empty, string.Empty, false, string.Empty, new VideoRecordingMetadata(), false);
         error = string.Empty;
         AVFormatContext* inputContext = null;
         AVDictionary* options = null;
@@ -1506,6 +1510,10 @@ internal static unsafe partial class FfmpegMediaEngine
             double videoEndSeconds = 0;
             int width = 0;
             int height = 0;
+            double frameRate = 0;
+            string videoCodec = string.Empty;
+            string audioCodec = string.Empty;
+            bool hasOptimizedAudio = false;
             List<string> streamSignatures = [];
             for (int index = 0; index < inputContext->nb_streams; index++)
             {
@@ -1517,6 +1525,8 @@ internal static unsafe partial class FfmpegMediaEngine
                     audioStreamCount++;
                     audioEndSeconds = Math.Max(audioEndSeconds, GetStreamEndSeconds(stream));
                     streamSignatures.Add(BuildStreamSignature(stream));
+                    audioCodec = FirstCodecName(audioCodec, parameters->codec_id);
+                    hasOptimizedAudio |= IsOptimizedAudioStream(stream);
                 }
                 else if (parameters->codec_type == AVMediaType.AVMEDIA_TYPE_VIDEO)
                 {
@@ -1524,12 +1534,20 @@ internal static unsafe partial class FfmpegMediaEngine
                     videoStreamCount++;
                     videoEndSeconds = Math.Max(videoEndSeconds, GetStreamEndSeconds(stream));
                     streamSignatures.Add(BuildStreamSignature(stream));
+                    videoCodec = FirstCodecName(videoCodec, parameters->codec_id);
                     if (width <= 0
                         && height <= 0
                         && (stream->disposition & ffmpeg.AV_DISPOSITION_ATTACHED_PIC) == 0)
                     {
                         width = parameters->width;
                         height = parameters->height;
+                        AVRational rate = stream->avg_frame_rate.num > 0 && stream->avg_frame_rate.den > 0
+                            ? stream->avg_frame_rate
+                            : stream->r_frame_rate;
+                        if (rate.num > 0 && rate.den > 0)
+                        {
+                            frameRate = rate.num / (double)rate.den;
+                        }
                     }
                 }
             }
@@ -1548,8 +1566,12 @@ internal static unsafe partial class FfmpegMediaEngine
                 videoEndSeconds,
                 width,
                 height,
+                frameRate,
                 durationSeconds,
                 inputContext->bit_rate,
+                videoCodec,
+                audioCodec,
+                hasOptimizedAudio,
                 string.Join(";", streamSignatures.Order(StringComparer.Ordinal)),
                 metadata,
                 VideoRecordingMetadataStore.HasEmerdeTags(metadataTags));
@@ -2237,6 +2259,20 @@ internal static unsafe partial class FfmpegMediaEngine
         return ffmpeg.avio_tell(input) >= inputSize;
     }
 
+    private static string FirstCodecName(string current, AVCodecID codecId)
+    {
+        return string.IsNullOrWhiteSpace(current)
+            ? ffmpeg.avcodec_get_name(codecId) ?? string.Empty
+            : current;
+    }
+
+    private static bool IsOptimizedAudioStream(AVStream* stream)
+    {
+        string expected = "OptimizedAudioTrack".Tr();
+        return string.Equals(ReadMetadataValue(stream->metadata, "title"), expected, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(ReadMetadataValue(stream->metadata, "handler_name"), expected, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool TryAdvanceDamagedFileInput(AVFormatContext* inputContext, string sourceFileName)
     {
         if (!Path.GetExtension(sourceFileName).Equals(".ts", StringComparison.OrdinalIgnoreCase)
@@ -2449,11 +2485,21 @@ internal static unsafe partial class FfmpegMediaEngine
         AddMetadata(dictionary, "emerde_nick_name", metadata.NickName);
         AddMetadata(dictionary, "emerde_room_url", metadata.RoomUrl);
         AddMetadata(dictionary, "emerde_platform", metadata.Platform);
+        AddMetadata(dictionary, "emerde_room_id", metadata.RoomId);
         AddMetadata(dictionary, "emerde_title", metadata.Title);
         AddMetadata(dictionary, "emerde_resolution", metadata.Resolution);
         AddMetadata(dictionary, "emerde_bitrate", metadata.Bitrate);
+        AddMetadata(dictionary, "emerde_frame_rate", FormatNumber(metadata.FrameRate));
+        AddMetadata(dictionary, "emerde_quality", metadata.Quality);
+        AddMetadata(dictionary, "emerde_video_codec", metadata.VideoCodec);
+        AddMetadata(dictionary, "emerde_audio_codec", metadata.AudioCodec);
+        AddMetadata(dictionary, "emerde_optimized_audio", metadata.HasOptimizedAudio ? bool.TrueString : string.Empty);
         AddMetadata(dictionary, "emerde_cover_path", metadata.CoverPath);
+        AddMetadata(dictionary, "emerde_segment_reason", metadata.SegmentReason);
         AddMetadata(dictionary, "emerde_recorded_at", FormatTimestamp(metadata.RecordedAt));
+        AddMetadata(dictionary, "emerde_ended_at", FormatTimestamp(metadata.EndedAt));
+        AddMetadata(dictionary, "emerde_duration_seconds", FormatNumber(metadata.DurationSeconds));
+        AddMetadata(dictionary, "emerde_file_name_rule", metadata.FileNameRule);
     }
 
     private static void AddMetadata(AVDictionary** dictionary, string key, string? value)
@@ -2478,6 +2524,11 @@ internal static unsafe partial class FfmpegMediaEngine
         return timestamp > DateTime.MinValue
             ? timestamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
             : string.Empty;
+    }
+
+    private static string FormatNumber(double value)
+    {
+        return value > 0 ? value.ToString("0.###", CultureInfo.InvariantCulture) : string.Empty;
     }
 
     private static void AddInputOptions(AVDictionary** options, FfmpegInputOptions inputOptions)

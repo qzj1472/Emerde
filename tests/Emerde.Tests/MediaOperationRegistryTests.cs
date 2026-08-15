@@ -6,6 +6,23 @@ namespace Emerde.Tests;
 public sealed class MediaOperationRegistryTests
 {
     [Fact]
+    public void TryRegister_AtomicallyRejectsConflictingPath()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"emerde-operation-{Guid.NewGuid():N}.ts");
+        using IDisposable first = MediaOperationRegistry.Register(MediaOperationKind.Conversion, () => [path]);
+
+        IDisposable? conflicting = MediaOperationRegistry.TryRegister(MediaOperationKind.Repair, [path]);
+        IDisposable? allowed = MediaOperationRegistry.TryRegister(
+            MediaOperationKind.Conversion,
+            [path],
+            conflictsWith: static kind => kind != MediaOperationKind.Conversion);
+
+        Assert.Null(conflicting);
+        Assert.NotNull(allowed);
+        allowed.Dispose();
+    }
+
+    [Fact]
     public void Register_ProtectsExactAndSegmentPathsUntilDisposed()
     {
         string directory = Path.Combine(Path.GetTempPath(), $"emerde-operation-{Guid.NewGuid():N}");

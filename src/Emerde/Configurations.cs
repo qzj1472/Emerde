@@ -23,12 +23,19 @@ public static class Configurations
     public static ConfigurationDefinition<Room[]> Rooms { get; } = new(nameof(Rooms), []);
     public static ConfigurationDefinition<bool> IsUseStatusTray { get; } = new(nameof(IsUseStatusTray), true);
     public static ConfigurationDefinition<bool> IsUiXEnabled { get; } = new(nameof(IsUiXEnabled), true);
+    public static ConfigurationDefinition<int> RoomCardSizePreference { get; } = new(nameof(RoomCardSizePreference), 1);
+    public static ConfigurationDefinition<int> PreviewRoomCardSizePreference { get; } = new(nameof(PreviewRoomCardSizePreference), 0);
+    public static ConfigurationDefinition<bool> IsRoomSortByName { get; } = new(nameof(IsRoomSortByName), false);
     public static ConfigurationDefinition<int> RoutineInterval { get; } = new(nameof(RoutineInterval), MonitorTiming.DefaultRoutineIntervalMilliseconds);
     public static ConfigurationDefinition<int> RoutineIntervalUnit { get; } = new(nameof(RoutineIntervalUnit), 1);
     public static ConfigurationDefinition<bool> IsMonitorRunning { get; } = new(nameof(IsMonitorRunning), true);
     public static ConfigurationDefinition<bool> IsToMonitor { get; } = new(nameof(IsToMonitor), true);
     public static ConfigurationDefinition<int> RoutineScheduleMode { get; } = new(nameof(RoutineScheduleMode), 0);
+    public static ConfigurationDefinition<string> RoutineScheduleStartDate { get; } = new(nameof(RoutineScheduleStartDate), string.Empty);
+    public static ConfigurationDefinition<string> RoutineScheduleEndDate { get; } = new(nameof(RoutineScheduleEndDate), string.Empty);
+    public static ConfigurationDefinition<bool> RoutineScheduleUseDays { get; } = new(nameof(RoutineScheduleUseDays), true);
     public static ConfigurationDefinition<string> RoutineScheduleDays { get; } = new(nameof(RoutineScheduleDays), "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday");
+    public static ConfigurationDefinition<bool> RoutineScheduleUseTimeRange { get; } = new(nameof(RoutineScheduleUseTimeRange), true);
     public static ConfigurationDefinition<int> RoutineScheduleStartHour { get; } = new(nameof(RoutineScheduleStartHour), 0);
     public static ConfigurationDefinition<int> RoutineScheduleStartMinute { get; } = new(nameof(RoutineScheduleStartMinute), 0);
     public static ConfigurationDefinition<int> RoutineScheduleEndHour { get; } = new(nameof(RoutineScheduleEndHour), 23);
@@ -104,7 +111,11 @@ public sealed class Room
     public int? SegmentTimeUnit { get; set; }
     public int? RoutineInterval { get; set; }
     public int? RoutineScheduleMode { get; set; }
+    public string? RoutineScheduleStartDate { get; set; }
+    public string? RoutineScheduleEndDate { get; set; }
+    public bool? RoutineScheduleUseDays { get; set; }
     public string? RoutineScheduleDays { get; set; }
+    public bool? RoutineScheduleUseTimeRange { get; set; }
     public int? RoutineScheduleStartHour { get; set; }
     public int? RoutineScheduleStartMinute { get; set; }
     public int? RoutineScheduleEndHour { get; set; }

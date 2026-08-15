@@ -159,10 +159,17 @@ public sealed class Converter
         using CancellationTokenSource operationCancellation = tokenSource == null
             ? new CancellationTokenSource()
             : CancellationTokenSource.CreateLinkedTokenSource(tokenSource.Token);
-        using IDisposable operation = MediaOperationRegistry.Register(
+        using IDisposable? operation = MediaOperationRegistry.TryRegister(
             MediaOperationKind.Conversion,
-            () => sourceFileInfos.Select(file => file.FullName).Concat([temporaryTargetFileName, targetFileName]),
-            operationCancellation.Cancel);
+            sourceFileInfos.Select(file => file.FullName).Concat([temporaryTargetFileName, targetFileName]),
+            operationCancellation.Cancel,
+            static kind => kind != MediaOperationKind.Conversion);
+        if (operation == null)
+        {
+            ReleaseTargetPath(targetFileName);
+            onFailed?.Invoke("source_busy");
+            return false;
+        }
         CancellationToken token = operationCancellation.Token;
         bool targetCreated = false;
         bool completionAcknowledged = false;
@@ -249,6 +256,7 @@ public sealed class Converter
             {
                 File.Move(temporaryTargetFileName, targetFileName, false);
                 targetCreated = true;
+                metadata.HasOptimizedAudio = optimizeAudio;
                 if (!VideoRecordingMetadataStore.WriteCompletedMetadata(targetFileName, metadata))
                 {
                     AppSessionLogger.Event("warn", "converter", "conversion_metadata_fallback_failed", "converted video metadata could not be stored", new { targetFileName });

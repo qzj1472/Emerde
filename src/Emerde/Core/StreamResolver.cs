@@ -256,6 +256,7 @@ internal static partial class StreamResolver
             || !string.IsNullOrWhiteSpace(result.Nickname)
             || !string.IsNullOrWhiteSpace(result.AvatarThumbUrl)
             || !string.IsNullOrWhiteSpace(result.Uid)
+            || !string.IsNullOrWhiteSpace(result.RoomId)
             || !string.IsNullOrWhiteSpace(SpiderResultMetadata.GetTitle(result));
     }
 
@@ -299,6 +300,7 @@ internal static partial class StreamResolver
             merged.Title = FirstNonEmpty(merged.Title, SpiderResultMetadata.GetTitle(result));
             merged.Quality = FirstNonEmpty(merged.Quality, SpiderResultMetadata.GetQuality(result));
             merged.Uid = FirstNonEmpty(merged.Uid, result.Uid);
+            merged.RoomId = FirstNonEmpty(merged.RoomId, result.RoomId);
             merged.Resolution = FirstNonEmpty(merged.Resolution, SpiderResultMetadata.GetResolution(result));
             merged.Bitrate = FirstNonEmpty(merged.Bitrate, SpiderResultMetadata.GetBitrate(result));
             merged.Headers = FirstNonEmpty(merged.Headers, SpiderResultMetadata.GetHeaders(result));
@@ -344,6 +346,10 @@ internal static partial class StreamResolver
         result.FlvUrl = FirstNonEmpty(flv.Url, CleanOptionalUrl(legacy.FlvUrl));
         result.Quality = FirstNonEmpty(hls.Quality, flv.Quality);
         result.IsLiveStreaming = legacy.IsLiveStreaming ?? ExtractLiveStatus(normalized);
+        if (TryExtractDouyinPageIdentity(html, out string roomId, out _))
+        {
+            result.RoomId = roomId;
+        }
 
         if ((!string.IsNullOrWhiteSpace(result.HlsUrl) || !string.IsNullOrWhiteSpace(result.FlvUrl))
             && result.IsLiveStreaming != false)
@@ -399,6 +405,9 @@ internal static partial class StreamResolver
                 CleanOptionalText(user?["sec_uid"]?.ToString()),
                 CleanOptionalText(room["owner"]?["id_str"]?.ToString()),
                 CleanOptionalText(room["owner"]?["sec_uid"]?.ToString()));
+            result.RoomId = FirstNonEmpty(
+                CleanOptionalText(room["id_str"]?.ToString()),
+                CleanOptionalText(room["id"]?.ToString()));
 
             JToken? streamUrl = room["stream_url"];
             StreamCandidate hls = SelectPreferredStream(streamUrl?["hls_pull_url_map"], preferredQuality);
@@ -2677,6 +2686,8 @@ internal sealed class StreamResolverResult : ISpiderResult, IStreamMetadataResul
     public string? Quality { get; set; }
 
     public string? Uid { get; set; }
+
+    public string? RoomId { get; set; }
 
     public string? Resolution { get; set; }
 

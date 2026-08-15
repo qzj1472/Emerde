@@ -28,7 +28,7 @@ namespace Emerde.ViewModels;
 [ObservableObject]
 public partial class SettingsViewModel : ReactiveObject
 {
-    private const string DefaultSaveFileNameCustomRule = "{主播名}_{录制时间}";
+    private const string DefaultSaveFileNameCustomRule = RecordingFinalizationService.DefaultRule;
 
     public sealed record UnitOption(int Value, string DisplayName);
 
@@ -645,6 +645,8 @@ public partial class SettingsViewModel : ReactiveObject
 
     public bool IsRoutineSchedulePreset => !IsRoutineScheduleCustom;
 
+    private bool isUpdatingRoutineScheduleDates;
+
     partial void OnRoutineScheduleModeIndexChanged(int value)
     {
         int next = Math.Clamp(value, 0, 4);
@@ -659,6 +661,25 @@ public partial class SettingsViewModel : ReactiveObject
         GlobalMonitor.RefreshRoutineInterval();
         NotifyRuntimeConfigurationChanged(recheckRooms: true);
     }
+
+    [ObservableProperty]
+    private DateTime? routineScheduleStartDate = ToDateTime(RoomRecordingSettings.GetGlobal().RoutineScheduleStartDate);
+
+    [ObservableProperty]
+    private DateTime? routineScheduleEndDate = ToDateTime(RoomRecordingSettings.GetGlobal().RoutineScheduleEndDate);
+
+    [ObservableProperty]
+    private bool routineScheduleUseDays = Configurations.RoutineScheduleUseDays.Get();
+
+    partial void OnRoutineScheduleUseDaysChanged(bool value)
+    {
+        Configurations.RoutineScheduleUseDays.Set(value);
+        SaveRoutineScheduleChange();
+    }
+
+    partial void OnRoutineScheduleStartDateChanged(DateTime? value) => SaveRoutineScheduleDates(changedStart: true);
+
+    partial void OnRoutineScheduleEndDateChanged(DateTime? value) => SaveRoutineScheduleDates(changedStart: false);
 
     [ObservableProperty]
     private bool routineScheduleMonday = IsRoutineScheduleDayEnabled(DayOfWeek.Monday);
@@ -688,6 +709,15 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnRoutineScheduleFridayChanged(bool value) => SaveRoutineScheduleDays();
     partial void OnRoutineScheduleSaturdayChanged(bool value) => SaveRoutineScheduleDays();
     partial void OnRoutineScheduleSundayChanged(bool value) => SaveRoutineScheduleDays();
+
+    [ObservableProperty]
+    private bool routineScheduleUseTimeRange = Configurations.RoutineScheduleUseTimeRange.Get();
+
+    partial void OnRoutineScheduleUseTimeRangeChanged(bool value)
+    {
+        Configurations.RoutineScheduleUseTimeRange.Set(value);
+        SaveRoutineScheduleChange();
+    }
 
     [ObservableProperty]
     private int routineScheduleStartHour = Math.Clamp(Configurations.RoutineScheduleStartHour.Get(), 0, 23);
@@ -748,17 +778,16 @@ public partial class SettingsViewModel : ReactiveObject
         }
         string previousRecordFormat = Configurations.RecordFormat.Get();
         string nextRecordFormat = GetRecordFormatByIndex(value);
-        bool cancelConversions = ShouldCancelConversionsOnRecordFormatChange(previousRecordFormat, value);
         Configurations.RecordFormat.Set(nextRecordFormat);
-        if (cancelConversions)
+        if (ShouldApplyPendingRecordingFormatChange(previousRecordFormat, value))
         {
-            _ = ApplyRawRecordingFormatAsync(previousRecordFormat, nextRecordFormat, IsRemoveTs);
+            _ = ApplyPendingRecordingFormatAsync(previousRecordFormat, nextRecordFormat, IsRemoveTs);
         }
         ConfigurationSaveScheduler.Request();
         NotifyRuntimeConfigurationChanged();
     }
 
-    private static async Task ApplyRawRecordingFormatAsync(string previousRecordFormat, string nextRecordFormat, bool isRemoveTs)
+    private static async Task ApplyPendingRecordingFormatAsync(string previousRecordFormat, string nextRecordFormat, bool isRemoveTs)
     {
         try
         {
@@ -768,6 +797,18 @@ public partial class SettingsViewModel : ReactiveObject
                 IsRemoveTs = isRemoveTs,
                 IsOptimizeAudio = Configurations.IsOptimizeAudio.Get(),
             });
+            if (!string.IsNullOrWhiteSpace(Recorder.GetTargetFormat(nextRecordFormat)))
+            {
+                await RecordingRecoveryService.QueuePendingProcessingAsync();
+                AppSessionLogger.Event("info", "settings", "pending_conversion_started_by_format_change", "pending recordings were processed after enabling automatic conversion", new
+                {
+                    previousRecordFormat,
+                    nextRecordFormat,
+                    updated = result.Updated,
+                });
+                return;
+            }
+
             AppSessionLogger.Event("info", "settings", "conversion_cancelled_by_raw_format", "active conversion was cancelled because recording format changed to raw", new
             {
                 previousRecordFormat,
@@ -797,6 +838,12 @@ public partial class SettingsViewModel : ReactiveObject
         return IsRecordFormatIndexValid(nextRecordFormatIndex)
             && !string.IsNullOrWhiteSpace(Recorder.GetTargetFormat(previousRecordFormat ?? string.Empty))
             && string.IsNullOrWhiteSpace(Recorder.GetTargetFormat(GetRecordFormatByIndex(nextRecordFormatIndex)));
+    }
+
+    internal static bool ShouldApplyPendingRecordingFormatChange(string? previousRecordFormat, int nextRecordFormatIndex)
+    {
+        return IsRecordFormatIndexValid(nextRecordFormatIndex)
+            && !string.Equals(previousRecordFormat, GetRecordFormatByIndex(nextRecordFormatIndex), StringComparison.Ordinal);
     }
 
     internal static bool IsRecordFormatIndexValid(int value)
@@ -1771,9 +1818,43 @@ public partial class SettingsViewModel : ReactiveObject
         if (RoutineScheduleSunday) days.Add(DayOfWeek.Sunday.ToString());
 
         Configurations.RoutineScheduleDays.Set(string.Join(",", days));
-        ConfigurationSaveScheduler.Request();
-        GlobalMonitor.RefreshRoutineInterval();
-        NotifyRuntimeConfigurationChanged(recheckRooms: true);
+        SaveRoutineScheduleChange();
+    }
+
+    private void SaveRoutineScheduleDates(bool changedStart)
+    {
+        if (isUpdatingRoutineScheduleDates)
+        {
+            return;
+        }
+
+        isUpdatingRoutineScheduleDates = true;
+        try
+        {
+            RoutineScheduleStartDate = RoutineScheduleStartDate?.Date;
+            RoutineScheduleEndDate = RoutineScheduleEndDate?.Date;
+            if (RoutineScheduleStartDate.HasValue
+                && RoutineScheduleEndDate.HasValue
+                && RoutineScheduleStartDate > RoutineScheduleEndDate)
+            {
+                if (changedStart)
+                {
+                    RoutineScheduleEndDate = RoutineScheduleStartDate;
+                }
+                else
+                {
+                    RoutineScheduleStartDate = RoutineScheduleEndDate;
+                }
+            }
+
+            Configurations.RoutineScheduleStartDate.Set(FormatScheduleDate(RoutineScheduleStartDate));
+            Configurations.RoutineScheduleEndDate.Set(FormatScheduleDate(RoutineScheduleEndDate));
+        }
+        finally
+        {
+            isUpdatingRoutineScheduleDates = false;
+        }
+        SaveRoutineScheduleChange();
     }
 
     private void SaveRoutineScheduleTime(int hour, int minute, bool isStart)
@@ -1816,6 +1897,21 @@ public partial class SettingsViewModel : ReactiveObject
             Configurations.RoutineScheduleEndMinute.Set(normalizedMinute);
         }
 
+        SaveRoutineScheduleChange();
+    }
+
+    private static DateTime? ToDateTime(DateOnly? value)
+    {
+        return value?.ToDateTime(TimeOnly.MinValue);
+    }
+
+    private static string FormatScheduleDate(DateTime? value)
+    {
+        return value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty;
+    }
+
+    private static void SaveRoutineScheduleChange()
+    {
         ConfigurationSaveScheduler.Request();
         GlobalMonitor.RefreshRoutineInterval();
         NotifyRuntimeConfigurationChanged(recheckRooms: true);

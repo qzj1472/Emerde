@@ -45,6 +45,10 @@ public partial class App : Application
             recoveredConfigurationPath = PreserveInvalidConfiguration(configurationPath);
             ConfigurationManager.Setup(configurationPath);
         }
+        if (RoomRecordingSettings.MigrateStoredConfiguration())
+        {
+            ConfigurationSaveScheduler.SaveNow();
+        }
 
         string language = Configurations.Language.Get();
         try
@@ -203,10 +207,15 @@ public partial class App : Application
         TrayIconManager.Stop();
         GlobalMonitor.Stop();
         GlobalMonitor.StopAllRecorders(deferPostProcessing: true);
+        RecordingRecoveryService.CancelMaintenance();
+        RecordingCleanupService.CancelScheduledWork();
         MediaOperationRegistry.CancelAll();
         try
         {
-            MediaOperationRegistry.WaitForCompletionAsync(TimeSpan.FromSeconds(8)).GetAwaiter().GetResult();
+            Task.WhenAll(
+                RecordingRecoveryService.WaitForMaintenanceAsync(TimeSpan.FromSeconds(8)),
+                RecordingCleanupService.WaitForScheduledWorkAsync(TimeSpan.FromSeconds(8)),
+                MediaOperationRegistry.WaitForCompletionAsync(TimeSpan.FromSeconds(8))).GetAwaiter().GetResult();
         }
         catch (Exception mediaOperationException)
         {

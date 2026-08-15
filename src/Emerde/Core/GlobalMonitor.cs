@@ -1065,6 +1065,10 @@ internal static class GlobalMonitor
                     fixedMetadataChanged = true;
                 }
             }
+            if (!string.IsNullOrWhiteSpace(spiderResult.RoomId))
+            {
+                roomStatus.RoomId = spiderResult.RoomId;
+            }
             roomStatus.FixedMetadataRefreshTimestamp = currentTimestamp;
             if (fixedMetadataChanged)
             {
@@ -1565,49 +1569,7 @@ internal static class GlobalMonitor
             return evening > now ? evening : evening.AddDays(1);
         }
 
-        HashSet<string> enabledDays = settings.RoutineScheduleDays
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        TimeSpan start = new(
-            Math.Clamp(settings.RoutineScheduleStartHour, 0, 23),
-            Math.Clamp(settings.RoutineScheduleStartMinute, 0, 59),
-            0);
-        TimeSpan end = new(
-            Math.Clamp(settings.RoutineScheduleEndHour, 0, 23),
-            Math.Clamp(settings.RoutineScheduleEndMinute, 0, 59),
-            0);
-
-        for (int offset = 0; offset <= 7; offset++)
-        {
-            DateTime date = now.Date.AddDays(offset);
-            if (!enabledDays.Contains(date.DayOfWeek.ToString()))
-            {
-                continue;
-            }
-
-            if (start <= end)
-            {
-                DateTime candidate = date.Add(start);
-                if (candidate > now)
-                {
-                    return candidate;
-                }
-                continue;
-            }
-
-            if (offset > 0)
-            {
-                return date;
-            }
-
-            DateTime eveningCandidate = date.Add(start);
-            if (eveningCandidate > now)
-            {
-                return eveningCandidate;
-            }
-        }
-
-        return null;
+        return GetNextCustomScheduleActivation(now, settings);
     }
 
     internal static DateTime? GetNextRoutineScheduleTransition(DateTime now, RoomRecordingOptions settings)
@@ -1646,27 +1608,7 @@ internal static class GlobalMonitor
             return end.AddTicks(1);
         }
 
-        HashSet<string> enabledDays = settings.RoutineScheduleDays
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        TimeSpan start = new(
-            Math.Clamp(settings.RoutineScheduleStartHour, 0, 23),
-            Math.Clamp(settings.RoutineScheduleStartMinute, 0, 59),
-            0);
-        TimeSpan endTime = new(
-            Math.Clamp(settings.RoutineScheduleEndHour, 0, 23),
-            Math.Clamp(settings.RoutineScheduleEndMinute, 0, 59),
-            0);
-
-        if (start <= endTime || now.TimeOfDay <= endTime)
-        {
-            return now.Date.Add(endTime).AddTicks(1);
-        }
-
-        DateTime tomorrow = now.Date.AddDays(1);
-        return enabledDays.Contains(tomorrow.DayOfWeek.ToString())
-            ? tomorrow.Add(endTime).AddTicks(1)
-            : tomorrow;
+        return GetNextCustomScheduleTransition(now, settings);
     }
 
     internal static int GetEffectiveRoutineInterval()
@@ -1927,6 +1869,7 @@ internal static class GlobalMonitor
             Title = roomStatus.LiveTitle,
             Quality = roomStatus.Quality,
             Uid = roomStatus.Uid,
+            RoomId = roomStatus.RoomId,
             Resolution = roomStatus.Resolution,
             Bitrate = roomStatus.Bitrate,
             Headers = roomStatus.Headers,
@@ -2171,10 +2114,10 @@ internal static class GlobalMonitor
                     Resolution = SpiderResultMetadata.GetResolution(result) ?? string.Empty,
                     Bitrate = SpiderResultMetadata.GetBitrate(result) ?? string.Empty,
                 };
-                ApplyRecorderStreamRefresh(room, roomStatus, refreshResult);
+                token.ThrowIfCancellationRequested();
                 return refreshResult;
             },
-            CancellationToken.None,
+            token,
             TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning,
             TaskScheduler.Default);
     }
@@ -2300,6 +2243,8 @@ internal static class GlobalMonitor
             Headers = roomStatus.Headers,
             Title = roomStatus.LiveTitle,
             Bitrate = roomStatus.Bitrate,
+            Quality = roomStatus.Quality,
+            RoomId = roomStatus.RoomId,
             CoverPath = string.IsNullOrWhiteSpace(roomStatus.AvatarLocalPath) ? roomStatus.AvatarThumbUrl : roomStatus.AvatarLocalPath,
             Options = settings,
             ResolveCurrentOptions = () => RoomRecordingSettings.GetCurrent(room.RoomUrl, settings),
@@ -2310,6 +2255,7 @@ internal static class GlobalMonitor
                     RoomRecordingSettings.GetCurrent(room.RoomUrl, settings),
                     refreshToken)
                 : null,
+            StreamRefreshed = result => ApplyRecorderStreamRefresh(room, roomStatus, result),
             OfflineConfirmed = SupportsRecorderStreamRefresh(roomStatus.PlatformName)
                 ? () => ConfirmRecorderOffline(
                     room,
@@ -2588,28 +2534,143 @@ internal static class GlobalMonitor
                 return now.TimeOfDay >= TimeSpan.FromHours(18) || now.TimeOfDay <= TimeSpan.FromHours(8);
         }
 
-        HashSet<string> enabledDays = settings.RoutineScheduleDays
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        DateTime ownerDate = GetCustomScheduleOwnerDate(now, settings);
+        return IsCustomScheduleOwnerEnabled(ownerDate, settings)
+            && IsWithinCustomScheduleTime(now, ownerDate, settings);
+    }
 
-        if (!enabledDays.Contains(now.DayOfWeek.ToString()))
+    private static DateTime? GetNextCustomScheduleActivation(DateTime now, RoomRecordingOptions settings)
+    {
+        TimeSpan startTime = GetCustomScheduleStart(settings);
+        TimeSpan endTime = GetCustomScheduleEnd(settings);
+        bool overnight = settings.RoutineScheduleUseTimeRange && startTime > endTime;
+        DateTime firstOwnerDate = overnight ? now.Date.AddDays(-1) : now.Date;
+        if (settings.RoutineScheduleStartDate.HasValue)
+        {
+            DateTime configuredStart = settings.RoutineScheduleStartDate.Value.ToDateTime(TimeOnly.MinValue);
+            if (firstOwnerDate < configuredStart)
+            {
+                firstOwnerDate = configuredStart;
+            }
+        }
+
+        DateTime lastOwnerDate = settings.RoutineScheduleEndDate?.ToDateTime(TimeOnly.MinValue)
+            ?? firstOwnerDate.AddDays(14);
+        for (DateTime ownerDate = firstOwnerDate; ownerDate <= lastOwnerDate; ownerDate = ownerDate.AddDays(1))
+        {
+            if (!IsCustomScheduleOwnerEnabled(ownerDate, settings))
+            {
+                continue;
+            }
+
+            (DateTime intervalStart, DateTime intervalEnd) = GetCustomScheduleInterval(ownerDate, settings);
+            if (intervalEnd < now)
+            {
+                continue;
+            }
+            return intervalStart > now ? intervalStart : now;
+        }
+        return null;
+    }
+
+    private static DateTime? GetNextCustomScheduleTransition(DateTime now, RoomRecordingOptions settings)
+    {
+        DateTime ownerDate = GetCustomScheduleOwnerDate(now, settings);
+        if (settings.RoutineScheduleUseTimeRange)
+        {
+            return GetCustomScheduleInterval(ownerDate, settings).End.AddTicks(1);
+        }
+
+        for (int offset = 1; offset <= 8; offset++)
+        {
+            DateTime nextOwnerDate = ownerDate.Date.AddDays(offset);
+            if (!IsCustomScheduleOwnerEnabled(nextOwnerDate, settings))
+            {
+                return nextOwnerDate;
+            }
+        }
+        if (settings.RoutineScheduleEndDate.HasValue)
+        {
+            return settings.RoutineScheduleEndDate.Value.ToDateTime(TimeOnly.MinValue).AddDays(1);
+        }
+        return null;
+    }
+
+    private static DateTime GetCustomScheduleOwnerDate(DateTime now, RoomRecordingOptions settings)
+    {
+        if (!settings.RoutineScheduleUseTimeRange)
+        {
+            return now.Date;
+        }
+
+        TimeSpan start = GetCustomScheduleStart(settings);
+        TimeSpan end = GetCustomScheduleEnd(settings);
+        return start > end && now.TimeOfDay <= end ? now.Date.AddDays(-1) : now.Date;
+    }
+
+    private static bool IsCustomScheduleOwnerEnabled(DateTime ownerDate, RoomRecordingOptions settings)
+    {
+        DateOnly date = DateOnly.FromDateTime(ownerDate);
+        if (settings.RoutineScheduleStartDate.HasValue && date < settings.RoutineScheduleStartDate.Value)
         {
             return false;
         }
+        if (settings.RoutineScheduleEndDate.HasValue && date > settings.RoutineScheduleEndDate.Value)
+        {
+            return false;
+        }
+        if (!settings.RoutineScheduleUseDays)
+        {
+            return true;
+        }
 
-        TimeSpan start = new(
+        return settings.RoutineScheduleDays
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Contains(ownerDate.DayOfWeek.ToString(), StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool IsWithinCustomScheduleTime(DateTime now, DateTime ownerDate, RoomRecordingOptions settings)
+    {
+        if (!settings.RoutineScheduleUseTimeRange)
+        {
+            return true;
+        }
+        (DateTime start, DateTime end) = GetCustomScheduleInterval(ownerDate, settings);
+        return now >= start && now <= end;
+    }
+
+    private static (DateTime Start, DateTime End) GetCustomScheduleInterval(DateTime ownerDate, RoomRecordingOptions settings)
+    {
+        if (!settings.RoutineScheduleUseTimeRange)
+        {
+            return (ownerDate.Date, ownerDate.Date.AddDays(1).AddTicks(-1));
+        }
+
+        TimeSpan start = GetCustomScheduleStart(settings);
+        TimeSpan end = GetCustomScheduleEnd(settings);
+        DateTime intervalStart = ownerDate.Date.Add(start);
+        DateTime intervalEnd = ownerDate.Date.Add(end);
+        if (start > end)
+        {
+            intervalEnd = intervalEnd.AddDays(1);
+        }
+        return (intervalStart, intervalEnd);
+    }
+
+    private static TimeSpan GetCustomScheduleStart(RoomRecordingOptions settings)
+    {
+        return new TimeSpan(
             Math.Clamp(settings.RoutineScheduleStartHour, 0, 23),
             Math.Clamp(settings.RoutineScheduleStartMinute, 0, 59),
             0);
-        TimeSpan end = new(
+    }
+
+    private static TimeSpan GetCustomScheduleEnd(RoomRecordingOptions settings)
+    {
+        return new TimeSpan(
             Math.Clamp(settings.RoutineScheduleEndHour, 0, 23),
             Math.Clamp(settings.RoutineScheduleEndMinute, 0, 59),
             0);
-        TimeSpan current = now.TimeOfDay;
-
-        return start <= end
-            ? current >= start && current <= end
-            : current >= start || current <= end;
     }
 
     /// <summary>

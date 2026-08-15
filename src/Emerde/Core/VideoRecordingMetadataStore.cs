@@ -242,12 +242,20 @@ internal static class VideoRecordingMetadataStore
                 || !string.IsNullOrWhiteSpace(metadata.NickName)
                 || !string.IsNullOrWhiteSpace(metadata.RoomUrl)
                 || !string.IsNullOrWhiteSpace(metadata.Platform)
+                || !string.IsNullOrWhiteSpace(metadata.RoomId)
                 || !string.IsNullOrWhiteSpace(metadata.Title)
                 || !string.IsNullOrWhiteSpace(metadata.Resolution)
                 || !string.IsNullOrWhiteSpace(metadata.Bitrate)
+                || metadata.FrameRate > 0
+                || !string.IsNullOrWhiteSpace(metadata.Quality)
+                || !string.IsNullOrWhiteSpace(metadata.VideoCodec)
+                || !string.IsNullOrWhiteSpace(metadata.AudioCodec)
+                || metadata.HasOptimizedAudio
                 || !string.IsNullOrWhiteSpace(metadata.CoverPath)
                 || !string.IsNullOrWhiteSpace(metadata.SegmentReason)
-                || metadata.RecordedAt > DateTime.MinValue);
+                || metadata.RecordedAt > DateTime.MinValue
+                || metadata.EndedAt > DateTime.MinValue
+                || metadata.DurationSeconds > 0);
     }
 
     public static VideoRecordingMetadata Merge(VideoRecordingMetadata preferred, VideoRecordingMetadata? fallback)
@@ -259,16 +267,26 @@ internal static class VideoRecordingMetadataStore
 
         return new VideoRecordingMetadata
         {
+            SchemaVersion = Math.Max(preferred.SchemaVersion, fallback!.SchemaVersion),
             FileName = First(preferred.FileName, fallback!.FileName),
             NickName = First(preferred.NickName, fallback.NickName),
             RoomUrl = First(preferred.RoomUrl, fallback.RoomUrl),
             Platform = First(preferred.Platform, fallback.Platform),
+            RoomId = First(preferred.RoomId, fallback.RoomId),
             Title = First(preferred.Title, fallback.Title),
             Resolution = First(preferred.Resolution, fallback.Resolution),
             Bitrate = First(preferred.Bitrate, fallback.Bitrate),
+            FrameRate = preferred.FrameRate > 0 ? preferred.FrameRate : fallback.FrameRate,
+            Quality = First(preferred.Quality, fallback.Quality),
+            VideoCodec = First(preferred.VideoCodec, fallback.VideoCodec),
+            AudioCodec = First(preferred.AudioCodec, fallback.AudioCodec),
+            HasOptimizedAudio = preferred.HasOptimizedAudio || fallback.HasOptimizedAudio,
             CoverPath = First(preferred.CoverPath, fallback.CoverPath),
             SegmentReason = First(preferred.SegmentReason, fallback.SegmentReason),
             RecordedAt = preferred.RecordedAt > DateTime.MinValue ? preferred.RecordedAt : fallback.RecordedAt,
+            EndedAt = preferred.EndedAt > DateTime.MinValue ? preferred.EndedAt : fallback.EndedAt,
+            DurationSeconds = preferred.DurationSeconds > 0 ? preferred.DurationSeconds : fallback.DurationSeconds,
+            FileNameRule = First(preferred.FileNameRule, fallback.FileNameRule),
         };
     }
 
@@ -276,16 +294,26 @@ internal static class VideoRecordingMetadataStore
     {
         return new VideoRecordingMetadata
         {
+            SchemaVersion = metadata.SchemaVersion,
             FileName = fileName,
             NickName = metadata.NickName,
             RoomUrl = metadata.RoomUrl,
             Platform = metadata.Platform,
+            RoomId = metadata.RoomId,
             Title = metadata.Title,
             Resolution = metadata.Resolution,
             Bitrate = metadata.Bitrate,
+            FrameRate = metadata.FrameRate,
+            Quality = metadata.Quality,
+            VideoCodec = metadata.VideoCodec,
+            AudioCodec = metadata.AudioCodec,
+            HasOptimizedAudio = metadata.HasOptimizedAudio,
             CoverPath = metadata.CoverPath,
             SegmentReason = metadata.SegmentReason,
             RecordedAt = metadata.RecordedAt,
+            EndedAt = metadata.EndedAt,
+            DurationSeconds = metadata.DurationSeconds,
+            FileNameRule = metadata.FileNameRule,
         };
     }
 
@@ -300,12 +328,21 @@ internal static class VideoRecordingMetadataStore
         AddMetadata(arguments, "emerde_nick_name", metadata.NickName);
         AddMetadata(arguments, "emerde_room_url", metadata.RoomUrl);
         AddMetadata(arguments, "emerde_platform", metadata.Platform);
+        AddMetadata(arguments, "emerde_room_id", metadata.RoomId);
         AddMetadata(arguments, "emerde_title", metadata.Title);
         AddMetadata(arguments, "emerde_resolution", metadata.Resolution);
         AddMetadata(arguments, "emerde_bitrate", metadata.Bitrate);
+        AddMetadata(arguments, "emerde_frame_rate", FormatNumber(metadata.FrameRate));
+        AddMetadata(arguments, "emerde_quality", metadata.Quality);
+        AddMetadata(arguments, "emerde_video_codec", metadata.VideoCodec);
+        AddMetadata(arguments, "emerde_audio_codec", metadata.AudioCodec);
+        AddMetadata(arguments, "emerde_optimized_audio", metadata.HasOptimizedAudio ? bool.TrueString : string.Empty);
         AddMetadata(arguments, "emerde_cover_path", metadata.CoverPath);
         AddMetadata(arguments, "emerde_segment_reason", metadata.SegmentReason);
         AddMetadata(arguments, "emerde_recorded_at", FormatTimestamp(metadata.RecordedAt));
+        AddMetadata(arguments, "emerde_ended_at", FormatTimestamp(metadata.EndedAt));
+        AddMetadata(arguments, "emerde_duration_seconds", FormatNumber(metadata.DurationSeconds));
+        AddMetadata(arguments, "emerde_file_name_rule", metadata.FileNameRule);
 
         return arguments;
     }
@@ -331,17 +368,29 @@ internal static class VideoRecordingMetadataStore
             NickName = First(GetTag(tags, "emerde_nick_name"), GetTag(tags, "artist")),
             RoomUrl = GetTag(tags, "emerde_room_url"),
             Platform = GetTag(tags, "emerde_platform"),
+            RoomId = GetTag(tags, "emerde_room_id"),
             Title = First(GetTag(tags, "emerde_title"), GetTag(tags, "title")),
             Resolution = GetTag(tags, "emerde_resolution"),
             Bitrate = GetTag(tags, "emerde_bitrate"),
+            FrameRate = ParseNumber(GetTag(tags, "emerde_frame_rate")),
+            Quality = GetTag(tags, "emerde_quality"),
+            VideoCodec = GetTag(tags, "emerde_video_codec"),
+            AudioCodec = GetTag(tags, "emerde_audio_codec"),
+            HasOptimizedAudio = ParseBoolean(GetTag(tags, "emerde_optimized_audio")),
             CoverPath = GetTag(tags, "emerde_cover_path"),
             SegmentReason = GetTag(tags, "emerde_segment_reason"),
+            DurationSeconds = ParseNumber(GetTag(tags, "emerde_duration_seconds")),
+            FileNameRule = GetTag(tags, "emerde_file_name_rule"),
         };
 
         string recordedAtText = First(GetTag(tags, "emerde_recorded_at"), GetTag(tags, "creation_time"), GetTag(tags, "date"));
         if (DateTime.TryParse(recordedAtText, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal, out DateTime recordedAt))
         {
             metadata.RecordedAt = recordedAt;
+        }
+        if (DateTime.TryParse(GetTag(tags, "emerde_ended_at"), CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal, out DateTime endedAt))
+        {
+            metadata.EndedAt = endedAt;
         }
 
         return metadata;
@@ -360,11 +409,19 @@ internal static class VideoRecordingMetadataStore
             NickName = First(Get("emerde_nick_name"), Get("artist")),
             RoomUrl = Get("emerde_room_url"),
             Platform = Get("emerde_platform"),
+            RoomId = Get("emerde_room_id"),
             Title = First(Get("emerde_title"), Get("title")),
             Resolution = Get("emerde_resolution"),
             Bitrate = Get("emerde_bitrate"),
+            FrameRate = ParseNumber(Get("emerde_frame_rate")),
+            Quality = Get("emerde_quality"),
+            VideoCodec = Get("emerde_video_codec"),
+            AudioCodec = Get("emerde_audio_codec"),
+            HasOptimizedAudio = ParseBoolean(Get("emerde_optimized_audio")),
             CoverPath = Get("emerde_cover_path"),
             SegmentReason = Get("emerde_segment_reason"),
+            DurationSeconds = ParseNumber(Get("emerde_duration_seconds")),
+            FileNameRule = Get("emerde_file_name_rule"),
         };
 
         string recordedAtText = First(Get("emerde_recorded_at"), Get("creation_time"), Get("date"));
@@ -372,7 +429,10 @@ internal static class VideoRecordingMetadataStore
         {
             metadata.RecordedAt = recordedAt;
         }
-
+        if (DateTime.TryParse(Get("emerde_ended_at"), CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal, out DateTime endedAt))
+        {
+            metadata.EndedAt = endedAt;
+        }
         return metadata;
     }
 
@@ -578,6 +638,23 @@ internal static class VideoRecordingMetadataStore
         return value > DateTime.MinValue
             ? value.ToString("O", CultureInfo.InvariantCulture)
             : string.Empty;
+    }
+
+    private static string FormatNumber(double value)
+    {
+        return value > 0 ? value.ToString("0.###", CultureInfo.InvariantCulture) : string.Empty;
+    }
+
+    private static double ParseNumber(string value)
+    {
+        return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed) && parsed > 0
+            ? parsed
+            : 0;
+    }
+
+    private static bool ParseBoolean(string value)
+    {
+        return bool.TryParse(value, out bool parsed) && parsed;
     }
 
     private static VideoRecordingMetadata? ReadAttachedMetadata(string mediaPath)

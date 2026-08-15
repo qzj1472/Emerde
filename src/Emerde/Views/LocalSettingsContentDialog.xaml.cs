@@ -30,6 +30,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
     private long segmentRawValue;
     private int segmentRawUnit;
     private bool isUpdatingSegmentTime;
+    private bool isUpdatingRoutineScheduleDates;
     private readonly bool useGlobalQualityOptionsWhenPlatformUnknown;
 
     [ObservableProperty]
@@ -135,6 +136,22 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
 
     [ObservableProperty]
     private bool routineScheduleSunday = true;
+
+    [ObservableProperty]
+    private DateTime? routineScheduleStartDate;
+
+    partial void OnRoutineScheduleStartDateChanged(DateTime? value) => NormalizeRoutineScheduleDates(changedStart: true);
+
+    [ObservableProperty]
+    private DateTime? routineScheduleEndDate;
+
+    partial void OnRoutineScheduleEndDateChanged(DateTime? value) => NormalizeRoutineScheduleDates(changedStart: false);
+
+    [ObservableProperty]
+    private bool routineScheduleUseDays = true;
+
+    [ObservableProperty]
+    private bool routineScheduleUseTimeRange = true;
 
     [ObservableProperty]
     private double routineScheduleStartHour;
@@ -551,7 +568,11 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
             SegmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(SegmentTimeUnitIndex),
             RoutineInterval = MonitorTiming.NormalizeRoutineInterval(routineIntervalMilliseconds),
             RoutineScheduleMode = Math.Clamp(RoutineScheduleModeIndex, 0, 4),
+            RoutineScheduleStartDate = RoutineScheduleStartDate.HasValue ? DateOnly.FromDateTime(RoutineScheduleStartDate.Value) : null,
+            RoutineScheduleEndDate = RoutineScheduleEndDate.HasValue ? DateOnly.FromDateTime(RoutineScheduleEndDate.Value) : null,
+            RoutineScheduleUseDays = RoutineScheduleUseDays,
             RoutineScheduleDays = BuildRoutineScheduleDays(),
+            RoutineScheduleUseTimeRange = RoutineScheduleUseTimeRange,
             RoutineScheduleStartHour = ClampHour(RoutineScheduleStartHour),
             RoutineScheduleStartMinute = ClampMinute(RoutineScheduleStartMinute),
             RoutineScheduleEndHour = ClampHour(RoutineScheduleEndHour),
@@ -604,6 +625,9 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         }
 
         RoutineScheduleModeIndex = Math.Clamp(settings.RoutineScheduleMode, 0, 4);
+        RoutineScheduleStartDate = settings.RoutineScheduleStartDate?.ToDateTime(TimeOnly.MinValue);
+        RoutineScheduleEndDate = settings.RoutineScheduleEndDate?.ToDateTime(TimeOnly.MinValue);
+        RoutineScheduleUseDays = settings.RoutineScheduleUseDays;
         HashSet<DayOfWeek> days = ParseScheduleDays(settings.RoutineScheduleDays);
         RoutineScheduleMonday = days.Contains(DayOfWeek.Monday);
         RoutineScheduleTuesday = days.Contains(DayOfWeek.Tuesday);
@@ -612,6 +636,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         RoutineScheduleFriday = days.Contains(DayOfWeek.Friday);
         RoutineScheduleSaturday = days.Contains(DayOfWeek.Saturday);
         RoutineScheduleSunday = days.Contains(DayOfWeek.Sunday);
+        RoutineScheduleUseTimeRange = settings.RoutineScheduleUseTimeRange;
         RoutineScheduleStartHour = Math.Clamp(settings.RoutineScheduleStartHour, 0, 23);
         RoutineScheduleStartMinute = Math.Clamp(settings.RoutineScheduleStartMinute, 0, 59);
         RoutineScheduleEndHour = Math.Clamp(settings.RoutineScheduleEndHour, 0, 23);
@@ -619,6 +644,38 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         SaveFolder = settings.SaveFolder;
         SaveFolderPathLevelIndex = Math.Clamp(settings.SaveFolderPathLevel, 0, 3);
         SaveFileNameCustomRule = settings.SaveFileNameCustomRule;
+    }
+
+    private void NormalizeRoutineScheduleDates(bool changedStart)
+    {
+        if (isUpdatingRoutineScheduleDates)
+        {
+            return;
+        }
+
+        isUpdatingRoutineScheduleDates = true;
+        try
+        {
+            RoutineScheduleStartDate = RoutineScheduleStartDate?.Date;
+            RoutineScheduleEndDate = RoutineScheduleEndDate?.Date;
+            if (RoutineScheduleStartDate.HasValue
+                && RoutineScheduleEndDate.HasValue
+                && RoutineScheduleStartDate > RoutineScheduleEndDate)
+            {
+                if (changedStart)
+                {
+                    RoutineScheduleEndDate = RoutineScheduleStartDate;
+                }
+                else
+                {
+                    RoutineScheduleStartDate = RoutineScheduleEndDate;
+                }
+            }
+        }
+        finally
+        {
+            isUpdatingRoutineScheduleDates = false;
+        }
     }
 
     internal void InitializeFromGlobalSettings()

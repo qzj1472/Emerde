@@ -209,6 +209,12 @@ public interface ISpiderResult
         set { }
     }
 
+    public string? RoomId
+    {
+        get => null;
+        set { }
+    }
+
     public string? Resolution
     {
         get => null;

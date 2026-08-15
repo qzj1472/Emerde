@@ -574,9 +574,12 @@ public sealed class RecordingCleanupServiceTests : IDisposable
         int oldUnit = Configurations.DataRetentionUnit.Get();
         string tempFolder = Path.Combine(Path.GetTempPath(), "emerde-cleanup-test-" + Guid.NewGuid().ToString("N"));
         string nestedFolder = Path.Combine(tempFolder, "host", "session");
+        string emptySiblingFolder = Path.Combine(tempFolder, "host", "empty", "day");
         Directory.CreateDirectory(nestedFolder);
+        Directory.CreateDirectory(emptySiblingFolder);
         string mediaPath = Path.Combine(nestedFolder, "old.mp4");
         await File.WriteAllTextAsync(mediaPath, "media");
+        await File.WriteAllTextAsync(mediaPath + VideoRepairService.RepairReportSuffix, "{}");
         _ = VideoRecordingMetadataStore.WriteSidecar(nestedFolder, "old", new VideoRecordingMetadata
         {
             FileName = "old.mp4",
@@ -606,6 +609,61 @@ public sealed class RecordingCleanupServiceTests : IDisposable
             {
                 Directory.Delete(tempFolder, recursive: true);
             }
+        }
+    }
+
+    [Fact]
+    public async Task RunAsync_RemovesRepairReportLeftByPreviouslyDeletedVideo()
+    {
+        string oldSaveFolder = Configurations.SaveFolder.Get();
+        bool oldEnabled = Configurations.IsDataRetentionEnabled.Get();
+        string tempFolder = Path.Combine(Path.GetTempPath(), "emerde-cleanup-test-" + Guid.NewGuid().ToString("N"));
+        string nestedFolder = Path.Combine(tempFolder, "host", "session");
+        Directory.CreateDirectory(nestedFolder);
+        string reportPath = Path.Combine(nestedFolder, "old.mkv" + VideoRepairService.RepairReportSuffix);
+        await File.WriteAllTextAsync(reportPath, "{}");
+
+        try
+        {
+            Configurations.SaveFolder.Set(tempFolder);
+            Configurations.IsDataRetentionEnabled.Set(true);
+
+            await RecordingCleanupService.RunAsync([tempFolder]);
+
+            Assert.False(File.Exists(reportPath));
+            Assert.False(Directory.Exists(Path.Combine(tempFolder, "host")));
+        }
+        finally
+        {
+            Configurations.SaveFolder.Set(oldSaveFolder);
+            Configurations.IsDataRetentionEnabled.Set(oldEnabled);
+            if (Directory.Exists(tempFolder))
+            {
+                Directory.Delete(tempFolder, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void RemoveEmptyDirectoryTrees_PreservesProtectedRecordingDirectory()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"emerde-cleanup-protected-{Guid.NewGuid():N}");
+        string recordingDirectory = Path.Combine(root, "host", "2026-08");
+        Directory.CreateDirectory(recordingDirectory);
+        try
+        {
+            using IDisposable operation = MediaOperationRegistry.Register(
+                MediaOperationKind.Recording,
+                () => [recordingDirectory]);
+
+            int deleted = RecordingCleanupService.RemoveEmptyDirectoryTrees([root]);
+
+            Assert.Equal(0, deleted);
+            Assert.True(Directory.Exists(recordingDirectory));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
         }
     }
 

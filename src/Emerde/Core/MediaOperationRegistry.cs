@@ -17,6 +17,7 @@ internal enum MediaOperationKind
 internal static class MediaOperationRegistry
 {
     private static readonly ConcurrentDictionary<Guid, OperationState> Operations = new();
+    private static readonly object RegistrationLock = new();
 
     public static event EventHandler<MediaOperationsChangedEventArgs>? OperationsChanged;
 
@@ -31,8 +32,40 @@ internal static class MediaOperationRegistry
     {
         Guid id = Guid.NewGuid();
         OperationState state = new(kind, protectedPaths, cancel);
-        Operations[id] = state;
+        lock (RegistrationLock)
+        {
+            Operations[id] = state;
+        }
         RaiseOperationsChanged(id, kind, true, GetPaths(state));
+        return new Registration(id, state);
+    }
+
+    public static IDisposable? TryRegister(
+        MediaOperationKind kind,
+        IEnumerable<string?> protectedPaths,
+        Action? cancel = null,
+        Func<MediaOperationKind, bool>? conflictsWith = null)
+    {
+        string[] paths = protectedPaths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => path!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        Guid id = Guid.NewGuid();
+        OperationState state = new(kind, () => paths, cancel);
+        lock (RegistrationLock)
+        {
+            bool conflicts = Operations.Values.Any(operation =>
+                (conflictsWith == null || conflictsWith(operation.Kind))
+                && paths.Any(path => TryNormalizePath(path, out string normalizedPath)
+                    && OperationProtectsPath(operation, normalizedPath)));
+            if (conflicts)
+            {
+                return null;
+            }
+            Operations[id] = state;
+        }
+        RaiseOperationsChanged(id, kind, true, paths);
         return new Registration(id, state);
     }
 
@@ -323,7 +356,10 @@ internal static class MediaOperationRegistry
                 return;
             }
 
-            _ = Operations.TryRemove(new KeyValuePair<Guid, OperationState>(id, state));
+            lock (RegistrationLock)
+            {
+                _ = Operations.TryRemove(new KeyValuePair<Guid, OperationState>(id, state));
+            }
             state.Completion.TrySetResult();
             RaiseOperationsChanged(id, state.Kind, false, GetPaths(state));
         }

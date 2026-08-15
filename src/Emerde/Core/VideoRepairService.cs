@@ -24,6 +24,8 @@ internal sealed record VideoRepairResult(
 
 internal sealed class VideoRepairService
 {
+    internal const string RepairReportSuffix = ".repair.json";
+
     private static readonly object TargetReservationLock = new();
     private static readonly HashSet<string> ReservedTargetPaths = new(StringComparer.OrdinalIgnoreCase);
     private static readonly JsonSerializerOptions ReportOptions = new()
@@ -50,10 +52,15 @@ internal sealed class VideoRepairService
         using CancellationTokenSource operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         string targetPath = ReserveTargetPath(fullSourcePath, normalizedTargetExtension);
         string temporaryPath = MediaFileCatalog.CreateTemporaryPath(targetPath, "repair");
-        using IDisposable operation = MediaOperationRegistry.Register(
+        using IDisposable? operation = MediaOperationRegistry.TryRegister(
             MediaOperationKind.Repair,
-            () => [fullSourcePath, temporaryPath, targetPath],
+            [fullSourcePath, temporaryPath, targetPath],
             operationCancellation.Cancel);
+        if (operation == null)
+        {
+            ReleaseTargetPath(targetPath);
+            return Failed("source_busy");
+        }
         try
         {
             CancellationToken token = operationCancellation.Token;
@@ -89,7 +96,7 @@ internal sealed class VideoRepairService
             VideoRepairStatus status = timelineAligned
                 ? VideoRepairStatus.Repaired
                 : VideoRepairStatus.PartiallyRepaired;
-            string reportPath = targetPath + ".repair.json";
+            string reportPath = targetPath + RepairReportSuffix;
             VideoRepairResult result = new(
                 status,
                 targetPath,
@@ -137,7 +144,23 @@ internal sealed class VideoRepairService
         {
             throw new ArgumentOutOfRangeException(nameof(targetExtension));
         }
-        return Path.Combine(directory, Path.GetFileNameWithoutExtension(sourcePath) + "_修复" + normalizedExtension);
+        return Path.Combine(directory, Path.GetFileNameWithoutExtension(sourcePath) + normalizedExtension);
+    }
+
+    internal static bool IsOrphanedRepairReport(string path)
+    {
+        if (!path.EndsWith(RepairReportSuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        string mediaPath = path[..^RepairReportSuffix.Length];
+        return MediaFileCatalog.IsMediaPath(mediaPath) && !File.Exists(mediaPath);
+    }
+
+    internal static void TryDeleteRepairReport(string mediaPath)
+    {
+        TryDelete(mediaPath + RepairReportSuffix);
     }
 
     internal static bool IsSupportedSource(string sourcePath)

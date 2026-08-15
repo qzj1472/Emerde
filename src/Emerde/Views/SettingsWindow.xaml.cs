@@ -599,7 +599,7 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
             DataRetentionPanel.SetValue(System.Windows.Controls.Grid.RowProperty, 1);
             DataRetentionPanel.SetValue(System.Windows.Controls.Grid.ColumnProperty, 0);
             DataRetentionPanel.SetValue(System.Windows.Controls.Grid.ColumnSpanProperty, 3);
-            DataRetentionPanel.Margin = new Thickness(0, 8, 0, 0);
+            DataRetentionPanel.Margin = new Thickness(0, 16, 0, 0);
             SavePathLevelSelector.Width = 220d;
             return;
         }
@@ -613,14 +613,14 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
         double availableWidth = SaveMetadataLayout.ActualWidth > 0d
             ? SaveMetadataLayout.ActualWidth
             : Math.Max(0d, SettingsLayoutHost.ActualWidth - 140d);
-        bool keepOnOneRow = availableWidth >= 680d;
+        bool keepOnOneRow = availableWidth >= 712d;
         SavePathLevelPanel.SetValue(System.Windows.Controls.Grid.RowProperty, 0);
         SavePathLevelPanel.SetValue(System.Windows.Controls.Grid.ColumnProperty, 0);
         SavePathLevelPanel.SetValue(System.Windows.Controls.Grid.ColumnSpanProperty, keepOnOneRow ? 1 : 3);
         DataRetentionPanel.SetValue(System.Windows.Controls.Grid.RowProperty, keepOnOneRow ? 0 : 1);
         DataRetentionPanel.SetValue(System.Windows.Controls.Grid.ColumnProperty, keepOnOneRow ? 2 : 0);
         DataRetentionPanel.SetValue(System.Windows.Controls.Grid.ColumnSpanProperty, keepOnOneRow ? 1 : 3);
-        DataRetentionPanel.Margin = keepOnOneRow ? new Thickness(0) : new Thickness(0, 8, 0, 0);
+        DataRetentionPanel.Margin = keepOnOneRow ? new Thickness(0) : new Thickness(0, 16, 0, 0);
         SavePathLevelSelector.Width = ShouldUseSettingsUiXTwoColumns() ? 148d : 168d;
     }
 

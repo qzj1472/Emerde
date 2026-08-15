@@ -70,6 +70,8 @@ public sealed class Recorder
 
     private IDisposable? mediaOperationRegistration;
 
+    private string? activeSaveFolder;
+
     public bool IsBusy => recordingTask is { IsCompleted: false };
 
     public bool HasMediaProgress => Volatile.Read(ref hasMediaProgress) != 0;
@@ -130,6 +132,7 @@ public sealed class Recorder
             unregisteredRecordingPatterns.Clear();
             unregisteredSessionRecordings.Clear();
             FileName = null;
+            activeSaveFolder = null;
             MetadataPath = null;
             MediaWorkerProcessId = 0;
             MediaWorkerProcessName = string.Empty;
@@ -151,7 +154,7 @@ public sealed class Recorder
             CancellationToken recordingToken = TokenSource.Token;
             mediaOperationRegistration = MediaOperationRegistry.Register(
                 MediaOperationKind.Recording,
-                () => [FileName],
+                () => [FileName, activeSaveFolder],
                 () => Stop(deferPostProcessing: true));
             try
             {
@@ -225,6 +228,7 @@ public sealed class Recorder
                 }
             }
             saveFolder = BuildSaveFolder(saveFolder, startInfo.NickName, DateTime.Now, recordingOptions.SaveFolderPathLevel);
+            activeSaveFolder = saveFolder;
             Directory.CreateDirectory(saveFolder);
 
             string userAgent = Configurations.UserAgent.Get();
@@ -289,7 +293,9 @@ public sealed class Recorder
                     sessionTargetFormat,
                     recordingOptions.IsRemoveTs,
                     startInfo.RoomUrl,
-                    recordingOptions.IsOptimizeAudio);
+                    recordingOptions.IsOptimizeAudio,
+                    fileNameRule: recordingOptions.SaveFileNameCustomRule,
+                    finalizeName: true);
                 if (!string.IsNullOrWhiteSpace(sessionPendingRecordingPath))
                 {
                     pendingRecordingPaths.Add(sessionPendingRecordingPath);
@@ -320,7 +326,17 @@ public sealed class Recorder
                     FileName = outputReservation.OutputPattern;
                     metadata = BuildMetadata(baseFileName, useTransportStream ? "ts" : "flv", startInfo, now);
                     MetadataPath = VideoRecordingMetadataStore.WriteSidecar(saveFolder, baseFileName, metadata);
-                    string? pendingRecordingPath = RecordingRecoveryService.Register(FileName, recordingOptions, startInfo.RoomUrl);
+                    string? pendingRecordingPath = targetFormat == null
+                        ? RecordingRecoveryService.RegisterSessionParts(
+                            FileName,
+                            "." + sessionSourceExtension,
+                            removeSource: false,
+                            startInfo.RoomUrl,
+                            optimizeAudio: false,
+                            mergeSessionParts: false,
+                            fileNameRule: recordingOptions.SaveFileNameCustomRule,
+                            finalizeName: true)
+                        : RecordingRecoveryService.Register(FileName, recordingOptions, startInfo.RoomUrl, finalizeName: true);
                     if (!string.IsNullOrWhiteSpace(pendingRecordingPath))
                     {
                         pendingRecordingPaths.Add(pendingRecordingPath);
@@ -620,7 +636,7 @@ public sealed class Recorder
 
                 foreach (string sourcePattern in unregisteredRecordingPatterns)
                 {
-                    string? pendingPath = RecordingRecoveryService.Register(sourcePattern, postProcessingOptions, startInfo.RoomUrl);
+                    string? pendingPath = RecordingRecoveryService.Register(sourcePattern, postProcessingOptions, startInfo.RoomUrl, finalizeName: true);
                     if (!string.IsNullOrWhiteSpace(pendingPath))
                     {
                         pendingRecordingPaths.Add(pendingPath);
@@ -644,7 +660,9 @@ public sealed class Recorder
                         mergeSessionParts: !(sessionSplitByStall || isStallSegment),
                         segmentReason: sessionSplitByStall || isStallSegment
                             ? VideoRecordingMetadataStore.TimelineStallSegmentReason
-                            : string.Empty);
+                            : string.Empty,
+                        fileNameRule: postProcessingOptions.SaveFileNameCustomRule,
+                        finalizeName: true);
                     if (!string.IsNullOrWhiteSpace(pendingPath))
                     {
                         pendingRecordingPaths.Add(pendingPath);
@@ -702,6 +720,7 @@ public sealed class Recorder
                 }
                 mediaOperationRegistration?.Dispose();
                 mediaOperationRegistration = null;
+                activeSaveFolder = null;
                 await CancelCrossStreamVerificationAsync();
                 lock (stateLock)
                 {
@@ -2004,6 +2023,7 @@ public sealed class Recorder
         try
         {
             refreshed = await refreshStreamAsync(token);
+            token.ThrowIfCancellationRequested();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -2035,6 +2055,7 @@ public sealed class Recorder
         {
             return null;
         }
+        startInfo.StreamRefreshed?.Invoke(refreshed);
 
         string refreshedUrl = SelectInputUrl(refreshed.RecordUrl, refreshed.HlsUrl, refreshed.FlvUrl);
         if (string.IsNullOrWhiteSpace(refreshedUrl))
@@ -2344,16 +2365,12 @@ public sealed class Recorder
 
     private static string BuildBaseFileName(RecorderStartInfo startInfo, DateTime timestamp)
     {
-        const string defaultRule = "{主播名}_{录制时间}";
-        string configuredRule = startInfo.Options.SaveFileNameCustomRule;
-        string rule = string.IsNullOrWhiteSpace(configuredRule) ? defaultRule : configuredRule;
-
-        return ApplyFileNameRule(rule, startInfo.NickName, timestamp, string.IsNullOrWhiteSpace(startInfo.PlatformName) ? "Emerde" : startInfo.PlatformName, startInfo.Resolution);
+        return RecordingFinalizationService.BuildTemporaryStem(startInfo.NickName);
     }
 
     private static string BuildBaseFileName(string nickName, DateTime timestamp)
     {
-        const string defaultRule = "{主播名}_{录制时间}";
+        const string defaultRule = RecordingFinalizationService.DefaultRule;
         string configuredRule = Configurations.SaveFileNameCustomRule.Get();
         string rule = string.IsNullOrWhiteSpace(configuredRule) ? defaultRule : configuredRule;
 
@@ -2385,11 +2402,14 @@ public sealed class Recorder
             NickName = startInfo.NickName,
             RoomUrl = startInfo.RoomUrl,
             Platform = startInfo.PlatformName,
+            RoomId = startInfo.RoomId,
             Title = startInfo.Title,
             Resolution = startInfo.Resolution,
             Bitrate = startInfo.Bitrate,
+            Quality = startInfo.Quality,
             CoverPath = startInfo.CoverPath,
             RecordedAt = timestamp,
+            FileNameRule = startInfo.Options.SaveFileNameCustomRule,
         };
     }
 }
@@ -2669,6 +2689,10 @@ public record RecorderStartInfo
 
     public string Bitrate { get; set; } = string.Empty;
 
+    public string Quality { get; set; } = string.Empty;
+
+    public string RoomId { get; set; } = string.Empty;
+
     public string CoverPath { get; set; } = string.Empty;
 
     public RoomRecordingOptions Options { get; set; } = RoomRecordingSettings.GetGlobal();
@@ -2676,6 +2700,8 @@ public record RecorderStartInfo
     internal Func<RoomRecordingOptions>? ResolveCurrentOptions { get; set; }
 
     internal Func<CancellationToken, Task<RecorderStreamRefreshResult?>>? RefreshStreamAsync { get; set; }
+
+    internal Action<RecorderStreamRefreshResult>? StreamRefreshed { get; set; }
 
     internal Action? OfflineConfirmed { get; set; }
 
@@ -2707,6 +2733,8 @@ internal sealed record RecorderStreamRefreshResult
 
 public sealed class VideoRecordingMetadata
 {
+    public int SchemaVersion { get; set; } = 2;
+
     public string FileName { get; set; } = string.Empty;
 
     public string NickName { get; set; } = string.Empty;
@@ -2715,20 +2743,38 @@ public sealed class VideoRecordingMetadata
 
     public string Platform { get; set; } = string.Empty;
 
+    public string RoomId { get; set; } = string.Empty;
+
     public string Title { get; set; } = string.Empty;
 
     public string Resolution { get; set; } = string.Empty;
 
     public string Bitrate { get; set; } = string.Empty;
 
+    public double FrameRate { get; set; }
+
+    public string Quality { get; set; } = string.Empty;
+
+    public string VideoCodec { get; set; } = string.Empty;
+
+    public string AudioCodec { get; set; } = string.Empty;
+
+    public bool HasOptimizedAudio { get; set; }
+
     public string CoverPath { get; set; } = string.Empty;
 
     public string SegmentReason { get; set; } = string.Empty;
 
     public DateTime RecordedAt { get; set; } = DateTime.MinValue;
+
+    public DateTime EndedAt { get; set; } = DateTime.MinValue;
+
+    public double DurationSeconds { get; set; }
+
+    public string FileNameRule { get; set; } = string.Empty;
 }
 
-file static class FileNameSanitizer
+internal static class FileNameSanitizer
 {
     private const int MaximumBaseFileNameLength = 120;
 

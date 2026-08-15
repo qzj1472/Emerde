@@ -930,17 +930,21 @@ public sealed class SpiderTests
             RoomUrl = "https://live.douyin.com/123456",
             PlatformName = "Douyin",
             Nickname = "anchor",
+            RoomId = "room-123456",
         };
-        DouyinSpiderResult fallback = new()
+        StreamResolverResult fallback = new()
         {
             RoomUrl = profile.RoomUrl,
             PlatformName = "Douyin",
             IsLiveStreaming = false,
+            Uid = "anchor-654321",
         };
 
         StreamResolverResult result = StreamResolver.MergeResults(profile.RoomUrl, profile, fallback);
 
         Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("room-123456", result.RoomId);
+        Assert.Equal("anchor-654321", result.Uid);
         Assert.False(result.IsLiveStreaming);
         Assert.True(StreamResolver.HasConclusiveData(result));
     }

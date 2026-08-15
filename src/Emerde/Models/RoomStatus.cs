@@ -18,6 +18,8 @@ public sealed class RoomStatus
 
     public string Uid { get; set; } = string.Empty;
 
+    public string RoomId { get; set; } = string.Empty;
+
     public string Quality { get; set; } = string.Empty;
 
     public string Resolution { get; set; } = string.Empty;
