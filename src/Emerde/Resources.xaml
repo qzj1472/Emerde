@@ -33,6 +33,7 @@
     <SolidColorBrush x:Key="EmerdeDialogBackgroundBrush" Color="#FFF1F4F5" />
     <SolidColorBrush x:Key="EmerdeDialogOuterBorderBrush" Color="#FF000000" />
     <StaticResource x:Key="EmerdeTextInputBorderBrush" ResourceKey="ControlStrokeColorDefaultBrush" />
+    <StaticResource x:Key="EmerdeTextInputFocusedBorderBrush" ResourceKey="SystemAccentColorPrimaryBrush" />
     <SolidColorBrush x:Key="EmerdeExtensionInputBorderBrush" Color="#24000000" />
     <SolidColorBrush x:Key="ControlElevationBorderBrush" Color="#24000000" />
     <StaticResource x:Key="ContentDialogBackground" ResourceKey="EmerdeDialogBackgroundBrush" />
@@ -295,7 +296,7 @@
         <Setter Property="controls:InputAssist.CommitOnEnter" Value="True" />
         <Style.Triggers>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource EmerdeTextInputFocusedBorderBrush}" />
                 <Setter Property="Effect" Value="{x:Null}" />
             </Trigger>
         </Style.Triggers>
@@ -313,7 +314,7 @@
         <Setter Property="controls:InputAssist.CommitOnEnter" Value="True" />
         <Style.Triggers>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource EmerdeTextInputFocusedBorderBrush}" />
                 <Setter Property="Effect" Value="{x:Null}" />
             </Trigger>
         </Style.Triggers>
@@ -352,7 +353,7 @@
         <Setter Property="controls:InputAssist.CommitOnEnter" Value="True" />
         <Style.Triggers>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource EmerdeTextInputFocusedBorderBrush}" />
                 <Setter Property="Effect" Value="{x:Null}" />
             </Trigger>
         </Style.Triggers>
@@ -370,7 +371,7 @@
         <Setter Property="controls:InputAssist.CommitOnEnter" Value="True" />
         <Style.Triggers>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource EmerdeTextInputFocusedBorderBrush}" />
                 <Setter Property="Effect" Value="{x:Null}" />
             </Trigger>
         </Style.Triggers>
@@ -607,7 +608,7 @@
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Style.Triggers>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource EmerdeTextInputFocusedBorderBrush}" />
                 <Setter Property="Effect" Value="{x:Null}" />
             </Trigger>
         </Style.Triggers>
@@ -617,13 +618,14 @@
         <Setter Property="MinHeight" Value="34" />
         <Setter Property="MinWidth" Value="72" />
         <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type controls:CompactNumberBox}">
                     <Border x:Name="RootBorder"
                             MinHeight="{TemplateBinding MinHeight}"
                             Background="{DynamicResource ControlFillColorDefaultBrush}"
-                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="1"
                             CornerRadius="{StaticResource Win11ControlCornerRadius}"
                             SnapsToDevicePixels="True">
@@ -699,7 +701,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                            <Setter TargetName="RootBorder" Property="BorderBrush" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                            <Setter TargetName="RootBorder" Property="BorderBrush" Value="{DynamicResource EmerdeTextInputFocusedBorderBrush}" />
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="RootBorder" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />

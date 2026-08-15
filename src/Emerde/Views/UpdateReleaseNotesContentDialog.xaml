@@ -93,6 +93,16 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="UpdateReleaseNotesComboBoxStyle"
+               TargetType="{x:Type ComboBox}"
+               BasedOn="{StaticResource {x:Type ComboBox}}">
+            <Setter Property="BorderBrush" Value="{DynamicResource UiXStrongStrokeBrush}" />
+            <Style.Triggers>
+                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                    <Setter Property="BorderBrush" Value="{DynamicResource UiXSelectionStrokeBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </vio:ContentDialog.Resources>
     <Grid Margin="0,2,0,0"
           HorizontalAlignment="Stretch"
@@ -128,8 +138,6 @@
                                Spacing="5">
                     <TextBlock Style="{StaticResource UpdateReleaseNotesTitleStyle}"
                                Text="{Binding CurrentVersionTitle}" />
-                    <TextBlock Style="{StaticResource UpdateReleaseNotesCaptionStyle}"
-                               Text="{Binding UpgradeSummary}" />
                 </ui:StackPanel>
             </Grid>
         </Border>
@@ -143,7 +151,8 @@
                       MinHeight="34"
                       HorizontalAlignment="Stretch"
                       DisplayMemberPath="VersionLabel"
-                      ItemsSource="{Binding Entries}" />
+                      ItemsSource="{Binding Entries}"
+                      Style="{StaticResource UpdateReleaseNotesComboBoxStyle}" />
         </ui:StackPanel>
 
         <ScrollViewer Grid.Row="2"
@@ -159,52 +168,33 @@
                 <ui:StackPanel Spacing="10">
                         <TextBlock Style="{StaticResource UpdateReleaseNotesTitleStyle}"
                                    Text="{Binding SelectedItem.Title, ElementName=ReleaseNoteVersionPicker}" />
-                        <TextBlock Style="{StaticResource UpdateReleaseNotesSectionStyle}"
-                                   Text="{I18N ReleaseNotesUserFacingLabel}" />
-                        <ItemsControl ItemsSource="{Binding SelectedItem.Items, ElementName=ReleaseNoteVersionPicker}">
+                        <ItemsControl ItemsSource="{Binding SelectedItem.Sections, ElementName=ReleaseNoteVersionPicker}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Margin="0,0,0,7">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Ellipse Width="5"
-                                                 Height="5"
-                                                 Margin="0,8,10,0"
-                                                 VerticalAlignment="Top"
-                                                 Fill="{DynamicResource SystemAccentColorPrimaryBrush}" />
-                                        <TextBlock Grid.Column="1"
-                                                   Style="{StaticResource UpdateReleaseNotesBodyStyle}"
-                                                   Text="{Binding}" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <Border Height="1"
-                                Margin="0,4,0,2"
-                                Background="{DynamicResource ControlStrokeColorDefaultBrush}" />
-                        <TextBlock Style="{StaticResource UpdateReleaseNotesSectionStyle}"
-                                   Text="{I18N ReleaseNotesAdditionalLabel}"
-                                   Visibility="{Binding SelectedItem.HasAdditionalItems, ElementName=ReleaseNoteVersionPicker, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                        <ItemsControl ItemsSource="{Binding SelectedItem.AdditionalItems, ElementName=ReleaseNoteVersionPicker}"
-                                      Visibility="{Binding SelectedItem.HasAdditionalItems, ElementName=ReleaseNoteVersionPicker, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid Margin="0,0,0,7">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Ellipse Width="5"
-                                                 Height="5"
-                                                 Margin="0,8,10,0"
-                                                 VerticalAlignment="Top"
-                                                 Fill="{DynamicResource SystemAccentColorPrimaryBrush}" />
-                                        <TextBlock Grid.Column="1"
-                                                   Style="{StaticResource UpdateReleaseNotesBodyStyle}"
-                                                   Text="{Binding}" />
-                                    </Grid>
+                                    <ui:StackPanel Margin="0,0,0,8" Spacing="7">
+                                        <TextBlock Style="{StaticResource UpdateReleaseNotesSectionStyle}"
+                                                   Text="{Binding Title}" />
+                                        <ItemsControl ItemsSource="{Binding Items}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,0,0,7">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Ellipse Width="5"
+                                                                 Height="5"
+                                                                 Margin="0,8,10,0"
+                                                                 VerticalAlignment="Top"
+                                                                 Fill="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                                                        <TextBlock Grid.Column="1"
+                                                                   Style="{StaticResource UpdateReleaseNotesBodyStyle}"
+                                                                   Text="{Binding}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ui:StackPanel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>

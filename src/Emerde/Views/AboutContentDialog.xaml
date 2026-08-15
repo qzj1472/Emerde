@@ -8,7 +8,6 @@
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:views="clr-namespace:Emerde.Views"
              FontSize="14"
-             SizeChanged="AboutContentDialogSizeChanged"
              SnapsToDevicePixels="True"
              UseLayoutRounding="True"
              mc:Ignorable="d">
@@ -235,6 +234,16 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="AboutReleaseNotesComboBoxStyle"
+               TargetType="{x:Type ComboBox}"
+               BasedOn="{StaticResource {x:Type ComboBox}}">
+            <Setter Property="BorderBrush" Value="{DynamicResource UiXStrongStrokeBrush}" />
+            <Style.Triggers>
+                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                    <Setter Property="BorderBrush" Value="{DynamicResource UiXSelectionStrokeBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <Grid ClipToBounds="True"
@@ -258,11 +267,13 @@
                          Style="{StaticResource AboutNavigationButtonStyle}" />
         </WrapPanel>
         <Grid Grid.Row="1">
-        <ScrollViewer BorderThickness="0"
+        <ScrollViewer x:Name="AboutOverviewScrollViewer"
+                      BorderThickness="0"
                       Focusable="False"
                       IsTabStop="False"
                       FocusVisualStyle="{x:Null}"
                       HorizontalScrollBarVisibility="Disabled"
+                      ScrollChanged="AboutOverviewScrollChanged"
                       VerticalScrollBarVisibility="Auto">
             <ScrollViewer.Style>
                 <Style TargetType="{x:Type ScrollViewer}">
@@ -972,7 +983,8 @@
                               HorizontalAlignment="Stretch"
                               DisplayMemberPath="VersionLabel"
                               ItemsSource="{Binding ReleaseNotes}"
-                              SelectedItem="{Binding SelectedReleaseNote}" />
+                              SelectedItem="{Binding SelectedReleaseNote}"
+                              Style="{StaticResource AboutReleaseNotesComboBoxStyle}" />
                     <Border Style="{StaticResource AboutReleaseNotesSurfaceStyle}">
                         <ui:StackPanel Spacing="12">
                             <Grid>
@@ -989,52 +1001,34 @@
                                            Style="{StaticResource AboutBodyTextStyle}"
                                            Text="{Binding SelectedReleaseNote.Date}" />
                             </Grid>
-                            <ItemsControl ItemsSource="{Binding SelectedReleaseNote.Items}">
+                            <ItemsControl ItemsSource="{Binding SelectedReleaseNote.Sections}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Grid Margin="0,0,0,8">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <Ellipse Width="5"
-                                                     Height="5"
-                                                     Margin="0,8,10,0"
-                                                     VerticalAlignment="Top"
-                                                     Fill="{DynamicResource SystemAccentColorPrimaryBrush}" />
-                                            <TextBlock Grid.Column="1"
-                                                       Style="{StaticResource AboutBodyTextStyle}"
-                                                       Text="{Binding}" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <Border Height="1"
-                                    Margin="0,4,0,2"
-                                    Background="{DynamicResource ControlStrokeColorDefaultBrush}"
-                                    Visibility="{Binding SelectedReleaseNote.HasAdditionalItems, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                            <TextBlock Style="{StaticResource AboutCardTitleStyle}"
-                                       FontSize="14"
-                                       Text="{I18N ReleaseNotesAdditionalLabel}"
-                                       Visibility="{Binding SelectedReleaseNote.HasAdditionalItems, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                            <ItemsControl ItemsSource="{Binding SelectedReleaseNote.AdditionalItems}"
-                                          Visibility="{Binding SelectedReleaseNote.HasAdditionalItems, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="0,0,0,8">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <Ellipse Width="5"
-                                                     Height="5"
-                                                     Margin="0,8,10,0"
-                                                     VerticalAlignment="Top"
-                                                     Fill="{DynamicResource SystemAccentColorPrimaryBrush}" />
-                                            <TextBlock Grid.Column="1"
-                                                       Style="{StaticResource AboutBodyTextStyle}"
-                                                       Text="{Binding}" />
-                                        </Grid>
+                                        <ui:StackPanel Margin="0,0,0,8" Spacing="7">
+                                            <TextBlock Style="{StaticResource AboutCardTitleStyle}"
+                                                       FontSize="14"
+                                                       Text="{Binding Title}" />
+                                            <ItemsControl ItemsSource="{Binding Items}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,0,0,8">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Ellipse Width="5"
+                                                                     Height="5"
+                                                                     Margin="0,8,10,0"
+                                                                     VerticalAlignment="Top"
+                                                                     Fill="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                                                            <TextBlock Grid.Column="1"
+                                                                       Style="{StaticResource AboutBodyTextStyle}"
+                                                                       Text="{Binding}" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ui:StackPanel>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>

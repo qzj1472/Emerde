@@ -37,18 +37,21 @@ public partial class AboutContentDialog : System.Windows.Controls.UserControl
 
     public string ReleaseNotesDescription => GetText("AboutReleaseNotesDescription", "Review changes and improvements from recent versions.");
 
-    private void AboutContentDialogSizeChanged(object sender, System.Windows.SizeChangedEventArgs e)
+    private void AboutOverviewScrollChanged(object sender, System.Windows.Controls.ScrollChangedEventArgs e)
     {
-        (AboutCardWidth, WorkflowCardWidth) = CalculateCardWidths(e.NewSize.Width);
+        if (e.ViewportWidth > 0)
+        {
+            (AboutCardWidth, WorkflowCardWidth) = CalculateCardWidths(e.ViewportWidth);
+        }
     }
 
-    internal static (double AboutCardWidth, double WorkflowCardWidth) CalculateCardWidths(double controlWidth)
+    internal static (double AboutCardWidth, double WorkflowCardWidth) CalculateCardWidths(double viewportWidth)
     {
-        double availableWidth = Math.Max(0, controlWidth - 46);
+        double availableWidth = Math.Max(0, viewportWidth - 40);
         int cardColumns = availableWidth >= 760 ? 2 : 1;
         int workflowColumns = availableWidth >= 960 ? 4 : availableWidth >= 560 ? 2 : 1;
-        double cardWidth = Math.Max(0, Core.WindowSizing.RoundLayoutValue((availableWidth - 12 * (cardColumns - 1)) / cardColumns));
-        double workflowWidth = Math.Max(0, Core.WindowSizing.RoundLayoutValue((availableWidth - 12 * (workflowColumns - 1)) / workflowColumns));
+        double cardWidth = Math.Max(0, Math.Floor((availableWidth - 12 * (cardColumns - 1)) / cardColumns));
+        double workflowWidth = Math.Max(0, Math.Floor((availableWidth - 12 * (workflowColumns - 1)) / workflowColumns));
         return (cardWidth, workflowWidth);
     }
 

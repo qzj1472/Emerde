@@ -16,8 +16,28 @@ public class AboutContentDialogTests
         Assert.Contains("CommandParameter=\"Overview\"", xaml);
         Assert.Contains("CommandParameter=\"ReleaseNotes\"", xaml);
         Assert.Contains("ItemsSource=\"{Binding ReleaseNotes}\"", xaml);
-        Assert.Contains("ItemsSource=\"{Binding SelectedReleaseNote.Items}\"", xaml);
+        Assert.Contains("ItemsSource=\"{Binding SelectedReleaseNote.Sections}\"", xaml);
         Assert.Contains(document.Descendants(), element => (string?)element.Attribute("DisplayMemberPath") == "VersionLabel");
+    }
+
+    [Fact]
+    public void ReleaseNotesSelector_UsesUiXInputStrokePalette()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement style = document.Descendants()
+            .Single(element => (string?)element.Attribute(xaml + "Key") == "AboutReleaseNotesComboBoxStyle");
+        XElement selector = document.Descendants()
+            .Single(element => element.Name.LocalName == "ComboBox"
+                && (string?)element.Attribute("ItemsSource") == "{Binding ReleaseNotes}");
+
+        Assert.Equal("{StaticResource AboutReleaseNotesComboBoxStyle}", (string?)selector.Attribute("Style"));
+        Assert.Contains(style.Elements(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "BorderBrush"
+            && (string?)element.Attribute("Value") == "{DynamicResource UiXStrongStrokeBrush}");
+        Assert.Contains(style.Descendants(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "BorderBrush"
+            && (string?)element.Attribute("Value") == "{DynamicResource UiXSelectionStrokeBrush}");
     }
 
     [Fact]
@@ -43,10 +63,10 @@ public class AboutContentDialogTests
     }
 
     [Theory]
-    [InlineData(1574, 758, 373)]
-    [InlineData(1174, 558, 273)]
-    [InlineData(754, 708, 348)]
-    [InlineData(500, 454, 454)]
+    [InlineData(1574, 761, 374)]
+    [InlineData(1174, 561, 274)]
+    [InlineData(754, 714, 351)]
+    [InlineData(500, 460, 460)]
     [InlineData(40, 0, 0)]
     public void CalculateCardWidths_UsesResponsiveColumnCounts(
         double controlWidth,
@@ -57,6 +77,33 @@ public class AboutContentDialogTests
 
         Assert.Equal(expectedCardWidth, cardWidth);
         Assert.Equal(expectedWorkflowWidth, workflowWidth);
+    }
+
+    [Fact]
+    public void CardWidths_UseTheActualOverviewViewport()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement scrollViewer = document.Descendants()
+            .Single(element => (string?)element.Attribute(xaml + "Name") == "AboutOverviewScrollViewer");
+
+        Assert.Equal("AboutOverviewScrollChanged", (string?)scrollViewer.Attribute("ScrollChanged"));
+        Assert.DoesNotContain(document.Root!.Attributes(), attribute => attribute.Name.LocalName == "SizeChanged");
+    }
+
+    [Theory]
+    [InlineData(1254)]
+    [InlineData(960)]
+    [InlineData(720)]
+    public void CardWidths_NeverOverflowTheViewport(double viewportWidth)
+    {
+        (double cardWidth, double workflowWidth) = AboutContentDialog.CalculateCardWidths(viewportWidth);
+        double availableWidth = Math.Max(0, viewportWidth - 40);
+        int cardColumns = availableWidth >= 760 ? 2 : 1;
+        int workflowColumns = availableWidth >= 960 ? 4 : availableWidth >= 560 ? 2 : 1;
+
+        Assert.True(cardColumns * cardWidth + 12 * (cardColumns - 1) <= availableWidth);
+        Assert.True(workflowColumns * workflowWidth + 12 * (workflowColumns - 1) <= availableWidth);
     }
 
     [Fact]

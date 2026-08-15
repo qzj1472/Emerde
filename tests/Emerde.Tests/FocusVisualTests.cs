@@ -946,20 +946,151 @@ public sealed class FocusVisualTests
     public void HomeBackgroundContextMenu_UsesSidebarStyleSelectionIndicators()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
-        XElement style = document.Descendants()
-            .Single(element => element.Name.LocalName == "Style"
-                && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "SelectedContextMenuIndicatorStyle");
+        XElement template = document.Descendants()
+            .Single(element => element.Name.LocalName == "ControlTemplate"
+                && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "UiXContextMenuRadioOptionTemplate");
+        XElement indicator = template.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "SelectionIndicator");
 
-        Assert.Contains(style.Elements(), element => element.Name.LocalName == "Setter"
-            && (string?)element.Attribute("Property") == "Width"
-            && (string?)element.Attribute("Value") == "3");
-        Assert.Contains(style.Elements(), element => element.Name.LocalName == "Setter"
-            && (string?)element.Attribute("Property") == "Height"
-            && (string?)element.Attribute("Value") == "20");
-        Assert.Contains(document.Descendants(), element => element.Name.LocalName == "MenuItem"
-            && (string?)element.Attribute("Header") == "{I18N SizeLarge}"
-            && element.Descendants().Any(descendant => descendant.Name.LocalName == "Border"
-                && (string?)descendant.Attribute("Style") == "{StaticResource SelectedContextMenuIndicatorStyle}"));
+        Assert.Equal("3", (string?)indicator.Attribute("Width"));
+        Assert.Equal("20", (string?)indicator.Attribute("Height"));
+        Assert.Equal("Left", (string?)indicator.Attribute("HorizontalAlignment"));
+        Assert.Equal("5,0,0,0", (string?)indicator.Attribute("Margin"));
+        Assert.Equal("0", (string?)indicator.Attribute("Opacity"));
+    }
+
+    [Fact]
+    public void HomeBackgroundContextMenu_UsesCheckedStateForCurrentSelection()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XElement radioStyle = document.Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "SelectedContextMenuRadioOptionStyle");
+
+        Assert.Equal("{StaticResource SelectedContextMenuOptionStyle}", (string?)radioStyle.Attribute("BasedOn"));
+        Assert.Contains(radioStyle.Descendants(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "OverridesDefaultStyle"
+            && (string?)element.Attribute("Value") == "True");
+        Assert.Contains(radioStyle.Descendants(), element => element.Name.LocalName == "Trigger"
+            && (string?)element.Attribute("Property") == "IsChecked");
+        XElement radioTemplate = document.Descendants()
+            .Single(element => element.Name.LocalName == "ControlTemplate"
+                && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "UiXContextMenuRadioOptionTemplate");
+        Assert.Contains(radioTemplate.Descendants(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("TargetName") == "SelectionSurface"
+            && (string?)element.Attribute("Property") == "Background"
+            && (string?)element.Attribute("Value") == "{DynamicResource UiXSelectionFillBrush}");
+        Assert.Contains(radioTemplate.Descendants(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("TargetName") == "SelectionIndicator"
+            && (string?)element.Attribute("Property") == "Opacity"
+            && (string?)element.Attribute("Value") == "1");
+
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
+        Assert.Contains("SetContextMenuRadioSelection(large", code, StringComparison.Ordinal);
+        Assert.Contains("SetContextMenuRadioSelection(byName", code, StringComparison.Ordinal);
+        Assert.Contains("IsChecked = string.Equals(normalizedOption, selectedPlatform", code, StringComparison.Ordinal);
+        Assert.Contains("menu.FindResource(\"PlatformFilterOptionStyle\")", code, StringComparison.Ordinal);
+        Assert.Contains("menu.FindResource(\"PlatformFilterIndicatorStyle\")", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("FindResource(\"SelectedContextMenuIndicatorStyle\")", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("TryFindResource(\"SelectedContextMenuRadioOptionStyle\")", code, StringComparison.Ordinal);
+
+        XElement platformFilterStyle = document.Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "PlatformFilterOptionStyle");
+        Assert.Equal("{StaticResource SelectedContextMenuRadioOptionStyle}", (string?)platformFilterStyle.Attribute("BasedOn"));
+        XElement platformIndicatorStyle = document.Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "PlatformFilterIndicatorStyle");
+        Assert.Equal("{StaticResource SelectedContextMenuIndicatorStyle}", (string?)platformIndicatorStyle.Attribute("BasedOn"));
+        XElement contextMenu = document.Descendants()
+            .Single(element => element.Name.LocalName == "ContextMenu"
+                && (string?)element.Attribute("Opened") == "HomeBackgroundContextMenuOpened");
+        Assert.NotNull(contextMenu);
+        Assert.DoesNotContain("x:Reference MainWindowRoot", document.ToString(), StringComparison.Ordinal);
+        Assert.Contains("ApplyHomeContextMenuMode(menu, isUiXEnabled, submenuTemplate, radioTemplate)", code, StringComparison.Ordinal);
+        Assert.Contains("ApplyUiXContextMenuRadioTemplate(item, radioTemplate)", code, StringComparison.Ordinal);
+        Assert.Contains("item.SetCurrentValue(Control.TemplateProperty, submenuTemplate)", code, StringComparison.Ordinal);
+        Assert.Contains("item.ClearValue(Control.TemplateProperty)", code, StringComparison.Ordinal);
+        Assert.Contains("ShellRoot.Resources[\"UiXContextMenuSubmenuHeaderTemplate\"]", code, StringComparison.Ordinal);
+        Assert.Contains("ShellRoot.Resources[\"UiXContextMenuRadioOptionTemplate\"]", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("menu.FindResource(\"UiXContextMenu", code, StringComparison.Ordinal);
+        Assert.Contains("Tag = ViewModel.StatusOfIsUiXEnabled", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void HomeBackgroundContextMenu_RemovesNestedPopupShadowAndMovesMenusRight()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XElement template = document.Descendants()
+            .Single(element => element.Name.LocalName == "ControlTemplate"
+                && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "UiXContextMenuSubmenuHeaderTemplate");
+        XElement popup = template.Descendants().Single(element => element.Name.LocalName == "Popup");
+        XElement roomCardPanel = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomCardPanel");
+        XElement contextMenu = roomCardPanel.Elements()
+            .Single(element => element.Name.LocalName == "Border.ContextMenu")
+            .Elements()
+            .Single(element => element.Name.LocalName == "ContextMenu");
+
+        Assert.DoesNotContain(template.Descendants(), element => element.Name.LocalName == "DropShadowEffect");
+        Assert.Equal("PART_Popup", (string?)popup.Attribute(XName.Get("Name", XamlNamespace)));
+        Assert.Equal("1", (string?)popup.Attribute("HorizontalOffset"));
+        Assert.Equal("0", (string?)popup.Attribute("VerticalOffset"));
+        XElement submenuBorder = template.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "SubmenuBorder");
+        Assert.Equal("0", (string?)submenuBorder.Attribute("Margin"));
+        Assert.DoesNotContain(template.Descendants(), element => element.Name.LocalName == "TranslateTransform");
+        Assert.Equal("1", (string?)contextMenu.Attribute("HorizontalOffset"));
+        Assert.Equal(2, document.Descendants().Count(element => element.Name.LocalName == "MenuItem"
+            && (string?)element.Attribute("Style") == "{StaticResource UiXContextMenuSubmenuHeaderStyle}"));
+        Assert.Contains(document.Descendants(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Template"
+            && (string?)element.Attribute("Value") == "{StaticResource UiXContextMenuSubmenuHeaderTemplate}");
+    }
+
+    [Fact]
+    public void HomeBackgroundContextMenu_AppliesUiXTemplatesDirectlyAndRestoresLegacyTemplates()
+    {
+        Exception? error = null;
+        Thread thread = new(() =>
+        {
+            try
+            {
+                System.Windows.Controls.ContextMenu menu = new();
+                System.Windows.Controls.MenuItem submenu = new();
+                System.Windows.Controls.MenuItem option = new()
+                {
+                    Icon = new System.Windows.Controls.Border(),
+                };
+                submenu.Items.Add(option);
+                menu.Items.Add(submenu);
+                System.Windows.Controls.ControlTemplate submenuTemplate = new(typeof(System.Windows.Controls.MenuItem));
+                System.Windows.Controls.ControlTemplate radioTemplate = new(typeof(System.Windows.Controls.MenuItem));
+
+                Emerde.Views.MainWindow.ApplyHomeContextMenuMode(menu, true, submenuTemplate, radioTemplate);
+
+                Assert.Same(submenuTemplate, submenu.Template);
+                Assert.Same(radioTemplate, option.Template);
+                Assert.True(option.OverridesDefaultStyle);
+                Assert.Same(System.Windows.Media.Brushes.Transparent, option.Background);
+
+                Emerde.Views.MainWindow.ApplyHomeContextMenuMode(menu, false, null, null);
+
+                Assert.Equal(System.Windows.DependencyProperty.UnsetValue, submenu.ReadLocalValue(System.Windows.Controls.Control.TemplateProperty));
+                Assert.Equal(System.Windows.DependencyProperty.UnsetValue, option.ReadLocalValue(System.Windows.Controls.Control.TemplateProperty));
+                Assert.Equal(System.Windows.DependencyProperty.UnsetValue, option.ReadLocalValue(System.Windows.FrameworkElement.OverridesDefaultStyleProperty));
+                Assert.Equal(System.Windows.DependencyProperty.UnsetValue, option.ReadLocalValue(System.Windows.Controls.Control.BackgroundProperty));
+            }
+            catch (Exception exception)
+            {
+                error = exception;
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        Assert.Null(error);
     }
 
     [Fact]
@@ -1008,7 +1139,8 @@ public sealed class FocusVisualTests
         Assert.Contains("UiXRoomCardTitleFontSize", uiX.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("{Binding StreamStatusText}", uiX.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("{Binding RecordStatusText}", uiX.ToString(), StringComparison.Ordinal);
-        Assert.Contains("UiXRoomCardBaseWidth = 200d", source, StringComparison.Ordinal);
+        Assert.Contains("UiXHomeRoomCardBaseWidth = 180d", source, StringComparison.Ordinal);
+        Assert.Contains("UiXPreviewRoomCardBaseWidth = 200d", source, StringComparison.Ordinal);
         Assert.Contains("ViewModel.StatusOfIsUiXEnabled ? 0.72d : 2d / 3d", source, StringComparison.Ordinal);
         Assert.Contains(": Math.Clamp(WindowSizing.RoundLayoutValue(13d * scale), 12d, 14d)", source, StringComparison.Ordinal);
     }
@@ -1133,6 +1265,25 @@ public sealed class FocusVisualTests
         Assert.Contains("UiXVideoCardBrush", videos, StringComparison.Ordinal);
         Assert.Contains("UiXDialogElevatedBrush", releaseNotes, StringComparison.Ordinal);
         Assert.Contains("<Setter Property=\"TextWrapping\" Value=\"Wrap\" />", settings, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UpdateReleaseNotesSelector_UsesUiXInputStrokePalette()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "UpdateReleaseNotesContentDialog.xaml"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement style = document.Descendants()
+            .Single(element => (string?)element.Attribute(xaml + "Key") == "UpdateReleaseNotesComboBoxStyle");
+        XElement selector = document.Descendants()
+            .Single(element => (string?)element.Attribute(xaml + "Name") == "ReleaseNoteVersionPicker");
+
+        Assert.Equal("{StaticResource UpdateReleaseNotesComboBoxStyle}", (string?)selector.Attribute("Style"));
+        Assert.Contains(style.Elements(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "BorderBrush"
+            && (string?)element.Attribute("Value") == "{DynamicResource UiXStrongStrokeBrush}");
+        Assert.Contains(style.Descendants(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "BorderBrush"
+            && (string?)element.Attribute("Value") == "{DynamicResource UiXSelectionStrokeBrush}");
     }
 
     [Fact]
