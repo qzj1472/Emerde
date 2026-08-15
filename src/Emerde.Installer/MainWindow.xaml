@@ -343,7 +343,7 @@
                                Margin="0,2,0,0"
                                HorizontalAlignment="Center"
                                Style="{StaticResource SubtitleStyle}"
-                               Text="已安装版本 1.6.7.1" />
+                               Text="已安装版本 1.6.7.2" />
                 </StackPanel>
 
                 <Grid Grid.Row="1" Margin="31,30,31,10">

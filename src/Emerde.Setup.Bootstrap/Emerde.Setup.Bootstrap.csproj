@@ -19,9 +19,9 @@
         <AssemblyName>Emerde.Setup.Bootstrap</AssemblyName>
         <RootNamespace>Emerde.Setup</RootNamespace>
         <Product>Emerde Installer</Product>
-        <AssemblyVersion>1.6.7.1</AssemblyVersion>
-        <FileVersion>1.6.7.1</FileVersion>
-        <Version>1.6.7.1</Version>
+        <AssemblyVersion>1.6.7.2</AssemblyVersion>
+        <FileVersion>1.6.7.2</FileVersion>
+        <Version>1.6.7.2</Version>
         <ApplicationIcon>..\Emerde\Assets\Installer.ico</ApplicationIcon>
         <ApplicationManifest>app.manifest</ApplicationManifest>
     </PropertyGroup>

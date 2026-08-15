@@ -797,6 +797,10 @@
   <data name="AboutReleaseNotesDescription" xml:space="preserve"><value>各バージョンの変更点と改善内容を確認できます。</value></data>
   <data name="ReleaseNotesUserFacingLabel" xml:space="preserve"><value>ユーザー向けの変更</value></data>
   <data name="ReleaseNotesAdditionalLabel" xml:space="preserve"><value>その他の改善</value></data>
+  <data name="ReleaseNotes1672Title" xml:space="preserve"><value>Emerde 1.6.7.2</value></data>
+  <data name="ReleaseNotes1672Date" xml:space="preserve"><value>2026-08-15</value></data>
+  <data name="ReleaseNotes1672Items" xml:space="preserve"><value>アプリの実行中に、未変換の既存 TS・FLV 録画を自動的に再検出して処理待ちに追加するため、再起動が不要になりました。|処理対象の録画が多い場合は分割して実行し、通常の変換に失敗した場合は読み取り可能な内容を自動復旧します。個別の修復操作や「修復」ファイル名接尾辞は使用しません。|自動クリーンアップで録画に対応するメタデータと空のフォルダーも削除し、設定済みの録画ルートは保持するようになりました。|ホームカードのサイズ、並び順、プレビューカードの設定が再起動後も保持されるようになりました。|UI-X のコンテキストメニューの選択状態、プラットフォーム絞り込み、複数選択操作を修正しました。|UI-X の設定、バージョン情報、更新ダイアログで、入力欄とバージョン選択欄の枠線色を統一しました。|配信タイトル、ルーム ID、画質、フレームレート、コーデック、録画時刻、動画時間を使った録画完了後の命名を追加しました。|録画メタデータに終了時刻、時間、フレームレート、画質、コーデック、最適化音声の状態を保存し、変換、修復、復旧後も維持します。|UI-X の動画一覧で空白部分のダブルクリック更新、開始時刻のみの表示、行単位または隣接カードへのキーボード選択に対応しました。|カスタム監視スケジュールで、全体設定または個別設定の日付範囲、曜日、時間帯を任意に組み合わせられるようになりました。|既存のカスタム命名規則では、「録画時刻」プレースホルダーがより正確な「録画開始時刻」へ自動移行されます。|命名規則ボタン、出力設定の間隔、更新ダイアログの内容を整理しました。</value></data>
+  <data name="ReleaseNotes1672AdditionalItems" xml:space="preserve"><value>UI-X ホーム画面の不要な毎秒更新を減らし、配信ルーム情報を開いたときに録画時間を計算して更新するようにしました。|録画復旧ポリシーの移行を改善し、以前処理できなかった録画を再試行できるようにしました。|共有 UI リソースの分離を改善し、UI-X の設定スタイルが無関係な画面や旧 UI に影響しないようにしました。</value></data>
   <data name="ReleaseNotes1671Title" xml:space="preserve"><value>Emerde 1.6.7.1</value></data>
   <data name="ReleaseNotes1671Date" xml:space="preserve"><value>2026-08-13</value></data>
   <data name="ReleaseNotes1671Items" xml:space="preserve"><value>長時間録画の安定性、配信停止、データの不連続、音声と映像の同期、録画後の変換失敗への対応を改善しました。|異常な TS、MP4 などから再生可能な音声と映像を可能な範囲で復元する録画修復機能を追加しました。|配信ルームリンクと短縮リンクの認識、重複検出を改善し、同じルームの重複追加を防ぎます。|配信者のアバター、配信状態、ルーム情報の同期を改善し、状態の変化をより早く反映します。|UI-X のルーム追加と個別設定ワークスペースを再設計し、設定の継承、情報階層、操作領域、ウィンドウ対応を改善しました。|ホームカード、プレビューカード、ウィンドウサイズ変更を改善し、余白、切れ、ちらつき、停止、サイズ変更時の遅延を減らしました。|動画一覧のサムネイル、ファイル名、配信者情報、時間とサイズ、形式表示、カード配置、複数選択を改善しました。|UI-X の設定、ルーム情報、ログ出力、設定復元、変換、録画修復、確認ダイアログを統一し、間隔、背景、枠線、ぼかし、操作性を改善しました。|ホームとトレイのコンテキストメニュー、ショートカット、選択状態、設定、拡張機能、バージョン情報画面を改善しました。</value></data>
@@ -1111,7 +1115,8 @@
   <data name="ScheduleNight" xml:space="preserve"><value>夜間に実行</value></data>
   <data name="ScheduleNightHint" xml:space="preserve"><value>毎日 18:00 から翌日 08:00 まで実行</value></data>
   <data name="ScheduleCustom" xml:space="preserve"><value>カスタムスケジュール</value></data>
-  <data name="ScheduleCustomHint" xml:space="preserve"><value>曜日と開始・終了時刻を手動で選択</value></data>
+  <data name="ScheduleCustomHint" xml:space="preserve"><value>任意の日付範囲、曜日、時間帯を組み合わせて設定</value></data>
+  <data name="ScheduleDays" xml:space="preserve"><value>曜日</value></data>
   <data name="Monday" xml:space="preserve"><value>月</value></data>
   <data name="Tuesday" xml:space="preserve"><value>火</value></data>
   <data name="Wednesday" xml:space="preserve"><value>水</value></data>
@@ -1260,4 +1265,20 @@
   <data name="UiXWorkspaceGlobalDescription" xml:space="preserve"><value>継承した設定は読み取り専用で表示されます。編集するにはカスタムに切り替えてください。</value></data>
   <data name="UiXWorkspaceCustomDescription" xml:space="preserve"><value>この配信ルームは独自の監視、録画、出力設定を使用します。</value></data>
   <data name="UiXWorkspaceNoSegment" xml:space="preserve"><value>分割なし</value></data>
+  <data name="TokenLiveTitle" xml:space="preserve"><value>配信タイトル</value></data>
+  <data name="TokenRoomId" xml:space="preserve"><value>ルーム ID</value></data>
+  <data name="TokenBitrate" xml:space="preserve"><value>ビットレート</value></data>
+  <data name="TokenFrameRate" xml:space="preserve"><value>フレームレート</value></data>
+  <data name="TokenQuality" xml:space="preserve"><value>画質</value></data>
+  <data name="TokenVideoCodec" xml:space="preserve"><value>映像コーデック</value></data>
+  <data name="TokenAudioCodec" xml:space="preserve"><value>音声コーデック</value></data>
+  <data name="TokenOptimizedAudio" xml:space="preserve"><value>最適化音声</value></data>
+  <data name="TokenRecordStartTime" xml:space="preserve"><value>録画開始時刻</value></data>
+  <data name="TokenRecordEndTime" xml:space="preserve"><value>録画終了時刻</value></data>
+  <data name="TokenDuration" xml:space="preserve"><value>動画時間</value></data>
+  <data name="ReleaseNotesCategoryBugFixes" xml:space="preserve"><value>不具合修正</value></data>
+  <data name="ReleaseNotesCategoryFeatures" xml:space="preserve"><value>機能追加</value></data>
+  <data name="ReleaseNotesCategoryStability" xml:space="preserve"><value>パフォーマンスと安定性</value></data>
+  <data name="ReleaseNotesCategoryUi" xml:space="preserve"><value>画面変更</value></data>
+  <data name="ReleaseNotesCategoryInstall" xml:space="preserve"><value>インストールと更新</value></data>
 </root>

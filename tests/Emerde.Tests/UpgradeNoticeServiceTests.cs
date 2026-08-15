@@ -150,7 +150,8 @@ public sealed class UpgradeNoticeServiceTests
     [Fact]
     public void ReleaseNotesCatalog_UsesFourPartVersions()
     {
-        Assert.Equal("1.6.7.1", ReleaseNotesCatalog.Entries[0].Version);
+        Assert.Equal("1.6.7.2", ReleaseNotesCatalog.Entries[0].Version);
+        Assert.Contains(ReleaseNotesCatalog.Entries, entry => entry.Version == "1.6.7.2");
         Assert.Contains(ReleaseNotesCatalog.Entries, entry => entry.Version == "1.6.7.1");
         Assert.Contains(ReleaseNotesCatalog.Entries, entry => entry.Version == "1.6.7.0");
         Assert.Equal("1.6.7.2", ReleaseNotesCatalog.GetEntry("1.6.7.2").Version);

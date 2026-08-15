@@ -203,7 +203,7 @@
     <value>重啟 (&amp;R)</value>
   </data>
   <data name="TrayMenuAutoRun" xml:space="preserve">
-    <value>啟動時自動運行 (&amp;A)</value>
+    <value>開機自啟 (&amp;A)</value>
   </data>
   <data name="TrayMenuOpenSettings" xml:space="preserve">
     <value>打開設置 (&amp;S)</value>
@@ -794,6 +794,10 @@
   <data name="AboutReleaseNotesDescription" xml:space="preserve"><value>查看各版本的功能變化與體驗改進。</value></data>
   <data name="ReleaseNotesUserFacingLabel" xml:space="preserve"><value>使用者可感知的更新</value></data>
   <data name="ReleaseNotesAdditionalLabel" xml:space="preserve"><value>其他改進</value></data>
+  <data name="ReleaseNotes1672Title" xml:space="preserve"><value>Emerde 1.6.7.2</value></data>
+  <data name="ReleaseNotes1672Date" xml:space="preserve"><value>2026-08-15</value></data>
+  <data name="ReleaseNotes1672Items" xml:space="preserve"><value>軟體執行期間會自動重新發現並排隊處理既有的未轉碼 TS、FLV 錄影，無需重新啟動。|待處理錄影較多時會分批執行，一般轉碼失敗後會自動恢復可讀取內容，不再提供單獨修復入口或加入「修復」檔名後綴。|自動清理現在會同時刪除錄影對應的中繼資料和空資料夾，並保留設定的錄影根目錄。|首頁卡片大小、排序方式和預覽卡片偏好會在重新啟動後繼續保留。|修復 UI-X 右鍵選單選取狀態、平台篩選和多選操作。|統一 UI-X 設定、關於頁面和更新彈窗中輸入框與版本選擇框的描邊顏色。|新增錄影完成後命名，可使用標題、房間號、畫質、幀率、編碼、錄製時間和影片時長等真實資訊。|錄影中繼資料新增結束時間、時長、幀率、畫質、編碼和最佳化音軌狀態，並在轉碼、修復和恢復後繼續保留。|UI-X 影片清單支援空白處雙擊重新整理，卡片只顯示開始時間，方向鍵可按整行和相鄰卡片移動選中項。|自訂巡檢支援在全域或單獨設定中任意組合日期範圍、星期和時段。|舊的自訂命名規則會將「錄製時間」預留位置自動遷移為更準確的「錄製開始時間」。|重新整理命名規則按鈕、輸出設定間距和更新彈窗內容。</value></data>
+  <data name="ReleaseNotes1672AdditionalItems" xml:space="preserve"><value>減少 UI-X 首頁不必要的逐秒刷新，僅在開啟直播間資訊時重新計算並更新錄製時長。|完善錄影恢復策略遷移，使先前被阻止處理的錄影可以重新嘗試。|加強共享 UI 資源隔離，避免 UI-X 設定樣式影響無關頁面或舊 UI。</value></data>
   <data name="ReleaseNotes1671Title" xml:space="preserve"><value>Emerde 1.6.7.1</value></data>
   <data name="ReleaseNotes1671Date" xml:space="preserve"><value>2026-08-13</value></data>
   <data name="ReleaseNotes1671Items" xml:space="preserve"><value>提升長時間錄製穩定性，改善直播卡頓、資料不連續、音畫不同步和錄製結束後轉碼失敗。|新增錄影修復，異常 TS、MP4 等影片可嘗試恢復可播放的音訊與視訊內容。|最佳化直播間連結、短連結辨識和重複偵測，避免同一直播間被重複加入。|最佳化主播頭像、開播狀態和直播間資訊同步，狀態變化後能更及時反映。|重做 UI-X 的新增直播間與單獨設定工作台，最佳化設定繼承、資訊層級、操作區域和視窗適配。|最佳化首頁卡片、預覽卡片列和視窗縮放，減少留白、截斷、閃爍、卡死和調整視窗時的延遲。|最佳化影片列表封面、檔名、主播資訊、時間大小、格式提示、卡片排列和多選操作。|統一 UI-X 的設定、直播間資訊、日誌匯出、恢復設定、轉碼、錄影修復和確認彈窗，改善間距、底色、描邊、模糊和互動。|完善首頁與系統匣右鍵選單、快捷鍵、選取狀態、設定、擴充和關於頁面。</value></data>
@@ -1108,7 +1112,8 @@
   <data name="ScheduleNight" xml:space="preserve"><value>夜間執行</value></data>
   <data name="ScheduleNightHint" xml:space="preserve"><value>每天 18:00 至隔日 08:00 執行</value></data>
   <data name="ScheduleCustom" xml:space="preserve"><value>自訂排程</value></data>
-  <data name="ScheduleCustomHint" xml:space="preserve"><value>手動選擇星期與起訖時段</value></data>
+  <data name="ScheduleCustomHint" xml:space="preserve"><value>可組合日期範圍、星期與時段，留空或關閉的條件不限制巡檢</value></data>
+  <data name="ScheduleDays" xml:space="preserve"><value>星期</value></data>
   <data name="Monday" xml:space="preserve"><value>週一</value></data>
   <data name="Tuesday" xml:space="preserve"><value>週二</value></data>
   <data name="Wednesday" xml:space="preserve"><value>週三</value></data>
@@ -1257,4 +1262,20 @@
   <data name="UiXWorkspaceGlobalDescription" xml:space="preserve"><value>繼承的設定保持可見且唯讀，切換到「自訂」後可編輯此直播間。</value></data>
   <data name="UiXWorkspaceCustomDescription" xml:space="preserve"><value>此直播間使用獨立的監控、錄製與輸出設定。</value></data>
   <data name="UiXWorkspaceNoSegment" xml:space="preserve"><value>不分段</value></data>
+  <data name="TokenLiveTitle" xml:space="preserve"><value>直播標題</value></data>
+  <data name="TokenRoomId" xml:space="preserve"><value>房間號</value></data>
+  <data name="TokenBitrate" xml:space="preserve"><value>位元率</value></data>
+  <data name="TokenFrameRate" xml:space="preserve"><value>幀率</value></data>
+  <data name="TokenQuality" xml:space="preserve"><value>畫質</value></data>
+  <data name="TokenVideoCodec" xml:space="preserve"><value>視訊編碼</value></data>
+  <data name="TokenAudioCodec" xml:space="preserve"><value>音訊編碼</value></data>
+  <data name="TokenOptimizedAudio" xml:space="preserve"><value>最佳化音訊</value></data>
+  <data name="TokenRecordStartTime" xml:space="preserve"><value>錄製開始時間</value></data>
+  <data name="TokenRecordEndTime" xml:space="preserve"><value>錄製結束時間</value></data>
+  <data name="TokenDuration" xml:space="preserve"><value>影片時長</value></data>
+  <data name="ReleaseNotesCategoryBugFixes" xml:space="preserve"><value>Bug 修復</value></data>
+  <data name="ReleaseNotesCategoryFeatures" xml:space="preserve"><value>功能補充</value></data>
+  <data name="ReleaseNotesCategoryStability" xml:space="preserve"><value>效能與穩定性</value></data>
+  <data name="ReleaseNotesCategoryUi" xml:space="preserve"><value>介面修改</value></data>
+  <data name="ReleaseNotesCategoryInstall" xml:space="preserve"><value>安裝與升級</value></data>
 </root>

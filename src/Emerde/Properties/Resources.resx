@@ -794,6 +794,10 @@
   <data name="AboutReleaseNotesDescription" xml:space="preserve"><value>Review changes and improvements from recent versions.</value></data>
   <data name="ReleaseNotesUserFacingLabel" xml:space="preserve"><value>User-facing changes</value></data>
   <data name="ReleaseNotesAdditionalLabel" xml:space="preserve"><value>Additional improvements</value></data>
+  <data name="ReleaseNotes1672Title" xml:space="preserve"><value>Emerde 1.6.7.2</value></data>
+  <data name="ReleaseNotes1672Date" xml:space="preserve"><value>2026-08-15</value></data>
+  <data name="ReleaseNotes1672Items" xml:space="preserve"><value>Existing unprocessed TS and FLV recordings are now rediscovered and queued automatically while the app is running, without requiring a restart.|Large recovery queues are processed in batches, and failed conversions automatically recover readable content without a separate repair action or repair suffix.|Automatic cleanup now removes matching recording metadata and empty folders while preserving configured recording roots.|Home card size, sorting, and preview card preferences now persist after restart.|Fixed UI-X context-menu selection states, platform filtering, and multi-selection behavior.|Unified input and version-selector border colors across UI-X Settings, About, and update dialogs.|Added final recording naming with live titles, room IDs, quality, frame rate, codecs, recording times, and duration.|Recording metadata now keeps end time, duration, frame rate, quality, codecs, and optimized-audio status through conversion, repair, and recovery.|The UI-X video list supports double-click refresh on empty space, start-time-only cards, and row or adjacent-card keyboard selection.|Custom monitoring schedules can combine optional date ranges, selected days, and time ranges in global or per-room settings.|Existing custom naming rules now migrate the recording-time placeholder to the more accurate recording-start-time placeholder.|Refined naming-token layout, output-setting spacing, and upgrade-dialog content.</value></data>
+  <data name="ReleaseNotes1672AdditionalItems" xml:space="preserve"><value>Reduced unnecessary per-second refresh work on the UI-X home page; recording duration is calculated when room information is opened.|Improved recovery-policy migration so previously blocked recordings can be retried.|Improved shared UI resource isolation so UI-X settings styles no longer affect unrelated pages or the legacy UI.</value></data>
   <data name="ReleaseNotes1671Title" xml:space="preserve"><value>Emerde 1.6.7.1</value></data>
   <data name="ReleaseNotes1671Date" xml:space="preserve"><value>2026-08-13</value></data>
   <data name="ReleaseNotes1671Items" xml:space="preserve"><value>Improved long-running recording stability, stream stalls, data discontinuities, audio/video synchronization, and post-recording conversion failures.|Added recording repair to recover playable audio and video from damaged TS, MP4, and related files where possible.|Improved room-link and short-link recognition and duplicate detection so the same room is not added repeatedly.|Improved streamer avatars, live status, and room information synchronization for faster state updates.|Redesigned the UI-X add-room and per-room settings workspaces with clearer inheritance, hierarchy, controls, and window adaptation.|Improved home cards, preview cards, and window resizing to reduce blank space, clipping, flicker, stalls, and resize lag.|Improved video thumbnails, filenames, streamer information, time and size details, format indicators, card layout, and multi-select actions.|Unified UI-X settings, room information, log export, configuration restore, conversion, repair, and confirmation dialogs with clearer spacing, surfaces, borders, blur, and interaction.|Refined home and tray context menus, shortcuts, selection states, settings, extensions, and the About page.</value></data>
@@ -1108,7 +1112,8 @@
   <data name="ScheduleNight" xml:space="preserve"><value>Night</value></data>
   <data name="ScheduleNightHint" xml:space="preserve"><value>Run daily from 18:00 to 08:00 the next day</value></data>
   <data name="ScheduleCustom" xml:space="preserve"><value>Custom schedule</value></data>
-  <data name="ScheduleCustomHint" xml:space="preserve"><value>Choose days and a start and end time manually</value></data>
+  <data name="ScheduleCustomHint" xml:space="preserve"><value>Combine an optional date range, selected days, and a time range</value></data>
+  <data name="ScheduleDays" xml:space="preserve"><value>Days</value></data>
   <data name="Monday" xml:space="preserve"><value>Mon</value></data>
   <data name="Tuesday" xml:space="preserve"><value>Tue</value></data>
   <data name="Wednesday" xml:space="preserve"><value>Wed</value></data>
@@ -1257,4 +1262,20 @@
   <data name="UiXWorkspaceGlobalDescription" xml:space="preserve"><value>Inherited settings stay visible and read-only. Switch to Custom to edit this room.</value></data>
   <data name="UiXWorkspaceCustomDescription" xml:space="preserve"><value>This room uses its own monitoring, recording, and output settings.</value></data>
   <data name="UiXWorkspaceNoSegment" xml:space="preserve"><value>No segmentation</value></data>
+  <data name="TokenLiveTitle" xml:space="preserve"><value>Live title</value></data>
+  <data name="TokenRoomId" xml:space="preserve"><value>Room ID</value></data>
+  <data name="TokenBitrate" xml:space="preserve"><value>Bitrate</value></data>
+  <data name="TokenFrameRate" xml:space="preserve"><value>Frame rate</value></data>
+  <data name="TokenQuality" xml:space="preserve"><value>Quality</value></data>
+  <data name="TokenVideoCodec" xml:space="preserve"><value>Video codec</value></data>
+  <data name="TokenAudioCodec" xml:space="preserve"><value>Audio codec</value></data>
+  <data name="TokenOptimizedAudio" xml:space="preserve"><value>Optimized audio</value></data>
+  <data name="TokenRecordStartTime" xml:space="preserve"><value>Recording start</value></data>
+  <data name="TokenRecordEndTime" xml:space="preserve"><value>Recording end</value></data>
+  <data name="TokenDuration" xml:space="preserve"><value>Video duration</value></data>
+  <data name="ReleaseNotesCategoryBugFixes" xml:space="preserve"><value>Bug fixes</value></data>
+  <data name="ReleaseNotesCategoryFeatures" xml:space="preserve"><value>Feature additions</value></data>
+  <data name="ReleaseNotesCategoryStability" xml:space="preserve"><value>Performance and stability</value></data>
+  <data name="ReleaseNotesCategoryUi" xml:space="preserve"><value>Interface changes</value></data>
+  <data name="ReleaseNotesCategoryInstall" xml:space="preserve"><value>Installation and upgrade</value></data>
 </root>

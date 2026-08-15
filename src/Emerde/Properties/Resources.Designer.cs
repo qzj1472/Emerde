@@ -4602,6 +4602,36 @@ namespace Emerde.Properties {
             }
         }
 
+        public static string ReleaseNotesCategoryBugFixes {
+            get {
+                return ResourceManager.GetString("ReleaseNotesCategoryBugFixes", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotesCategoryFeatures {
+            get {
+                return ResourceManager.GetString("ReleaseNotesCategoryFeatures", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotesCategoryInstall {
+            get {
+                return ResourceManager.GetString("ReleaseNotesCategoryInstall", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotesCategoryStability {
+            get {
+                return ResourceManager.GetString("ReleaseNotesCategoryStability", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotesCategoryUi {
+            get {
+                return ResourceManager.GetString("ReleaseNotesCategoryUi", resourceCulture);
+            }
+        }
+
         public static string ReleaseNotes1671Items {
             get {
                 return ResourceManager.GetString("ReleaseNotes1671Items", resourceCulture);
@@ -4611,6 +4641,30 @@ namespace Emerde.Properties {
         public static string ReleaseNotes1671Title {
             get {
                 return ResourceManager.GetString("ReleaseNotes1671Title", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotes1672AdditionalItems {
+            get {
+                return ResourceManager.GetString("ReleaseNotes1672AdditionalItems", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotes1672Date {
+            get {
+                return ResourceManager.GetString("ReleaseNotes1672Date", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotes1672Items {
+            get {
+                return ResourceManager.GetString("ReleaseNotes1672Items", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotes1672Title {
+            get {
+                return ResourceManager.GetString("ReleaseNotes1672Title", resourceCulture);
             }
         }
 
@@ -5088,6 +5142,12 @@ namespace Emerde.Properties {
         public static string ScheduleCustomHint {
             get {
                 return ResourceManager.GetString("ScheduleCustomHint", resourceCulture);
+            }
+        }
+
+        public static string ScheduleDays {
+            get {
+                return ResourceManager.GetString("ScheduleDays", resourceCulture);
             }
         }
 
@@ -6045,12 +6105,66 @@ namespace Emerde.Properties {
             }
         }
 
+        public static string TokenAudioCodec {
+            get {
+                return ResourceManager.GetString("TokenAudioCodec", resourceCulture);
+            }
+        }
+
+        public static string TokenBitrate {
+            get {
+                return ResourceManager.GetString("TokenBitrate", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Date.
         /// </summary>
         public static string TokenDate {
             get {
                 return ResourceManager.GetString("TokenDate", resourceCulture);
+            }
+        }
+
+        public static string TokenDuration {
+            get {
+                return ResourceManager.GetString("TokenDuration", resourceCulture);
+            }
+        }
+
+        public static string TokenFrameRate {
+            get {
+                return ResourceManager.GetString("TokenFrameRate", resourceCulture);
+            }
+        }
+
+        public static string TokenLiveTitle {
+            get {
+                return ResourceManager.GetString("TokenLiveTitle", resourceCulture);
+            }
+        }
+
+        public static string TokenOptimizedAudio {
+            get {
+                return ResourceManager.GetString("TokenOptimizedAudio", resourceCulture);
+            }
+        }
+
+        public static string TokenQuality {
+            get {
+                return ResourceManager.GetString("TokenQuality", resourceCulture);
+            }
+        }
+
+        public static string TokenRecordEndTime {
+            get {
+                return ResourceManager.GetString("TokenRecordEndTime", resourceCulture);
+            }
+        }
+
+        public static string TokenRecordStartTime {
+            get {
+                return ResourceManager.GetString("TokenRecordStartTime", resourceCulture);
             }
         }
 
@@ -6063,12 +6177,24 @@ namespace Emerde.Properties {
             }
         }
 
+        public static string TokenRoomId {
+            get {
+                return ResourceManager.GetString("TokenRoomId", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Time.
         /// </summary>
         public static string TokenTime {
             get {
                 return ResourceManager.GetString("TokenTime", resourceCulture);
+            }
+        }
+
+        public static string TokenVideoCodec {
+            get {
+                return ResourceManager.GetString("TokenVideoCodec", resourceCulture);
             }
         }
 

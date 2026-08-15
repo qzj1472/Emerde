@@ -10,9 +10,9 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <LangVersion>latest</LangVersion>
         <ApplicationIcon>Assets\Favicon.ico</ApplicationIcon>
-        <AssemblyVersion>1.6.7.1</AssemblyVersion>
-        <FileVersion>1.6.7.1</FileVersion>
-        <Version>$(VersionPrefix)1.6.7.1</Version>
+        <AssemblyVersion>1.6.7.2</AssemblyVersion>
+        <FileVersion>1.6.7.2</FileVersion>
+        <Version>$(VersionPrefix)1.6.7.2</Version>
         <Platforms>x64</Platforms>
         <DebugType>portable</DebugType>
         <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
