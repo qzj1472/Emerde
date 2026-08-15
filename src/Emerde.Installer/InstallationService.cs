@@ -58,11 +58,17 @@ internal sealed class InstallationService
         List<string> movedDirectories = [];
         List<string> activatedDirectories = [];
         List<string> movedLegacyEntries = [];
+        bool shortcutsAttempted = false;
+        bool autoStartAttempted = false;
+        bool installationInfoAttempted = false;
 
         platform.EnsureAvailableSpace(installRoot, payload.GetUncompressedLength());
         Directory.CreateDirectory(installRoot);
+        bool hadExistingInstallation = File.Exists(InstallationPaths.BinaryExecutable(installRoot))
+            || File.Exists(Path.Combine(installRoot, InstallationPaths.ApplicationExecutableName));
+        InstallationState previousState = InstallationRegistry.ReadState(installRoot);
         string previousVersion = operation == InstallationOperation.Upgrade
-            ? InstallationRegistry.ReadState(installRoot).Version
+            ? previousState.Version
             : string.Empty;
         progress.Report(new InstallationProgress(2, GetPreparingStatus(operation)));
 
@@ -122,13 +128,16 @@ internal sealed class InstallationService
             }
 
             progress.Report(new InstallationProgress(90, "正在创建快捷方式..."));
+            shortcutsAttempted = true;
             platform.ApplyShortcuts(installRoot, request.CreateShortcuts);
+            autoStartAttempted = true;
             platform.SetAutoStart(installRoot, request.AutoStart);
 
             progress.Report(new InstallationProgress(96, "正在优化磁盘占用..."));
             platform.ApplyTransparentCompression(installRoot);
 
             progress.Report(new InstallationProgress(98, "正在注册维护信息..."));
+            installationInfoAttempted = true;
             platform.WriteInstallationInfo(state, GetDirectorySize(installRoot));
             TryDeleteDirectory(backupDirectory);
 
@@ -157,6 +166,13 @@ internal sealed class InstallationService
             RestoreLegacyLayout(installRoot, backupDirectory, movedLegacyEntries);
 
             TryDeleteDirectory(backupDirectory);
+            RestorePlatformState(
+                installRoot,
+                hadExistingInstallation,
+                previousState,
+                shortcutsAttempted,
+                autoStartAttempted,
+                installationInfoAttempted);
 
             throw;
         }
@@ -169,6 +185,7 @@ internal sealed class InstallationService
         CancellationToken cancellationToken)
     {
         string stagingDirectory = Path.Combine(installRoot, $".emerde-repair-{Guid.NewGuid():N}");
+        string backupDirectory = Path.Combine(installRoot, $".emerde-repair-backup-{Guid.NewGuid():N}");
         RepairState repairState = InstallationRegistry.ReadRepairState(installRoot)
             ?? throw new InvalidDataException("Repair state is missing.");
         if (!string.Equals(repairState.Version, InstallationPaths.ProductVersion, StringComparison.OrdinalIgnoreCase))
@@ -179,11 +196,19 @@ internal sealed class InstallationService
         HashSet<string> expectedFiles = new(
             repairState.Files.Select(file => NormalizeRelativePath(file.RelativePath)),
             StringComparer.OrdinalIgnoreCase);
+        HashSet<string> backedUpFiles = new(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> createdFiles = new(StringComparer.OrdinalIgnoreCase);
+        InstallationState previousState = InstallationRegistry.ReadState(installRoot);
+        bool shortcutsAttempted = false;
+        bool autoStartAttempted = false;
+        bool installationInfoAttempted = false;
 
         try
         {
             await payload.ExtractAsync(stagingDirectory, progress, cancellationToken);
             progress.Report(new InstallationProgress(78, "正在检查程序文件..."));
+            BackupRepairTarget(installRoot, backupDirectory, InstallationPaths.StateFile(installRoot), backedUpFiles, createdFiles);
+            BackupRepairTarget(installRoot, backupDirectory, InstallationPaths.RepairStateFile(installRoot), backedUpFiles, createdFiles);
 
             int checkedFiles = 0;
             foreach (RepairFileState file in repairState.Files)
@@ -205,6 +230,7 @@ internal sealed class InstallationService
 
                 if (!IsHealthy(targetPath, file))
                 {
+                    BackupRepairTarget(installRoot, backupDirectory, targetPath, backedUpFiles, createdFiles);
                     Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
                     File.Copy(stagedPath, targetPath, overwrite: true);
                 }
@@ -215,10 +241,17 @@ internal sealed class InstallationService
                     "正在检查程序文件..."));
             }
 
-            RemoveStaleManagedFiles(installRoot, expectedFiles);
+            RemoveStaleManagedFiles(
+                installRoot,
+                expectedFiles,
+                filePath => BackupRepairTarget(
+                    installRoot,
+                    backupDirectory,
+                    filePath,
+                    backedUpFiles,
+                    createdFiles));
             TryDeleteDirectory(stagingDirectory);
 
-            InstallationState previousState = InstallationRegistry.ReadState(installRoot);
             InstallationState state = new(
                 installRoot,
                 request.CreateShortcuts,
@@ -226,17 +259,30 @@ internal sealed class InstallationService
                 previousState.Version);
             InstallationRegistry.WriteState(state);
             InstallationRegistry.WriteRepairState(installRoot, state.Version);
+            shortcutsAttempted = true;
             platform.ApplyShortcuts(installRoot, request.CreateShortcuts);
+            autoStartAttempted = true;
             platform.SetAutoStart(installRoot, request.AutoStart);
             progress.Report(new InstallationProgress(96, "正在优化磁盘占用..."));
             platform.ApplyTransparentCompression(installRoot);
+            installationInfoAttempted = true;
             platform.WriteInstallationInfo(state, GetDirectorySize(installRoot));
+            TryDeleteDirectory(backupDirectory);
             progress.Report(new InstallationProgress(100, "已完成"));
             return new InstallationInfo(installRoot, state.Version, state);
         }
         catch
         {
             TryDeleteDirectory(stagingDirectory);
+            RestoreRepairTargets(installRoot, backupDirectory, backedUpFiles, createdFiles);
+            TryDeleteDirectory(backupDirectory);
+            RestorePlatformState(
+                installRoot,
+                true,
+                previousState,
+                shortcutsAttempted,
+                autoStartAttempted,
+                installationInfoAttempted);
             throw;
         }
     }
@@ -299,7 +345,17 @@ internal sealed class InstallationService
     private static long GetDirectorySize(string path)
     {
         return Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories)
+            .Where(filePath => !IsTransientInstallerPath(path, filePath))
             .Sum(filePath => new FileInfo(filePath).Length);
+    }
+
+    private static bool IsTransientInstallerPath(string installRoot, string filePath)
+    {
+        string relativePath = Path.GetRelativePath(installRoot, filePath);
+        string firstSegment = relativePath.Split(
+            [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+            StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? string.Empty;
+        return IsTransientInstallerDirectory(firstSegment);
     }
 
     private static void DeleteOwnedDirectory(string installRoot, string directoryName)
@@ -340,7 +396,10 @@ internal sealed class InstallationService
             StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void RemoveStaleManagedFiles(string installRoot, HashSet<string> expectedFiles)
+    private static void RemoveStaleManagedFiles(
+        string installRoot,
+        HashSet<string> expectedFiles,
+        Action<string>? beforeDelete = null)
     {
         foreach (string component in new[]
         {
@@ -365,9 +424,121 @@ internal sealed class InstallationService
                 if (!InstallationRegistry.IsMaintenanceStateFile(fileName)
                     && !expectedFiles.Contains(relativePath))
                 {
+                    beforeDelete?.Invoke(filePath);
                     File.Delete(filePath);
                 }
             }
+        }
+    }
+
+    private static void BackupRepairTarget(
+        string installRoot,
+        string backupDirectory,
+        string targetPath,
+        HashSet<string> backedUpFiles,
+        HashSet<string> createdFiles)
+    {
+        string relativePath = NormalizeRelativePath(Path.GetRelativePath(installRoot, targetPath));
+        if (backedUpFiles.Contains(relativePath) || createdFiles.Contains(relativePath))
+        {
+            return;
+        }
+
+        if (!File.Exists(targetPath))
+        {
+            createdFiles.Add(relativePath);
+            return;
+        }
+
+        string backupPath = GetSafePath(backupDirectory, relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(backupPath)!);
+        File.Copy(targetPath, backupPath, overwrite: false);
+        backedUpFiles.Add(relativePath);
+    }
+
+    private static void RestoreRepairTargets(
+        string installRoot,
+        string backupDirectory,
+        IEnumerable<string> backedUpFiles,
+        IEnumerable<string> createdFiles)
+    {
+        foreach (string relativePath in createdFiles)
+        {
+            string targetPath = GetSafePath(installRoot, relativePath);
+            if (File.Exists(targetPath))
+            {
+                File.Delete(targetPath);
+            }
+        }
+
+        foreach (string relativePath in backedUpFiles)
+        {
+            string backupPath = GetSafePath(backupDirectory, relativePath);
+            string targetPath = GetSafePath(installRoot, relativePath);
+            if (!File.Exists(backupPath))
+            {
+                continue;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+            File.Copy(backupPath, targetPath, overwrite: true);
+        }
+    }
+
+    private void RestorePlatformState(
+        string installRoot,
+        bool hadExistingInstallation,
+        InstallationState previousState,
+        bool shortcutsAttempted,
+        bool autoStartAttempted,
+        bool installationInfoAttempted)
+    {
+        if (shortcutsAttempted)
+        {
+            TryRestorePlatformState(() =>
+            {
+                if (hadExistingInstallation)
+                {
+                    platform.ApplyShortcuts(installRoot, previousState.CreateShortcuts);
+                }
+                else
+                {
+                    platform.RemoveShortcuts(installRoot);
+                }
+            });
+        }
+
+        if (autoStartAttempted)
+        {
+            TryRestorePlatformState(() => platform.SetAutoStart(
+                installRoot,
+                hadExistingInstallation && previousState.AutoStart));
+        }
+
+        if (installationInfoAttempted)
+        {
+            TryRestorePlatformState(() =>
+            {
+                if (hadExistingInstallation)
+                {
+                    platform.WriteInstallationInfo(previousState, GetDirectorySize(installRoot));
+                }
+                else
+                {
+                    platform.RemoveInstallationInfo();
+                }
+            });
+        }
+    }
+
+    private static void TryRestorePlatformState(Action restore)
+    {
+        try
+        {
+            restore();
+        }
+        catch
+        {
         }
     }
 
@@ -396,12 +567,19 @@ internal sealed class InstallationService
         foreach (string directory in Directory.EnumerateDirectories(installRoot))
         {
             string name = Path.GetFileName(directory);
-            if (name.StartsWith(".emerde-install-", StringComparison.OrdinalIgnoreCase)
-                || name.StartsWith(".emerde-backup-", StringComparison.OrdinalIgnoreCase))
+            if (IsTransientInstallerDirectory(name))
             {
                 TryDeleteDirectory(directory);
             }
         }
+    }
+
+    private static bool IsTransientInstallerDirectory(string name)
+    {
+        return name.StartsWith(".emerde-install-", StringComparison.OrdinalIgnoreCase)
+            || name.StartsWith(".emerde-backup-", StringComparison.OrdinalIgnoreCase)
+            || name.StartsWith(".emerde-repair-", StringComparison.OrdinalIgnoreCase)
+            || name.StartsWith(".emerde-repair-backup-", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void MoveLegacyLayoutToBackup(

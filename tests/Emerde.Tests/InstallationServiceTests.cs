@@ -127,6 +127,91 @@ public sealed class InstallationServiceTests
     }
 
     [Fact]
+    public async Task RepairFailureRestoresChangedAndRemovedFiles()
+    {
+        string testRoot = CreateTemporaryDirectory();
+        string installRoot = Path.Combine(testRoot, "InstallRoot");
+        string userDataDirectory = Path.Combine(testRoot, "UserData");
+        TestInstallationPlatform platform = new(userDataDirectory);
+        InstallationService service = new(CreatePayload(), platform);
+
+        try
+        {
+            await service.InstallAsync(
+                new InstallationRequest(installRoot, true, true),
+                InstallationOperation.Install,
+                new Progress<InstallationProgress>());
+            string damagedPath = Path.Combine(installRoot, "runtime", "shared", "library.dll");
+            string stalePath = Path.Combine(installRoot, "runtime", "shared", "stale.dll");
+            await File.WriteAllTextAsync(damagedPath, "damaged");
+            await File.WriteAllTextAsync(stalePath, "stale");
+            string stateBefore = await File.ReadAllTextAsync(InstallationPaths.StateFile(installRoot));
+            string repairStateBefore = await File.ReadAllTextAsync(InstallationPaths.RepairStateFile(installRoot));
+            platform.FailNextInstallationInfoWrite = true;
+
+            await Assert.ThrowsAsync<IOException>(() => service.InstallAsync(
+                new InstallationRequest(installRoot, false, false),
+                InstallationOperation.Repair,
+                new Progress<InstallationProgress>()));
+
+            Assert.Equal("damaged", await File.ReadAllTextAsync(damagedPath));
+            Assert.Equal("stale", await File.ReadAllTextAsync(stalePath));
+            Assert.Equal(stateBefore, await File.ReadAllTextAsync(InstallationPaths.StateFile(installRoot)));
+            Assert.Equal(repairStateBefore, await File.ReadAllTextAsync(InstallationPaths.RepairStateFile(installRoot)));
+            Assert.True(platform.ShortcutsEnabled);
+            Assert.True(platform.AutoStartEnabled);
+        }
+        finally
+        {
+            if (Directory.Exists(testRoot))
+            {
+                Directory.Delete(testRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task UpgradeFailureRestoresPreviousFilesAndPlatformState()
+    {
+        string testRoot = CreateTemporaryDirectory();
+        string installRoot = Path.Combine(testRoot, "InstallRoot");
+        string userDataDirectory = Path.Combine(testRoot, "UserData");
+        TestInstallationPlatform platform = new(userDataDirectory);
+        InstallationService initialService = new(CreatePayload("old-application", "old-library"), platform);
+
+        try
+        {
+            await initialService.InstallAsync(
+                new InstallationRequest(installRoot, true, true),
+                InstallationOperation.Install,
+                new Progress<InstallationProgress>());
+            string stateBefore = await File.ReadAllTextAsync(InstallationPaths.StateFile(installRoot));
+            string repairStateBefore = await File.ReadAllTextAsync(InstallationPaths.RepairStateFile(installRoot));
+            platform.FailNextInstallationInfoWrite = true;
+            InstallationService upgradeService = new(CreatePayload("new-application", "new-library"), platform);
+
+            await Assert.ThrowsAsync<IOException>(() => upgradeService.InstallAsync(
+                new InstallationRequest(installRoot, false, false),
+                InstallationOperation.Upgrade,
+                new Progress<InstallationProgress>()));
+
+            Assert.Equal("old-application", await File.ReadAllTextAsync(Path.Combine(installRoot, "bin", "Emerde.exe")));
+            Assert.Equal("old-library", await File.ReadAllTextAsync(Path.Combine(installRoot, "runtime", "shared", "library.dll")));
+            Assert.Equal(stateBefore, await File.ReadAllTextAsync(InstallationPaths.StateFile(installRoot)));
+            Assert.Equal(repairStateBefore, await File.ReadAllTextAsync(InstallationPaths.RepairStateFile(installRoot)));
+            Assert.True(platform.ShortcutsEnabled);
+            Assert.True(platform.AutoStartEnabled);
+        }
+        finally
+        {
+            if (Directory.Exists(testRoot))
+            {
+                Directory.Delete(testRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task UpgradeRemovesLegacyLayoutAndPreservesUnrelatedFiles()
     {
         string testRoot = CreateTemporaryDirectory();
@@ -215,7 +300,9 @@ public sealed class InstallationServiceTests
         }
     }
 
-    private static InstallerPayload CreatePayload()
+    private static InstallerPayload CreatePayload(
+        string applicationContent = "application",
+        string libraryContent = "library")
     {
         using MemoryStream output = new();
         using (ZipArchive archive = new(output, ZipArchiveMode.Create, leaveOpen: true))
@@ -223,12 +310,12 @@ public sealed class InstallationServiceTests
             ZipArchiveEntry executable = archive.CreateEntry("bin/Emerde.exe");
             using (StreamWriter executableWriter = new(executable.Open()))
             {
-                executableWriter.Write("application");
+                executableWriter.Write(applicationContent);
             }
             ZipArchiveEntry library = archive.CreateEntry("runtime/shared/library.dll");
             using (StreamWriter libraryWriter = new(library.Open()))
             {
-                libraryWriter.Write("library");
+                libraryWriter.Write(libraryContent);
             }
             ZipArchiveEntry uninstaller = archive.CreateEntry("maintenance/Emerde.Uninstaller.exe");
             using (StreamWriter uninstallerWriter = new(uninstaller.Open()))
@@ -254,6 +341,8 @@ public sealed class InstallationServiceTests
 
         public bool ShortcutsApplied { get; private set; }
 
+        public bool ShortcutsEnabled { get; private set; }
+
         public bool ShortcutsRemoved { get; private set; }
 
         public bool AutoStartEnabled { get; private set; }
@@ -262,14 +351,18 @@ public sealed class InstallationServiceTests
 
         public bool InstallationInfoRemoved { get; private set; }
 
+        public bool FailNextInstallationInfoWrite { get; set; }
+
         public void ApplyShortcuts(string installRoot, bool createExternalShortcuts)
         {
             ShortcutsApplied = true;
+            ShortcutsEnabled = createExternalShortcuts;
         }
 
         public void RemoveShortcuts(string installRoot)
         {
             ShortcutsRemoved = true;
+            ShortcutsEnabled = false;
         }
 
         public void SetAutoStart(string installRoot, bool enabled)
@@ -279,6 +372,12 @@ public sealed class InstallationServiceTests
 
         public void WriteInstallationInfo(InstallationState state, long estimatedSizeBytes)
         {
+            if (FailNextInstallationInfoWrite)
+            {
+                FailNextInstallationInfoWrite = false;
+                throw new IOException("installation info failure");
+            }
+
             InstallationInfoWritten = true;
         }
 
