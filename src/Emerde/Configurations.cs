@@ -1,6 +1,7 @@
 using Fischless.Configuration;
 using Emerde.Core;
 using System.Reflection;
+using YamlDotNet.Serialization;
 
 namespace Emerde;
 
@@ -82,9 +83,13 @@ public sealed class Room
     public string Quality { get; set; } = string.Empty;
     public string Resolution { get; set; } = string.Empty;
     public string Bitrate { get; set; } = string.Empty;
+    [YamlIgnore]
     public string Headers { get; set; } = string.Empty;
+    [YamlIgnore]
     public string FlvUrl { get; set; } = string.Empty;
+    [YamlIgnore]
     public string HlsUrl { get; set; } = string.Empty;
+    [YamlIgnore]
     public string RecordUrl { get; set; } = string.Empty;
     public bool IsToNotify { get; set; } = true;
     public bool IsToRecord { get; set; } = true;

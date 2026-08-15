@@ -1,11 +1,42 @@
 using System.IO;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Emerde.Core;
+using YamlDotNet.Serialization;
 
 namespace Emerde.Tests;
 
 public sealed class ConfigFileManagerTests
 {
+    [Fact]
+    public void RuntimeStreamFields_AreExcludedFromPersistenceAndRemovedFromLegacyYaml()
+    {
+        string[] fields = [nameof(Room.Headers), nameof(Room.FlvUrl), nameof(Room.HlsUrl), nameof(Room.RecordUrl)];
+        Assert.All(fields, field => Assert.NotNull(typeof(Room).GetProperty(field)!.GetCustomAttribute<YamlIgnoreAttribute>()));
+
+        string path = Path.Combine(Path.GetTempPath(), $"emerde-config-{Guid.NewGuid():N}.yml");
+        File.WriteAllText(path, """
+Rooms:
+- NickName: test
+  RoomUrl: https://example.com/live
+  Headers: 'Cookie: secret'
+  FlvUrl: https://example.com/live.flv
+  HlsUrl: https://example.com/live.m3u8
+  RecordUrl: https://example.com/record
+""");
+        try
+        {
+            Assert.True(ConfigFileManager.RemoveTransientRoomFields(path));
+            string sanitized = File.ReadAllText(path);
+            Assert.DoesNotContain("Cookie: secret", sanitized, StringComparison.Ordinal);
+            Assert.All(fields, field => Assert.DoesNotContain(field + ":", sanitized, StringComparison.Ordinal));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     [Fact]
     public void ReplaceConfigurationFile_DoesNotRunSetupBeforeTargetIsReplaced()
     {

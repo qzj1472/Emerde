@@ -11,6 +11,13 @@ namespace Emerde.Core;
 internal static class ConfigFileManager
 {
     private const int MaxBackupCount = 10;
+    private static readonly string[] TransientRoomFields =
+    [
+        nameof(Room.Headers),
+        nameof(Room.FlvUrl),
+        nameof(Room.HlsUrl),
+        nameof(Room.RecordUrl),
+    ];
 
     private static readonly IReadOnlyDictionary<string, Type> ConfigurationValueTypes = typeof(Configurations)
         .GetProperties(BindingFlags.Public | BindingFlags.Static)
@@ -44,6 +51,7 @@ internal static class ConfigFileManager
         {
             ConfigurationSaveScheduler.SaveNow();
             AtomicFile.Copy(ConfigurationManager.FilePath, targetPath);
+            NormalizeConfigurationFile(targetPath);
             return true;
         });
         return targetPath;
@@ -374,7 +382,7 @@ internal static class ConfigFileManager
             return;
         }
 
-        bool changed = false;
+        bool changed = RemoveTransientRoomFields(root);
         foreach ((YamlNode keyNode, YamlNode valueNode) in root.Children.ToArray())
         {
             if (keyNode is not YamlScalarNode key || valueNode is not YamlScalarNode value)
@@ -405,6 +413,52 @@ internal static class ConfigFileManager
 
         using StreamWriter writer = File.CreateText(path);
         yaml.Save(writer, assignAnchors: false);
+    }
+
+    internal static bool RemoveTransientRoomFields(string path)
+    {
+        YamlStream yaml = new();
+        using (StreamReader reader = File.OpenText(path))
+        {
+            yaml.Load(reader);
+        }
+        if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode root
+            || !RemoveTransientRoomFields(root))
+        {
+            return false;
+        }
+
+        using StreamWriter writer = File.CreateText(path);
+        yaml.Save(writer, assignAnchors: false);
+        return true;
+    }
+
+    private static bool RemoveTransientRoomFields(YamlMappingNode root)
+    {
+        YamlSequenceNode? rooms = root.Children
+            .Where(entry => entry.Key is YamlScalarNode key
+                && string.Equals(key.Value, nameof(Configurations.Rooms), StringComparison.Ordinal))
+            .Select(entry => entry.Value)
+            .OfType<YamlSequenceNode>()
+            .FirstOrDefault();
+        if (rooms == null)
+        {
+            return false;
+        }
+
+        bool changed = false;
+        foreach (YamlMappingNode room in rooms.Children.OfType<YamlMappingNode>())
+        {
+            foreach (YamlNode key in room.Children.Keys
+                .OfType<YamlScalarNode>()
+                .Where(key => TransientRoomFields.Contains(key.Value, StringComparer.Ordinal))
+                .Cast<YamlNode>()
+                .ToArray())
+            {
+                changed |= room.Children.Remove(key);
+            }
+        }
+        return changed;
     }
 
     private static bool TryNormalizeRoutineIntervalUnit(string? value, out int unit)

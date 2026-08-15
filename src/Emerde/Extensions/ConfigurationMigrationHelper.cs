@@ -8,9 +8,25 @@ internal static class ConfigurationMigrationHelper
     public static void MigrateLegacyConfiguration()
     {
         MigrateRootConfigurationFiles();
+        RemoveTransientRoomFields();
         MigrateLegacyThumbnailCache(
             Path.Combine(AppPaths.ConfigDirectory, "video_thumbnails"),
             AppPaths.ThumbnailCacheDirectory);
+    }
+
+    private static void RemoveTransientRoomFields()
+    {
+        foreach (string path in AppPaths.GetConfigFiles())
+        {
+            try
+            {
+                _ = ConfigFileManager.RemoveTransientRoomFields(path);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or YamlDotNet.Core.YamlException)
+            {
+                Debug.WriteLine(e);
+            }
+        }
     }
 
     internal static void MigrateLegacyThumbnailCache(string sourceDirectory, string targetDirectory)
