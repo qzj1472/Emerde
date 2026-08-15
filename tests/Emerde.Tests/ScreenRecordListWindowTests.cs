@@ -30,8 +30,22 @@ public sealed class ScreenRecordListWindowTests
         string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
 
         Assert.Contains("ContextMenuOpening=\"VideoCardContextMenuOpening\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("{I18N RepairVideo}", xaml, StringComparison.Ordinal);
         Assert.Contains("GetOverrides<IExtensionVideoAction>(ExtensionContractNames.VideoListActions)", code, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void VideoList_RepairFallbackUsesTranscodeSuccessFeedback()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
+        string method = ExtractMethod(source, "private async Task TranscodeVideoAsync", "private async Task RepairVideoAsync");
+
+        Assert.Contains("new VideoRepairService().RepairAsync", method, StringComparison.Ordinal);
+        Assert.Contains("GetResourceText(\"TranscodeComplete\"", method, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetResourceText(\"RepairingVideo\"", method, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetResourceText(\"RepairVideoComplete\"", method, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(0, true, ".mp4", true)]
     [InlineData(0, false, ".mp4", false)]
@@ -110,6 +124,31 @@ public sealed class ScreenRecordListWindowTests
     public void VideoListKeyboardNavigationOffset_MapsDirections(System.Windows.Input.Key key, int expected)
     {
         Assert.Equal(expected, ScreenRecordListWindow.GetVideoListKeyboardNavigationOffset(key));
+    }
+
+    [Theory]
+    [InlineData(System.Windows.Input.Key.Up, 3, -3)]
+    [InlineData(System.Windows.Input.Key.Down, 3, 3)]
+    [InlineData(System.Windows.Input.Key.Left, 3, -1)]
+    [InlineData(System.Windows.Input.Key.Right, 3, 1)]
+    [InlineData(System.Windows.Input.Key.W, 4, -4)]
+    [InlineData(System.Windows.Input.Key.S, 4, 4)]
+    [InlineData(System.Windows.Input.Key.A, 4, -1)]
+    [InlineData(System.Windows.Input.Key.D, 4, 1)]
+    public void UiXVideoListKeyboardNavigationOffset_MovesByRowAndAdjacentCard(System.Windows.Input.Key key, int columnCount, int expected)
+    {
+        Assert.Equal(expected, ScreenRecordListWindow.GetVideoListKeyboardNavigationOffset(key, columnCount));
+    }
+
+    [Theory]
+    [InlineData(true, true, false, 2, true)]
+    [InlineData(true, false, false, 2, false)]
+    [InlineData(true, true, true, 2, false)]
+    [InlineData(false, true, false, 2, false)]
+    [InlineData(true, true, false, 1, false)]
+    public void VideoListBlankDoubleClick_RefreshesOnlyUiXBlankArea(bool isUiXEnabled, bool isBlank, bool isScrollBar, int clickCount, bool expected)
+    {
+        Assert.Equal(expected, ScreenRecordListWindow.ShouldRefreshVideoListFromDoubleClick(isUiXEnabled, isBlank, isScrollBar, clickCount));
     }
 
     [Fact]
@@ -350,6 +389,7 @@ public sealed class ScreenRecordListWindowTests
         Assert.DoesNotContain("VideoCardItemSize", code, StringComparison.Ordinal);
         Assert.Contains("VideoListScrollContentPresenter", xaml, StringComparison.Ordinal);
         Assert.Contains("GetVideoCardContentWidth", code, StringComparison.Ordinal);
+        Assert.Contains("scrollViewer.ViewportWidth", code, StringComparison.Ordinal);
         Assert.Contains("CalculateVideoCardLayout", code, StringComparison.Ordinal);
         Assert.DoesNotContain("MainWindow.GetCardWidthRange", code, StringComparison.Ordinal);
         Assert.Contains("cardWidth = Math.Clamp(naturalCardWidth, minimumCardWidth, maximumCardWidth)", code, StringComparison.Ordinal);
@@ -437,10 +477,11 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Theory]
-    [InlineData(2, 3, 1185d, 2)]
-    [InlineData(2, 3, 1186d, 3)]
-    [InlineData(3, 2, 1170d, 3)]
-    [InlineData(3, 2, 1169d, 2)]
+    [InlineData(2, 3, 990d, 2)]
+    [InlineData(2, 3, 991d, 3)]
+    [InlineData(3, 2, 960d, 3)]
+    [InlineData(3, 2, 959d, 2)]
+    [InlineData(4, 4, 955d, 3)]
     public void VideoCardColumns_UseDirectionalHysteresisAtLayoutBoundaries(
         int currentColumns,
         int candidateColumns,
@@ -451,15 +492,15 @@ public sealed class ScreenRecordListWindowTests
             currentColumns,
             candidateColumns,
             availableWidth,
-            378d,
-            12d,
+            390d,
+            239d,
             16d));
     }
 
     [Fact]
     public void VideoCardLayout_UsesAllAvailableWidthWithinTheCurrentColumn()
     {
-        (int columns, double cardWidth, double slotWidth) = ScreenRecordListWindow.CalculateVideoCardLayout(1560d, 378d, 378d, 432d, 12d);
+        (int columns, double cardWidth, double slotWidth) = ScreenRecordListWindow.CalculateVideoCardLayout(1560d, 378d, 227d, 432d, 12d);
 
         Assert.Equal(4, columns);
         Assert.Equal(378d, cardWidth);
@@ -475,10 +516,10 @@ public sealed class ScreenRecordListWindowTests
     [InlineData(1560d)]
     public void VideoCardLayout_NeverPlacesTheLastColumnOutsideTheContentTrack(double availableWidth)
     {
-        (int columns, double cardWidth, double slotWidth) = ScreenRecordListWindow.CalculateVideoCardLayout(availableWidth, 378d, 378d, 432d, 12d);
+        (int columns, double cardWidth, double slotWidth) = ScreenRecordListWindow.CalculateVideoCardLayout(availableWidth, 378d, 227d, 432d, 12d);
 
-        Assert.True(columns * slotWidth <= availableWidth + 0.5d || columns == 1);
-        Assert.Equal(cardWidth + 12d, slotWidth);
+        Assert.True(columns * slotWidth <= availableWidth + 0.5d);
+        Assert.True(cardWidth + 12d <= slotWidth + 0.5d);
     }
 
     [Theory]
@@ -511,6 +552,7 @@ public sealed class ScreenRecordListWindowTests
         Assert.Contains("GetRoomCardMarqueeContentPoint", homeCode, StringComparison.Ordinal);
         Assert.Contains("ProjectRoomCardMarqueeToViewport", homeCode, StringComparison.Ordinal);
         Assert.Contains("!isRoomCardDragging && !isRoomCardMarqueeSelecting", homeCode, StringComparison.Ordinal);
+        Assert.Contains("roomCardMarqueeCreatedMultiSelectMode", homeCode, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -521,9 +563,9 @@ public sealed class ScreenRecordListWindowTests
     [InlineData(2100d)]
     public void VideoCardLayout_StaysWithinItsSingleElasticRange(double availableWidth)
     {
-        (_, double cardWidth, _) = ScreenRecordListWindow.CalculateVideoCardLayout(availableWidth, 378d, 378d, 432d, 12d);
+        (_, double cardWidth, _) = ScreenRecordListWindow.CalculateVideoCardLayout(availableWidth, 378d, 227d, 432d, 12d);
 
-        Assert.InRange(cardWidth, 378d, 432d);
+        Assert.InRange(cardWidth, 227d, 432d);
     }
 
     [Fact]

@@ -348,6 +348,14 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
 
     private double GetVideoCardContentWidth()
     {
+        if (FindVisualChild<ScrollViewer>(VideoListBox) is ScrollViewer scrollViewer
+            && !double.IsNaN(scrollViewer.ViewportWidth)
+            && !double.IsInfinity(scrollViewer.ViewportWidth)
+            && scrollViewer.ViewportWidth > 0d)
+        {
+            return scrollViewer.ViewportWidth;
+        }
+
         return Math.Max(1d, VideoListBox.ActualWidth - UiXVideoListFallbackContentInset);
     }
 
@@ -453,17 +461,22 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         int currentColumns = 0)
     {
         double normalizedWidth = Math.Max(1d, availableWidth);
-        int candidateColumns = CalculateVideoCardColumns(normalizedWidth, baseCardWidth, horizontalGap);
+        double targetSlotWidth = Math.Max(1d, baseCardWidth + horizontalGap);
+        int candidateColumns = Math.Max(1, (int)Math.Round(
+            normalizedWidth / targetSlotWidth,
+            MidpointRounding.AwayFromZero));
         int columns = StabilizeVideoCardColumns(
             currentColumns,
             candidateColumns,
             normalizedWidth,
-            baseCardWidth,
-            horizontalGap,
+            targetSlotWidth,
+            minimumCardWidth + horizontalGap,
             UiXVideoCardColumnHysteresis);
         double naturalCardWidth = Math.Max(1d, Math.Floor(normalizedWidth / columns) - horizontalGap);
+        double maximumFittingCardWidth = Math.Max(1d, naturalCardWidth);
         double cardWidth = Math.Clamp(naturalCardWidth, minimumCardWidth, maximumCardWidth);
-        double slotWidth = cardWidth + horizontalGap;
+        cardWidth = Math.Min(cardWidth, maximumFittingCardWidth);
+        double slotWidth = Math.Floor(normalizedWidth / columns * 100d) / 100d;
         return (
             columns,
             WindowSizing.RoundLayoutValue(cardWidth),
@@ -474,25 +487,39 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         int currentColumns,
         int candidateColumns,
         double availableWidth,
-        double minimumCardWidth,
-        double horizontalGap,
+        double targetSlotWidth,
+        double minimumSlotWidth,
         double hysteresis)
     {
-        int normalizedCandidate = Math.Max(1, candidateColumns);
-        if (currentColumns <= 0 || currentColumns == normalizedCandidate)
+        double normalizedWidth = Math.Max(1d, availableWidth);
+        int maximumFittingColumns = Math.Max(1, (int)Math.Floor(
+            normalizedWidth / Math.Max(1d, minimumSlotWidth)));
+        int normalizedCandidate = Math.Clamp(Math.Max(1, candidateColumns), 1, maximumFittingColumns);
+        if (currentColumns <= 0)
         {
             return normalizedCandidate;
         }
 
-        double minimumSlotWidth = Math.Max(1d, minimumCardWidth + horizontalGap);
-        if (normalizedCandidate > currentColumns)
+        if (currentColumns > maximumFittingColumns)
         {
-            double growthThreshold = normalizedCandidate * minimumSlotWidth + Math.Max(0d, hysteresis);
-            return availableWidth >= growthThreshold ? normalizedCandidate : currentColumns;
+            return maximumFittingColumns;
         }
 
-        double currentFitThreshold = currentColumns * minimumSlotWidth;
-        return availableWidth >= currentFitThreshold ? currentColumns : normalizedCandidate;
+        if (currentColumns == normalizedCandidate)
+        {
+            return currentColumns;
+        }
+
+        double normalizedTargetSlotWidth = Math.Max(1d, targetSlotWidth);
+        double normalizedHysteresis = Math.Max(0d, hysteresis);
+        if (normalizedCandidate > currentColumns)
+        {
+            double growthThreshold = (currentColumns + 0.5d) * normalizedTargetSlotWidth + normalizedHysteresis;
+            return normalizedWidth >= growthThreshold ? normalizedCandidate : currentColumns;
+        }
+
+        double shrinkThreshold = (currentColumns - 0.5d) * normalizedTargetSlotWidth - normalizedHysteresis;
+        return normalizedWidth <= shrinkThreshold ? normalizedCandidate : currentColumns;
     }
 
     private async void ScreenRecordListWindowIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -621,12 +648,24 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         e.Handled = true;
     }
 
-    private void VideoSelectionHostPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private async void VideoSelectionHostPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         ListBoxItem? item = FindVisualParent<ListBoxItem>(e.OriginalSource as DependencyObject);
+        bool isUiXEnabled = hostMainWindow?.ViewModel.StatusOfIsUiXEnabled == true;
+        bool isScrollBar = FindVisualParent<System.Windows.Controls.Primitives.ScrollBar>(e.OriginalSource as DependencyObject) != null;
+        bool isBlank = item == null
+            && FindVisualParent<TextBlock>(e.OriginalSource as DependencyObject) == null
+            && FindVisualParent<System.Windows.Controls.Primitives.ButtonBase>(e.OriginalSource as DependencyObject) == null;
+        if (ShouldRefreshVideoListFromDoubleClick(isUiXEnabled, isBlank, isScrollBar, e.ClickCount)
+            && !ViewModel.IsModalOpen)
+        {
+            e.Handled = true;
+            await ViewModel.RefreshAsync();
+            return;
+        }
         if (e.ChangedButton != MouseButton.Left
             || ViewModel.IsModalOpen
-            || FindVisualParent<System.Windows.Controls.Primitives.ScrollBar>(e.OriginalSource as DependencyObject) != null
+            || isScrollBar
             || item != null && IsInteractiveElement(e.OriginalSource as DependencyObject, item))
         {
             return;
@@ -641,6 +680,11 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
             item.Focus();
             e.Handled = true;
         }
+    }
+
+    internal static bool ShouldRefreshVideoListFromDoubleClick(bool isUiXEnabled, bool isBlank, bool isScrollBar, int clickCount)
+    {
+        return isUiXEnabled && isBlank && !isScrollBar && clickCount >= 2;
     }
 
     private void VideoSelectionHostPreviewMouseMove(object sender, MouseEventArgs e)
@@ -1043,7 +1087,10 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         ModifierKeys modifiers = Keyboard.Modifiers;
         if (IsVideoListKeyboardNavigationKey(e.Key) && modifiers == ModifierKeys.None)
         {
-            RecordedVideoItem? item = ViewModel.GetAdjacentVisibleVideo(GetVideoListKeyboardNavigationOffset(e.Key));
+            int offset = hostMainWindow?.ViewModel.StatusOfIsUiXEnabled == true
+                ? GetVideoListKeyboardNavigationOffset(e.Key, VideoCardColumnCount)
+                : GetVideoListKeyboardNavigationOffset(e.Key);
+            RecordedVideoItem? item = ViewModel.GetAdjacentVisibleVideo(offset);
             if (item != null)
             {
                 ViewModel.SelectRegularItem(item);
@@ -1139,6 +1186,18 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
     internal static int GetVideoListKeyboardNavigationOffset(Key key)
     {
         return key is Key.Down or Key.Right or Key.S or Key.D ? 1 : -1;
+    }
+
+    internal static int GetVideoListKeyboardNavigationOffset(Key key, int columnCount)
+    {
+        return key switch
+        {
+            Key.Up or Key.W => -Math.Max(1, columnCount),
+            Key.Down or Key.S => Math.Max(1, columnCount),
+            Key.Left or Key.A => -1,
+            Key.Right or Key.D => 1,
+            _ => 0,
+        };
     }
 
     private void BringVideoListItemIntoView(RecordedVideoItem item)
@@ -2405,12 +2464,11 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             }
             else
             {
-                OperationProgressText = GetResourceText("RepairingVideo", "Repairing recording...");
                 VideoRepairResult repairResult = await new VideoRepairService().RepairAsync(item.FullPath, options.TargetFormat);
                 switch (repairResult.Status)
                 {
                     case VideoRepairStatus.Repaired:
-                        Toast.Success(GetResourceText("RepairVideoComplete", "Recording repaired"));
+                        Toast.Success(GetResourceText("TranscodeComplete", "Transcoding complete"));
                         break;
                     case VideoRepairStatus.PartiallyRepaired:
                         Toast.Warning(GetResourceText("RepairVideoPartial", "Recoverable content was saved, but the timeline remains incomplete"));
@@ -5169,7 +5227,7 @@ public partial class RecordedVideoItem : ObservableObject
 
     public string RecordingDetailsText => $"{CreatedAt:yyyy-MM-dd HH:mm:ss}  ·  {ScreenRecordListViewModel.FormatFileSize(SourceLength)}";
 
-    public string RecordingTimeText => CreatedAt.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.CurrentCulture);
+    public string RecordingTimeText => CreatedAt.ToString("HH:mm:ss", CultureInfo.CurrentCulture);
 
     public string FileSizeText => ScreenRecordListViewModel.FormatFileSize(SourceLength);
 

@@ -568,10 +568,6 @@
                                               Command="{Binding Tag.TranscodeVideoCommand}"
                                               CommandParameter="{Binding DataContext}"
                                               IsEnabled="{Binding DataContext.CanTranscode}" />
-                                    <MenuItem Header="{I18N RepairVideo}"
-                                              Command="{Binding Tag.RepairVideoCommand}"
-                                              CommandParameter="{Binding DataContext}"
-                                              IsEnabled="{Binding DataContext.CanRepair}" />
                                     <Separator />
                                     <MenuItem Header="{I18N MergeVideos}"
                                               Command="{Binding Tag.OpenMergeSelectedCommand}"
