@@ -270,6 +270,47 @@ public sealed class InstallationServiceTests
     }
 
     [Fact]
+    public async Task CommittedBackupCleanupFailureDoesNotRollBackInstalledFiles()
+    {
+        string testRoot = CreateTemporaryDirectory();
+        string installRoot = Path.Combine(testRoot, "InstallRoot");
+        string userDataDirectory = Path.Combine(testRoot, "UserData");
+        TestInstallationPlatform platform = new(userDataDirectory);
+        InstallationService initialService = new(CreatePayload("old-application", "old-library"), platform);
+
+        try
+        {
+            await initialService.InstallAsync(
+                new InstallationRequest(installRoot, false, false),
+                InstallationOperation.Install,
+                new Progress<InstallationProgress>());
+            InstallationService upgradeService = new(
+                CreatePayload("new-application", "new-library"),
+                platform,
+                _ => throw new IOException("backup is in use"));
+
+            InstallationInfo installation = await upgradeService.InstallAsync(
+                new InstallationRequest(installRoot, false, false),
+                InstallationOperation.Upgrade,
+                new Progress<InstallationProgress>());
+
+            Assert.Equal(InstallationPaths.ProductVersion, installation.Version);
+            Assert.Equal("new-application", await File.ReadAllTextAsync(Path.Combine(installRoot, "bin", "Emerde.exe")));
+            Assert.Equal("new-library", await File.ReadAllTextAsync(Path.Combine(installRoot, "runtime", "shared", "library.dll")));
+            Assert.Contains(
+                Directory.EnumerateDirectories(installRoot),
+                path => Path.GetFileName(path).StartsWith(".emerde-backup-", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (Directory.Exists(testRoot))
+            {
+                Directory.Delete(testRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task UninstallRemovesUserDataWhenNotPreserved()
     {
         string testRoot = CreateTemporaryDirectory();

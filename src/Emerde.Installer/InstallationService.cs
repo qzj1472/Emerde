@@ -25,16 +25,21 @@ internal sealed class InstallationService
     private static readonly string[] LegacyRootDirectories = ["ffmpeg", "libvlc", "licenses", "runtimes"];
     private readonly InstallerPayload payload;
     private readonly IInstallationPlatform platform;
+    private readonly Action<string> committedBackupCleaner;
 
     public InstallationService(InstallerPayload payload)
         : this(payload, new WindowsInstallationPlatform())
     {
     }
 
-    internal InstallationService(InstallerPayload payload, IInstallationPlatform platform)
+    internal InstallationService(
+        InstallerPayload payload,
+        IInstallationPlatform platform,
+        Action<string>? committedBackupCleaner = null)
     {
         this.payload = payload;
         this.platform = platform;
+        this.committedBackupCleaner = committedBackupCleaner ?? DeleteDirectoryIfPresent;
     }
 
     public async Task<InstallationInfo> InstallAsync(
@@ -139,7 +144,7 @@ internal sealed class InstallationService
             progress.Report(new InstallationProgress(98, "正在注册维护信息..."));
             installationInfoAttempted = true;
             platform.WriteInstallationInfo(state, GetDirectorySize(installRoot));
-            TryDeleteDirectory(backupDirectory);
+            CleanupCommittedBackup(backupDirectory);
 
             progress.Report(new InstallationProgress(100, "已完成"));
             return new InstallationInfo(installRoot, state.Version, state);
@@ -267,7 +272,7 @@ internal sealed class InstallationService
             platform.ApplyTransparentCompression(installRoot);
             installationInfoAttempted = true;
             platform.WriteInstallationInfo(state, GetDirectorySize(installRoot));
-            TryDeleteDirectory(backupDirectory);
+            CleanupCommittedBackup(backupDirectory);
             progress.Report(new InstallationProgress(100, "已完成"));
             return new InstallationInfo(installRoot, state.Version, state);
         }
@@ -656,6 +661,25 @@ internal sealed class InstallationService
     }
 
     private static void TryDeleteDirectory(string path)
+    {
+        if (Directory.Exists(path))
+        {
+            Directory.Delete(path, recursive: true);
+        }
+    }
+
+    private void CleanupCommittedBackup(string path)
+    {
+        try
+        {
+            committedBackupCleaner(path);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static void DeleteDirectoryIfPresent(string path)
     {
         if (Directory.Exists(path))
         {
