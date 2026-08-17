@@ -1,4 +1,5 @@
 using Emerde.Properties;
+using Emerde.Controls;
 using Emerde.Views;
 using System.Globalization;
 using System.Xml.Linq;
@@ -50,7 +51,7 @@ public class AboutContentDialogTests
         XElement warningCard = document.Descendants()
             .Single(element => element.Name.LocalName == "Border" && (string?)element.Attribute("Background") == "#14D83B01");
         XElement[] cardRows = document.Descendants()
-            .Where(element => element.Name.LocalName == "WrapPanel"
+            .Where(element => element.Name.LocalName == "ResponsiveCardPanel"
                 && element.Elements().Any(child =>
                     (string?)child.Attribute("Style") is "{StaticResource AboutCardStyle}"
                         or "{StaticResource AboutWorkflowCardStyle}"))
@@ -59,7 +60,25 @@ public class AboutContentDialogTests
         Assert.Equal("20,10,20,20", (string?)pagePadding.Attribute("Padding"));
         Assert.Equal("0", (string?)warningCard.Attribute("Margin"));
         Assert.Equal(4, cardRows.Length);
-        Assert.All(cardRows, row => Assert.Equal("0,0,-12,0", (string?)row.Attribute("Margin")));
+        Assert.All(cardRows, row => Assert.Equal("0,0,0,12", (string?)row.Attribute("Margin")));
+    }
+
+    [Fact]
+    public void CardWidths_AreResolvedInsideResponsivePanels()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml"));
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml.cs"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement scrollViewer = document.Descendants()
+            .Single(element => (string?)element.Attribute(xaml + "Name") == "AboutOverviewScrollViewer");
+
+        Assert.Null((string?)scrollViewer.Attribute("ScrollChanged"));
+        Assert.DoesNotContain(document.Descendants().Attributes("Width"), attribute =>
+            attribute.Value.Contains("AboutCardWidth", StringComparison.Ordinal)
+                || attribute.Value.Contains("WorkflowCardWidth", StringComparison.Ordinal));
+        Assert.DoesNotContain(document.Root!.Attributes(), attribute => attribute.Name.LocalName == "SizeChanged");
+        Assert.Contains("AboutNavigationPanel.SizeChanged", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("AboutContentSizeChanged", code, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -68,27 +87,64 @@ public class AboutContentDialogTests
     [InlineData(754, 714, 351)]
     [InlineData(500, 460, 460)]
     [InlineData(40, 0, 0)]
-    public void CalculateCardWidths_UsesResponsiveColumnCounts(
-        double controlWidth,
+    public void ResponsiveCardPanels_KeepExpectedElasticSlotWidths(
+        double viewportWidth,
         double expectedCardWidth,
         double expectedWorkflowWidth)
     {
-        (double cardWidth, double workflowWidth) = AboutContentDialog.CalculateCardWidths(controlWidth);
+        double availableWidth = Math.Max(0, viewportWidth - 40);
+        int cardColumns = ResponsiveCardPanel.ResolveColumns(availableWidth, 0, 2, 760, 960, 24);
+        int workflowColumns = ResponsiveCardPanel.ResolveColumns(availableWidth, 0, 4, 560, 960, 24);
 
-        Assert.Equal(expectedCardWidth, cardWidth);
-        Assert.Equal(expectedWorkflowWidth, workflowWidth);
+        Assert.Equal(expectedCardWidth, Math.Floor(ResponsiveCardPanel.CalculateItemWidth(availableWidth, cardColumns, 12)));
+        Assert.Equal(expectedWorkflowWidth, Math.Floor(ResponsiveCardPanel.CalculateItemWidth(availableWidth, workflowColumns, 12)));
     }
 
     [Fact]
-    public void CardWidths_UseTheActualOverviewViewport()
+    public void ResizeMeasurement_UsesViewportCachingWithoutDelayedExactPasses()
     {
-        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml"));
-        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
-        XElement scrollViewer = document.Descendants()
-            .Single(element => (string?)element.Attribute(xaml + "Name") == "AboutOverviewScrollViewer");
+        string stackPanelCode = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Controls", "ResizeOptimizedStackPanel.cs"));
+        string cardPanelCode = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Controls", "ResponsiveCardPanel.cs"));
 
-        Assert.Equal("AboutOverviewScrollChanged", (string?)scrollViewer.Attribute("ScrollChanged"));
-        Assert.DoesNotContain(document.Root!.Attributes(), attribute => attribute.Name.LocalName == "SizeChanged");
+        Assert.Contains("IsNearViewport", stackPanelCode, StringComparison.Ordinal);
+        Assert.Contains("IsNearViewport", cardPanelCode, StringComparison.Ordinal);
+        Assert.Contains("ScrollChanged", stackPanelCode, StringComparison.Ordinal);
+        Assert.Contains("ScrollChanged", cardPanelCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("DispatcherTimer", stackPanelCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("DispatcherTimer", cardPanelCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("QuantizeMeasureWidth", stackPanelCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("QuantizeMeasureWidth", cardPanelCode, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AboutResponsiveUpdates_DoNotAccumulateDispatcherWork()
+    {
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml.cs"));
+
+        Assert.Contains("navigationIndicatorUpdateOperation", code, StringComparison.Ordinal);
+        Assert.Contains("DispatcherOperationStatus.Pending or DispatcherOperationStatus.Executing", code, StringComparison.Ordinal);
+        Assert.Contains("DispatcherPriority.Render", code, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(735, 1)]
+    [InlineData(736, 2)]
+    [InlineData(759, 2)]
+    [InlineData(760, 2)]
+    public void AboutCards_KeepColumnStateAcrossThresholdNoise(double availableWidth, int expectedColumns)
+    {
+        Assert.Equal(expectedColumns, ResponsiveCardPanel.ResolveColumns(availableWidth, 2, 2, 760, 960, 24));
+    }
+
+    [Theory]
+    [InlineData(535, 1)]
+    [InlineData(536, 2)]
+    [InlineData(935, 2)]
+    [InlineData(936, 4)]
+    public void WorkflowCards_UseDirectionalHysteresis(double availableWidth, int expectedColumns)
+    {
+        int currentColumns = availableWidth >= 900 ? 4 : 2;
+        Assert.Equal(expectedColumns, ResponsiveCardPanel.ResolveColumns(availableWidth, currentColumns, 4, 560, 960, 24));
     }
 
     [Theory]
@@ -97,10 +153,11 @@ public class AboutContentDialogTests
     [InlineData(720)]
     public void CardWidths_NeverOverflowTheViewport(double viewportWidth)
     {
-        (double cardWidth, double workflowWidth) = AboutContentDialog.CalculateCardWidths(viewportWidth);
         double availableWidth = Math.Max(0, viewportWidth - 40);
         int cardColumns = availableWidth >= 760 ? 2 : 1;
         int workflowColumns = availableWidth >= 960 ? 4 : availableWidth >= 560 ? 2 : 1;
+        double cardWidth = ResponsiveCardPanel.CalculateItemWidth(availableWidth, cardColumns, 12);
+        double workflowWidth = ResponsiveCardPanel.CalculateItemWidth(availableWidth, workflowColumns, 12);
 
         Assert.True(cardColumns * cardWidth + 12 * (cardColumns - 1) <= availableWidth);
         Assert.True(workflowColumns * workflowWidth + 12 * (workflowColumns - 1) <= availableWidth);

@@ -2,7 +2,7 @@ namespace Emerde.Views;
 
 public partial class LivePreviewPanel : System.Windows.Controls.UserControl
 {
-    private const int PreviewRoomTransitionDurationMilliseconds = 240;
+    private const int PreviewRoomTransitionDurationMilliseconds = 560;
 
     public static readonly System.Windows.DependencyProperty IsEmbeddedModeProperty = System.Windows.DependencyProperty.Register(
         nameof(IsEmbeddedMode),
@@ -51,6 +51,8 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
     private bool isPreviewCursorHidden;
     private System.Windows.FrameworkElement? previewCursorScope;
     private object? previewCursorLocalValue;
+
+    public event EventHandler? FirstFrameReady;
 
     public bool IsEmbeddedMode
     {
@@ -217,8 +219,15 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
             return;
         }
 
+        if (sender is not Core.LivePreviewFrameSource frameSource
+            || !ReferenceEquals(frameSource, attachedFrameSource))
+        {
+            return;
+        }
+
+        FirstFrameReady?.Invoke(this, EventArgs.Empty);
+
         if (!isPreviewRoomTransitionPending
-            || sender is not Core.LivePreviewFrameSource frameSource
             || !ReferenceEquals(frameSource, previewRoomTransitionTargetFrameSource))
         {
             return;
@@ -313,6 +322,10 @@ public partial class LivePreviewPanel : System.Windows.Controls.UserControl
         PreviewVideoFrame.Source = attachedFrameSource.Source;
         ScheduleVideoLayoutRefresh();
         UpdateVideoPresentationState();
+        if (attachedFrameSource.HasPresentedFrame)
+        {
+            FirstFrameReady?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private void OnPreviewControlFeedbackRequested(object? sender, ViewModels.PreviewControlFeedbackEventArgs e)

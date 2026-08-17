@@ -38,6 +38,7 @@ public partial class MainWindow : FluentWindow
     private HwndSource? hwndSource;
     private readonly List<IDisposable> extensionHostRegistrations = [];
     private readonly List<ToggleButton> extensionPageButtons = [];
+    private readonly HashSet<int> visitedMainPageIndexes = [0];
     private string selectedExtensionPageId = string.Empty;
     private DataTemplate? defaultRoomCardTemplate;
     public MainViewModel ViewModel { get; }
@@ -70,6 +71,8 @@ public partial class MainWindow : FluentWindow
     public static readonly DependencyProperty UiXRoomCardStatusFontSizeProperty = DependencyProperty.Register(nameof(UiXRoomCardStatusFontSize), typeof(double), typeof(MainWindow), new PropertyMetadata(13d));
     public static readonly DependencyProperty UiXRoomCardNameMarginProperty = DependencyProperty.Register(nameof(UiXRoomCardNameMargin), typeof(Thickness), typeof(MainWindow), new PropertyMetadata(new Thickness(6, 8, 6, 0)));
     public static readonly DependencyProperty UiXRoomCardTitleMarginProperty = DependencyProperty.Register(nameof(UiXRoomCardTitleMargin), typeof(Thickness), typeof(MainWindow), new PropertyMetadata(new Thickness(6, 5, 6, 0)));
+    public static readonly DependencyProperty UiXRoomCardLayoutWidthProperty = DependencyProperty.Register(nameof(UiXRoomCardLayoutWidth), typeof(double), typeof(MainWindow), new PropertyMetadata(180d));
+    public static readonly DependencyProperty UiXRoomCardLayoutHeightProperty = DependencyProperty.Register(nameof(UiXRoomCardLayoutHeight), typeof(double), typeof(MainWindow), new PropertyMetadata(130d));
     public static readonly DependencyProperty IsPreviewSurfaceVisibleProperty = DependencyProperty.Register(nameof(IsPreviewSurfaceVisible), typeof(bool), typeof(MainWindow), new PropertyMetadata(false));
 
     public int RoomCardColumnCount
@@ -240,6 +243,18 @@ public partial class MainWindow : FluentWindow
         set => SetValue(UiXRoomCardTitleMarginProperty, value);
     }
 
+    public double UiXRoomCardLayoutWidth
+    {
+        get => (double)GetValue(UiXRoomCardLayoutWidthProperty);
+        set => SetValue(UiXRoomCardLayoutWidthProperty, value);
+    }
+
+    public double UiXRoomCardLayoutHeight
+    {
+        get => (double)GetValue(UiXRoomCardLayoutHeightProperty);
+        set => SetValue(UiXRoomCardLayoutHeightProperty, value);
+    }
+
     public bool IsPreviewSurfaceVisible
     {
         get => (bool)GetValue(IsPreviewSurfaceVisibleProperty);
@@ -288,6 +303,8 @@ public partial class MainWindow : FluentWindow
     private const int DwmColorNone = unchecked((int)0xFFFFFFFE);
     private const int PreviewFullScreenOverscanPixels = 2;
     private const int PreviewFullScreenTransitionMilliseconds = 210;
+    internal const int HomePreviewLayoutTransitionMilliseconds = 480;
+    internal const int PreviewOpeningFallbackMilliseconds = 2200;
 
     private double roomCardSizePreference = GetStoredRoomCardSizePreference(
         Configurations.RoomCardSizePreference.Get(),
@@ -352,9 +369,17 @@ public partial class MainWindow : FluentWindow
     private bool isUpgradeReleaseNotesShowing;
     private int homePreviewLayoutAnimationGeneration;
     private int homePreviewLayoutUpdateGeneration;
+    private int mainPageEntranceGeneration;
     private int previewPresentationUpdateGeneration;
+    private int previewOpeningTransitionGeneration;
+    private DispatcherOperation? roomCardMetricsRefreshOperation;
+    private DispatcherOperation? homeResponsiveLayoutUpdateOperation;
+    private double pendingRoomCardMetricsWidth = double.NaN;
+    private bool pendingHomeResponsiveLayoutAnimation;
     private bool isHomePreviewColumnAnimationActive;
+    private bool isPreviewOpeningTransitionPending;
     private bool isPreviewClosingTransitionActive;
+    private bool suspendRoomCardMetricsDuringPreviewTransition;
     private readonly ScaleTransform previewFullScreenScaleTransform = new(1d, 1d);
     private readonly TranslateTransform previewFullScreenTranslateTransform = new();
 
@@ -374,6 +399,7 @@ public partial class MainWindow : FluentWindow
         ExtensionHostRuntime.PagesChanged += ExtensionPagesChanged;
         ExtensionHostRuntime.OverridesChanged += ExtensionOverridesChanged;
         ExtensionHostRuntime.UiContributionsChanged += ExtensionUiContributionsChanged;
+        ConfigurationSaveScheduler.SaveStateChanged += ConfigurationSaveStateChanged;
         extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.Application, Application.Current));
         extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.MainWindow, this));
         extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.MainViewModel, ViewModel));
@@ -397,6 +423,7 @@ public partial class MainWindow : FluentWindow
                 previewFullScreenTranslateTransform,
             },
         };
+        HomePreviewPanel.FirstFrameReady += HomePreviewPanelFirstFrameReady;
         IsPreviewSurfaceVisible = ViewModel.IsPreviewing;
         previousPreviewingState = ViewModel.IsPreviewing;
         UpdateHomePreviewLayout();
@@ -408,6 +435,7 @@ public partial class MainWindow : FluentWindow
         {
             EnforceBorderlessWindowChrome();
             UpdateHomePreviewLayout();
+            QueueShellNavigationIndicatorUpdate(false);
             try
             {
                 await ExtensionService.Default.InitializeAsync();
@@ -443,10 +471,6 @@ public partial class MainWindow : FluentWindow
         {
             Keyboard.ClearFocus();
             _ = Dispatcher.BeginInvoke(EnforceBorderlessWindowChrome, DispatcherPriority.Render);
-        };
-        SizeChanged += (_, _) =>
-        {
-            EnforceBorderlessWindowChrome();
         };
         RoomCardList.ItemContainerGenerator.StatusChanged += RoomCardItemsGenerated;
 
@@ -492,12 +516,18 @@ public partial class MainWindow : FluentWindow
         hwndSource = null;
         PreviewKeyDown -= MainWindowPreviewKeyDown;
         RoomCardList.ItemContainerGenerator.StatusChanged -= RoomCardItemsGenerated;
+        roomCardMetricsRefreshOperation?.Abort();
+        roomCardMetricsRefreshOperation = null;
+        homeResponsiveLayoutUpdateOperation?.Abort();
+        homeResponsiveLayoutUpdateOperation = null;
         ApplicationThemeManager.Changed -= MainWindowThemeChanged;
         ExtensionHostRuntime.PagesChanged -= ExtensionPagesChanged;
         ExtensionHostRuntime.OverridesChanged -= ExtensionOverridesChanged;
         ExtensionHostRuntime.UiContributionsChanged -= ExtensionUiContributionsChanged;
+        ConfigurationSaveScheduler.SaveStateChanged -= ConfigurationSaveStateChanged;
         ComponentDispatcher.ThreadPreprocessMessage -= MainWindowThreadPreprocessMessage;
         ViewModel.IsPreviewDetached = false;
+        HomePreviewPanel.FirstFrameReady -= HomePreviewPanelFirstFrameReady;
         ViewModel.PropertyChanged -= ViewModelPropertyChanged;
         foreach (IDisposable registration in extensionHostRegistrations.AsEnumerable().Reverse())
         {
@@ -612,6 +642,7 @@ public partial class MainWindow : FluentWindow
         }
 
         UpdateExtensionPageSelection();
+        QueueShellNavigationIndicatorUpdate(false);
     }
 
     private ToggleButton CreateExtensionPageButton(ExtensionPageDefinition page, int pageIndex)
@@ -742,7 +773,7 @@ public partial class MainWindow : FluentWindow
                 catch (Exception exception)
                 {
                     AppSessionLogger.WriteException(exception);
-                    Wpf.Ui.Violeta.Controls.Toast.Error(exception.Message);
+                    AppFeedback.Error(exception.Message);
                 }
             };
             contextMenu.Items.Insert(insertionIndex++, menuItem);
@@ -899,7 +930,14 @@ public partial class MainWindow : FluentWindow
 
         if (e.Key == Key.Escape && ViewModel.IsHomePageSelected && ViewModel.IsRoomMultiSelectMode)
         {
-            ViewModel.CancelRoomMultiSelect();
+            if (ViewModel.HasSelectedRooms)
+            {
+                ViewModel.ClearRoomMultiSelection();
+            }
+            else
+            {
+                ViewModel.CancelRoomMultiSelect();
+            }
             e.Handled = true;
             return;
         }
@@ -1378,6 +1416,8 @@ public partial class MainWindow : FluentWindow
 
         if (e.PropertyName == nameof(MainViewModel.SelectedMainPageIndex))
         {
+            int selectedPageIndex = ViewModel.SelectedMainPageIndex;
+            bool replayPageEntrance = !visitedMainPageIndexes.Add(selectedPageIndex);
             if (ViewModel.SelectedMainPageIndex >= 5)
             {
                 ExtensionPageContribution[] pages = ExtensionHostRuntime.GetPagesSnapshot();
@@ -1394,6 +1434,11 @@ public partial class MainWindow : FluentWindow
                 selectedExtensionPageId = string.Empty;
             }
             UpdateExtensionPageSelection();
+            if (ViewModel.StatusOfIsUiXEnabled || replayPageEntrance || selectedPageIndex >= 5)
+            {
+                QueueActiveMainPageEntrance(selectedPageIndex);
+            }
+            QueueShellNavigationIndicatorUpdate(true);
             if (!ViewModel.IsHomePageSelected && isPreviewClosingTransitionActive)
             {
                 homePreviewLayoutUpdateGeneration++;
@@ -1407,9 +1452,17 @@ public partial class MainWindow : FluentWindow
 
         if (e.PropertyName == nameof(MainViewModel.StatusOfIsUiXEnabled))
         {
+            if (!ViewModel.StatusOfIsUiXEnabled)
+            {
+                NotificationHistoryPopup.IsOpen = false;
+            }
             ApplyUiXWindowMaterial();
             InterruptHomePreviewColumnAnimation();
-            UpdateHomePreviewLayout();
+            if (!isPreviewOpeningTransitionPending)
+            {
+                UpdateHomePreviewLayout();
+            }
+            QueueShellNavigationIndicatorUpdate(false);
             QueueRoomCardMetricsRefresh();
             return;
         }
@@ -1422,19 +1475,75 @@ public partial class MainWindow : FluentWindow
         bool wasPreviewing = previousPreviewingState;
         bool bringSelectedRoomIntoView = wasPreviewing != ViewModel.IsPreviewing;
         previousPreviewingState = ViewModel.IsPreviewing;
+        bool openingWasPending = isPreviewOpeningTransitionPending;
+        CancelPreviewOpeningTransition();
         InterruptHomePreviewColumnAnimation();
         if (ViewModel.IsPreviewing)
         {
             isPreviewClosingTransitionActive = false;
+            isPreviewOpeningTransitionPending = true;
             IsPreviewSurfaceVisible = true;
+            int openingGeneration = ++previewOpeningTransitionGeneration;
+            UpdatePreviewPresentationState();
+            _ = CompletePreviewOpeningTransitionAfterTimeoutAsync(openingGeneration);
+            return;
         }
-        else if (wasPreviewing)
+
+        if (openingWasPending)
+        {
+            isPreviewClosingTransitionActive = false;
+            IsPreviewSurfaceVisible = false;
+            UpdatePreviewPresentationState();
+            UpdateHomePreviewLayout();
+            QueueRoomCardMetricsRefresh();
+            FocusRoomCardList();
+            return;
+        }
+
+        if (wasPreviewing)
         {
             isPreviewClosingTransitionActive = true;
             IsPreviewSurfaceVisible = true;
         }
 
         UpdatePreviewPresentationState();
+        QueueHomePreviewLayoutTransition(bringSelectedRoomIntoView);
+    }
+
+    private void HomePreviewPanelFirstFrameReady(object? sender, EventArgs e)
+    {
+        CompletePreviewOpeningTransition();
+    }
+
+    private async Task CompletePreviewOpeningTransitionAfterTimeoutAsync(int openingGeneration)
+    {
+        await Task.Delay(PreviewOpeningFallbackMilliseconds);
+        if (openingGeneration == previewOpeningTransitionGeneration)
+        {
+            CompletePreviewOpeningTransition();
+        }
+    }
+
+    private void CompletePreviewOpeningTransition()
+    {
+        if (!isPreviewOpeningTransitionPending || !ViewModel.IsPreviewing)
+        {
+            return;
+        }
+
+        isPreviewOpeningTransitionPending = false;
+        previewOpeningTransitionGeneration++;
+        QueueHomePreviewLayoutTransition(true);
+    }
+
+    private void CancelPreviewOpeningTransition()
+    {
+        isPreviewOpeningTransitionPending = false;
+        previewOpeningTransitionGeneration++;
+    }
+
+    private void QueueHomePreviewLayoutTransition(bool bringSelectedRoomIntoView)
+    {
         int layoutUpdateGeneration = ++homePreviewLayoutUpdateGeneration;
         Dispatcher.BeginInvoke(() =>
         {
@@ -1465,6 +1574,92 @@ public partial class MainWindow : FluentWindow
         }, DispatcherPriority.Loaded);
     }
 
+    private void QueueActiveMainPageEntrance(int pageIndex)
+    {
+        if (!ViewModel.StatusOfIsUiXEnabled && (pageIndex == 1 || pageIndex >= 5))
+        {
+            return;
+        }
+
+        int generation = ++mainPageEntranceGeneration;
+        FrameworkElement? pendingPage = GetActiveMainPage(pageIndex);
+        if (ViewModel.StatusOfIsUiXEnabled && pendingPage != null)
+        {
+            MotionAssist.PrepareEntrance(pendingPage);
+        }
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            if (generation != mainPageEntranceGeneration || pageIndex != ViewModel.SelectedMainPageIndex)
+            {
+                return;
+            }
+
+            FrameworkElement? page = GetActiveMainPage(pageIndex);
+            if (page is { IsVisible: true })
+            {
+                MotionAssist.PlayEntrance(page);
+            }
+        }, DispatcherPriority.DataBind);
+    }
+
+    private void QueueShellNavigationIndicatorUpdate(bool animate)
+    {
+        _ = Dispatcher.BeginInvoke(
+            () => UpdateShellNavigationIndicator(animate),
+            DispatcherPriority.Loaded);
+    }
+
+    private void UpdateShellNavigationIndicator(bool animate)
+    {
+        if (!ViewModel.StatusOfIsUiXEnabled)
+        {
+            ShellNavigationSelectionIndicator.Opacity = 0d;
+            return;
+        }
+
+        ToggleButton? selectedButton = GetNavigationButton(ViewModel.SelectedMainPageIndex);
+        if (selectedButton is not { IsLoaded: true, ActualHeight: > 0d })
+        {
+            return;
+        }
+
+        Point position = selectedButton.TransformToAncestor(ShellNavigationLayout).Transform(new Point(0d, 0d));
+        double targetY = WindowSizing.RoundLayoutValue(position.Y + (selectedButton.ActualHeight - ShellNavigationSelectionIndicator.Height) / 2d);
+        MotionAssist.MoveNavigationIndicator(
+            ShellNavigationSelectionIndicator,
+            WindowSizing.RoundLayoutValue(position.X),
+            targetY,
+            animate);
+    }
+
+    private ToggleButton? GetNavigationButton(int pageIndex)
+    {
+        return pageIndex switch
+        {
+            0 => HomeNavigationButton,
+            1 => VideoNavigationButton,
+            2 => ExtensionsNavigationButton,
+            3 => SettingsNavigationButton,
+            4 => AboutNavigationButton,
+            >= 5 when pageIndex - 5 < extensionPageButtons.Count => extensionPageButtons[pageIndex - 5],
+            _ => null,
+        };
+    }
+
+    private FrameworkElement? GetActiveMainPage(int pageIndex)
+    {
+        return pageIndex switch
+        {
+            0 => HomePageRoot,
+            1 => VideoListPage,
+            2 => ExtensionsPage,
+            3 => SettingsPage,
+            4 => AboutPage,
+            >= 5 when pageIndex - 5 < ExtensionPageHost.Children.Count => ExtensionPageHost.Children[pageIndex - 5] as FrameworkElement,
+            _ => null,
+        };
+    }
+
     private static bool IsPreviewLifecycleProperty(string? propertyName)
     {
         return propertyName is nameof(MainViewModel.IsPreviewing)
@@ -1486,9 +1681,29 @@ public partial class MainWindow : FluentWindow
         _ = ExtensionHostRuntime.PublishAsync(ExtensionEventNames.PreviewStateChanged, payload);
     }
 
-    private void QueueRoomCardMetricsRefresh()
+    private void QueueRoomCardMetricsRefresh(double width = double.NaN)
     {
-        Dispatcher.BeginInvoke(() => UpdateRoomCardMetrics(GetCurrentRoomCardLayoutWidth()), DispatcherPriority.Render);
+        if (double.IsFinite(width) && width > 0d)
+        {
+            pendingRoomCardMetricsWidth = width;
+        }
+        if (roomCardMetricsRefreshOperation is { Status: DispatcherOperationStatus.Pending or DispatcherOperationStatus.Executing })
+        {
+            return;
+        }
+
+        roomCardMetricsRefreshOperation = Dispatcher.BeginInvoke(() =>
+        {
+            roomCardMetricsRefreshOperation = null;
+            double widthToApply = pendingRoomCardMetricsWidth;
+            pendingRoomCardMetricsWidth = double.NaN;
+            if (!suspendRoomCardMetricsDuringPreviewTransition)
+            {
+                UpdateRoomCardMetrics(double.IsFinite(widthToApply) && widthToApply > 0d
+                    ? widthToApply
+                    : GetCurrentRoomCardLayoutWidth());
+            }
+        }, DispatcherPriority.Render);
     }
 
     private void BringSelectedRoomCardIntoView()
@@ -1592,6 +1807,11 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
+        if (isPreviewOpeningTransitionPending && ViewModel.IsPreviewing)
+        {
+            return;
+        }
+
         if (ViewModel.IsPreviewing)
         {
             (double roomListWidth, double detailWidth) = CalculatePreviewPaneWidths(
@@ -1627,6 +1847,7 @@ public partial class MainWindow : FluentWindow
         {
             homePreviewLayoutAnimationGeneration++;
             isHomePreviewColumnAnimationActive = false;
+            suspendRoomCardMetricsDuringPreviewTransition = false;
             ClearHomePreviewColumnAnimations();
             HomeRoomCardColumn.Width = roomListWidth;
             HomePreviewColumn.Width = previewWidth;
@@ -1652,6 +1873,9 @@ public partial class MainWindow : FluentWindow
             detailWidth,
             targetDetailMaxWidth);
 
+        suspendRoomCardMetricsDuringPreviewTransition = true;
+        UpdateRoomCardMetrics(targetRoomListWidth);
+
         RoomDetailPanel.Visibility = Visibility.Visible;
         AnimateHomePreviewColumn(HomeRoomCardColumn, HomeRoomCardColumn.ActualWidth, targetRoomListWidth);
         AnimateHomePreviewColumn(HomePreviewColumn, HomePreviewColumn.ActualWidth, targetPreviewWidth);
@@ -1664,6 +1888,7 @@ public partial class MainWindow : FluentWindow
             }
 
             isHomePreviewColumnAnimationActive = false;
+            suspendRoomCardMetricsDuringPreviewTransition = false;
             HomeRoomCardColumn.Width = roomListWidth;
             HomePreviewColumn.Width = previewWidth;
             HomeDetailColumn.Width = detailWidth;
@@ -1705,6 +1930,7 @@ public partial class MainWindow : FluentWindow
         double detailWidth = NormalizeAnimatedWidth(HomeDetailColumn.ActualWidth);
         homePreviewLayoutAnimationGeneration++;
         isHomePreviewColumnAnimationActive = false;
+        suspendRoomCardMetricsDuringPreviewTransition = false;
         ClearHomePreviewColumnAnimations();
         HomeRoomCardColumn.Width = new GridLength(roomListWidth);
         HomePreviewColumn.Width = new GridLength(previewWidth);
@@ -1795,8 +2021,8 @@ public partial class MainWindow : FluentWindow
         {
             From = NormalizeAnimatedWidth(from),
             To = NormalizeAnimatedWidth(to),
-            Duration = TimeSpan.FromMilliseconds(260),
-            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut },
+            Duration = TimeSpan.FromMilliseconds(HomePreviewLayoutTransitionMilliseconds),
+            EasingFunction = new System.Windows.Media.Animation.QuarticEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut },
             FillBehavior = System.Windows.Media.Animation.FillBehavior.HoldEnd,
         };
     }
@@ -1888,12 +2114,18 @@ public partial class MainWindow : FluentWindow
     private void RoomCardPanelContentSizeChanged(object sender, SizeChangedEventArgs e)
     {
         RoundedPanelContentSizeChanged(sender, e);
-        UpdateRoomCardMetrics(e.NewSize.Width);
+        if (suspendRoomCardMetricsDuringPreviewTransition)
+        {
+            return;
+        }
+        QueueRoomCardMetricsRefresh(e.NewSize.Width);
     }
 
     private void RoomCardItemsGenerated(object? sender, EventArgs e)
     {
-        if (!ViewModel.StatusOfIsUiXEnabled || GetCurrentRoomCardLayoutWidth() <= 0d)
+        if (suspendRoomCardMetricsDuringPreviewTransition
+            || !ViewModel.StatusOfIsUiXEnabled
+            || GetCurrentRoomCardLayoutWidth() <= 0d)
         {
             return;
         }
@@ -1916,8 +2148,29 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
-        UpdateHomePreviewLayout(isHomePreviewColumnAnimationActive);
-        UpdateRoomCardMetrics(GetCurrentRoomCardLayoutWidth());
+        QueueHomeResponsiveLayoutUpdate(isHomePreviewColumnAnimationActive);
+    }
+
+    private void QueueHomeResponsiveLayoutUpdate(bool animate)
+    {
+        pendingHomeResponsiveLayoutAnimation |= animate;
+        if (homeResponsiveLayoutUpdateOperation is { Status: DispatcherOperationStatus.Pending or DispatcherOperationStatus.Executing })
+        {
+            return;
+        }
+
+        homeResponsiveLayoutUpdateOperation = Dispatcher.BeginInvoke(() =>
+        {
+            bool shouldAnimate = pendingHomeResponsiveLayoutAnimation;
+            pendingHomeResponsiveLayoutAnimation = false;
+            homeResponsiveLayoutUpdateOperation = null;
+            if (isPreviewFullScreen || (!ViewModel.IsPreviewing && !isPreviewClosingTransitionActive))
+            {
+                return;
+            }
+            UpdateHomePreviewLayout(shouldAnimate);
+            QueueRoomCardMetricsRefresh();
+        }, DispatcherPriority.Render);
     }
 
     internal static bool CanEnumerateVisualChildren(DependencyObject root)
@@ -2015,20 +2268,24 @@ public partial class MainWindow : FluentWindow
                 : GetCardWidthForColumns(availableWidth, columns, horizontalGap, targetCardWidth);
         double cardHeightRatio = ViewModel.StatusOfIsUiXEnabled ? 0.72d : 2d / 3d;
         double cardHeight = WindowSizing.RoundLayoutValue(cardWidth * cardHeightRatio);
+        double visualCardWidth = isUiXMode ? targetCardWidth : cardWidth;
+        double visualCardHeight = WindowSizing.RoundLayoutValue(visualCardWidth * cardHeightRatio);
 
-        RoomCardColumnCount = columns;
-        RoomCardGridWidth = ViewModel.StatusOfIsUiXEnabled && visibleItemCount > 0
+        SetRoomCardMetric(RoomCardColumnCountProperty, columns);
+        SetRoomCardMetric(RoomCardGridWidthProperty, ViewModel.StatusOfIsUiXEnabled && visibleItemCount > 0
             ? fillAvailableWidth
                 ? WindowSizing.RoundLayoutValue(availableWidth)
                 : WindowSizing.RoundLayoutValue(columns * (cardWidth + horizontalGap))
-            : double.NaN;
-        RoomCardWidth = cardWidth;
-        RoomCardHeight = cardHeight;
+            : double.NaN);
+        SetRoomCardMetric(RoomCardWidthProperty, cardWidth);
+        SetRoomCardMetric(RoomCardHeightProperty, cardHeight);
         double horizontalMargin = WindowSizing.RoundLayoutValue(horizontalGap / 2d);
         double verticalMargin = WindowSizing.RoundLayoutValue(verticalGap / 2d);
-        RoomCardMargin = new Thickness(horizontalMargin, verticalMargin, horizontalMargin, verticalMargin);
+        SetRoomCardMetric(RoomCardMarginProperty, new Thickness(horizontalMargin, verticalMargin, horizontalMargin, verticalMargin));
         double visualBaseWidth = isUiXMode ? UiXPreviewRoomCardBaseWidth : baseWidth;
-        UpdateRoomCardVisualMetrics(cardWidth, visualBaseWidth, isUiXPreviewMode ? effectivePreference : null);
+        SetRoomCardMetric(UiXRoomCardLayoutWidthProperty, visualCardWidth);
+        SetRoomCardMetric(UiXRoomCardLayoutHeightProperty, visualCardHeight);
+        UpdateRoomCardVisualMetrics(visualCardWidth, visualBaseWidth, isUiXPreviewMode ? effectivePreference : null);
     }
 
     private double GetCurrentRoomCardLayoutWidth()
@@ -2210,6 +2467,26 @@ public partial class MainWindow : FluentWindow
             horizontalGap,
             GetCardWidthForColumns(availableWidth, columns, horizontalGap, range));
         return (columns, actualSlotWidth, cardWidth);
+    }
+
+    private void ConfigurationSaveStateChanged(object? sender, ConfigurationSaveStateChangedEventArgs e)
+    {
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            if (e.IsSaved)
+            {
+                AppFeedback.Success("ConfigurationSaveRecovered".Tr(), key: "configuration-save");
+            }
+            else
+            {
+                AppFeedback.Error("ConfigurationSaveFailedRetrying".Tr(), key: "configuration-save");
+            }
+        });
+    }
+
+    private void NotificationHistoryButtonClick(object sender, RoutedEventArgs e)
+    {
+        NotificationHistoryPopup.IsOpen = !NotificationHistoryPopup.IsOpen;
     }
 
     internal static int StabilizeResponsiveCardColumns(
@@ -2421,56 +2698,64 @@ public partial class MainWindow : FluentWindow
 
         double avatarSize = CalculateRoomCardAvatarSize(scale);
 
-        RoomCardPadding = new Thickness(WindowSizing.RoundLayoutValue(8d * scale));
-        RoomCardAvatarContainerSize = Math.Max(avatarSize, WindowSizing.RoundLayoutValue(38d * scale));
-        RoomCardAvatarSize = avatarSize;
-        RoomCardAvatarIconSize = WindowSizing.RoundLayoutValue(20d * scale);
-        RoomCardAvatarMargin = new Thickness(
+        SetRoomCardMetric(RoomCardPaddingProperty, new Thickness(WindowSizing.RoundLayoutValue(8d * scale)));
+        SetRoomCardMetric(RoomCardAvatarContainerSizeProperty, Math.Max(avatarSize, WindowSizing.RoundLayoutValue(38d * scale)));
+        SetRoomCardMetric(RoomCardAvatarSizeProperty, avatarSize);
+        SetRoomCardMetric(RoomCardAvatarIconSizeProperty, WindowSizing.RoundLayoutValue(20d * scale));
+        SetRoomCardMetric(RoomCardAvatarMarginProperty, new Thickness(
             WindowSizing.RoundLayoutValue(3d * scale),
             WindowSizing.RoundLayoutValue(3d * scale),
             WindowSizing.RoundLayoutValue(10d * scale),
-            0);
-        RoomCardHeaderColumnWidth = new GridLength(WindowSizing.RoundLayoutValue(54d * scale));
-        RoomCardNameFontSize = Math.Max(8d, WindowSizing.RoundLayoutValue(15d * scale));
-        RoomCardPlatformFontSize = Math.Max(7d, WindowSizing.RoundLayoutValue(12d * scale));
-        RoomCardTitleFontSize = Math.Max(7d, WindowSizing.RoundLayoutValue(12d * scale));
-        RoomCardTitleLineHeight = Math.Max(9d, WindowSizing.RoundLayoutValue(16d * scale));
-        RoomCardTitleMaxHeight = WindowSizing.RoundLayoutValue(32d * scale);
+            0));
+        SetRoomCardMetric(RoomCardHeaderColumnWidthProperty, new GridLength(WindowSizing.RoundLayoutValue(54d * scale)));
+        SetRoomCardMetric(RoomCardNameFontSizeProperty, Math.Max(8d, WindowSizing.RoundLayoutValue(15d * scale)));
+        SetRoomCardMetric(RoomCardPlatformFontSizeProperty, Math.Max(7d, WindowSizing.RoundLayoutValue(12d * scale)));
+        SetRoomCardMetric(RoomCardTitleFontSizeProperty, Math.Max(7d, WindowSizing.RoundLayoutValue(12d * scale)));
+        SetRoomCardMetric(RoomCardTitleLineHeightProperty, Math.Max(9d, WindowSizing.RoundLayoutValue(16d * scale)));
+        SetRoomCardMetric(RoomCardTitleMaxHeightProperty, WindowSizing.RoundLayoutValue(32d * scale));
         bool isUiXHomeCard = ViewModel.StatusOfIsUiXEnabled && !ViewModel.IsPreviewing;
-        RoomCardTitleVisibility = scale < (isUiXHomeCard ? 0.55d : 0.72d) ? Visibility.Collapsed : Visibility.Visible;
-        RoomCardChipFontSize = Math.Max(7d, WindowSizing.RoundLayoutValue(11d * scale));
-        RoomCardChipPadding = new Thickness(
+        SetRoomCardMetric(RoomCardTitleVisibilityProperty, scale < (isUiXHomeCard ? 0.55d : 0.72d) ? Visibility.Collapsed : Visibility.Visible);
+        SetRoomCardMetric(RoomCardChipFontSizeProperty, Math.Max(7d, WindowSizing.RoundLayoutValue(11d * scale)));
+        SetRoomCardMetric(RoomCardChipPaddingProperty, new Thickness(
             WindowSizing.RoundLayoutValue(6d * scale),
             WindowSizing.RoundLayoutValue(4d * scale),
             WindowSizing.RoundLayoutValue(6d * scale),
-            WindowSizing.RoundLayoutValue(4d * scale));
-        RoomCardChipMinHeight = WindowSizing.RoundLayoutValue(chipHeight);
+            WindowSizing.RoundLayoutValue(4d * scale)));
+        SetRoomCardMetric(RoomCardChipMinHeightProperty, WindowSizing.RoundLayoutValue(chipHeight));
         bool isCompactPreviewCard = visualScale <= RoomCardSmallSizeScale;
         bool useCompactUiXMetrics = ShouldUseCompactUiXMetrics(isUiXHomeCard, isCompactPreviewCard, scale);
-        UiXRoomCardAvatarSize = useCompactUiXMetrics
+        SetRoomCardMetric(UiXRoomCardAvatarSizeProperty, useCompactUiXMetrics
             ? 28d
-            : Math.Clamp(WindowSizing.RoundLayoutValue(52d * scale), 36d, 68d);
-        UiXRoomCardAvatarIconSize = useCompactUiXMetrics
+            : Math.Clamp(WindowSizing.RoundLayoutValue(52d * scale), 36d, 68d));
+        SetRoomCardMetric(UiXRoomCardAvatarIconSizeProperty, useCompactUiXMetrics
             ? 14d
-            : Math.Clamp(WindowSizing.RoundLayoutValue(26d * scale), 18d, 34d);
-        UiXRoomCardNameFontSize = useCompactUiXMetrics
+            : Math.Clamp(WindowSizing.RoundLayoutValue(26d * scale), 18d, 34d));
+        SetRoomCardMetric(UiXRoomCardNameFontSizeProperty, useCompactUiXMetrics
             ? 11d
-            : Math.Clamp(WindowSizing.RoundLayoutValue(15d * scale), 13d, 16d);
-        UiXRoomCardTitleFontSize = useCompactUiXMetrics
+            : Math.Clamp(WindowSizing.RoundLayoutValue(15d * scale), 13d, 16d));
+        SetRoomCardMetric(UiXRoomCardTitleFontSizeProperty, useCompactUiXMetrics
             ? 9d
-            : Math.Clamp(WindowSizing.RoundLayoutValue(11d * scale), 10d, 12d);
-        UiXRoomCardTitleLineHeight = useCompactUiXMetrics
+            : Math.Clamp(WindowSizing.RoundLayoutValue(11d * scale), 10d, 12d));
+        SetRoomCardMetric(UiXRoomCardTitleLineHeightProperty, useCompactUiXMetrics
             ? 11d
-            : Math.Clamp(WindowSizing.RoundLayoutValue(15d * scale), 13d, 17d);
-        UiXRoomCardStatusFontSize = useCompactUiXMetrics
+            : Math.Clamp(WindowSizing.RoundLayoutValue(15d * scale), 13d, 17d));
+        SetRoomCardMetric(UiXRoomCardStatusFontSizeProperty, useCompactUiXMetrics
             ? 10d
-            : Math.Clamp(WindowSizing.RoundLayoutValue(13d * scale), 12d, 14d);
-        UiXRoomCardNameMargin = useCompactUiXMetrics
+            : Math.Clamp(WindowSizing.RoundLayoutValue(13d * scale), 12d, 14d));
+        SetRoomCardMetric(UiXRoomCardNameMarginProperty, useCompactUiXMetrics
             ? new Thickness(4, 3, 4, 0)
-            : new Thickness(6, 8, 6, 0);
-        UiXRoomCardTitleMargin = useCompactUiXMetrics
+            : new Thickness(6, 8, 6, 0));
+        SetRoomCardMetric(UiXRoomCardTitleMarginProperty, useCompactUiXMetrics
             ? new Thickness(4, 1, 4, 0)
-            : new Thickness(6, 5, 6, 0);
+            : new Thickness(6, 5, 6, 0));
+    }
+
+    private void SetRoomCardMetric(DependencyProperty property, object value)
+    {
+        if (!Equals(GetValue(property), value))
+        {
+            SetCurrentValue(property, value);
+        }
     }
 
     internal static bool ShouldUseCompactUiXMetrics(bool isUiXHomeCard, bool isCompactPreviewCard, double scale)

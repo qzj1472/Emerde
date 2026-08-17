@@ -61,7 +61,7 @@
             </Style.Triggers>
         </Style>
         <Style x:Key="AboutCardStyle" TargetType="{x:Type Border}">
-            <Setter Property="Margin" Value="0,0,12,12" />
+            <Setter Property="Margin" Value="0" />
             <Setter Property="Padding" Value="16" />
             <Setter Property="Background" Value="{DynamicResource EmerdeCardBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
@@ -202,6 +202,7 @@
                         <ControlTemplate.Triggers>
                             <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
                                 <Setter TargetName="NavigationChrome" Property="CornerRadius" Value="{StaticResource UiXNavigationCornerRadius}" />
+                                <Setter TargetName="NavigationIndicator" Property="Width" Value="0" />
                             </DataTrigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="NavigationChrome" Property="Background" Value="{DynamicResource UiXSubtleFillBrush}" />
@@ -211,6 +212,31 @@
                                 <Setter TargetName="NavigationChrome" Property="Background" Value="{DynamicResource UiXSelectionFillBrush}" />
                                 <Setter TargetName="NavigationIndicator" Property="Opacity" Value="1" />
                                 <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="NavigationIndicator"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             From="0"
+                                                             To="1"
+                                                             Duration="0:0:0.28">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <CubicEase EasingMode="EaseOut" />
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="NavigationIndicator"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0"
+                                                             Duration="0:0:0.18" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.5" />
@@ -246,14 +272,25 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid ClipToBounds="True"
-          controls:MotionAssist.IsEntranceEnabled="True"
+    <Grid x:Name="AboutContentRoot"
+          ClipToBounds="True"
           controls:MotionAssist.EntranceOffsetY="8">
+        <Grid.Style>
+            <Style TargetType="{x:Type Grid}">
+                <Setter Property="controls:MotionAssist.IsEntranceEnabled" Value="True" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                        <Setter Property="controls:MotionAssist.IsEntranceEnabled" Value="False" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Grid.Style>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
-        <WrapPanel Grid.Row="0" Margin="20,10,20,10">
+        <Grid x:Name="AboutNavigationRoot" Grid.Row="0" Margin="20,10,20,10">
+            <WrapPanel x:Name="AboutNavigationPanel">
             <RadioButton Click="AboutNavigationButtonClick"
                          CommandParameter="Overview"
                          Content="{Binding OverviewNavigationLabel}"
@@ -265,15 +302,40 @@
                          Content="{Binding ReleaseNotesNavigationLabel}"
                          GroupName="AboutNavigation"
                          Style="{StaticResource AboutNavigationButtonStyle}" />
-        </WrapPanel>
+            </WrapPanel>
+            <Border x:Name="AboutNavigationSelectionIndicator"
+                    Width="20"
+                    Height="2"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Panel.ZIndex="10"
+                    Background="{DynamicResource SystemAccentColorPrimaryBrush}"
+                    CornerRadius="1"
+                    IsHitTestVisible="False"
+                    Opacity="0">
+                <Border.Style>
+                    <Style TargetType="{x:Type Border}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Border.RenderTransform>
+                    <TranslateTransform />
+                </Border.RenderTransform>
+            </Border>
+        </Grid>
         <Grid Grid.Row="1">
         <ScrollViewer x:Name="AboutOverviewScrollViewer"
                       BorderThickness="0"
+                      controls:MotionAssist.EntranceOffsetY="4"
                       Focusable="False"
                       IsTabStop="False"
                       FocusVisualStyle="{x:Null}"
                       HorizontalScrollBarVisibility="Disabled"
-                      ScrollChanged="AboutOverviewScrollChanged"
                       VerticalScrollBarVisibility="Auto">
             <ScrollViewer.Style>
                 <Style TargetType="{x:Type ScrollViewer}">
@@ -342,8 +404,11 @@
                         <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="{I18N QuickStart}" />
                         <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="{I18N QuickStartDescription}" />
                     </ui:StackPanel>
-                    <WrapPanel Margin="0,0,-12,0">
-                        <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutWorkflowCardStyle}">
+                    <controls:ResponsiveCardPanel Margin="0,0,0,12"
+                                                  FourColumnMinWidth="960"
+                                                  MaxColumns="4"
+                                                  TwoColumnMinWidth="560">
+                        <Border Style="{StaticResource AboutWorkflowCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" Text="01" />
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N AddLiveRoom}" />
@@ -351,7 +416,7 @@
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutConfirmPlatformStreamer}" />
                             </ui:StackPanel>
                         </Border>
-                        <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutWorkflowCardStyle}">
+                        <Border Style="{StaticResource AboutWorkflowCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="#168A55" Text="02" />
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N EnableMonitoring}" />
@@ -359,7 +424,7 @@
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutRecordingNeedsMonitoring}" />
                             </ui:StackPanel>
                         </Border>
-                        <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutWorkflowCardStyle}">
+                        <Border Style="{StaticResource AboutWorkflowCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="#D83B01" Text="03" />
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N EnableRecording}" />
@@ -367,7 +432,7 @@
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutHomeShowsRecording}" />
                             </ui:StackPanel>
                         </Border>
-                        <Border Width="{Binding WorkflowCardWidth}" Style="{StaticResource AboutWorkflowCardStyle}">
+                        <Border Style="{StaticResource AboutWorkflowCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutStepNumberStyle}" Foreground="#7A4DA0" Text="04" />
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N ManageVideos}" />
@@ -375,21 +440,21 @@
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutVideoOperations}" />
                             </ui:StackPanel>
                         </Border>
-                    </WrapPanel>
+                    </controls:ResponsiveCardPanel>
 
                     <ui:StackPanel Spacing="3">
                         <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="{I18N RecordingAndDetection}" />
                         <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="{I18N RecordingAndDetectionDescription}" />
                     </ui:StackPanel>
-                    <WrapPanel Margin="0,0,-12,0">
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                    <controls:ResponsiveCardPanel Margin="0,0,0,12">
+                        <Border Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N MonitoringAndRecording}" />
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutMonitorVsRecord}" />
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutUnknownStatusRetry}" />
                             </ui:StackPanel>
                         </Border>
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                        <Border Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N DetectionIntervals}" />
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutOfflineInterval}" />
@@ -397,7 +462,7 @@
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutRecentEndedInterval}" />
                             </ui:StackPanel>
                         </Border>
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                        <Border Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N RecordFormat}" />
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutTsFlvRaw}" />
@@ -405,7 +470,7 @@
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutDoNotExitProcessing}" />
                             </ui:StackPanel>
                         </Border>
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                        <Border Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N NetworkRecovery}" />
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutNetworkRecovery}" />
@@ -413,21 +478,21 @@
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutCannotRecoverMissing}" />
                             </ui:StackPanel>
                         </Border>
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                        <Border Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N NetworkSpeedTest}" />
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutSpeedTestEstimate}" />
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutRecordingCapacityFactors}" />
                             </ui:StackPanel>
                         </Border>
-                    </WrapPanel>
+                    </controls:ResponsiveCardPanel>
 
                     <ui:StackPanel Spacing="3">
                         <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="{I18N FilesAndData}" />
                         <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="{I18N FilesAndDataDescription}" />
                     </ui:StackPanel>
-                    <WrapPanel Margin="0,0,-12,0">
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                    <controls:ResponsiveCardPanel Margin="0,0,0,12">
+                        <Border Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N VideoListTitle}" />
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutVideoListStatuses}" />
@@ -436,7 +501,7 @@
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutVerifySegment}" />
                             </ui:StackPanel>
                         </Border>
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                        <Border Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N StorageAndCleanup}" />
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutSaveFolderSpace}" />
@@ -444,7 +509,7 @@
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutUpdatePreserveRecordings}" />
                             </ui:StackPanel>
                         </Border>
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                        <Border Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N LogsAndSettings}" />
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutExportLogs}" />
@@ -452,7 +517,7 @@
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutValidateImport}" />
                             </ui:StackPanel>
                         </Border>
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                        <Border Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N ExitAndRecovery}" />
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutCloseToTray}" />
@@ -460,14 +525,14 @@
                                 <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutResumePendingTasks}" />
                             </ui:StackPanel>
                         </Border>
-                    </WrapPanel>
+                    </controls:ResponsiveCardPanel>
 
                     <ui:StackPanel Spacing="3">
                         <TextBlock Style="{StaticResource AboutSectionTitleStyle}" Text="{I18N ShortcutReference}" />
                         <TextBlock Style="{StaticResource AboutSectionDescriptionStyle}" Text="{I18N ShortcutReferenceHint}" />
                     </ui:StackPanel>
-                    <WrapPanel Margin="0,0,-12,0">
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                    <controls:ResponsiveCardPanel Margin="0,0,0,12">
+                        <Border Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N PagesAndWindows}" />
                                 <UniformGrid Columns="2">
@@ -554,7 +619,7 @@
                                 </UniformGrid>
                             </ui:StackPanel>
                         </Border>
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                        <Border Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N HomeLiveRooms}" />
                                 <UniformGrid Columns="2">
@@ -691,7 +756,7 @@
                                 </UniformGrid>
                             </ui:StackPanel>
                         </Border>
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                        <Border Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N PreviewPlayback}" />
                                 <UniformGrid Columns="2">
@@ -758,7 +823,7 @@
                                 </UniformGrid>
                             </ui:StackPanel>
                         </Border>
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                        <Border Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N GlobalActions}" />
                                 <UniformGrid Columns="2">
@@ -815,7 +880,7 @@
                                 </UniformGrid>
                             </ui:StackPanel>
                         </Border>
-                        <Border Width="{Binding AboutCardWidth}" Style="{StaticResource AboutCardStyle}">
+                        <Border Style="{StaticResource AboutCardStyle}">
                             <ui:StackPanel Spacing="8">
                                 <TextBlock Style="{StaticResource AboutCardTitleStyle}" Text="{I18N VideoListTitle}" />
                                 <UniformGrid Columns="2">
@@ -932,7 +997,7 @@
                                 </UniformGrid>
                             </ui:StackPanel>
                         </Border>
-                    </WrapPanel>
+                    </controls:ResponsiveCardPanel>
 
                     <Border Margin="0"
                             Padding="16"
@@ -954,7 +1019,9 @@
             </Border>
         </ScrollViewer>
 
-        <ScrollViewer BorderThickness="0"
+        <ScrollViewer x:Name="AboutReleaseNotesScrollViewer"
+                      BorderThickness="0"
+                      controls:MotionAssist.EntranceOffsetY="4"
                       Focusable="False"
                       FocusVisualStyle="{x:Null}"
                       HorizontalScrollBarVisibility="Disabled"

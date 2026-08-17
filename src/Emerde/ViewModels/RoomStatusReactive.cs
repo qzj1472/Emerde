@@ -396,7 +396,7 @@ public partial class RoomStatusReactive : ReactiveObject
         }
         else
         {
-            Toast.Warning("PlayerErrorOfNoFile".Tr());
+            AppFeedback.Warning("PlayerErrorOfNoFile".Tr());
         }
     }
 

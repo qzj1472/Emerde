@@ -69,6 +69,12 @@ public static class ScrollEdgeFade
         {
             Attach(scrollViewer);
         }
+
+        if (popup.Child is FrameworkElement popupRoot)
+        {
+            MotionAssist.SetEntranceOffsetY(popupRoot, 4d);
+            MotionAssist.PlayEntrance(popupRoot);
+        }
     }
 
     private static void Attach(ScrollViewer scrollViewer)

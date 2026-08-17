@@ -23,39 +23,46 @@
                                 CornerRadius="8"
                                 controls:MotionAssist.IsPressEnabled="True">
                             <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <Border Width="40"
-                                        Height="40"
-                                        Margin="0,0,14,0"
-                                        Background="{DynamicResource UiXDialogSubtleBrush}"
-                                        CornerRadius="8">
-                                    <ContentPresenter HorizontalAlignment="Center"
+                                <Border x:Name="SelectionWash"
+                                        Background="{DynamicResource UiXDialogSelectionBrush}"
+                                        CornerRadius="8"
+                                        IsHitTestVisible="False"
+                                        Opacity="0" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="40"
+                                            Height="40"
+                                            Margin="0,0,14,0"
+                                            Background="{DynamicResource UiXDialogSubtleBrush}"
+                                            CornerRadius="8">
+                                        <ContentPresenter HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"
+                                                          Content="{TemplateBinding Tag}" />
+                                    </Border>
+                                    <ContentPresenter Grid.Column="1"
                                                       VerticalAlignment="Center"
-                                                      Content="{TemplateBinding Tag}" />
-                                </Border>
-                                <ContentPresenter Grid.Column="1"
-                                                  VerticalAlignment="Center"
-                                                  Content="{TemplateBinding Content}" />
-                                <Border x:Name="Indicator"
-                                        Grid.Column="2"
-                                        Width="18"
-                                        Height="18"
-                                        Margin="14,0,0,0"
-                                        VerticalAlignment="Center"
-                                        Background="Transparent"
-                                        BorderBrush="{DynamicResource UiXStrongStrokeBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="9">
-                                    <Ellipse x:Name="IndicatorDot"
-                                             Width="8"
-                                             Height="8"
-                                             Fill="{DynamicResource SystemAccentColorPrimaryBrush}"
-                                             Opacity="0" />
-                                </Border>
+                                                      Content="{TemplateBinding Content}" />
+                                    <Border x:Name="Indicator"
+                                            Grid.Column="2"
+                                            Width="18"
+                                            Height="18"
+                                            Margin="14,0,0,0"
+                                            VerticalAlignment="Center"
+                                            Background="Transparent"
+                                            BorderBrush="{DynamicResource UiXStrongStrokeBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="9">
+                                        <Ellipse x:Name="IndicatorDot"
+                                                 Width="8"
+                                                 Height="8"
+                                                 Fill="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                                 Opacity="0" />
+                                    </Border>
+                                </Grid>
                             </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -63,9 +70,51 @@
                                 <Setter TargetName="Surface" Property="Background" Value="{DynamicResource UiXDialogElevatedBrush}" />
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Surface" Property="Background" Value="{DynamicResource UiXDialogSelectionBrush}" />
                                 <Setter TargetName="Indicator" Property="BorderBrush" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
                                 <Setter TargetName="IndicatorDot" Property="Opacity" Value="1" />
+                                <Setter TargetName="SelectionWash" Property="Opacity" Value="1" />
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="SelectionWash"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             From="0"
+                                                             To="1"
+                                                             Duration="0:0:0.28">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <CubicEase EasingMode="EaseOut" />
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetName="IndicatorDot"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             From="0"
+                                                             To="1"
+                                                             Duration="0:0:0.24">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <CubicEase EasingMode="EaseOut" />
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="SelectionWash"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0"
+                                                             Duration="0:0:0.18">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <CubicEase EasingMode="EaseIn" />
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetName="IndicatorDot"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0"
+                                                             Duration="0:0:0.16" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

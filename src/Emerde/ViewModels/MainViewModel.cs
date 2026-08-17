@@ -1044,7 +1044,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         if (!succeeded)
         {
             AppSessionLogger.Event("error", "shutdown", "system_shutdown_failed", "system shutdown request failed");
-            Toast.Error("AutoShutdownComputerFailed".Tr());
+            AppFeedback.Error("AutoShutdownComputerFailed".Tr());
         }
         return succeeded;
     }
@@ -1110,7 +1110,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         {
             LogPreviewActionIgnored("open_or_switch", targetRoom, targetRoom == null ? "no_target_room" : "stream_unavailable");
             LivePreviewStatus = LivePreviewStatus.Unavailable;
-            Toast.Warning("LivePreviewUnavailable".Tr());
+            AppFeedback.Warning("LivePreviewUnavailable".Tr());
             return;
         }
 
@@ -1219,7 +1219,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                     ApplyPreviewClosedState();
                     LivePreviewStatus = LivePreviewStatus.Unavailable;
                     outcome = "stream_refresh_failed";
-                    Toast.Warning("LivePreviewUnavailable".Tr());
+                    AppFeedback.Warning("LivePreviewUnavailable".Tr());
                     return;
                 }
             }
@@ -1238,7 +1238,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 ApplyPreviewClosedState();
                 LivePreviewStatus = LivePreviewStatus.Unavailable;
                 outcome = "stream_unavailable";
-                Toast.Warning("LivePreviewUnavailable".Tr());
+                AppFeedback.Warning("LivePreviewUnavailable".Tr());
                 return;
             }
 
@@ -1252,7 +1252,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 ApplyPreviewClosedState();
                 LivePreviewStatus = LivePreviewStatus.Unavailable;
                 outcome = "missing_playback_url";
-                Toast.Warning("LivePreviewUnavailable".Tr());
+                AppFeedback.Warning("LivePreviewUnavailable".Tr());
                 return;
             }
 
@@ -1320,7 +1320,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 playerStopMilliseconds = GetPreviewElapsedMilliseconds(stageStartedAt);
                 ApplyPreviewClosedState();
                 LivePreviewStatus = LivePreviewStatus.Error;
-                Toast.Error("LivePreviewError".Tr());
+                AppFeedback.Error("LivePreviewError".Tr());
             }
         }
         finally
@@ -1715,11 +1715,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             LivePreviewStatus = status;
             if (status == LivePreviewStatus.Error)
             {
-                Toast.Error(messageKey.Tr());
+                AppFeedback.Error(messageKey.Tr());
             }
             else
             {
-                Toast.Warning(messageKey.Tr());
+                AppFeedback.Warning(messageKey.Tr());
             }
         });
     }
@@ -2024,14 +2024,18 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     private async Task RefreshPreviewAsync()
     {
         RoomStatusReactive? targetRoom = PreviewingRoom;
-        if (targetRoom == null || !targetRoom.CanPreview || IsPreviewTransitioning)
+        if (targetRoom == null || !targetRoom.CanPreview)
         {
             string ignoredReason = targetRoom == null
                 ? "no_preview_room"
-                : !targetRoom.CanPreview
-                    ? "stream_unavailable"
-                    : "transition_in_progress";
+                : "stream_unavailable";
             LogPreviewActionIgnored(PreviewTransitionReason.ManualRefresh.ToString(), targetRoom, ignoredReason);
+            return;
+        }
+        if (IsPreviewTransitioning)
+        {
+            LogPreviewActionIgnored(PreviewTransitionReason.ManualRefresh.ToString(), targetRoom, "transition_in_progress");
+            AppFeedback.Warning("PreviewRefreshInProgress".Tr(), key: "preview-refresh");
             return;
         }
 
@@ -2039,7 +2043,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         {
             if (shouldNotify)
             {
-                Toast.Warning("PreviewRefreshTooFrequently".Tr(GetPreviewRefreshRemainingSeconds(remainingMilliseconds)));
+                AppFeedback.Warning("PreviewRefreshTooFrequently".Tr(GetRefreshRemainingSeconds(remainingMilliseconds)), key: "preview-refresh");
             }
             return;
         }
@@ -2089,7 +2093,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         return state is VLCState.Playing or VLCState.Opening or VLCState.Buffering or VLCState.Paused;
     }
 
-    internal static int GetPreviewRefreshRemainingSeconds(long remainingMilliseconds)
+    internal static int GetRefreshRemainingSeconds(long remainingMilliseconds)
     {
         return Math.Max(1, (int)Math.Ceiling(remainingMilliseconds / 1000d));
     }
@@ -2335,7 +2339,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         {
             GlobalMonitor.Start();
             await GlobalMonitor.RunOnceAsync();
-            Toast.Success("SuccOp".Tr());
+            AppFeedback.Success("SuccOp".Tr());
         }
         else
         {
@@ -2348,7 +2352,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             {
                 GlobalMonitor.Stop();
             }
-            Toast.Success("SuccOp".Tr());
+            AppFeedback.Success("SuccOp".Tr());
         }
 
         RefreshRoomEffectiveStates();
@@ -2610,7 +2614,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             AppSessionLogger.WriteException(e);
-            Toast.Warning("OpenSaveFolderFailed".Tr(e.Message));
+            AppFeedback.Warning("OpenSaveFolderFailed".Tr(e.Message));
         }
     }
 
@@ -3416,13 +3420,20 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         if (rooms.Length == 0)
         {
             ReloadRoomStatus();
-            Toast.Warning("FailOp".Tr());
+            if (StatusOfIsUiXEnabled)
+            {
+                AppFeedback.Warning("FailOp".Tr(), key: "room-card-refresh");
+            }
+            else
+            {
+                AppFeedback.Success("FailOp".Tr(), key: "room-card-refresh");
+            }
             return;
         }
 
-        if (!TryBeginManualRefresh())
+        if (!TryBeginManualRefresh(out long remainingMilliseconds))
         {
-            Toast.Warning("RefreshTooFrequently".Tr());
+            AppFeedback.Warning("RefreshTooFrequently".Tr(GetRefreshRemainingSeconds(remainingMilliseconds)), key: "room-card-refresh");
             return;
         }
 
@@ -3473,21 +3484,33 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         OnPropertyChanged(nameof(PlatformSummaryText));
         OnPropertyChanged(nameof(CanPreviewSelectedRoom));
         ClosePreviewIfCurrentRoomUnavailable();
-        Toast.Success(hasUpdated ? "SuccOp".Tr() : "FailOp".Tr());
+        if (hasUpdated)
+        {
+            AppFeedback.Success("SuccOp".Tr(), key: "room-card-refresh");
+        }
+        else
+        {
+            AppFeedback.Warning("FailOp".Tr(), key: "room-card-refresh");
+        }
     }
 
     [RelayCommand]
     private async Task RefreshSelectedRoomInfoAsync()
     {
         RoomStatusReactive? selectedRoom = SelectedItem;
-        if (selectedRoom == null || string.IsNullOrWhiteSpace(selectedRoom.RoomUrl) || IsRefreshingSelectedRoomInfo)
+        if (selectedRoom == null || string.IsNullOrWhiteSpace(selectedRoom.RoomUrl))
         {
             return;
         }
-
-        if (!TryBeginManualRefresh())
+        if (IsRefreshingSelectedRoomInfo)
         {
-            Toast.Warning("RefreshTooFrequently".Tr());
+            AppFeedback.Warning("RefreshInProgress".Tr(), key: "room-info-refresh");
+            return;
+        }
+
+        if (!TryBeginManualRefresh(out long remainingMilliseconds))
+        {
+            AppFeedback.Warning("RefreshTooFrequently".Tr(GetRefreshRemainingSeconds(remainingMilliseconds)), key: "room-info-refresh");
             return;
         }
 
@@ -3511,7 +3534,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             });
             if (!updated)
             {
-                Toast.Error("GetRoomInfoError".Tr());
+                AppFeedback.Error("GetRoomInfoError".Tr(), key: "room-info-refresh");
                 return;
             }
 
@@ -3521,13 +3544,13 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             OnPropertyChanged(nameof(CanPreviewSelectedRoom));
             _ = UpdateSelectedRoomRecordingSummaryAsync(selectedRoom);
             ClosePreviewIfCurrentRoomUnavailable();
-            Toast.Success("SuccOp".Tr());
+            AppFeedback.Success("SuccOp".Tr(), key: "room-info-refresh");
         }
         catch (Exception e)
         {
             AppSessionLogger.WriteException(e);
             GlobalMonitor.SetRoomStreamCheckFailed(selectedRoom.RoomUrl, true);
-            Toast.Error("GetRoomInfoError".Tr());
+            AppFeedback.Error("GetRoomInfoError".Tr(), key: "room-info-refresh");
         }
         finally
         {
@@ -3535,12 +3558,16 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
     }
 
-    private bool TryBeginManualRefresh()
+    private bool TryBeginManualRefresh(out long remainingMilliseconds)
     {
         long now = Environment.TickCount64;
         lock (manualRefreshCooldownLock)
         {
-            if (lastManualRefreshTimestamp != 0 && now - lastManualRefreshTimestamp < ManualRefreshCooldownMilliseconds)
+            if (!CanBeginManualRefresh(
+                lastManualRefreshTimestamp,
+                now,
+                ManualRefreshCooldownMilliseconds,
+                out remainingMilliseconds))
             {
                 return false;
             }
@@ -3548,6 +3575,24 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             lastManualRefreshTimestamp = now;
             return true;
         }
+    }
+
+    internal static bool CanBeginManualRefresh(
+        long lastRefreshTimestamp,
+        long currentTimestamp,
+        long cooldownMilliseconds,
+        out long remainingMilliseconds)
+    {
+        remainingMilliseconds = 0;
+        long elapsed = currentTimestamp - lastRefreshTimestamp;
+        long effectiveCooldown = Math.Max(0, cooldownMilliseconds);
+        if (lastRefreshTimestamp == 0 || elapsed < 0 || elapsed >= effectiveCooldown)
+        {
+            return true;
+        }
+
+        remainingMilliseconds = effectiveCooldown - elapsed;
+        return false;
     }
 
     [RelayCommand]
@@ -3575,7 +3620,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             networkCapacityPresentation = presentation;
             RefreshNetworkCapacityLocalization();
             AppSessionLogger.Write($"network capacity test completed, domesticMbps={measurement.Domestic?.Mbps:0.##}, overseasMbps={measurement.Overseas?.Mbps:0.##}, samples={measurement.SuccessfulSamples}/{measurement.AttemptedSamples}, confidence={measurement.Confidence}, domesticPerRoomMbps={presentation.DomesticPerRoomMbps:0.##}, overseasPerRoomMbps={presentation.OverseasPerRoomMbps:0.##}, domesticCapacity={presentation.DomesticCapacity}, overseasCapacity={presentation.OverseasCapacity}");
-            Toast.Success(NetworkCapacityToolTip);
+            AppFeedback.Success(NetworkCapacityToolTip, key: "network-capacity");
         }
         catch (OperationCanceledException) when (testCancellation.IsCancellationRequested)
         {
@@ -3591,7 +3636,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             networkCapacityState = NetworkCapacityState.Failed;
             networkCapacityPresentation = null;
             RefreshNetworkCapacityLocalization();
-            Toast.Warning(NetworkCapacityToolTip);
+            AppFeedback.Warning(NetworkCapacityToolTip, key: "network-capacity");
         }
         finally
         {
@@ -4582,6 +4627,19 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         RefreshRoomSelectionSummary();
     }
 
+    internal void ClearRoomMultiSelection()
+    {
+        ApplyRoomSelectionChange(() =>
+        {
+            foreach (RoomStatusReactive room in RoomStatuses)
+            {
+                room.IsSelected = false;
+            }
+        });
+        lastSelectedRoom = null;
+        RefreshRoomSelectionSummary();
+    }
+
     [RelayCommand]
     internal void UndoRoomSelection()
     {
@@ -4779,17 +4837,17 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     {
         if (string.IsNullOrWhiteSpace(text))
         {
-            Toast.Warning("FailOp".Tr());
+            AppFeedback.Warning("FailOp".Tr());
             return;
         }
 
         if (await ClipboardService.SetTextAsync(text))
         {
-            Toast.Success("SuccOp".Tr());
+            AppFeedback.Success("SuccOp".Tr());
         }
         else
         {
-            Toast.Warning("FailOp".Tr());
+            AppFeedback.Warning("FailOp".Tr());
         }
     }
 
@@ -4808,7 +4866,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
         else
         {
-            Toast.Warning("PlayerErrorOfNoFile".Tr());
+            AppFeedback.Warning("PlayerErrorOfNoFile".Tr());
         }
     }
 
@@ -5114,7 +5172,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             RefreshRoomEffectiveStates();
             await GlobalMonitor.RunRoomAsync(targetRoom.RoomUrl);
             ReloadRoomStatus(targetRoom.RoomUrl);
-            Toast.Success("SuccOp".Tr());
+            AppFeedback.Success("SuccOp".Tr());
             return;
         }
 
@@ -5147,7 +5205,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         RefreshRoomEffectiveStates();
         await GlobalMonitor.RunRoomAsync(SelectedItem.RoomUrl);
         ReloadRoomStatus(SelectedItem.RoomUrl);
-        Toast.Success("SuccOp".Tr());
+        AppFeedback.Success("SuccOp".Tr());
     }
 
     [RelayCommand]
@@ -5219,7 +5277,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 : RoomStatuses[Math.Clamp(removedIndex, 0, RoomStatuses.Count - 1)];
             PushRoomHistory(new RoomListHistoryEntry(before, CaptureRoomListHistoryState()));
 
-            Toast.Success("SuccOp".Tr());
+            AppFeedback.Success("SuccOp".Tr());
         }
     }
 
@@ -5266,7 +5324,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 checkBox.Click += (_, _) =>
                 {
                     IsToRecord();
-                    Toast.Success("SuccOp".Tr());
+                    AppFeedback.Success("SuccOp".Tr());
                 };
 
                 // We not need to binding with two way, because we update the config through method `IsToRecord()`.
@@ -5307,17 +5365,17 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 if (result == ContentDialogResult.Primary)
                 {
                     roomStatus.Recorder.Stop();
-                    Toast.Success("SuccOp".Tr());
+                    AppFeedback.Success("SuccOp".Tr());
                 }
             }
             else
             {
-                Toast.Warning("NoRecordTask".Tr());
+                AppFeedback.Warning("NoRecordTask".Tr());
             }
         }
         else
         {
-            Toast.Warning("NoRecordTask".Tr());
+            AppFeedback.Warning("NoRecordTask".Tr());
         }
     }
 
@@ -5330,7 +5388,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
 
         // TODO
-        Toast.Warning("ComingSoon".Tr() + " ...");
+        AppFeedback.Warning("ComingSoon".Tr() + " ...");
     }
 
     [RelayCommand]

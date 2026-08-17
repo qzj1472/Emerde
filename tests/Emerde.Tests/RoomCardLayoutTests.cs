@@ -404,6 +404,215 @@ public sealed class RoomCardLayoutTests
     }
 
     [Fact]
+    public void UiXRoomCards_ScaleFixedInternalLayoutWithoutScalingOuterCorners()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement viewbox = document.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "RoomCardUiXScaleView");
+        XElement layoutBorder = viewbox.Elements().Single();
+
+        Assert.Equal("Fill", (string?)viewbox.Attribute("Stretch"));
+        Assert.Equal("Both", (string?)viewbox.Attribute("StretchDirection"));
+        Assert.Equal("{Binding UiXRoomCardLayoutWidth, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}", (string?)layoutBorder.Attribute("Width"));
+        Assert.Equal("{Binding UiXRoomCardLayoutHeight, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}", (string?)layoutBorder.Attribute("Height"));
+        Assert.Contains("double visualCardWidth = isUiXMode ? targetCardWidth : cardWidth", code, StringComparison.Ordinal);
+        Assert.Contains("UpdateRoomCardVisualMetrics(visualCardWidth", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindow_DoesNotReapplyWindowChromeForEverySizeChangedEvent()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
+
+        Assert.DoesNotContain("DwmAnimation.EnableDwmAnimation", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("SizeChanged += (_, _) =>\r\n        {\r\n            EnforceBorderlessWindowChrome();", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("NCRenderingPolicy", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("BeginInteractiveWindowMove", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("EndInteractiveWindowMove", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowResize_CoalescesRoomCardAndPreviewLayoutWork()
+    {
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
+
+        Assert.Contains("roomCardMetricsRefreshOperation", code, StringComparison.Ordinal);
+        Assert.Contains("homeResponsiveLayoutUpdateOperation", code, StringComparison.Ordinal);
+        Assert.Contains("QueueRoomCardMetricsRefresh(e.NewSize.Width)", code, StringComparison.Ordinal);
+        Assert.Contains("QueueHomeResponsiveLayoutUpdate(isHomePreviewColumnAnimationActive)", code, StringComparison.Ordinal);
+        Assert.Contains("DispatcherOperationStatus.Pending or DispatcherOperationStatus.Executing", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("UpdateRoomCardMetrics(e.NewSize.Width)", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ResizeOptimizedStackPanel_DefersOffscreenMeasurementUntilItApproachesTheViewport()
+    {
+        RunOnStaThread(() =>
+        {
+            System.Windows.Controls.ScrollViewer viewer = new()
+            {
+                Width = 400d,
+                Height = 100d,
+                VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
+            };
+            Emerde.Controls.ResizeOptimizedStackPanel panel = new();
+            MeasureCountingElement[] children = Enumerable.Range(0, 5)
+                .Select(_ => new MeasureCountingElement())
+                .ToArray();
+            foreach (MeasureCountingElement child in children)
+            {
+                panel.Children.Add(child);
+            }
+            viewer.Content = panel;
+
+            viewer.Measure(new System.Windows.Size(400d, 100d));
+            viewer.Arrange(new System.Windows.Rect(0d, 0d, 400d, 100d));
+            viewer.UpdateLayout();
+            int visibleInitialCount = children[0].MeasureCount;
+            int hiddenInitialCount = children[^1].MeasureCount;
+            System.Windows.Controls.ScrollViewer? owner = Emerde.Controls.ResizeOptimizedStackPanel.FindScrollOwner(panel);
+
+            Assert.Same(viewer, owner);
+            Assert.False(Emerde.Controls.ResizeOptimizedStackPanel.IsNearViewport(children[^1], owner));
+
+            viewer.Width = 420d;
+            viewer.Measure(new System.Windows.Size(420d, 100d));
+            viewer.Arrange(new System.Windows.Rect(0d, 0d, 420d, 100d));
+            viewer.UpdateLayout();
+
+            Assert.True(children[0].MeasureCount > visibleInitialCount);
+            Assert.Equal(hiddenInitialCount, children[^1].MeasureCount);
+
+            viewer.ScrollToVerticalOffset(viewer.ScrollableHeight);
+            viewer.UpdateLayout();
+
+            Assert.True(children[^1].MeasureCount > hiddenInitialCount);
+        });
+    }
+
+    [Fact]
+    public void ResponsiveCardPanel_DefersOffscreenMeasurementUntilItApproachesTheViewport()
+    {
+        RunOnStaThread(() =>
+        {
+            System.Windows.Controls.ScrollViewer viewer = new()
+            {
+                Width = 400d,
+                Height = 100d,
+                VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
+            };
+            System.Windows.Controls.StackPanel content = new();
+            content.Children.Add(new System.Windows.Controls.Border { Height = 400d });
+            Emerde.Controls.ResponsiveCardPanel panel = new();
+            MeasureCountingElement child = new();
+            panel.Children.Add(child);
+            content.Children.Add(panel);
+            viewer.Content = content;
+
+            viewer.Measure(new System.Windows.Size(400d, 100d));
+            viewer.Arrange(new System.Windows.Rect(0d, 0d, 400d, 100d));
+            viewer.UpdateLayout();
+            int hiddenInitialCount = child.MeasureCount;
+
+            Assert.False(Emerde.Controls.ResizeOptimizedStackPanel.IsNearViewport(panel, viewer));
+
+            viewer.Width = 420d;
+            viewer.Measure(new System.Windows.Size(420d, 100d));
+            viewer.Arrange(new System.Windows.Rect(0d, 0d, 420d, 100d));
+            viewer.UpdateLayout();
+
+            Assert.Equal(hiddenInitialCount, child.MeasureCount);
+
+            viewer.ScrollToVerticalOffset(viewer.ScrollableHeight);
+            viewer.UpdateLayout();
+
+            Assert.True(child.MeasureCount > hiddenInitialCount);
+        });
+    }
+
+    [Fact]
+    public void ResizeOptimizedStackPanel_RemeasuresInvalidOffscreenContentImmediately()
+    {
+        RunOnStaThread(() =>
+        {
+            System.Windows.Controls.ScrollViewer viewer = new()
+            {
+                Width = 400d,
+                Height = 100d,
+                VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
+            };
+            Emerde.Controls.ResizeOptimizedStackPanel panel = new();
+            MeasureCountingElement[] children = Enumerable.Range(0, 5)
+                .Select(_ => new MeasureCountingElement())
+                .ToArray();
+            foreach (MeasureCountingElement child in children)
+            {
+                panel.Children.Add(child);
+            }
+            viewer.Content = panel;
+
+            viewer.Measure(new System.Windows.Size(400d, 100d));
+            viewer.Arrange(new System.Windows.Rect(0d, 0d, 400d, 100d));
+            viewer.UpdateLayout();
+            viewer.Width = 420d;
+            viewer.Measure(new System.Windows.Size(420d, 100d));
+            viewer.Arrange(new System.Windows.Rect(0d, 0d, 420d, 100d));
+            viewer.UpdateLayout();
+            int deferredMeasureCount = children[^1].MeasureCount;
+
+            children[^1].SetDesiredHeight(180d);
+            panel.InvalidateMeasure();
+            viewer.Measure(new System.Windows.Size(420d, 100d));
+            viewer.Arrange(new System.Windows.Rect(0d, 0d, 420d, 100d));
+            viewer.UpdateLayout();
+
+            Assert.True(children[^1].MeasureCount > deferredMeasureCount);
+            Assert.Equal(580d, panel.DesiredSize.Height);
+        });
+    }
+
+    [Fact]
+    public void ResponsiveCardPanel_RemeasuresInvalidOffscreenContentImmediately()
+    {
+        RunOnStaThread(() =>
+        {
+            System.Windows.Controls.ScrollViewer viewer = new()
+            {
+                Width = 400d,
+                Height = 100d,
+                VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
+            };
+            System.Windows.Controls.StackPanel content = new();
+            content.Children.Add(new System.Windows.Controls.Border { Height = 400d });
+            Emerde.Controls.ResponsiveCardPanel panel = new();
+            MeasureCountingElement child = new();
+            panel.Children.Add(child);
+            content.Children.Add(panel);
+            viewer.Content = content;
+
+            viewer.Measure(new System.Windows.Size(400d, 100d));
+            viewer.Arrange(new System.Windows.Rect(0d, 0d, 400d, 100d));
+            viewer.UpdateLayout();
+            viewer.Width = 420d;
+            viewer.Measure(new System.Windows.Size(420d, 100d));
+            viewer.Arrange(new System.Windows.Rect(0d, 0d, 420d, 100d));
+            viewer.UpdateLayout();
+            int deferredMeasureCount = child.MeasureCount;
+
+            child.SetDesiredHeight(180d);
+            panel.InvalidateMeasure();
+            viewer.Measure(new System.Windows.Size(420d, 100d));
+            viewer.Arrange(new System.Windows.Rect(0d, 0d, 420d, 100d));
+            viewer.UpdateLayout();
+
+            Assert.True(child.MeasureCount > deferredMeasureCount);
+            Assert.Equal(180d, panel.DesiredSize.Height);
+        });
+    }
+
+    [Fact]
     public void UiXPreviewSmallCard_UsesCompactContentMetricsWithoutChangingOtherCardSizes()
     {
         string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
@@ -413,9 +622,9 @@ public sealed class RoomCardLayoutTests
         Assert.False(MainWindow.ShouldUseCompactUiXMetrics(true, false, 0.73d));
         Assert.True(MainWindow.ShouldUseCompactUiXMetrics(false, true, 0.90d));
         Assert.False(MainWindow.ShouldUseCompactUiXMetrics(false, false, 0.50d));
-        Assert.Contains("UiXRoomCardAvatarSize = useCompactUiXMetrics", code, StringComparison.Ordinal);
+        Assert.Contains("SetRoomCardMetric(UiXRoomCardAvatarSizeProperty, useCompactUiXMetrics", code, StringComparison.Ordinal);
         Assert.Contains("? 28d", code, StringComparison.Ordinal);
-        Assert.Contains("UiXRoomCardNameFontSize = useCompactUiXMetrics", code, StringComparison.Ordinal);
+        Assert.Contains("SetRoomCardMetric(UiXRoomCardNameFontSizeProperty, useCompactUiXMetrics", code, StringComparison.Ordinal);
         Assert.Contains("? 11d", code, StringComparison.Ordinal);
         Assert.Contains("? new Thickness(4, 3, 4, 0)", code, StringComparison.Ordinal);
         Assert.Contains(": new Thickness(6, 8, 6, 0)", code, StringComparison.Ordinal);
@@ -673,6 +882,25 @@ public sealed class RoomCardLayoutTests
         }
 
         throw new FileNotFoundException(string.Join(Path.DirectorySeparatorChar, parts));
+    }
+
+    private sealed class MeasureCountingElement : System.Windows.FrameworkElement
+    {
+        public int MeasureCount { get; private set; }
+
+        public double DesiredHeight { get; private set; } = 100d;
+
+        public void SetDesiredHeight(double height)
+        {
+            DesiredHeight = height;
+            InvalidateMeasure();
+        }
+
+        protected override System.Windows.Size MeasureOverride(System.Windows.Size availableSize)
+        {
+            MeasureCount++;
+            return new System.Windows.Size(Math.Min(100d, availableSize.Width), DesiredHeight);
+        }
     }
 
     private static void RunOnStaThread(Action action)

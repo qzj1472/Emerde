@@ -193,16 +193,16 @@ internal sealed class ExtensionNotificationService : IExtensionNotificationServi
         switch (level)
         {
             case ExtensionNotificationLevel.Success:
-                Toast.Success(message);
+                AppFeedback.Success(message);
                 break;
             case ExtensionNotificationLevel.Warning:
-                Toast.Warning(message);
+                AppFeedback.Warning(message);
                 break;
             case ExtensionNotificationLevel.Error:
-                Toast.Error(message);
+                AppFeedback.Error(message);
                 break;
             default:
-                Toast.Information(message);
+                AppFeedback.Information(message);
                 break;
         }
     }

@@ -46,11 +46,13 @@ public sealed class RoomCardSelectionTests
     public void CurrentRoomVisual_IsHiddenWhenRoomsAreAlreadySelected()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
-        XElement condition = document.Descendants()
-            .Single(element => element.Name.LocalName == "Condition"
-                && ((string?)element.Attribute("Binding"))?.Contains("HasSelectedRooms", StringComparison.Ordinal) == true);
+        XElement[] conditions = document.Descendants()
+            .Where(element => element.Name.LocalName == "Condition"
+                && ((string?)element.Attribute("Binding"))?.Contains("HasSelectedRooms", StringComparison.Ordinal) == true)
+            .ToArray();
 
-        Assert.Equal("False", (string?)condition.Attribute("Value"));
+        Assert.NotEmpty(conditions);
+        Assert.All(conditions, condition => Assert.Equal("False", (string?)condition.Attribute("Value")));
     }
 
     [Fact]

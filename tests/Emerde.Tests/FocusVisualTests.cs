@@ -1,4 +1,5 @@
 using Emerde.Controls;
+using Emerde.Views;
 using System.Xml.Linq;
 using Emerde.Core;
 
@@ -24,7 +25,7 @@ public sealed class FocusVisualTests
         AssertMethodDoesNotResetRoomView(
             source,
             "private async Task RefreshSelectedRoomInfoAsync()",
-            "private bool TryBeginManualRefresh()");
+            "private bool TryBeginManualRefresh(out long remainingMilliseconds)");
         AssertMethodDoesNotResetRoomView(
             source,
             "private async Task<bool> RefreshPreviewStreamQualityAsync(",
@@ -61,18 +62,55 @@ public sealed class FocusVisualTests
         Assert.Contains("GetAnimationBaseValue(UIElement.OpacityProperty)", source);
         Assert.DoesNotContain("element.Opacity = 0d", source);
         Assert.Contains("EntranceOperation is { Status: DispatcherOperationStatus.Pending or DispatcherOperationStatus.Executing }", source);
+        Assert.Contains("HasPlayedEntrance", source);
+        Assert.Contains("HasObservedEntranceTrigger", source);
+        Assert.Contains("EntranceReplayRequested", source);
         Assert.Contains("state.EntranceOperation?.Abort()", source);
         Assert.Contains("ResetEntrance(element, state)", source);
         Assert.Contains("ResetInteractionScale(element)", source);
-        Assert.Contains("state.PulseScale.BeginAnimation", source);
+        Assert.Contains("AnimateInteractionScale(element, GetPressScale(element), PressDurationMilliseconds)", source);
+        Assert.Contains("GetIsUiXScope(element)", source);
+        Assert.Contains("FrameworkPropertyMetadataOptions.Inherits", source);
         Assert.Contains("element.Unloaded += SpinUnloaded", source);
         Assert.Contains("element.Unloaded += MotionElementUnloaded", source);
         Assert.Contains("EntranceAnimationGeneration", source);
         Assert.Contains("PulseAnimationGeneration", source);
-        Assert.Contains("ResetPulse(state)", source);
-        Assert.Contains("scaleYAnimation.Completed", source);
-        Assert.DoesNotContain("AnimateInteractionScale", source);
+        Assert.Contains("ResetPulse(element)", source);
+        Assert.Contains("translationAnimation.Completed", source);
+        Assert.Contains("SystemParameters.ClientAreaAnimation", source);
+        Assert.DoesNotContain("EntranceScale.BeginAnimation", source);
+        Assert.DoesNotContain("PulseScale", source);
+        Assert.DoesNotContain("FrameworkElement.WidthProperty", source);
+        Assert.DoesNotContain("FrameworkElement.HeightProperty", source);
         Assert.Contains("ReadLocalValue(FrameworkElement.RenderTransformOriginProperty)", source);
+    }
+
+    [Theory]
+    [InlineData(255, 255, 255, 23, 27, 32)]
+    [InlineData(0, 0, 0, 255, 255, 255)]
+    [InlineData(0, 120, 212, 255, 255, 255)]
+    public void AccentText_UsesTheHigherContrastForeground(
+        byte red,
+        byte green,
+        byte blue,
+        byte expectedRed,
+        byte expectedGreen,
+        byte expectedBlue)
+    {
+        System.Windows.Media.Color result = AppThemeBrushes.GetTextOnAccentColor(System.Windows.Media.Color.FromRgb(red, green, blue));
+
+        Assert.Equal(System.Windows.Media.Color.FromRgb(expectedRed, expectedGreen, expectedBlue), result);
+    }
+
+    [Fact]
+    public void MotionAssist_UsesTheUiXMotionTimingRanges()
+    {
+        Assert.InRange(MotionAssist.PressDurationMilliseconds, 80, 100);
+        Assert.InRange(MotionAssist.EntranceDurationMilliseconds, 400, 440);
+        Assert.InRange(MotionAssist.ExitDurationMilliseconds, 260, 300);
+        Assert.Equal(320, MotionAssist.StateTransitionEnterDurationMilliseconds);
+        Assert.Equal(240, MotionAssist.StateTransitionExitDurationMilliseconds);
+        Assert.Equal(300, MotionAssist.NavigationIndicatorDurationMilliseconds);
     }
 
     [Fact]
@@ -244,6 +282,16 @@ public sealed class FocusVisualTests
 
         Assert.Equal("{Binding IsEnabled, Mode=OneWay}", (string?)toggle.Attribute("IsChecked"));
         Assert.Equal("{Binding DataContext.ToggleExtensionCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}", (string?)toggle.Attribute("Command"));
+    }
+
+    [Theory]
+    [InlineData(719, true, false)]
+    [InlineData(720, true, true)]
+    [InlineData(759, false, false)]
+    [InlineData(760, false, true)]
+    public void ExtensionSettings_UseDirectionalColumnHysteresis(double width, bool? currentState, bool expected)
+    {
+        Assert.Equal(expected, ExtensionCenterWindow.ResolveExtensionSettingsTwoColumnState(width, currentState));
     }
 
     [Fact]
@@ -760,7 +808,7 @@ public sealed class FocusVisualTests
     public void MainPageSurfaces_UseEntranceMotion()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
-        foreach (string elementName in new[] { "MainContentRoot", "ShellNavigationPanel", "HomePageRoot" })
+        foreach (string elementName in new[] { "MainContentRoot", "ShellNavigationPanel" })
         {
             XElement element = document.Descendants()
                 .Single(item => (string?)item.Attribute(XName.Get("Name", XamlNamespace)) == elementName);
@@ -770,26 +818,93 @@ public sealed class FocusVisualTests
 
     [Theory]
     [InlineData("HomePageRoot")]
-    [InlineData("RoomCardShell")]
-    public void HomePageSurfaces_ReplayEntranceMotionWhenPageBecomesVisible(string elementName)
+    [InlineData("VideoListPage")]
+    [InlineData("ExtensionsPage")]
+    [InlineData("SettingsPage")]
+    [InlineData("AboutPage")]
+    public void UiXMainPageNavigation_UsesOnePreparedEntrancePerActivePage(string elementName)
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
         XElement element = document.Descendants()
             .Single(item => (string?)item.Attribute(XName.Get("Name", XamlNamespace)) == elementName);
 
-        Assert.True(HasAttribute(element, "EntranceTrigger"));
+        Assert.False(HasAttribute(element, "EntranceTrigger"));
+        Assert.False(HasMotionAttribute(element, "IsEntranceEnabled"));
+        Assert.Contains("QueueActiveMainPageEntrance(selectedPageIndex)", source, StringComparison.Ordinal);
+        Assert.Contains("MotionAssist.PrepareEntrance(pendingPage)", source, StringComparison.Ordinal);
+        Assert.Contains("MotionAssist.PlayEntrance(page)", source, StringComparison.Ordinal);
+        Assert.Contains("DispatcherPriority.DataBind", source, StringComparison.Ordinal);
+        Assert.Contains("ViewModel.StatusOfIsUiXEnabled || replayPageEntrance", source, StringComparison.Ordinal);
+        Assert.Contains("!ViewModel.StatusOfIsUiXEnabled && (pageIndex == 1 || pageIndex >= 5)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CollectionCards_DoNotStackEntranceMotionOnPageNavigation()
+    {
+        XDocument main = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XDocument video = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+        XElement roomCard = main.Descendants()
+            .Single(item => (string?)item.Attribute(XName.Get("Name", XamlNamespace)) == "RoomCardShell");
+        XElement videoCard = video.Descendants()
+            .Single(item => (string?)item.Attribute(XName.Get("Name", XamlNamespace)) == "VideoCardShell");
+
+        Assert.False(HasAttribute(roomCard, "EntranceTrigger"));
+        Assert.False(HasAttribute(videoCard, "EntranceTrigger"));
+    }
+
+    [Fact]
+    public void VideoListPage_UsesTheCentralUiXPageEntrance()
+    {
+        XDocument main = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XDocument video = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+        XElement page = main.Descendants()
+            .Single(item => (string?)item.Attribute(XName.Get("Name", XamlNamespace)) == "VideoListPage");
+
+        Assert.False(HasMotionAttribute(page, "IsEntranceEnabled"));
+        Assert.False(HasAttribute(video.Descendants().Single(item => (string?)item.Attribute(XName.Get("Name", XamlNamespace)) == "VideoListContentRoot"), "IsEntranceEnabled"));
+    }
+
+    [Fact]
+    public void UiXNavigationSurfaces_UseSharedMovingIndicators()
+    {
+        XDocument main = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XDocument settings = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml"));
+        XDocument about = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml"));
+        string motionSource = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Controls", "MotionAssist.cs"));
+
+        foreach ((XDocument document, string name) in new[]
+                 {
+                     (main, "ShellNavigationSelectionIndicator"),
+                     (settings, "SettingsFocusSelectionIndicator"),
+                     (about, "AboutNavigationSelectionIndicator"),
+                 })
+        {
+            XElement indicator = document.Descendants()
+                .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == name);
+            Assert.Equal("False", (string?)indicator.Attribute("IsHitTestVisible"));
+            Assert.Contains(indicator.Descendants(), element => element.Name.LocalName == "TranslateTransform");
+        }
+
+        Assert.Contains("MoveNavigationIndicator", motionSource, StringComparison.Ordinal);
+        Assert.Contains("QuarticEase", motionSource, StringComparison.Ordinal);
+        Assert.Contains("HandoffBehavior.SnapshotAndReplace", motionSource, StringComparison.Ordinal);
     }
 
     [Theory]
-    [InlineData("VideoListContentRoot")]
-    [InlineData("VideoCardShell")]
-    public void VideoListSurfaces_ReplayEntranceMotionWhenPageBecomesVisible(string elementName)
+    [InlineData("SettingsWindow.xaml", "SettingsDialogContent")]
+    [InlineData("AboutContentDialog.xaml", "AboutContentRoot")]
+    public void EmbeddedUiXPageRoots_DisableTheirAutomaticEntrance(string fileName, string rootName)
     {
-        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
-        XElement element = document.Descendants()
-            .Single(item => (string?)item.Attribute(XName.Get("Name", XamlNamespace)) == elementName);
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", fileName));
+        XElement root = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == rootName);
 
-        Assert.True(HasAttribute(element, "EntranceTrigger"));
+        Assert.False(HasMotionAttribute(root, "IsEntranceEnabled"));
+        Assert.Contains(root.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "controls:MotionAssist.IsEntranceEnabled"
+            && (string?)element.Attribute("Value") == "False");
     }
 
     [Theory]
@@ -807,7 +922,6 @@ public sealed class FocusVisualTests
 
     [Theory]
     [InlineData("MainWindow.xaml")]
-    [InlineData("ScreenRecordListWindow.xaml")]
     public void CardContainers_DoNotGrowOnHover(string fileName)
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", fileName));
@@ -820,20 +934,17 @@ public sealed class FocusVisualTests
             && element.Ancestors().Any(ancestor => ancestor.Name.LocalName.Contains("ItemContainerStyle", StringComparison.Ordinal)));
     }
 
-    [Theory]
-    [InlineData("VideoListPage", "DataContext.IsVideoListPageSelected")]
-    [InlineData("SettingsPage", "DataContext.IsSettingsPageSelected")]
-    [InlineData("ExtensionsPage", "DataContext.IsExtensionsPageSelected")]
-    [InlineData("AboutPage", "DataContext.IsAboutPageSelected")]
-    public void MainChildPages_BindEntranceMotionToMainPageState(string elementName, string expectedPath)
+    [Fact]
+    public void MainPageEntranceResolver_CoversBuiltInAndExtensionPages()
     {
-        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
-        XElement element = document.Descendants()
-            .Single(item => (string?)item.Attribute(XName.Get("Name", XamlNamespace)) == elementName);
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
 
-        Assert.Contains(element.Attributes(), attribute =>
-            attribute.Name.ToString().EndsWith("EntranceTrigger", StringComparison.Ordinal)
-            && attribute.Value == $"{{Binding {expectedPath}, ElementName=ShellPageHost}}");
+        Assert.Contains("0 => HomePageRoot", source, StringComparison.Ordinal);
+        Assert.Contains("1 => VideoListPage", source, StringComparison.Ordinal);
+        Assert.Contains("2 => ExtensionsPage", source, StringComparison.Ordinal);
+        Assert.Contains("3 => SettingsPage", source, StringComparison.Ordinal);
+        Assert.Contains("4 => AboutPage", source, StringComparison.Ordinal);
+        Assert.Contains("ExtensionPageHost.Children[pageIndex - 5]", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -880,7 +991,15 @@ public sealed class FocusVisualTests
         Assert.Equal("1", (string?)selectionLayer.Attribute("BorderThickness"));
         Assert.Same(surface, selectionLayer.Parent);
         Assert.Same(surface, content.Parent);
-        Assert.Equal("{Binding RoomCardPadding, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}", (string?)content.Attribute("Padding"));
+        XElement contentStyle = content.Elements().Single(element => element.Name.LocalName == "Border.Style");
+        Assert.Contains(contentStyle.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Padding"
+            && (string?)element.Attribute("Value") == "{Binding RoomCardPadding, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}");
+        Assert.Contains(contentStyle.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Padding"
+            && (string?)element.Attribute("Value") == "0");
         Assert.DoesNotContain(document.Descendants(), element =>
             element.Name.LocalName == "Setter"
             && (string?)element.Attribute("TargetName") == "RoomCardShell"
@@ -895,6 +1014,65 @@ public sealed class FocusVisualTests
             && (string?)element.Attribute("TargetName") == "RoomCardSelectionLayer"
             && (string?)element.Attribute("Property") == "BorderBrush"
             && (string?)element.Attribute("Value") == "#884DA7B0");
+    }
+
+    [Fact]
+    public void UiXHomeRoomCards_AnimateStatusLayersWithoutChangingLegacyBackground()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XElement card = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomCardShell");
+        XElement cardStyle = card.Elements().Single(element => element.Name.LocalName == "Border.Style");
+        string[] layers = ["RoomCardBaseStateLayer", "RoomCardMonitorStateLayer", "RoomCardLiveStateLayer", "RoomCardRecordingStateLayer"];
+        string[] brushes = ["UiXCardBrush", "UiXMonitorCardBrush", "UiXLiveCardBrush", "UiXRecordingCardBrush"];
+
+        for (int index = 0; index < layers.Length; index++)
+        {
+            XElement layer = document.Descendants()
+                .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == layers[index]);
+            Assert.Contains(layer.DescendantsAndSelf(), element =>
+                (string?)element.Attribute("Background") == $"{{DynamicResource {brushes[index]}}}"
+                || element.Name.LocalName == "Setter"
+                && (string?)element.Attribute("Property") == "Background"
+                && (string?)element.Attribute("Value") == $"{{DynamicResource {brushes[index]}}}");
+            Assert.Equal("False", (string?)layer.Attribute("IsHitTestVisible"));
+            Assert.Equal("0", (string?)layer.Attribute("Opacity"));
+            Assert.Contains(layer.Descendants(), element =>
+                element.Name.LocalName == "Setter"
+                && (string?)element.Attribute("Property") == "Visibility"
+                && (string?)element.Attribute("Value") == "Visible");
+            Assert.Contains(layer.Descendants(), element =>
+                element.Name.LocalName == "Setter"
+                && (string?)element.Attribute("Property") == "controls:MotionAssist.IsStateTransitionActive"
+                && (string?)element.Attribute("Value") == "True");
+        }
+
+        XElement monitorLayer = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == layers[1]);
+        XElement liveLayer = document.Descendants()
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == layers[2]);
+        Assert.Contains(monitorLayer.Descendants(), element =>
+            element.Name.LocalName == "Condition"
+            && (string?)element.Attribute("Binding") == "{Binding IsStreaming}"
+            && (string?)element.Attribute("Value") == "False");
+        Assert.Contains(liveLayer.Descendants(), element =>
+            element.Name.LocalName == "Condition"
+            && (string?)element.Attribute("Binding") == "{Binding IsRecording}"
+            && (string?)element.Attribute("Value") == "False");
+
+        Assert.Contains(cardStyle.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Background"
+            && (string?)element.Attribute("Value") == "{DynamicResource EmerdeCardBrush}");
+        Assert.Contains(cardStyle.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "Background"
+            && (string?)element.Attribute("Value") == "Transparent");
+        Assert.DoesNotContain(cardStyle.Descendants(), element =>
+            element.Name.LocalName == "Setter"
+            && ((string?)element.Attribute("Value")) is "{DynamicResource UiXMonitorCardBrush}"
+                or "{DynamicResource UiXLiveCardBrush}"
+                or "{DynamicResource UiXRecordingCardBrush}");
     }
 
     [Fact]
@@ -1353,9 +1531,10 @@ public sealed class FocusVisualTests
 
         Assert.Contains(legacyListPanel.Descendants(), element => element.Name.LocalName == "VirtualizingStackPanel"
             && (string?)element.Attribute("IsItemsHost") == "True");
-        Assert.Contains(uiXListPanel.Descendants(), element => element.Name.LocalName == "UniformGrid"
+        Assert.Contains(uiXListPanel.Descendants(), element => element.Name.LocalName == "VirtualizingWrapPanel"
             && (string?)element.Attribute("IsItemsHost") == "True"
-            && ((string?)element.Attribute("Columns"))?.StartsWith("{Binding VideoCardColumnCount", StringComparison.Ordinal) == true);
+            && ((string?)element.Attribute("ItemSize"))?.StartsWith("{Binding VideoCardItemSize", StringComparison.Ordinal) == true
+            && (string?)element.Attribute("StretchItems") == "False");
         Assert.Contains(groupPanel.Descendants(), element => element.Name.LocalName == "VirtualizingStackPanel"
             && (string?)element.Attribute("Orientation") == "Vertical");
         Assert.Contains(document.Descendants(), element =>
@@ -1374,19 +1553,21 @@ public sealed class FocusVisualTests
             && (string?)element.Attribute("Value") == "Visible");
         Assert.Contains(uiX.Descendants(), element =>
             element.Name.LocalName == "Border"
-            && ((string?)element.Attribute("Height"))?.StartsWith("{Binding VideoCardCoverHeight", StringComparison.Ordinal) == true);
+            && (string?)element.Attribute("Width") == "136"
+            && (string?)element.Attribute("Height") == "91");
         XElement cover = uiX.Descendants()
             .Single(element => element.Name.LocalName == "Border"
-                && ((string?)element.Attribute("Height"))?.StartsWith("{Binding VideoCardCoverHeight", StringComparison.Ordinal) == true);
+                && (string?)element.Attribute("Width") == "136"
+                && (string?)element.Attribute("Height") == "91");
         Assert.Equal("{StaticResource UiXNestedCornerRadius}", (string?)cover.Attribute("CornerRadius"));
         XElement statusRow = uiX.Descendants()
             .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "VideoCardStatusRow");
-        Assert.Equal("4", (string?)statusRow.Attribute("Grid.Row"));
+        Assert.Equal("3", (string?)statusRow.Attribute("Grid.Row"));
         Assert.Null(statusRow.Attribute("Margin"));
         Assert.DoesNotContain(uiX.Descendants(), element => element.Name.LocalName == "Button");
         Assert.Contains(uiX.Descendants(), element =>
             element.Name.LocalName == "TextBlock"
-            && (string?)element.Attribute("Text") == "{Binding UiXWrappedFileName}");
+            && (string?)element.Attribute("Text") == "{Binding FileName}");
         Assert.Contains(uiX.Descendants(), element =>
             element.Name.LocalName == "TextBlock"
             && (string?)element.Attribute("Text") == "{Binding UiXStreamerText}");
@@ -1405,7 +1586,7 @@ public sealed class FocusVisualTests
             && ((string?)element.Attribute("Value"))?.StartsWith("{Binding VideoCardHeight", StringComparison.Ordinal) == true);
         Assert.Contains(uiX.Descendants(), element =>
             element.Name.LocalName == "Border"
-            && ((string?)element.Attribute("Width"))?.StartsWith("{Binding VideoCardCoverWidth", StringComparison.Ordinal) == true);
+            && (string?)element.Attribute("Width") == "136");
         Assert.DoesNotContain(uiX.Descendants(), element => element.Name.LocalName == "Run");
         Assert.DoesNotContain(uiX.Descendants(), element =>
             ((string?)element.Attribute("CornerRadius"))?.Contains("Binding", StringComparison.Ordinal) == true);
@@ -1424,10 +1605,16 @@ public sealed class FocusVisualTests
         Assert.Contains("IsPreviewSurfaceVisible", xaml);
         Assert.Contains("SetVideoPresentationState(isSuspended, isPreviewClosingTransitionActive)", source);
         Assert.Contains("InterruptHomePreviewColumnAnimation()", source);
+        Assert.Contains("UpdateHomePreviewLayout(true)", source);
+        Assert.Equal(480, Emerde.Views.MainWindow.HomePreviewLayoutTransitionMilliseconds);
         Assert.Contains("homePreviewLayoutUpdateGeneration != layoutUpdateGeneration", source);
         Assert.Contains("previewPresentationUpdateGeneration == updateGeneration", source);
         Assert.Contains("!ViewModel.IsHomePageSelected && isPreviewClosingTransitionActive", source);
         Assert.Contains("CompletePreviewClosingTransition()", source);
+        Assert.Contains("HomePreviewPanel.FirstFrameReady += HomePreviewPanelFirstFrameReady", source);
+        Assert.Contains("CompletePreviewOpeningTransitionAfterTimeoutAsync", source);
+        Assert.Contains("suspendRoomCardMetricsDuringPreviewTransition = true", source);
+        Assert.Contains("UpdateRoomCardMetrics(targetRoomListWidth)", source);
     }
 
     [Fact]
@@ -1496,9 +1683,6 @@ public sealed class FocusVisualTests
     [InlineData("ConfigRestoreContentDialog.xaml")]
     [InlineData("LocalSettingsContentDialog.xaml")]
     [InlineData("UpdateReleaseNotesContentDialog.xaml")]
-    [InlineData("SettingsWindow.xaml")]
-    [InlineData("AboutContentDialog.xaml")]
-    [InlineData("ScreenRecordListWindow.xaml")]
     [InlineData("TrayMenuWindow.xaml")]
     public void DialogAndPageSurfaces_UseEntranceMotion(string fileName)
     {

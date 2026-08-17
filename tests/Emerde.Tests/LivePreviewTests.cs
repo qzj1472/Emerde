@@ -225,9 +225,50 @@ public sealed class LivePreviewTests
     [InlineData(1000, 1)]
     [InlineData(1001, 2)]
     [InlineData(2000, 2)]
-    public void PreviewRefreshCooldown_RoundsRemainingTimeUp(long remainingMilliseconds, int expectedSeconds)
+    public void RefreshCooldown_RoundsRemainingTimeUp(long remainingMilliseconds, int expectedSeconds)
     {
-        Assert.Equal(expectedSeconds, MainViewModel.GetPreviewRefreshRemainingSeconds(remainingMilliseconds));
+        Assert.Equal(expectedSeconds, MainViewModel.GetRefreshRemainingSeconds(remainingMilliseconds));
+    }
+
+    [Theory]
+    [InlineData(0, 1000, 5000, true, 0)]
+    [InlineData(1000, 2999, 5000, false, 3001)]
+    [InlineData(1000, 6000, 5000, true, 0)]
+    [InlineData(1000, 500, 5000, true, 0)]
+    public void ManualRefreshCooldown_ReportsActualRemainingTime(
+        long lastRefreshTimestamp,
+        long currentTimestamp,
+        long cooldownMilliseconds,
+        bool expected,
+        long expectedRemainingMilliseconds)
+    {
+        Assert.Equal(expected, MainViewModel.CanBeginManualRefresh(
+            lastRefreshTimestamp,
+            currentTimestamp,
+            cooldownMilliseconds,
+            out long remainingMilliseconds));
+        Assert.Equal(expectedRemainingMilliseconds, remainingMilliseconds);
+    }
+
+    [Fact]
+    public void ManualRefreshPrompts_DistinguishCooldownAndInProgressStates()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "ViewModels", "MainViewModel.cs"));
+
+        Assert.DoesNotContain("\"RefreshTooFrequently\".Tr()", source, StringComparison.Ordinal);
+        Assert.Contains("\"RefreshTooFrequently\".Tr(GetRefreshRemainingSeconds(remainingMilliseconds))", source, StringComparison.Ordinal);
+        Assert.Contains("\"PreviewRefreshTooFrequently\".Tr(GetRefreshRemainingSeconds(remainingMilliseconds))", source, StringComparison.Ordinal);
+        Assert.Contains("AppFeedback.Warning(\"RefreshInProgress\".Tr(), key: \"room-info-refresh\")", source, StringComparison.Ordinal);
+        Assert.Contains("AppFeedback.Warning(\"PreviewRefreshInProgress\".Tr(), key: \"preview-refresh\")", source, StringComparison.Ordinal);
+
+        foreach (string resourceName in new[] { "Resources.resx", "Resources.zh-Hans.resx", "Resources.zh-Hant.resx", "Resources.ja.resx" })
+        {
+            string resources = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Properties", resourceName));
+            Assert.Contains("name=\"RefreshTooFrequently\"", resources, StringComparison.Ordinal);
+            Assert.Contains("name=\"RefreshInProgress\"", resources, StringComparison.Ordinal);
+            Assert.Contains("name=\"PreviewRefreshTooFrequently\"", resources, StringComparison.Ordinal);
+            Assert.Contains("name=\"PreviewRefreshInProgress\"", resources, StringComparison.Ordinal);
+        }
     }
 
     [Theory]

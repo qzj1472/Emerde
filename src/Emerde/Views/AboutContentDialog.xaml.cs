@@ -1,6 +1,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Emerde.Controls;
 using Emerde.Core;
+using System.Windows.Threading;
 using Windows.System;
 using AppResources = Emerde.Properties.Resources;
 
@@ -9,17 +11,14 @@ namespace Emerde.Views;
 [ObservableObject]
 public partial class AboutContentDialog : System.Windows.Controls.UserControl
 {
+    private DispatcherOperation? navigationIndicatorUpdateOperation;
+    private bool pendingNavigationIndicatorAnimation;
+
     [ObservableProperty]
     private bool isReleaseNotesSelected;
 
     [ObservableProperty]
     private ReleaseNoteEntry selectedReleaseNote;
-
-    [ObservableProperty]
-    private double aboutCardWidth = 500;
-
-    [ObservableProperty]
-    private double workflowCardWidth = 250;
 
     public AboutContentDialog()
     {
@@ -27,6 +26,8 @@ public partial class AboutContentDialog : System.Windows.Controls.UserControl
         selectedReleaseNote = ReleaseNotesCatalog.GetEntry(UpgradeNoticeService.GetCurrentVersion());
         DataContext = this;
         InitializeComponent();
+        Loaded += (_, _) => QueueAboutNavigationIndicatorUpdate(false);
+        AboutNavigationPanel.SizeChanged += AboutNavigationPanelSizeChanged;
     }
 
     public IReadOnlyList<ReleaseNoteEntry> ReleaseNotes { get; }
@@ -37,30 +38,76 @@ public partial class AboutContentDialog : System.Windows.Controls.UserControl
 
     public string ReleaseNotesDescription => GetText("AboutReleaseNotesDescription", "Review changes and improvements from recent versions.");
 
-    private void AboutOverviewScrollChanged(object sender, System.Windows.Controls.ScrollChangedEventArgs e)
+    private void AboutNavigationPanelSizeChanged(object sender, System.Windows.SizeChangedEventArgs e)
     {
-        if (e.ViewportWidth > 0)
+        if (e.HeightChanged)
         {
-            (AboutCardWidth, WorkflowCardWidth) = CalculateCardWidths(e.ViewportWidth);
+            QueueAboutNavigationIndicatorUpdate(false);
         }
-    }
-
-    internal static (double AboutCardWidth, double WorkflowCardWidth) CalculateCardWidths(double viewportWidth)
-    {
-        double availableWidth = Math.Max(0, viewportWidth - 40);
-        int cardColumns = availableWidth >= 760 ? 2 : 1;
-        int workflowColumns = availableWidth >= 960 ? 4 : availableWidth >= 560 ? 2 : 1;
-        double cardWidth = Math.Max(0, Math.Floor((availableWidth - 12 * (cardColumns - 1)) / cardColumns));
-        double workflowWidth = Math.Max(0, Math.Floor((availableWidth - 12 * (workflowColumns - 1)) / workflowColumns));
-        return (cardWidth, workflowWidth);
     }
 
     private void AboutNavigationButtonClick(object sender, System.Windows.RoutedEventArgs e)
     {
         if (sender is System.Windows.Controls.RadioButton { CommandParameter: string parameter })
         {
-            IsReleaseNotesSelected = string.Equals(parameter, "ReleaseNotes", StringComparison.Ordinal);
+            bool selectReleaseNotes = string.Equals(parameter, "ReleaseNotes", StringComparison.Ordinal);
+            if (IsReleaseNotesSelected == selectReleaseNotes)
+            {
+                return;
+            }
+
+            System.Windows.FrameworkElement target = selectReleaseNotes
+                ? AboutReleaseNotesScrollViewer
+                : AboutOverviewScrollViewer;
+            MotionAssist.PrepareEntrance(target);
+            IsReleaseNotesSelected = selectReleaseNotes;
+            MoveAboutNavigationIndicator((System.Windows.Controls.RadioButton)sender, true);
+            Dispatcher.BeginInvoke(
+                () => MotionAssist.PlayEntrance(target),
+                DispatcherPriority.DataBind);
         }
+    }
+
+    private void QueueAboutNavigationIndicatorUpdate(bool animate)
+    {
+        pendingNavigationIndicatorAnimation |= animate;
+        if (navigationIndicatorUpdateOperation is { Status: DispatcherOperationStatus.Pending or DispatcherOperationStatus.Executing })
+        {
+            return;
+        }
+
+        navigationIndicatorUpdateOperation = Dispatcher.BeginInvoke(() =>
+        {
+            bool shouldAnimate = pendingNavigationIndicatorAnimation;
+            pendingNavigationIndicatorAnimation = false;
+            navigationIndicatorUpdateOperation = null;
+            if (!IsLoaded)
+            {
+                return;
+            }
+            System.Windows.Controls.RadioButton? selectedButton = AboutNavigationPanel.Children
+                .OfType<System.Windows.Controls.RadioButton>()
+                .FirstOrDefault(button => button.IsChecked == true);
+            if (selectedButton != null)
+            {
+                MoveAboutNavigationIndicator(selectedButton, shouldAnimate);
+            }
+        }, DispatcherPriority.Render);
+    }
+
+    private void MoveAboutNavigationIndicator(System.Windows.Controls.RadioButton button, bool animate)
+    {
+        if (System.Windows.Window.GetWindow(this) is not MainWindow { ViewModel.StatusOfIsUiXEnabled: true }
+            || !button.IsLoaded
+            || button.ActualWidth <= 0d)
+        {
+            return;
+        }
+
+        System.Windows.Point position = button.TransformToAncestor(AboutNavigationRoot).Transform(new System.Windows.Point(0d, 0d));
+        double targetX = WindowSizing.RoundLayoutValue(position.X + (button.ActualWidth - AboutNavigationSelectionIndicator.Width) / 2d);
+        double targetY = WindowSizing.RoundLayoutValue(position.Y + button.ActualHeight - 5d);
+        MotionAssist.MoveNavigationIndicator(AboutNavigationSelectionIndicator, targetX, targetY, animate);
     }
 
     private static string GetText(string key, string fallback)

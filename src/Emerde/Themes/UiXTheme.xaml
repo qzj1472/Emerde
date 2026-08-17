@@ -10,7 +10,7 @@
     <CornerRadius x:Key="UiXMenuCornerRadius">8</CornerRadius>
     <Thickness x:Key="UiXSurfaceBorderThickness">0</Thickness>
     <Thickness x:Key="UiXPageHeaderMargin">20,0,20,0</Thickness>
-    <SolidColorBrush x:Key="UiXShellBrush" Color="#E2F1F4F5" />
+    <SolidColorBrush x:Key="UiXShellBrush" Color="#D0E5EBEE" />
     <SolidColorBrush x:Key="UiXWindowFallbackBrush" Color="#F1F4F5" />
     <SolidColorBrush x:Key="UiXNavigationBrush" Color="#D8E9EEF0" />
     <SolidColorBrush x:Key="UiXPanelBrush" Color="#D0E5EBEE" />
@@ -18,6 +18,7 @@
     <SolidColorBrush x:Key="UiXCardHoverBrush" Color="#F2FFFFFF" />
     <SolidColorBrush x:Key="UiXVideoCardBrush" Color="#F6F2F5F6" />
     <SolidColorBrush x:Key="UiXVideoCardHoverBrush" Color="#FAFFFFFF" />
+    <SolidColorBrush x:Key="UiXRefreshFlashBrush" Color="#D9FFFFFF" />
     <SolidColorBrush x:Key="UiXGroupBrush" Color="#B0E1E8EB" />
     <SolidColorBrush x:Key="UiXElevatedBrush" Color="#F3F7FAFB" />
     <SolidColorBrush x:Key="UiXMonitorCardBrush" Color="#F0D7E8FA" />
@@ -37,6 +38,7 @@
     <SolidColorBrush x:Key="UiXStrongStrokeBrush" Color="#2B16202A" />
     <SolidColorBrush x:Key="UiXSelectionFillBrush" Color="#244D8DA3" />
     <SolidColorBrush x:Key="UiXSelectionStrokeBrush" Color="#804D8DA3" />
+    <SolidColorBrush x:Key="UiXTextOnAccentBrush" Color="#FFFFFFFF" />
     <SolidColorBrush x:Key="UiXDangerForegroundBrush" Color="#C42B3A" />
     <SolidColorBrush x:Key="UiXDangerFillBrush" Color="#1AD1344B" />
     <SolidColorBrush x:Key="UiXTextPrimaryBrush" Color="#E8171B20" />

@@ -1,13 +1,22 @@
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using WpfMouseEventArgs = System.Windows.Input.MouseEventArgs;
 
 namespace Emerde.Controls;
 
 public static class MotionAssist
 {
-    internal const int ExitDurationMilliseconds = 180;
+    internal const int PressDurationMilliseconds = 90;
+    internal const int PressReleaseDurationMilliseconds = 150;
+    internal const int EntranceDurationMilliseconds = 420;
+    internal const int ExitDurationMilliseconds = 280;
+    internal const int PulseDurationMilliseconds = 360;
+    internal const int StateTransitionEnterDurationMilliseconds = 320;
+    internal const int StateTransitionExitDurationMilliseconds = 240;
+    internal const int NavigationIndicatorDurationMilliseconds = 300;
 
     public static readonly DependencyProperty IsEntranceEnabledProperty =
         DependencyProperty.RegisterAttached("IsEntranceEnabled", typeof(bool), typeof(MotionAssist), new PropertyMetadata(false, OnIsEntranceEnabledChanged));
@@ -42,8 +51,21 @@ public static class MotionAssist
     public static readonly DependencyProperty IsSpinActiveProperty =
         DependencyProperty.RegisterAttached("IsSpinActive", typeof(bool), typeof(MotionAssist), new PropertyMetadata(false, OnIsSpinActiveChanged));
 
+    public static readonly DependencyProperty IsStateTransitionActiveProperty =
+        DependencyProperty.RegisterAttached("IsStateTransitionActive", typeof(bool), typeof(MotionAssist), new PropertyMetadata(false, OnIsStateTransitionActiveChanged));
+
+    public static readonly DependencyProperty IsUiXScopeProperty =
+        DependencyProperty.RegisterAttached(
+            "IsUiXScope",
+            typeof(bool),
+            typeof(MotionAssist),
+            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.Inherits));
+
     private static readonly DependencyProperty MotionStateProperty =
         DependencyProperty.RegisterAttached("MotionState", typeof(MotionState), typeof(MotionAssist), new PropertyMetadata(null));
+
+    private static readonly DependencyProperty StateTransitionStateProperty =
+        DependencyProperty.RegisterAttached("StateTransitionState", typeof(StateTransitionState), typeof(MotionAssist), new PropertyMetadata(null));
 
     public static bool GetIsEntranceEnabled(DependencyObject obj) => (bool)obj.GetValue(IsEntranceEnabledProperty);
 
@@ -89,6 +111,31 @@ public static class MotionAssist
 
     public static void SetIsSpinActive(DependencyObject obj, bool value) => obj.SetValue(IsSpinActiveProperty, value);
 
+    public static bool GetIsStateTransitionActive(DependencyObject obj) => (bool)obj.GetValue(IsStateTransitionActiveProperty);
+
+    public static void SetIsStateTransitionActive(DependencyObject obj, bool value) => obj.SetValue(IsStateTransitionActiveProperty, value);
+
+    public static bool GetIsUiXScope(DependencyObject obj) => (bool)obj.GetValue(IsUiXScopeProperty);
+
+    public static void SetIsUiXScope(DependencyObject obj, bool value) => obj.SetValue(IsUiXScopeProperty, value);
+
+    public static void PrepareEntrance(FrameworkElement element)
+    {
+        MotionState state = EnsureState(element);
+        state.EntranceOperation?.Abort();
+        state.EntranceOperation = null;
+        state.EntranceAnimationGeneration++;
+        element.BeginAnimation(UIElement.OpacityProperty, null);
+        state.EntranceTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+        element.BeginAnimation(
+            UIElement.OpacityProperty,
+            new DoubleAnimation(0d, 0d, TimeSpan.Zero)
+            {
+                FillBehavior = FillBehavior.HoldEnd,
+            });
+        state.EntranceTranslate.Y = GetEntranceOffsetY(element);
+    }
+
     public static void PlayEntrance(FrameworkElement element)
     {
         MotionState state = EnsureState(element);
@@ -97,7 +144,7 @@ public static class MotionAssist
             state.EntranceAnimationGeneration++;
             state.PulseAnimationGeneration++;
             ResetEntrance(element, state);
-            ResetPulse(state);
+            ResetPulse(element);
             return;
         }
 
@@ -108,30 +155,57 @@ public static class MotionAssist
 
         double targetOpacity = (double)element.GetAnimationBaseValue(UIElement.OpacityProperty);
         double offsetY = GetEntranceOffsetY(element);
-        double scale = Math.Clamp(GetEntranceScale(element), 0.9d, 1.05d);
         TimeSpan delay = TimeSpan.FromMilliseconds(Math.Max(0, GetEntranceDelay(element)));
-        IEasingFunction easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+        IEasingFunction opacityEasing = new CubicEase { EasingMode = EasingMode.EaseOut };
+        IEasingFunction movementEasing = new QuarticEase { EasingMode = EasingMode.EaseOut };
         int generation = ++state.EntranceAnimationGeneration;
         state.PulseAnimationGeneration++;
 
         element.BeginAnimation(UIElement.OpacityProperty, null);
         state.EntranceTranslate.BeginAnimation(TranslateTransform.YProperty, null);
-        state.EntranceScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-        state.EntranceScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-        ResetPulse(state);
+        ResetPulse(element);
 
-        element.BeginAnimation(UIElement.OpacityProperty, CreateAnimation(targetOpacity, 220, delay, easing, 0d));
-        state.EntranceTranslate.BeginAnimation(TranslateTransform.YProperty, CreateAnimation(0d, 260, delay, easing, offsetY));
-        state.EntranceScale.BeginAnimation(ScaleTransform.ScaleXProperty, CreateAnimation(1d, 260, delay, easing, scale));
-        DoubleAnimation scaleYAnimation = CreateAnimation(1d, 260, delay, easing, scale);
-        scaleYAnimation.Completed += (_, _) =>
+        element.BeginAnimation(UIElement.OpacityProperty, CreateAnimation(targetOpacity, EntranceDurationMilliseconds - 40, delay, opacityEasing, 0d));
+        DoubleAnimation translationAnimation = CreateAnimation(0d, EntranceDurationMilliseconds, delay, movementEasing, offsetY);
+        translationAnimation.Completed += (_, _) =>
         {
             if (state.EntranceAnimationGeneration == generation)
             {
                 ResetEntrance(element, state);
             }
         };
-        state.EntranceScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleYAnimation);
+        state.EntranceTranslate.BeginAnimation(TranslateTransform.YProperty, translationAnimation);
+    }
+
+    public static void MoveNavigationIndicator(FrameworkElement indicator, double x, double y, bool animate)
+    {
+        TranslateTransform transform = EnsureIndicatorTransform(indicator);
+        double currentOpacity = indicator.Opacity;
+        indicator.BeginAnimation(UIElement.OpacityProperty, null);
+
+        if (!animate || !ShouldAnimate() || !indicator.IsLoaded)
+        {
+            transform.BeginAnimation(TranslateTransform.XProperty, null);
+            transform.BeginAnimation(TranslateTransform.YProperty, null);
+            transform.X = x;
+            transform.Y = y;
+            indicator.Opacity = 1d;
+            return;
+        }
+
+        IEasingFunction easing = new QuarticEase { EasingMode = EasingMode.EaseOut };
+        transform.BeginAnimation(
+            TranslateTransform.XProperty,
+            CreateAnimation(x, NavigationIndicatorDurationMilliseconds, TimeSpan.Zero, easing, transform.X),
+            HandoffBehavior.SnapshotAndReplace);
+        transform.BeginAnimation(
+            TranslateTransform.YProperty,
+            CreateAnimation(y, NavigationIndicatorDurationMilliseconds, TimeSpan.Zero, easing, transform.Y),
+            HandoffBehavior.SnapshotAndReplace);
+        indicator.BeginAnimation(
+            UIElement.OpacityProperty,
+            CreateAnimation(1d, NavigationIndicatorDurationMilliseconds - 60, TimeSpan.Zero, new CubicEase { EasingMode = EasingMode.EaseOut }, currentOpacity),
+            HandoffBehavior.SnapshotAndReplace);
     }
 
     public static void PlayPulse(FrameworkElement element)
@@ -141,8 +215,7 @@ public static class MotionAssist
             if (element.GetValue(MotionStateProperty) is MotionState existing)
             {
                 existing.PulseAnimationGeneration++;
-                element.BeginAnimation(UIElement.OpacityProperty, null);
-                ResetPulse(existing);
+                ResetPulse(element);
             }
             return;
         }
@@ -153,18 +226,15 @@ public static class MotionAssist
         ResetEntrance(element, state);
         int generation = ++state.PulseAnimationGeneration;
         double targetOpacity = (double)element.GetAnimationBaseValue(UIElement.OpacityProperty);
-        element.BeginAnimation(UIElement.OpacityProperty, CreateAnimation(targetOpacity, 240, TimeSpan.Zero, easing, targetOpacity * 0.72d));
-        state.PulseScale.BeginAnimation(ScaleTransform.ScaleXProperty, CreateAnimation(1d, 240, TimeSpan.Zero, easing, 0.992d));
-        DoubleAnimation scaleYAnimation = CreateAnimation(1d, 240, TimeSpan.Zero, easing, 0.992d);
-        scaleYAnimation.Completed += (_, _) =>
+        DoubleAnimation pulseAnimation = CreateAnimation(targetOpacity, PulseDurationMilliseconds, TimeSpan.Zero, easing, targetOpacity * 0.72d);
+        pulseAnimation.Completed += (_, _) =>
         {
             if (state.PulseAnimationGeneration == generation)
             {
-                element.BeginAnimation(UIElement.OpacityProperty, null);
-                ResetPulse(state);
+                ResetPulse(element);
             }
         };
-        state.PulseScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleYAnimation);
+        element.BeginAnimation(UIElement.OpacityProperty, pulseAnimation);
     }
 
     public static async Task PlayExitAsync(FrameworkElement element)
@@ -179,12 +249,10 @@ public static class MotionAssist
         state.EntranceOperation = null;
         state.EntranceAnimationGeneration++;
         state.PulseAnimationGeneration++;
-        ResetPulse(state);
+        ResetPulse(element);
 
         double currentOpacity = element.Opacity;
         double currentOffsetY = state.EntranceTranslate.Y;
-        double currentScaleX = state.EntranceScale.ScaleX;
-        double currentScaleY = state.EntranceScale.ScaleY;
         IEasingFunction easing = new SineEase { EasingMode = EasingMode.EaseIn };
 
         DoubleAnimation opacityAnimation = CreateAnimation(0d, ExitDurationMilliseconds, TimeSpan.Zero, easing, currentOpacity);
@@ -197,12 +265,6 @@ public static class MotionAssist
         state.EntranceTranslate.BeginAnimation(
             TranslateTransform.YProperty,
             CreateAnimation(6d, ExitDurationMilliseconds, TimeSpan.Zero, easing, currentOffsetY));
-        state.EntranceScale.BeginAnimation(
-            ScaleTransform.ScaleXProperty,
-            CreateAnimation(0.985d, ExitDurationMilliseconds, TimeSpan.Zero, easing, currentScaleX));
-        state.EntranceScale.BeginAnimation(
-            ScaleTransform.ScaleYProperty,
-            CreateAnimation(0.985d, ExitDurationMilliseconds, TimeSpan.Zero, easing, currentScaleY));
 
         await Task.WhenAny(completion.Task, Task.Delay(ExitDurationMilliseconds + 100));
         element.Unloaded -= unloadedHandler;
@@ -210,34 +272,7 @@ public static class MotionAssist
 
     public static async Task PlayContentDialogExitTransformAsync(FrameworkElement element)
     {
-        if (!ShouldAnimate() || !element.IsLoaded || !element.IsVisible)
-        {
-            return;
-        }
-
-        MotionState state = EnsureState(element);
-        state.EntranceOperation?.Abort();
-        state.EntranceOperation = null;
-        state.EntranceAnimationGeneration++;
-        state.PulseAnimationGeneration++;
-        ResetPulse(state);
-
-        double currentScaleX = state.EntranceScale.ScaleX;
-        double currentScaleY = state.EntranceScale.ScaleY;
-        IEasingFunction easing = new SineEase { EasingMode = EasingMode.EaseIn };
-        DoubleAnimation scaleXAnimation = CreateAnimation(1.015d, ExitDurationMilliseconds, TimeSpan.Zero, easing, currentScaleX);
-        TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        RoutedEventHandler unloadedHandler = (_, _) => completion.TrySetResult();
-        scaleXAnimation.Completed += (_, _) => completion.TrySetResult();
-        element.Unloaded += unloadedHandler;
-
-        state.EntranceScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleXAnimation);
-        state.EntranceScale.BeginAnimation(
-            ScaleTransform.ScaleYProperty,
-            CreateAnimation(1.015d, ExitDurationMilliseconds, TimeSpan.Zero, easing, currentScaleY));
-
-        await Task.WhenAny(completion.Task, Task.Delay(ExitDurationMilliseconds + 100));
-        element.Unloaded -= unloadedHandler;
+        await PlayExitAsync(element);
     }
 
     public static void ResetExit(FrameworkElement element)
@@ -247,7 +282,7 @@ public static class MotionAssist
             state.EntranceAnimationGeneration++;
             state.PulseAnimationGeneration++;
             ResetEntrance(element, state);
-            ResetPulse(state);
+            ResetPulse(element);
         }
     }
 
@@ -289,19 +324,34 @@ public static class MotionAssist
 
         if ((bool)e.NewValue)
         {
-            ResetInteractionScale(element);
+            element.PreviewMouseLeftButtonDown += PressMouseLeftButtonDown;
+            element.PreviewMouseLeftButtonUp += PressMouseLeftButtonUp;
+            element.LostMouseCapture += PressLostMouseCapture;
+            element.IsEnabledChanged += PressIsEnabledChanged;
         }
         else
         {
+            element.PreviewMouseLeftButtonDown -= PressMouseLeftButtonDown;
+            element.PreviewMouseLeftButtonUp -= PressMouseLeftButtonUp;
+            element.LostMouseCapture -= PressLostMouseCapture;
+            element.IsEnabledChanged -= PressIsEnabledChanged;
             ResetInteractionScale(element);
         }
     }
 
     private static void OnEntranceTriggerChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        if (d is FrameworkElement element && IsTriggerActive(e.NewValue))
+        if (d is not FrameworkElement element)
         {
-            QueueEntrance(element);
+            return;
+        }
+
+        MotionState state = EnsureState(element);
+        bool allowReplay = state.HasObservedEntranceTrigger;
+        state.HasObservedEntranceTrigger = true;
+        if (GetIsEntranceEnabled(element) && IsTriggerActive(e.NewValue))
+        {
+            QueueEntrance(element, allowReplay);
         }
     }
 
@@ -359,6 +409,46 @@ public static class MotionAssist
         }
     }
 
+    private static void OnIsStateTransitionActiveChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not FrameworkElement element)
+        {
+            return;
+        }
+
+        StateTransitionState state = EnsureStateTransitionState(element);
+        double targetOpacity = (bool)e.NewValue ? 1d : 0d;
+        double currentOpacity = element.Opacity;
+        int generation = ++state.Generation;
+
+        element.BeginAnimation(UIElement.OpacityProperty, null);
+        element.Opacity = targetOpacity;
+        if (!ShouldAnimate() || !element.IsLoaded || !element.IsVisible || element.Visibility != Visibility.Visible)
+        {
+            return;
+        }
+
+        int duration = targetOpacity > currentOpacity
+            ? StateTransitionEnterDurationMilliseconds
+            : StateTransitionExitDurationMilliseconds;
+        DoubleAnimation animation = CreateAnimation(
+            targetOpacity,
+            duration,
+            TimeSpan.Zero,
+            new CubicEase { EasingMode = EasingMode.EaseOut },
+            currentOpacity);
+        animation.FillBehavior = FillBehavior.Stop;
+        animation.Completed += (_, _) =>
+        {
+            if (state.Generation == generation)
+            {
+                element.BeginAnimation(UIElement.OpacityProperty, null);
+                element.Opacity = targetOpacity;
+            }
+        };
+        element.BeginAnimation(UIElement.OpacityProperty, animation, HandoffBehavior.SnapshotAndReplace);
+    }
+
     private static void EntranceLoaded(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement element)
@@ -385,17 +475,110 @@ public static class MotionAssist
 
     private static void QueueEntrance(FrameworkElement element)
     {
+        QueueEntrance(element, false);
+    }
+
+    private static void QueueEntrance(FrameworkElement element, bool allowReplay)
+    {
         MotionState state = EnsureState(element);
-        if (state.EntranceOperation is { Status: DispatcherOperationStatus.Pending or DispatcherOperationStatus.Executing })
+        if (!allowReplay && state.HasPlayedEntrance)
         {
             return;
         }
 
+        if (state.EntranceOperation is { Status: DispatcherOperationStatus.Pending or DispatcherOperationStatus.Executing })
+        {
+            state.EntranceReplayRequested |= allowReplay;
+            return;
+        }
+
+        state.EntranceReplayRequested = allowReplay;
         state.EntranceOperation = element.Dispatcher.BeginInvoke(new Action(() =>
         {
             state.EntranceOperation = null;
+            bool replayRequested = state.EntranceReplayRequested;
+            state.EntranceReplayRequested = false;
+            if (!replayRequested && state.HasPlayedEntrance)
+            {
+                return;
+            }
+
+            if (!element.IsLoaded || !element.IsVisible || element.Visibility != Visibility.Visible)
+            {
+                return;
+            }
+
+            state.HasPlayedEntrance = true;
             PlayEntrance(element);
-        }), DispatcherPriority.Render);
+        }), DispatcherPriority.DataBind);
+    }
+
+    private static TranslateTransform EnsureIndicatorTransform(FrameworkElement indicator)
+    {
+        if (indicator.RenderTransform is TranslateTransform transform && !transform.IsFrozen)
+        {
+            return transform;
+        }
+
+        TranslateTransform replacement = new();
+        indicator.RenderTransform = replacement;
+        return replacement;
+    }
+
+    private static void PressMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement element && element.IsEnabled)
+        {
+            AnimateInteractionScale(element, GetPressScale(element), PressDurationMilliseconds);
+        }
+    }
+
+    private static void PressMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement element)
+        {
+            AnimateInteractionScale(element, 1d, PressReleaseDurationMilliseconds);
+        }
+    }
+
+    private static void PressLostMouseCapture(object sender, WpfMouseEventArgs e)
+    {
+        if (sender is FrameworkElement element)
+        {
+            AnimateInteractionScale(element, 1d, PressReleaseDurationMilliseconds);
+        }
+    }
+
+    private static void PressIsEnabledChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is FrameworkElement element && !element.IsEnabled)
+        {
+            ResetInteractionScale(element);
+        }
+    }
+
+    private static void AnimateInteractionScale(FrameworkElement element, double scale, int durationMilliseconds)
+    {
+        bool hasExplicitPressBehavior = element.ReadLocalValue(IsPressEnabledProperty) is true;
+        if (!GetIsUiXScope(element) && !hasExplicitPressBehavior)
+        {
+            return;
+        }
+
+        if (!ShouldAnimate())
+        {
+            ResetInteractionScale(element);
+            return;
+        }
+
+        MotionState state = EnsureState(element);
+        DoubleAnimation animation = CreateAnimation(
+            Math.Clamp(scale, 0.9d, 1.05d),
+            durationMilliseconds,
+            TimeSpan.Zero,
+            new CubicEase { EasingMode = EasingMode.EaseOut });
+        state.InteractionScale.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
+        state.InteractionScale.BeginAnimation(ScaleTransform.ScaleYProperty, animation.Clone());
     }
 
     private static MotionState EnsureState(FrameworkElement element)
@@ -412,9 +595,7 @@ public static class MotionAssist
         {
             group.Children.Add(current);
         }
-        group.Children.Add(state.EntranceScale);
         group.Children.Add(state.InteractionScale);
-        group.Children.Add(state.PulseScale);
         group.Children.Add(state.SpinRotate);
         group.Children.Add(state.EntranceTranslate);
 
@@ -426,6 +607,31 @@ public static class MotionAssist
         element.Unloaded += MotionElementUnloaded;
         element.SetValue(MotionStateProperty, state);
         return state;
+    }
+
+    private static StateTransitionState EnsureStateTransitionState(FrameworkElement element)
+    {
+        if (element.GetValue(StateTransitionStateProperty) is StateTransitionState existing)
+        {
+            return existing;
+        }
+
+        StateTransitionState state = new();
+        element.Unloaded += StateTransitionElementUnloaded;
+        element.SetValue(StateTransitionStateProperty, state);
+        return state;
+    }
+
+    private static void StateTransitionElementUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element || element.GetValue(StateTransitionStateProperty) is not StateTransitionState state)
+        {
+            return;
+        }
+
+        state.Generation++;
+        element.BeginAnimation(UIElement.OpacityProperty, null);
+        element.Opacity = GetIsStateTransitionActive(element) ? 1d : 0d;
     }
 
     private static void MotionElementUnloaded(object sender, RoutedEventArgs e)
@@ -441,18 +647,14 @@ public static class MotionAssist
         state.PulseAnimationGeneration++;
         ResetEntrance(element, state);
         ResetInteractionScale(element);
-        ResetPulse(state);
+        ResetPulse(element);
     }
 
     private static void ResetEntrance(FrameworkElement element, MotionState state)
     {
         element.BeginAnimation(UIElement.OpacityProperty, null);
         state.EntranceTranslate.BeginAnimation(TranslateTransform.YProperty, null);
-        state.EntranceScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-        state.EntranceScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
         state.EntranceTranslate.Y = 0d;
-        state.EntranceScale.ScaleX = 1d;
-        state.EntranceScale.ScaleY = 1d;
     }
 
     private static void ResetInteractionScale(FrameworkElement element)
@@ -468,12 +670,9 @@ public static class MotionAssist
         state.InteractionScale.ScaleY = 1d;
     }
 
-    private static void ResetPulse(MotionState state)
+    private static void ResetPulse(FrameworkElement element)
     {
-        state.PulseScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-        state.PulseScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-        state.PulseScale.ScaleX = 1d;
-        state.PulseScale.ScaleY = 1d;
+        element.BeginAnimation(UIElement.OpacityProperty, null);
     }
 
     private static void SpinLoaded(object sender, RoutedEventArgs e)
@@ -564,14 +763,21 @@ public static class MotionAssist
 
         public int PulseAnimationGeneration { get; set; }
 
-        public ScaleTransform EntranceScale { get; } = new(1d, 1d);
+        public bool HasPlayedEntrance { get; set; }
+
+        public bool HasObservedEntranceTrigger { get; set; }
+
+        public bool EntranceReplayRequested { get; set; }
 
         public ScaleTransform InteractionScale { get; } = new(1d, 1d);
-
-        public ScaleTransform PulseScale { get; } = new(1d, 1d);
 
         public RotateTransform SpinRotate { get; } = new();
 
         public TranslateTransform EntranceTranslate { get; } = new();
+    }
+
+    private sealed class StateTransitionState
+    {
+        public int Generation { get; set; }
     }
 }
