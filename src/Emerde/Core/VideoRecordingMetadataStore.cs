@@ -252,7 +252,16 @@ internal static class VideoRecordingMetadataStore
                 || !string.IsNullOrWhiteSpace(metadata.AudioCodec)
                 || metadata.HasOptimizedAudio
                 || !string.IsNullOrWhiteSpace(metadata.CoverPath)
+                || metadata.RecordingAvatar.Length > 0
+                || metadata.CoverCompositionVersion > 0
                 || !string.IsNullOrWhiteSpace(metadata.SegmentReason)
+                || !string.IsNullOrWhiteSpace(metadata.RecordingSessionId)
+                || !string.IsNullOrWhiteSpace(metadata.SegmentGroupId)
+                || metadata.SegmentIndex >= 0
+                || metadata.SegmentCount > 0
+                || !string.IsNullOrWhiteSpace(metadata.SegmentKind)
+                || !string.IsNullOrWhiteSpace(metadata.MediaIssue)
+                || metadata.WasRepaired
                 || metadata.RecordedAt > DateTime.MinValue
                 || metadata.EndedAt > DateTime.MinValue
                 || metadata.DurationSeconds > 0);
@@ -268,6 +277,13 @@ internal static class VideoRecordingMetadataStore
         return new VideoRecordingMetadata
         {
             SchemaVersion = Math.Max(preferred.SchemaVersion, fallback!.SchemaVersion),
+            RecordingSessionId = First(preferred.RecordingSessionId, fallback.RecordingSessionId),
+            SegmentGroupId = First(preferred.SegmentGroupId, fallback.SegmentGroupId),
+            SegmentIndex = preferred.SegmentIndex >= 0 ? preferred.SegmentIndex : fallback.SegmentIndex,
+            SegmentCount = preferred.SegmentCount > 0 ? preferred.SegmentCount : fallback.SegmentCount,
+            SegmentKind = First(preferred.SegmentKind, fallback.SegmentKind),
+            MediaIssue = First(preferred.MediaIssue, fallback.MediaIssue),
+            WasRepaired = preferred.WasRepaired || fallback.WasRepaired,
             FileName = First(preferred.FileName, fallback!.FileName),
             NickName = First(preferred.NickName, fallback.NickName),
             RoomUrl = First(preferred.RoomUrl, fallback.RoomUrl),
@@ -282,6 +298,8 @@ internal static class VideoRecordingMetadataStore
             AudioCodec = First(preferred.AudioCodec, fallback.AudioCodec),
             HasOptimizedAudio = preferred.HasOptimizedAudio || fallback.HasOptimizedAudio,
             CoverPath = First(preferred.CoverPath, fallback.CoverPath),
+            RecordingAvatar = preferred.RecordingAvatar.Length > 0 ? preferred.RecordingAvatar : fallback.RecordingAvatar,
+            CoverCompositionVersion = Math.Max(preferred.CoverCompositionVersion, fallback.CoverCompositionVersion),
             SegmentReason = First(preferred.SegmentReason, fallback.SegmentReason),
             RecordedAt = preferred.RecordedAt > DateTime.MinValue ? preferred.RecordedAt : fallback.RecordedAt,
             EndedAt = preferred.EndedAt > DateTime.MinValue ? preferred.EndedAt : fallback.EndedAt,
@@ -295,6 +313,13 @@ internal static class VideoRecordingMetadataStore
         return new VideoRecordingMetadata
         {
             SchemaVersion = metadata.SchemaVersion,
+            RecordingSessionId = metadata.RecordingSessionId,
+            SegmentGroupId = metadata.SegmentGroupId,
+            SegmentIndex = metadata.SegmentIndex,
+            SegmentCount = metadata.SegmentCount,
+            SegmentKind = metadata.SegmentKind,
+            MediaIssue = metadata.MediaIssue,
+            WasRepaired = metadata.WasRepaired,
             FileName = fileName,
             NickName = metadata.NickName,
             RoomUrl = metadata.RoomUrl,
@@ -309,6 +334,8 @@ internal static class VideoRecordingMetadataStore
             AudioCodec = metadata.AudioCodec,
             HasOptimizedAudio = metadata.HasOptimizedAudio,
             CoverPath = metadata.CoverPath,
+            RecordingAvatar = metadata.RecordingAvatar,
+            CoverCompositionVersion = metadata.CoverCompositionVersion,
             SegmentReason = metadata.SegmentReason,
             RecordedAt = metadata.RecordedAt,
             EndedAt = metadata.EndedAt,
@@ -325,6 +352,13 @@ internal static class VideoRecordingMetadataStore
         AddMetadata(arguments, "artist", metadata.NickName);
         AddMetadata(arguments, "date", FormatTimestamp(metadata.RecordedAt));
         AddMetadata(arguments, "emerde_file_name", metadata.FileName);
+        AddMetadata(arguments, "emerde_recording_session_id", metadata.RecordingSessionId);
+        AddMetadata(arguments, "emerde_segment_group_id", metadata.SegmentGroupId);
+        AddMetadata(arguments, "emerde_segment_index", metadata.SegmentIndex >= 0 ? metadata.SegmentIndex.ToString(CultureInfo.InvariantCulture) : string.Empty);
+        AddMetadata(arguments, "emerde_segment_count", metadata.SegmentCount > 0 ? metadata.SegmentCount.ToString(CultureInfo.InvariantCulture) : string.Empty);
+        AddMetadata(arguments, "emerde_segment_kind", metadata.SegmentKind);
+        AddMetadata(arguments, "emerde_media_issue", metadata.MediaIssue);
+        AddMetadata(arguments, "emerde_was_repaired", metadata.WasRepaired ? bool.TrueString : string.Empty);
         AddMetadata(arguments, "emerde_nick_name", metadata.NickName);
         AddMetadata(arguments, "emerde_room_url", metadata.RoomUrl);
         AddMetadata(arguments, "emerde_platform", metadata.Platform);
@@ -338,6 +372,7 @@ internal static class VideoRecordingMetadataStore
         AddMetadata(arguments, "emerde_audio_codec", metadata.AudioCodec);
         AddMetadata(arguments, "emerde_optimized_audio", metadata.HasOptimizedAudio ? bool.TrueString : string.Empty);
         AddMetadata(arguments, "emerde_cover_path", metadata.CoverPath);
+        AddMetadata(arguments, "emerde_cover_composition_version", metadata.CoverCompositionVersion > 0 ? metadata.CoverCompositionVersion.ToString(CultureInfo.InvariantCulture) : string.Empty);
         AddMetadata(arguments, "emerde_segment_reason", metadata.SegmentReason);
         AddMetadata(arguments, "emerde_recorded_at", FormatTimestamp(metadata.RecordedAt));
         AddMetadata(arguments, "emerde_ended_at", FormatTimestamp(metadata.EndedAt));
@@ -364,6 +399,13 @@ internal static class VideoRecordingMetadataStore
 
         VideoRecordingMetadata metadata = new()
         {
+            RecordingSessionId = GetTag(tags, "emerde_recording_session_id"),
+            SegmentGroupId = GetTag(tags, "emerde_segment_group_id"),
+            SegmentIndex = ParseInteger(GetTag(tags, "emerde_segment_index"), -1),
+            SegmentCount = ParseInteger(GetTag(tags, "emerde_segment_count"), 0),
+            SegmentKind = GetTag(tags, "emerde_segment_kind"),
+            MediaIssue = GetTag(tags, "emerde_media_issue"),
+            WasRepaired = ParseBoolean(GetTag(tags, "emerde_was_repaired")),
             FileName = First(GetTag(tags, "emerde_file_name"), fileName),
             NickName = First(GetTag(tags, "emerde_nick_name"), GetTag(tags, "artist")),
             RoomUrl = GetTag(tags, "emerde_room_url"),
@@ -378,6 +420,7 @@ internal static class VideoRecordingMetadataStore
             AudioCodec = GetTag(tags, "emerde_audio_codec"),
             HasOptimizedAudio = ParseBoolean(GetTag(tags, "emerde_optimized_audio")),
             CoverPath = GetTag(tags, "emerde_cover_path"),
+            CoverCompositionVersion = ParseInteger(GetTag(tags, "emerde_cover_composition_version"), 0),
             SegmentReason = GetTag(tags, "emerde_segment_reason"),
             DurationSeconds = ParseNumber(GetTag(tags, "emerde_duration_seconds")),
             FileNameRule = GetTag(tags, "emerde_file_name_rule"),
@@ -405,6 +448,13 @@ internal static class VideoRecordingMetadataStore
 
         VideoRecordingMetadata metadata = new()
         {
+            RecordingSessionId = Get("emerde_recording_session_id"),
+            SegmentGroupId = Get("emerde_segment_group_id"),
+            SegmentIndex = ParseInteger(Get("emerde_segment_index"), -1),
+            SegmentCount = ParseInteger(Get("emerde_segment_count"), 0),
+            SegmentKind = Get("emerde_segment_kind"),
+            MediaIssue = Get("emerde_media_issue"),
+            WasRepaired = ParseBoolean(Get("emerde_was_repaired")),
             FileName = First(Get("emerde_file_name"), fileName),
             NickName = First(Get("emerde_nick_name"), Get("artist")),
             RoomUrl = Get("emerde_room_url"),
@@ -419,6 +469,7 @@ internal static class VideoRecordingMetadataStore
             AudioCodec = Get("emerde_audio_codec"),
             HasOptimizedAudio = ParseBoolean(Get("emerde_optimized_audio")),
             CoverPath = Get("emerde_cover_path"),
+            CoverCompositionVersion = ParseInteger(Get("emerde_cover_composition_version"), 0),
             SegmentReason = Get("emerde_segment_reason"),
             DurationSeconds = ParseNumber(Get("emerde_duration_seconds")),
             FileNameRule = Get("emerde_file_name_rule"),
@@ -650,6 +701,13 @@ internal static class VideoRecordingMetadataStore
         return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed) && parsed > 0
             ? parsed
             : 0;
+    }
+
+    private static int ParseInteger(string value, int fallback)
+    {
+        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed)
+            ? parsed
+            : fallback;
     }
 
     private static bool ParseBoolean(string value)

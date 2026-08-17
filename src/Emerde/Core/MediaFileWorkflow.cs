@@ -57,6 +57,7 @@ internal static class MediaFileWorkflow
             }
 
             List<string> outputs = [];
+            string segmentGroupId = Guid.NewGuid().ToString("N");
             try
             {
                 for (int index = 0; index < temporaryOutputs.Length; index++)
@@ -64,6 +65,17 @@ internal static class MediaFileWorkflow
                     string output = Path.Combine(directory, $"{outputBase}_{index:000}{source.Extension}");
                     File.Move(temporaryOutputs[index], output, false);
                     outputs.Add(output);
+                    metadata.SchemaVersion = 4;
+                    metadata.SegmentGroupId = segmentGroupId;
+                    metadata.SegmentIndex = index;
+                    metadata.SegmentCount = temporaryOutputs.Length;
+                    metadata.SegmentKind = "manual";
+                    _ = RecordingCoverStore.TryCopyOrCreateFinalizedCover(
+                        [source.FullName],
+                        output,
+                        metadata,
+                        metadata.DurationSeconds,
+                        operationCancellation.Token);
                     if (VideoRecordingMetadataStore.HasAnyMetadata(metadata)
                         && !VideoRecordingMetadataStore.WriteCompletedMetadata(output, metadata))
                     {
@@ -152,6 +164,13 @@ internal static class MediaFileWorkflow
             File.Move(temporaryPath, targetPath, false);
             targetCommitted = true;
             VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(first);
+            ClearMergedSegmentIdentity(metadata);
+            _ = RecordingCoverStore.TryCopyOrCreateFinalizedCover(
+                sources.Select(file => file.FullName),
+                targetPath,
+                metadata,
+                metadata.DurationSeconds,
+                operationCancellation.Token);
             if (VideoRecordingMetadataStore.HasAnyMetadata(metadata)
                 && !VideoRecordingMetadataStore.WriteCompletedMetadata(targetPath, metadata))
             {
@@ -173,6 +192,15 @@ internal static class MediaFileWorkflow
         {
             DeleteFiles([temporaryPath]);
         }
+    }
+
+    internal static void ClearMergedSegmentIdentity(VideoRecordingMetadata metadata)
+    {
+        metadata.SegmentGroupId = string.Empty;
+        metadata.SegmentIndex = -1;
+        metadata.SegmentCount = 0;
+        metadata.SegmentKind = string.Empty;
+        metadata.SegmentReason = string.Empty;
     }
 
     private static bool HaveCompatibleStreams(IEnumerable<FileInfo> sources)
@@ -273,6 +301,7 @@ internal static class MediaFileWorkflow
                     File.Delete(path);
                 }
                 VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(path);
+                RecordingAssociatedAssets.Delete(path);
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {

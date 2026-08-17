@@ -118,6 +118,31 @@ internal static class MediaOperationRegistry
         return false;
     }
 
+    public static MediaOperationKind? GetPathOperationKind(string path)
+    {
+        if (!TryNormalizePath(path, out string normalizedPath))
+        {
+            return null;
+        }
+
+        MediaOperationKind[] priority =
+        [
+            MediaOperationKind.Recording,
+            MediaOperationKind.Repair,
+            MediaOperationKind.Split,
+            MediaOperationKind.Merge,
+            MediaOperationKind.Conversion,
+        ];
+        foreach (MediaOperationKind kind in priority)
+        {
+            if (Operations.Values.Any(operation => operation.Kind == kind && OperationProtectsPath(operation, normalizedPath)))
+            {
+                return kind;
+            }
+        }
+        return null;
+    }
+
     public static void CancelAll()
     {
         CancelWhere(static _ => true);

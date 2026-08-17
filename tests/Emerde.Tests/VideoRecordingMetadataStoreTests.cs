@@ -13,6 +13,14 @@ public sealed class VideoRecordingMetadataStoreTests
             ["emerde_room_url"] = "https://example.test/room",
             ["emerde_title"] = "Live title",
             ["emerde_recorded_at"] = "2026-07-27 22:30:00",
+            ["emerde_recording_session_id"] = "session-id",
+            ["emerde_segment_group_id"] = "segment-group",
+            ["emerde_segment_index"] = "1",
+            ["emerde_segment_count"] = "3",
+            ["emerde_segment_kind"] = "stall",
+            ["emerde_media_issue"] = "timeline_mismatch",
+            ["emerde_was_repaired"] = "true",
+            ["emerde_cover_composition_version"] = "2",
         };
 
         VideoRecordingMetadata metadata = VideoRecordingMetadataStore.FromTags(tags, "record.mkv");
@@ -22,6 +30,14 @@ public sealed class VideoRecordingMetadataStoreTests
         Assert.Equal("https://example.test/room", metadata.RoomUrl);
         Assert.Equal("Live title", metadata.Title);
         Assert.Equal(new DateTime(2026, 7, 27, 22, 30, 0), metadata.RecordedAt);
+        Assert.Equal("session-id", metadata.RecordingSessionId);
+        Assert.Equal("segment-group", metadata.SegmentGroupId);
+        Assert.Equal(1, metadata.SegmentIndex);
+        Assert.Equal(3, metadata.SegmentCount);
+        Assert.Equal("stall", metadata.SegmentKind);
+        Assert.Equal("timeline_mismatch", metadata.MediaIssue);
+        Assert.True(metadata.WasRepaired);
+        Assert.Equal(2, metadata.CoverCompositionVersion);
     }
 
     [Theory]
@@ -64,6 +80,8 @@ public sealed class VideoRecordingMetadataStoreTests
             Assert.Equal(metadata.DurationSeconds, loaded.DurationSeconds);
             Assert.Equal(metadata.FileNameRule, loaded.FileNameRule);
             Assert.Equal(metadata.SegmentReason, loaded.SegmentReason);
+            Assert.Equal(metadata.RecordingAvatar, loaded.RecordingAvatar);
+            Assert.Equal(metadata.CoverCompositionVersion, loaded.CoverCompositionVersion);
         }
         finally
         {
@@ -111,6 +129,8 @@ public sealed class VideoRecordingMetadataStoreTests
             AudioCodec = "aac",
             HasOptimizedAudio = true,
             SegmentReason = VideoRecordingMetadataStore.TimelineStallSegmentReason,
+            RecordingAvatar = [1, 2, 3, 4],
+            CoverCompositionVersion = RecordingCoverStore.CurrentCompositionVersion,
             RecordedAt = new DateTime(2026, 7, 23, 12, 34, 56),
             EndedAt = new DateTime(2026, 7, 23, 13, 34, 56),
             DurationSeconds = 3600,

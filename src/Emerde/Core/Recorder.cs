@@ -118,6 +118,9 @@ public sealed class Recorder
 
     public Task Start(RecorderStartInfo startInfo, CancellationTokenSource? tokenSource = null)
     {
+        startInfo.RecordingSessionId = Guid.NewGuid().ToString("N");
+        startInfo.RecordingAvatar = RecordingCoverStore.CaptureAvatarSnapshot(startInfo.CoverPath);
+        startInfo.CoverPath = string.Empty;
         lock (stateLock)
         {
             if (RecordStatus == RecordStatus.Recording || recordingTask is { IsCompleted: false })
@@ -148,7 +151,7 @@ public sealed class Recorder
             EndTime = DateTime.MinValue;
             RecordStatus = RecordStatus.Recording;
             activeStartInfo = startInfo;
-            activeRecordingId = Guid.NewGuid().ToString("N");
+            activeRecordingId = startInfo.RecordingSessionId;
             TokenSource = tokenSource ?? new CancellationTokenSource();
             ownsTokenSource = tokenSource == null;
             CancellationToken recordingToken = TokenSource.Token;
@@ -2398,6 +2401,7 @@ public sealed class Recorder
     {
         return new VideoRecordingMetadata
         {
+            RecordingSessionId = startInfo.RecordingSessionId,
             FileName = $"{fileName}.{outputExtension}",
             NickName = startInfo.NickName,
             RoomUrl = startInfo.RoomUrl,
@@ -2408,6 +2412,7 @@ public sealed class Recorder
             Bitrate = startInfo.Bitrate,
             Quality = startInfo.Quality,
             CoverPath = startInfo.CoverPath,
+            RecordingAvatar = startInfo.RecordingAvatar,
             RecordedAt = timestamp,
             FileNameRule = startInfo.Options.SaveFileNameCustomRule,
         };
@@ -2695,6 +2700,10 @@ public record RecorderStartInfo
 
     public string CoverPath { get; set; } = string.Empty;
 
+    internal string RecordingSessionId { get; set; } = string.Empty;
+
+    internal byte[] RecordingAvatar { get; set; } = [];
+
     public RoomRecordingOptions Options { get; set; } = RoomRecordingSettings.GetGlobal();
 
     internal Func<RoomRecordingOptions>? ResolveCurrentOptions { get; set; }
@@ -2733,7 +2742,21 @@ internal sealed record RecorderStreamRefreshResult
 
 public sealed class VideoRecordingMetadata
 {
-    public int SchemaVersion { get; set; } = 2;
+    public int SchemaVersion { get; set; } = 4;
+
+    public string RecordingSessionId { get; set; } = string.Empty;
+
+    public string SegmentGroupId { get; set; } = string.Empty;
+
+    public int SegmentIndex { get; set; } = -1;
+
+    public int SegmentCount { get; set; }
+
+    public string SegmentKind { get; set; } = string.Empty;
+
+    public string MediaIssue { get; set; } = string.Empty;
+
+    public bool WasRepaired { get; set; }
 
     public string FileName { get; set; } = string.Empty;
 
@@ -2762,6 +2785,10 @@ public sealed class VideoRecordingMetadata
     public bool HasOptimizedAudio { get; set; }
 
     public string CoverPath { get; set; } = string.Empty;
+
+    public byte[] RecordingAvatar { get; set; } = [];
+
+    public int CoverCompositionVersion { get; set; }
 
     public string SegmentReason { get; set; } = string.Empty;
 

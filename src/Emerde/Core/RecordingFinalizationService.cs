@@ -9,6 +9,12 @@ internal sealed record RecordingFinalizationResult(
     VideoRecordingMetadata Metadata,
     string Error = "");
 
+internal sealed record RecordingFinalizationPlan(
+    bool Success,
+    string SourcePath,
+    string TargetPath,
+    string Error = "");
+
 internal static partial class RecordingFinalizationService
 {
     internal const string DefaultRule = "{主播名}_{录制开始时间}_{直播标题}";
@@ -19,6 +25,8 @@ internal static partial class RecordingFinalizationService
         string mediaPath,
         string? rule = null,
         bool hasOptimizedAudio = false,
+        bool preserveSegmentSuffix = true,
+        string? plannedTargetPath = null,
         CancellationToken token = default)
     {
         token.ThrowIfCancellationRequested();
@@ -35,21 +43,17 @@ internal static partial class RecordingFinalizationService
         }
 
         ApplyProbe(metadata, probe, hasOptimizedAudio);
-        string effectiveRule = string.IsNullOrWhiteSpace(rule)
-            ? string.IsNullOrWhiteSpace(metadata.FileNameRule) ? DefaultRule : metadata.FileNameRule
-            : rule;
-        metadata.FileNameRule = effectiveRule;
-        string segmentSuffix = GetSegmentSuffix(source.Name);
-        string stem = BuildFinalStem(effectiveRule, metadata).SanitizeFileName();
-        string extension = source.Extension;
-        string requestedPath = Path.Combine(source.DirectoryName ?? Environment.CurrentDirectory, stem + segmentSuffix + extension);
         string targetPath;
 
         lock (RenameLock)
         {
-            targetPath = PathsEqual(mediaPath, requestedPath)
-                ? mediaPath
-                : GetAvailablePath(requestedPath);
+            targetPath = string.IsNullOrWhiteSpace(plannedTargetPath)
+                ? GetAvailableFinalPath(source, metadata, rule, preserveSegmentSuffix)
+                : Path.GetFullPath(plannedTargetPath);
+            if (!PathsEqual(mediaPath, targetPath) && File.Exists(targetPath))
+            {
+                return new RecordingFinalizationResult(false, mediaPath, metadata, "planned target already exists");
+            }
             if (!PathsEqual(mediaPath, targetPath))
             {
                 File.Move(mediaPath, targetPath, false);
@@ -57,11 +61,18 @@ internal static partial class RecordingFinalizationService
         }
 
         metadata.FileName = Path.GetFileName(targetPath);
+        _ = RecordingCoverStore.TryCopyOrCreateFinalizedCover(
+            [mediaPath],
+            targetPath,
+            metadata,
+            probe.DurationSeconds,
+            token);
         if (VideoRecordingMetadataStore.WriteCompletedMetadata(targetPath, metadata))
         {
             if (!PathsEqual(mediaPath, targetPath))
             {
                 VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(mediaPath);
+                _ = RecordingAssociatedAssets.Move(mediaPath, targetPath);
             }
             return new RecordingFinalizationResult(true, targetPath, metadata);
         }
@@ -75,8 +86,39 @@ internal static partial class RecordingFinalizationService
                     File.Move(targetPath, mediaPath, false);
                 }
             }
+            _ = RecordingAssociatedAssets.Move(targetPath, mediaPath);
         }
         return new RecordingFinalizationResult(false, mediaPath, metadata, "metadata could not be stored");
+    }
+
+    internal static RecordingFinalizationPlan PlanFile(
+        string mediaPath,
+        string? rule,
+        bool preserveSegmentSuffix,
+        ISet<string> reservedTargetPaths,
+        CancellationToken token = default)
+    {
+        token.ThrowIfCancellationRequested();
+        if (!File.Exists(mediaPath))
+        {
+            return new RecordingFinalizationPlan(false, mediaPath, mediaPath, "media file does not exist");
+        }
+
+        FileInfo source = new(mediaPath);
+        VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(source);
+        if (!FfmpegMediaEngine.TryProbe(mediaPath, out FfmpegMediaProbeResult probe, out string probeError, token))
+        {
+            return new RecordingFinalizationPlan(false, mediaPath, mediaPath, probeError);
+        }
+
+        ApplyProbe(metadata, probe, hasOptimizedAudio: false);
+        string targetPath;
+        lock (RenameLock)
+        {
+            targetPath = GetAvailableFinalPath(source, metadata, rule, preserveSegmentSuffix, reservedTargetPaths);
+            reservedTargetPaths.Add(targetPath);
+        }
+        return new RecordingFinalizationPlan(true, mediaPath, targetPath);
     }
 
     public static void RollBackRename(RecordingFinalizationResult result, string originalPath)
@@ -92,6 +134,7 @@ internal static partial class RecordingFinalizationService
         }
         result.Metadata.FileName = Path.GetFileName(originalPath);
         _ = VideoRecordingMetadataStore.WriteCompletedMetadata(originalPath, result.Metadata);
+        _ = RecordingAssociatedAssets.Move(result.Path, originalPath);
         VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(result.Path);
     }
 
@@ -132,7 +175,7 @@ internal static partial class RecordingFinalizationService
 
     private static void ApplyProbe(VideoRecordingMetadata metadata, FfmpegMediaProbeResult probe, bool hasOptimizedAudio)
     {
-        metadata.SchemaVersion = 2;
+        metadata.SchemaVersion = 4;
         if (probe.Width > 0 && probe.Height > 0)
         {
             metadata.Resolution = $"{probe.Width}x{probe.Height}";
@@ -158,9 +201,30 @@ internal static partial class RecordingFinalizationService
         return match.Success ? match.Value : string.Empty;
     }
 
-    private static string GetAvailablePath(string requestedPath)
+    private static string GetAvailableFinalPath(
+        FileInfo source,
+        VideoRecordingMetadata metadata,
+        string? rule,
+        bool preserveSegmentSuffix,
+        ISet<string>? reservedTargetPaths = null)
     {
-        if (!File.Exists(requestedPath) && !Directory.Exists(requestedPath))
+        string effectiveRule = string.IsNullOrWhiteSpace(rule)
+            ? string.IsNullOrWhiteSpace(metadata.FileNameRule) ? DefaultRule : metadata.FileNameRule
+            : rule;
+        metadata.FileNameRule = effectiveRule;
+        string segmentSuffix = preserveSegmentSuffix ? GetSegmentSuffix(source.Name) : string.Empty;
+        string stem = BuildFinalStem(effectiveRule, metadata).SanitizeFileName();
+        string requestedPath = Path.Combine(source.DirectoryName ?? Environment.CurrentDirectory, stem + segmentSuffix + source.Extension);
+        return PathsEqual(source.FullName, requestedPath)
+            ? source.FullName
+            : GetAvailablePath(requestedPath, reservedTargetPaths);
+    }
+
+    private static string GetAvailablePath(string requestedPath, ISet<string>? reservedTargetPaths = null)
+    {
+        if (!File.Exists(requestedPath)
+            && !Directory.Exists(requestedPath)
+            && reservedTargetPaths?.Contains(requestedPath) != true)
         {
             return requestedPath;
         }
@@ -171,7 +235,9 @@ internal static partial class RecordingFinalizationService
         for (int index = 2; index < 10000; index++)
         {
             string candidate = Path.Combine(directory, $"{stem}_{index}{extension}");
-            if (!File.Exists(candidate) && !Directory.Exists(candidate))
+            if (!File.Exists(candidate)
+                && !Directory.Exists(candidate)
+                && reservedTargetPaths?.Contains(candidate) != true)
             {
                 return candidate;
             }

@@ -110,6 +110,33 @@ public sealed class RecordingRecoveryServiceTests
             RecordingRecoveryService.BuildRecoverySourcePattern(Path.Combine(directory, fileName)));
     }
 
+    [Fact]
+    public void ResolveFinalizationInputPath_ResumesFromDiskWithoutDuplicatingCommittedRename()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-finalization-resume-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string originalPath = Path.Combine(directory, "recording.mkv");
+        string targetPath = Path.Combine(directory, "final-name.mkv");
+        try
+        {
+            File.WriteAllBytes(originalPath, [1]);
+            Assert.Equal(originalPath, RecordingRecoveryService.ResolveFinalizationInputPath(originalPath, targetPath, committed: false));
+            Assert.Equal(originalPath, RecordingRecoveryService.ResolveFinalizationInputPath(originalPath, targetPath, committed: true));
+
+            File.Move(originalPath, targetPath);
+            Assert.Equal(targetPath, RecordingRecoveryService.ResolveFinalizationInputPath(originalPath, targetPath, committed: false));
+            Assert.Equal(targetPath, RecordingRecoveryService.ResolveFinalizationInputPath(originalPath, targetPath, committed: true));
+
+            File.WriteAllBytes(originalPath, [2]);
+            Assert.Null(RecordingRecoveryService.ResolveFinalizationInputPath(originalPath, targetPath, committed: false));
+            Assert.Equal(targetPath, RecordingRecoveryService.ResolveFinalizationInputPath(originalPath, targetPath, committed: true));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData("host_20260815.ts", "host_20260815.ts", "host_20260815.ts")]
     [InlineData("host_20260815.ts", "host.ts", "host_%03d.ts")]
@@ -909,6 +936,20 @@ public sealed class RecordingRecoveryServiceTests
         {
             File.Delete(path);
         }
+    }
+
+    [Theory]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, true)]
+    [InlineData(false, true, false)]
+    public void CompletedOutputProbeTimeout_RequiresCompletedMetadata(
+        bool timedOut,
+        bool hasCompletedMetadata,
+        bool expected)
+    {
+        Assert.Equal(expected, RecordingRecoveryService.ShouldAcceptCompletedOutputProbeTimeout(
+            timedOut,
+            hasCompletedMetadata));
     }
 
     [Fact]

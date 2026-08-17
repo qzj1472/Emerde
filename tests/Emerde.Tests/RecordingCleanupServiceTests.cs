@@ -485,6 +485,64 @@ public sealed class RecordingCleanupServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RunAsync_WhenDeletingExpiredMedia_RemovesOwnedAssetsAndNotifies()
+    {
+        string oldSaveFolder = Configurations.SaveFolder.Get();
+        bool oldEnabled = Configurations.IsDataRetentionEnabled.Get();
+        int oldValue = Configurations.DataRetentionValue.Get();
+        int oldUnit = Configurations.DataRetentionUnit.Get();
+        string tempFolder = Path.Combine(Path.GetTempPath(), "emerde-cleanup-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempFolder);
+        string mediaPath = Path.Combine(tempFolder, "old.mp4");
+        string coverPath = RecordingCoverStore.GetCoverSidecarPath(mediaPath);
+        string cachePath = RecordingCoverStore.GetDisplayCachePath(mediaPath, AppPaths.ThumbnailCacheDirectory);
+        string? metadataPath = null;
+        IReadOnlyList<string> deletedPaths = [];
+        EventHandler<RecordingFilesDeletedEventArgs> handler = (_, args) => deletedPaths = args.Paths;
+        await File.WriteAllTextAsync(mediaPath, "media");
+        await File.WriteAllBytesAsync(coverPath, [1, 2, 3]);
+        Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
+        await File.WriteAllBytesAsync(cachePath, [1, 2, 3]);
+        metadataPath = VideoRecordingMetadataStore.WriteSidecar(tempFolder, "old", new VideoRecordingMetadata
+        {
+            FileName = "old.mp4",
+            NickName = "Host",
+            RoomUrl = "https://example.test/room",
+            RecordedAt = DateTime.Now.AddDays(-10),
+        });
+
+        try
+        {
+            Configurations.SaveFolder.Set(tempFolder);
+            Configurations.IsDataRetentionEnabled.Set(true);
+            Configurations.DataRetentionValue.Set(1);
+            Configurations.DataRetentionUnit.Set(DataRetentionUnitHelper.Days);
+            RecordingCleanupService.FilesDeleted += handler;
+
+            await RecordingCleanupService.RunAsync([tempFolder]);
+
+            Assert.False(File.Exists(mediaPath));
+            Assert.False(File.Exists(metadataPath));
+            Assert.False(File.Exists(coverPath));
+            Assert.False(File.Exists(cachePath));
+            Assert.Contains(mediaPath, deletedPaths, StringComparer.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            RecordingCleanupService.FilesDeleted -= handler;
+            Configurations.SaveFolder.Set(oldSaveFolder);
+            Configurations.IsDataRetentionEnabled.Set(oldEnabled);
+            Configurations.DataRetentionValue.Set(oldValue);
+            Configurations.DataRetentionUnit.Set(oldUnit);
+            File.Delete(cachePath);
+            if (Directory.Exists(tempFolder))
+            {
+                Directory.Delete(tempFolder, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task RunAsync_WhenEnabled_DeletesExpiredMediaWithAttachedMetadata()
     {
         string oldSaveFolder = Configurations.SaveFolder.Get();

@@ -88,14 +88,23 @@ internal sealed class VideoRepairService
                 return Failed(validationError);
             }
 
-            File.Move(temporaryPath, targetPath, false);
-            _ = VideoRecordingMetadataStore.WriteCompletedMetadata(targetPath, metadata);
             bool timelineAligned = Converter.IsTrackTimelineWithinTolerance(
                 outputProbe.AudioEndSeconds,
                 outputProbe.VideoEndSeconds);
             VideoRepairStatus status = timelineAligned
                 ? VideoRepairStatus.Repaired
                 : VideoRepairStatus.PartiallyRepaired;
+            metadata.SchemaVersion = 4;
+            metadata.MediaIssue = timelineAligned ? string.Empty : "timeline_mismatch";
+            metadata.WasRepaired = timelineAligned;
+            File.Move(temporaryPath, targetPath, false);
+            _ = RecordingCoverStore.TryCopyOrCreateFinalizedCover(
+                [fullSourcePath],
+                targetPath,
+                metadata,
+                outputProbe.DurationSeconds,
+                token);
+            _ = VideoRecordingMetadataStore.WriteCompletedMetadata(targetPath, metadata);
             string reportPath = targetPath + RepairReportSuffix;
             VideoRepairResult result = new(
                 status,
@@ -161,6 +170,35 @@ internal sealed class VideoRepairService
     internal static void TryDeleteRepairReport(string mediaPath)
     {
         TryDelete(mediaPath + RepairReportSuffix);
+    }
+
+    internal static bool TryCopyRepairReport(string sourcePath, string targetPath)
+    {
+        string sourceReport = sourcePath + RepairReportSuffix;
+        if (!File.Exists(sourceReport))
+        {
+            return true;
+        }
+        try
+        {
+            File.Copy(sourceReport, targetPath + RepairReportSuffix, overwrite: true);
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            AppSessionLogger.WriteException(exception);
+            return false;
+        }
+    }
+
+    internal static bool TryMoveRepairReport(string sourcePath, string targetPath)
+    {
+        if (!TryCopyRepairReport(sourcePath, targetPath))
+        {
+            return false;
+        }
+        TryDeleteRepairReport(sourcePath);
+        return true;
     }
 
     internal static bool IsSupportedSource(string sourcePath)

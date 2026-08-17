@@ -33,10 +33,16 @@ internal static class DataRetentionUnitHelper
     }
 }
 
+internal sealed class RecordingFilesDeletedEventArgs(IReadOnlyList<string> paths) : EventArgs
+{
+    public IReadOnlyList<string> Paths { get; } = paths;
+}
+
 internal static class RecordingCleanupService
 {
     private const int CleanupStateVersion = 1;
     private const int MaximumExpirationBatchSize = 32;
+    private const int MaximumMetadataRetryCount = 3;
     private static readonly SemaphoreSlim RunGate = new(1, 1);
     private static readonly object ScheduleLock = new();
     private static readonly object WorkerLock = new();
@@ -63,6 +69,8 @@ internal static class RecordingCleanupService
     private static CancellationTokenSource workerCancellation = new();
     private static Task? queuedWorkerTask;
     private static Task? expirationWorkerTask;
+
+    internal static event EventHandler<RecordingFilesDeletedEventArgs>? FilesDeleted;
 
     public static void QueueRun()
     {
@@ -140,6 +148,29 @@ internal static class RecordingCleanupService
                 CancellationToken token = workerCancellation.Token;
                 queuedWorkerTask = Task.Run(() => ProcessQueuedRunsAsync(token), token);
             }
+        }
+    }
+
+    internal static async Task RunTrackedAsync(CancellationToken cancellationToken = default)
+    {
+        await RunGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (EnsureStateLoaded())
+            {
+                await Task.Run(() => ProcessExpiredRecordings(cancellationToken), cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            AppSessionLogger.WriteException(exception);
+        }
+        finally
+        {
+            RunGate.Release();
         }
     }
 
@@ -609,6 +640,7 @@ internal static class RecordingCleanupService
         string[] pendingSourcePatterns = RecordingRecoveryService.GetPendingSourcePatterns();
         string[] configuredRoots = GetConfiguredRoots();
         int deletedCount = 0;
+        List<string> deletedPaths = [];
         int processedCount = 0;
         bool scheduleChanged = false;
         while (processedCount < MaximumExpirationBatchSize)
@@ -639,8 +671,13 @@ internal static class RecordingCleanupService
                 }
 
                 FileInfo file = new(recording.Path);
-                if (!file.Exists || !VideoRecordingMetadataStore.HasValidMetadata(file))
+                if (!file.Exists)
                 {
+                    continue;
+                }
+                if (!VideoRecordingMetadataStore.HasValidMetadata(file))
+                {
+                    RequeueMissingMetadata(recording);
                     continue;
                 }
 
@@ -660,12 +697,14 @@ internal static class RecordingCleanupService
                     || file.Length != recording.Length
                     || file.LastWriteTimeUtc.Ticks != recording.LastWriteTimeUtcTicks)
                 {
+                    RequeueChangedRecording(recording, file);
                     continue;
                 }
 
                 VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(file);
                 if (!string.Equals(CreateMetadataHash(metadata), recording.MetadataHash, StringComparison.Ordinal))
                 {
+                    RequeueChangedRecording(recording, file);
                     continue;
                 }
 
@@ -679,7 +718,9 @@ internal static class RecordingCleanupService
                 file.Delete();
                 VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(recording.Path);
                 VideoRepairService.TryDeleteRepairReport(recording.Path);
+                RecordingCoverStore.DeleteAssociatedAssets(recording.Path);
                 RemoveEmptyParentDirectories(recording.Path, configuredRoots);
+                deletedPaths.Add(recording.Path);
                 deletedCount++;
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -705,12 +746,101 @@ internal static class RecordingCleanupService
         if (deletedCount > 0)
         {
             AppSessionLogger.Write($"cleanup deleted {deletedCount} expired recording files");
+            RaiseFilesDeleted(deletedPaths);
         }
 
-        int deletedDirectoryCount = RemoveEmptyDirectoryTrees(configuredRoots, cancellationToken);
+        int deletedDirectoryCount = HasExpiredEntries(DateTime.UtcNow)
+            ? 0
+            : RemoveEmptyDirectoryTrees(configuredRoots, cancellationToken);
         if (deletedDirectoryCount > 0)
         {
             AppSessionLogger.Write($"cleanup deleted {deletedDirectoryCount} empty recording directories");
+        }
+    }
+
+    private static void RequeueChangedRecording(ScheduledRecording previous, FileInfo file)
+    {
+        try
+        {
+            file.Refresh();
+            if (!file.Exists)
+            {
+                return;
+            }
+            if (!VideoRecordingMetadataStore.HasValidMetadata(file))
+            {
+                AddOrUpdateWithoutSaving(previous with
+                {
+                    ExpiresAtUtc = DateTime.MaxValue,
+                    RetryCount = 0,
+                    RequiresFreshMetadata = true,
+                });
+                return;
+            }
+
+            VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(file);
+            string metadataHash = CreateMetadataHash(metadata);
+            if (string.Equals(metadataHash, previous.MetadataHash, StringComparison.Ordinal))
+            {
+                AddOrUpdateWithoutSaving(previous with
+                {
+                    ExpiresAtUtc = DateTime.MaxValue,
+                    RetryCount = 0,
+                    RequiresFreshMetadata = true,
+                });
+                return;
+            }
+
+            if (TryBuildScheduledRecording(file, metadata, GetConfiguredRetention(), out ScheduledRecording current))
+            {
+                AddOrUpdateWithoutSaving(current);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            AddOrUpdateWithoutSaving(previous with
+            {
+                ExpiresAtUtc = DateTime.UtcNow + FailureRetryDelay,
+                RetryCount = previous.RetryCount + 1,
+            });
+        }
+    }
+
+    private static void RequeueMissingMetadata(ScheduledRecording recording)
+    {
+        int retryCount = recording.RetryCount + 1;
+        AddOrUpdateWithoutSaving(recording with
+        {
+            ExpiresAtUtc = retryCount <= MaximumMetadataRetryCount
+                ? DateTime.UtcNow + FailureRetryDelay
+                : DateTime.MaxValue,
+            RetryCount = retryCount,
+            RequiresFreshMetadata = true,
+        });
+    }
+
+    private static void RaiseFilesDeleted(IReadOnlyList<string> paths)
+    {
+        RecordingFilesDeletedEventArgs eventArgs = new(paths);
+        foreach (EventHandler<RecordingFilesDeletedEventArgs> handler in FilesDeleted?.GetInvocationList().Cast<EventHandler<RecordingFilesDeletedEventArgs>>() ?? [])
+        {
+            try
+            {
+                handler(null, eventArgs);
+            }
+            catch (Exception exception)
+            {
+                AppSessionLogger.WriteException(exception);
+            }
+        }
+    }
+
+    private static bool HasExpiredEntries(DateTime nowUtc)
+    {
+        lock (ScheduleLock)
+        {
+            RemoveSupersededEntriesLocked();
+            return Schedule.TryPeek(out _, out long priority) && priority <= nowUtc.Ticks;
         }
     }
 

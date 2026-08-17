@@ -199,6 +199,12 @@ public sealed class Converter
             }
             FfmpegMediaProbeResult[] sourceProbes = probeBatch.Probes;
             double probedSourceDuration = sourceProbes.Sum(probe => Math.Max(0d, probe.DurationSeconds));
+            double sourceAudioEndSeconds = sourceProbes.Sum(probe => Math.Max(0d, probe.AudioEndSeconds));
+            double sourceVideoEndSeconds = sourceProbes.Sum(probe => Math.Max(0d, probe.VideoEndSeconds));
+            if (!IsTrackTimelineWithinTolerance(sourceAudioEndSeconds, sourceVideoEndSeconds))
+            {
+                metadata.MediaIssue = "timeline_mismatch";
+            }
             double recordingExpectedDuration = NormalizeRecordingExpectedDuration(
                 GetRecordingExpectedDuration(metadata, sourceFileInfos),
                 probedSourceDuration);
@@ -257,6 +263,12 @@ public sealed class Converter
                 File.Move(temporaryTargetFileName, targetFileName, false);
                 targetCreated = true;
                 metadata.HasOptimizedAudio = optimizeAudio;
+                _ = RecordingCoverStore.TryCopyOrCreateFinalizedCover(
+                    sourcePaths,
+                    targetFileName,
+                    metadata,
+                    recordingExpectedDuration,
+                    token);
                 if (!VideoRecordingMetadataStore.WriteCompletedMetadata(targetFileName, metadata))
                 {
                     AppSessionLogger.Event("warn", "converter", "conversion_metadata_fallback_failed", "converted video metadata could not be stored", new { targetFileName });
@@ -527,9 +539,7 @@ public sealed class Converter
             {
                 return $"duration_mismatch:expected={expectedDuration:F3},actual={output.DurationSeconds:F3},probed={probedDuration:F3},processed={processedDurationSeconds:F3}";
             }
-            return IsRecordingDurationComplete(recordingExpectedDuration, output.DurationSeconds)
-                ? string.Empty
-                : $"recording_duration_incomplete:expected={recordingExpectedDuration:F3},actual={output.DurationSeconds:F3},missing={recordingExpectedDuration - output.DurationSeconds:F3}";
+            return string.Empty;
         }
         catch (Exception e)
         {
@@ -610,13 +620,9 @@ public sealed class Converter
         {
             return true;
         }
-        if (Math.Abs(audioEndSeconds - videoEndSeconds) > MaximumTrackTimelineDifferenceSeconds)
-        {
-            return false;
-        }
         if (sourceAudioEndSeconds <= 0d || sourceVideoEndSeconds <= 0d)
         {
-            return true;
+            return Math.Abs(audioEndSeconds - videoEndSeconds) <= MaximumTrackTimelineDifferenceSeconds;
         }
 
         double outputDifference = audioEndSeconds - videoEndSeconds;

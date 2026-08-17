@@ -22,10 +22,10 @@ public sealed class ConverterTests
     }
 
     [Theory]
-    [InlineData(4257.260, 4278.433, 4257.100, 4278.300, false)]
-    [InlineData(22255.046, 22348.884, 22255.000, 22348.762, false)]
+    [InlineData(4257.260, 4278.433, 4257.100, 4278.300, true)]
+    [InlineData(22255.046, 22348.884, 22255.000, 22348.762, true)]
     [InlineData(96, 100, 96, 100, true)]
-    [InlineData(94.999, 100, 94, 100, false)]
+    [InlineData(94.999, 100, 94, 100, true)]
     [InlineData(90, 100, 100, 100, false)]
     [InlineData(110, 100, 90, 100, false)]
     [InlineData(0, 100, 0, 100, true)]
