@@ -112,6 +112,9 @@
   <data name="LiveNotification" xml:space="preserve">
     <value>配信通知</value>
   </data>
+  <data name="NotificationHistory" xml:space="preserve">
+    <value>通知履歴</value>
+  </data>
   <data name="GotoLiveRoom" xml:space="preserve">
     <value>配信ルームへ</value>
   </data>
@@ -604,7 +607,7 @@
     <value>ビデオ分割</value>
   </data>
   <data name="SegmentHint" xml:space="preserve">
-    <value>各出力ビデオの分割時間（秒単位）を指定する</value>
+    <value>各出力セグメントの長さと単位を設定します。</value>
   </data>
   <data name="Save" xml:space="preserve">
     <value>保存</value>
@@ -717,13 +720,19 @@
     <value>速度テストに失敗しました</value>
   </data>
   <data name="RefreshTooFrequently" xml:space="preserve">
-    <value>更新の間隔を 5 秒以上空けてください。</value>
+    <value>更新頻度が高すぎます。{0} 秒待ってから再試行してください。</value>
   </data>
+  <data name="RefreshInProgress" xml:space="preserve"><value>更新しています。しばらくお待ちください。</value></data>
   <data name="PreviewRefreshTooFrequently" xml:space="preserve">
     <value>プレビューの更新頻度が高すぎます。{0} 秒待ってから再試行してください。</value>
   </data>
+  <data name="PreviewRefreshInProgress" xml:space="preserve"><value>プレビューを更新しています。しばらくお待ちください。</value></data>
+  <data name="VideoListRefreshTooFrequently" xml:space="preserve"><value>動画一覧の更新頻度が高すぎます。{0} 秒待ってから再試行してください。</value></data>
+  <data name="VideoListRefreshInProgress" xml:space="preserve"><value>動画一覧を更新しています。しばらくお待ちください。</value></data>
   <data name="VideoListTitle" xml:space="preserve"><value>動画一覧</value></data>
   <data name="RefreshButton" xml:space="preserve"><value>更新</value></data>
+  <data name="VideoListRefreshComplete" xml:space="preserve"><value>動画一覧を更新しました</value></data>
+  <data name="VideoListRefreshFailed" xml:space="preserve"><value>動画一覧を更新できませんでした</value></data>
   <data name="ImportFolder" xml:space="preserve"><value>インポート</value></data>
   <data name="MergeVideos" xml:space="preserve"><value>結合</value></data>
   <data name="DeleteButton" xml:space="preserve"><value>削除</value></data>
@@ -761,6 +770,16 @@
   <data name="TranscodingVideo" xml:space="preserve"><value>変換中...</value></data>
   <data name="TranscodingChip" xml:space="preserve"><value>変換中</value></data>
   <data name="StallSegmentChip" xml:space="preserve"><value>停止による分割</value></data>
+  <data name="WaitingProcessingChip" xml:space="preserve"><value>処理待ち</value></data>
+  <data name="MergingChip" xml:space="preserve"><value>結合中</value></data>
+  <data name="RepairingChip" xml:space="preserve"><value>修復中</value></data>
+  <data name="SplittingChip" xml:space="preserve"><value>分割中</value></data>
+  <data name="OrganizingChip" xml:space="preserve"><value>整理中</value></data>
+  <data name="WaitingRetryChip" xml:space="preserve"><value>再試行待ち</value></data>
+  <data name="ProcessingFailedChip" xml:space="preserve"><value>処理失敗</value></data>
+  <data name="RepairedChip" xml:space="preserve"><value>修復済み</value></data>
+  <data name="MediaIssueChip" xml:space="preserve"><value>音声・映像異常</value></data>
+  <data name="SegmentPositionChip" xml:space="preserve"><value>分割 {0}/{1}</value></data>
   <data name="TranscodeComplete" xml:space="preserve"><value>変換が完了しました</value></data>
   <data name="TranscodeFailed" xml:space="preserve"><value>変換に失敗しました</value></data>
   <data name="SplitDurationInvalid" xml:space="preserve"><value>分割間隔が無効です</value></data>
@@ -798,9 +817,9 @@
   <data name="ReleaseNotesUserFacingLabel" xml:space="preserve"><value>ユーザー向けの変更</value></data>
   <data name="ReleaseNotesAdditionalLabel" xml:space="preserve"><value>その他の改善</value></data>
   <data name="ReleaseNotes1672Title" xml:space="preserve"><value>Emerde 1.6.7.2</value></data>
-  <data name="ReleaseNotes1672Date" xml:space="preserve"><value>2026-08-15</value></data>
-  <data name="ReleaseNotes1672Items" xml:space="preserve"><value>アプリの実行中に、未変換の既存 TS・FLV 録画を自動的に再検出して処理待ちに追加するため、再起動が不要になりました。|処理対象の録画が多い場合は分割して実行し、通常の変換に失敗した場合は読み取り可能な内容を自動復旧します。個別の修復操作や「修復」ファイル名接尾辞は使用しません。|自動クリーンアップで録画に対応するメタデータと空のフォルダーも削除し、設定済みの録画ルートは保持するようになりました。|ホームカードのサイズ、並び順、プレビューカードの設定が再起動後も保持されるようになりました。|UI-X のコンテキストメニューの選択状態、プラットフォーム絞り込み、複数選択操作を修正しました。|UI-X の設定、バージョン情報、更新ダイアログで、入力欄とバージョン選択欄の枠線色を統一しました。|配信タイトル、ルーム ID、画質、フレームレート、コーデック、録画時刻、動画時間を使った録画完了後の命名を追加しました。|録画メタデータに終了時刻、時間、フレームレート、画質、コーデック、最適化音声の状態を保存し、変換、修復、復旧後も維持します。|UI-X の動画一覧で空白部分のダブルクリック更新、開始時刻のみの表示、行単位または隣接カードへのキーボード選択に対応しました。|カスタム監視スケジュールで、全体設定または個別設定の日付範囲、曜日、時間帯を任意に組み合わせられるようになりました。|既存のカスタム命名規則では、「録画時刻」プレースホルダーがより正確な「録画開始時刻」へ自動移行されます。|命名規則ボタン、出力設定の間隔、更新ダイアログの内容を整理しました。</value></data>
-  <data name="ReleaseNotes1672AdditionalItems" xml:space="preserve"><value>UI-X ホーム画面の不要な毎秒更新を減らし、配信ルーム情報を開いたときに録画時間を計算して更新するようにしました。|録画復旧ポリシーの移行を改善し、以前処理できなかった録画を再試行できるようにしました。|共有 UI リソースの分離を改善し、UI-X の設定スタイルが無関係な画面や旧 UI に影響しないようにしました。</value></data>
+  <data name="ReleaseNotes1672Date" xml:space="preserve"><value>2026-08-18</value></data>
+  <data name="ReleaseNotes1672Items" xml:space="preserve"><value>アプリの実行中に、未変換の既存 TS・FLV 録画を自動的に再検出して処理待ちに追加するため、再起動が不要になりました。|処理対象の録画が多い場合は分割して実行し、通常の変換に失敗した場合は読み取り可能な内容を自動復旧します。個別の修復操作や「修復」ファイル名接尾辞は使用しません。|自動クリーンアップで録画に対応するメタデータと空のフォルダーも削除し、設定済みの録画ルートは保持するようになりました。|ホームカードのサイズ、並び順、プレビューカードの設定が再起動後も保持されるようになりました。|UI-X のコンテキストメニューの選択状態、プラットフォーム絞り込み、複数選択操作を修正しました。|UI-X の設定、バージョン情報、更新ダイアログで、入力欄とバージョン選択欄の枠線色を統一しました。|配信タイトル、ルーム ID、画質、フレームレート、コーデック、録画時刻、動画時間を使った録画完了後の命名を追加しました。|録画メタデータに終了時刻、時間、フレームレート、画質、コーデック、最適化音声の状態を保存し、変換、修復、復旧後も維持します。|UI-X の動画一覧で空白部分のダブルクリック更新、開始時刻のみの表示、行単位または隣接カードへのキーボード選択に対応しました。|カスタム監視スケジュールで、全体設定または個別設定の日付範囲、曜日、時間帯を任意に組み合わせられるようになりました。|既存のカスタム命名規則では、「録画時刻」プレースホルダーがより正確な「録画開始時刻」へ自動移行されます。|命名規則ボタン、出力設定の間隔、更新ダイアログの内容を整理しました。|録画終了後の動画フレームから独立したカバーを生成し、独立したアバターとカバーのリソースを保存するため、配信者がアバターを変更しても既存の動画カバーに影響しません。|動画カードに録画中、変換中、分割、処理失敗などの状態を表示し、進行状況を確認しやすくしました。|通知をより見やすいカードに変更し、通知履歴にも対応しました。|設定保存の失敗通知と再起動後の録画状態の不一致を修正しました。|ページ、ナビゲーション、プレビュー、カード状態の切り替えをより滑らかなアニメーションにしました。|設定、概要、ホーム、動画一覧のレスポンシブレイアウトを改善し、ウィンドウサイズ変更時の引っかかりと内容の切り詰めを減らしました。</value></data>
+  <data name="ReleaseNotes1672AdditionalItems" xml:space="preserve"><value>UI-X ホーム画面の不要な毎秒更新を減らし、配信ルーム情報を開いたときに録画時間を計算して更新するようにしました。|録画復旧ポリシーの移行を改善し、以前処理できなかった録画を再試行できるようにしました。|動画一覧の更新で進行中、成功、失敗、クールダウンを表示し、完了時にカードのフィードバックを表示します。ウィンドウサイズ変更時の重複処理も減らしました。|共有 UI リソースの分離を改善し、UI-X の設定スタイルが無関係な画面や旧 UI に影響しないようにしました。</value></data>
   <data name="ReleaseNotes1671Title" xml:space="preserve"><value>Emerde 1.6.7.1</value></data>
   <data name="ReleaseNotes1671Date" xml:space="preserve"><value>2026-08-13</value></data>
   <data name="ReleaseNotes1671Items" xml:space="preserve"><value>長時間録画の安定性、配信停止、データの不連続、音声と映像の同期、録画後の変換失敗への対応を改善しました。|異常な TS、MP4 などから再生可能な音声と映像を可能な範囲で復元する録画修復機能を追加しました。|配信ルームリンクと短縮リンクの認識、重複検出を改善し、同じルームの重複追加を防ぎます。|配信者のアバター、配信状態、ルーム情報の同期を改善し、状態の変化をより早く反映します。|UI-X のルーム追加と個別設定ワークスペースを再設計し、設定の継承、情報階層、操作領域、ウィンドウ対応を改善しました。|ホームカード、プレビューカード、ウィンドウサイズ変更を改善し、余白、切れ、ちらつき、停止、サイズ変更時の遅延を減らしました。|動画一覧のサムネイル、ファイル名、配信者情報、時間とサイズ、形式表示、カード配置、複数選択を改善しました。|UI-X の設定、ルーム情報、ログ出力、設定復元、変換、録画修復、確認ダイアログを統一し、間隔、背景、枠線、ぼかし、操作性を改善しました。|ホームとトレイのコンテキストメニュー、ショートカット、選択状態、設定、拡張機能、バージョン情報画面を改善しました。</value></data>
@@ -884,6 +903,11 @@
   <data name="ConfigBackup" xml:space="preserve"><value>設定バックアップ</value></data>
   <data name="ConfigBackupAlreadyExists" xml:space="preserve"><value>同じ設定が既に存在するため、既存のバックアップを選択しました。</value></data>
   <data name="ConfigChangedRestartPrompt" xml:space="preserve"><value>{0}。再起動後に反映されます。{1}&#xA;&#xA;今すぐ Emerde を再起動しますか？</value></data>
+  <data name="ConfigChangeRestartConfirmation" xml:space="preserve"><value>{0}にはすぐに再起動が必要です。続行しますか？</value></data>
+  <data name="ConfigRestartFailedRolledBack" xml:space="preserve"><value>Emerde を再起動できなかったため、以前の設定に復元しました。</value></data>
+  <data name="ConfigurationSaveFailedRetrying" xml:space="preserve"><value>設定を保存できません。Emerde は再試行を続けます。</value></data>
+  <data name="ConfigurationSaveRecovered" xml:space="preserve"><value>設定を保存しました。</value></data>
+  <data name="ExtensionResponseTooLarge" xml:space="preserve"><value>拡張機能から返されたデータが多すぎます。</value></data>
   <data name="ConfigExported" xml:space="preserve"><value>設定をエクスポートしました</value></data>
   <data name="ConfigExportFailed" xml:space="preserve"><value>設定のエクスポートに失敗しました: {0}</value></data>
   <data name="ConfigImported" xml:space="preserve"><value>設定をインポートしました</value></data>
@@ -1103,8 +1127,8 @@
   <data name="AutomaticMonitoring" xml:space="preserve"><value>自動監視</value></data>
   <data name="AutomaticMonitoringHint" xml:space="preserve"><value>グローバル設定に従うルームの配信状態を自動的に確認するかを制御します。</value></data>
   <data name="MonitoringSchedule" xml:space="preserve"><value>監視スケジュール</value></data>
-  <data name="GlobalMonitoringScheduleHint" xml:space="preserve"><value>曜日と時間帯でグローバル自動監視を制限します。</value></data>
-  <data name="RoomMonitoringScheduleHint" xml:space="preserve"><value>曜日と時間帯でこのルームの自動監視を制限します。</value></data>
+  <data name="GlobalMonitoringScheduleHint" xml:space="preserve"><value>日付範囲、曜日、時間帯を組み合わせてグローバル自動監視を制限します。</value></data>
+  <data name="RoomMonitoringScheduleHint" xml:space="preserve"><value>日付範囲、曜日、時間帯を組み合わせてこのルームの自動監視を制限します。</value></data>
   <data name="StreamQualityHint" xml:space="preserve"><value>現在のプラットフォームが対応する配信画質を選択します。</value></data>
   <data name="ScheduleAlways" xml:space="preserve"><value>常時実行</value></data>
   <data name="ScheduleAlwaysHint" xml:space="preserve"><value>月曜日から日曜日まで終日実行</value></data>
@@ -1115,7 +1139,7 @@
   <data name="ScheduleNight" xml:space="preserve"><value>夜間に実行</value></data>
   <data name="ScheduleNightHint" xml:space="preserve"><value>毎日 18:00 から翌日 08:00 まで実行</value></data>
   <data name="ScheduleCustom" xml:space="preserve"><value>カスタムスケジュール</value></data>
-  <data name="ScheduleCustomHint" xml:space="preserve"><value>任意の日付範囲、曜日、時間帯を組み合わせて設定</value></data>
+  <data name="ScheduleCustomHint" xml:space="preserve"><value>日付範囲、曜日、時間帯は自由に組み合わせられます。空欄の項目は監視を制限しません。</value></data>
   <data name="ScheduleDays" xml:space="preserve"><value>曜日</value></data>
   <data name="Monday" xml:space="preserve"><value>月</value></data>
   <data name="Tuesday" xml:space="preserve"><value>火</value></data>
@@ -1164,7 +1188,7 @@
   <data name="AboutRecordingNeedsMonitoring" xml:space="preserve"><value>• 録画だけでは配信開始を検出できないため、監視も有効にする必要があります</value></data>
   <data name="EnableRecording" xml:space="preserve"><value>録画を有効化</value></data>
   <data name="AboutAutoRecordOnStream" xml:space="preserve"><value>• 利用可能な配信ストリームを取得すると自動的に録画を開始する</value></data>
-  <data name="AboutHomeShowsRecording" xml:space="preserve"><value>• ホーム画面で現在の録画状態と経過時間を確認できる</value></data>
+  <data name="AboutHomeShowsRecording" xml:space="preserve"><value>• ホーム画面には録画状態を表示し、ルーム情報にはリアルタイムの録画時間を表示します</value></data>
   <data name="ManageVideos" xml:space="preserve"><value>動画を管理</value></data>
   <data name="AboutVideoListProgress" xml:space="preserve"><value>• 動画リストで録画ファイルと処理の進行状況を確認する</value></data>
   <data name="AboutVideoOperations" xml:space="preserve"><value>• 変換、分割、結合、移動、削除に対応</value></data>
@@ -1204,7 +1228,7 @@
   <data name="ExitAndRecovery" xml:space="preserve"><value>終了と復旧</value></data>
   <data name="AboutCloseToTray" xml:space="preserve"><value>• メインウィンドウを閉じても Emerde はシステムトレイで動作を続けます</value></data>
   <data name="AboutExitFromMenu" xml:space="preserve"><value>• 完全に終了するには、サイドバーまたはトレイメニューの「終了」を使用してください</value></data>
-  <data name="AboutResumePendingTasks" xml:space="preserve"><value>• 未完了の後処理、分割、変換タスクは次回起動後に再開します</value></data>
+  <data name="AboutResumePendingTasks" xml:space="preserve"><value>• 未完了の後処理、分割、変換タスクは実行中および再起動後も処理を続けます</value></data>
   <data name="ShortcutReference" xml:space="preserve"><value>キーボードショートカット</value></data>
   <data name="ShortcutReferenceHint" xml:space="preserve"><value>ショートカットは対応するページでのみ有効です。入力欄を編集中は、元に戻す、やり直し、コピー、貼り付けが文字操作に使用されます。</value></data>
   <data name="PagesAndWindows" xml:space="preserve"><value>ページとウィンドウ</value></data>
@@ -1262,7 +1286,7 @@
   <data name="UiXWorkspaceHierarchy" xml:space="preserve"><value>フォルダー階層</value></data>
   <data name="UiXWorkspaceWaitingForAddress" xml:space="preserve"><value>配信ルームのアドレスを入力すると自動識別します</value></data>
   <data name="UiXWorkspaceIdentify" xml:space="preserve"><value>識別</value></data>
-  <data name="UiXWorkspaceGlobalDescription" xml:space="preserve"><value>継承した設定は読み取り専用で表示されます。編集するにはカスタムに切り替えてください。</value></data>
+  <data name="UiXWorkspaceGlobalDescription" xml:space="preserve"><value>このルームはグローバル設定を使用します。個別に調整するには「カスタム」に切り替えてください。</value></data>
   <data name="UiXWorkspaceCustomDescription" xml:space="preserve"><value>この配信ルームは独自の監視、録画、出力設定を使用します。</value></data>
   <data name="UiXWorkspaceNoSegment" xml:space="preserve"><value>分割なし</value></data>
   <data name="TokenLiveTitle" xml:space="preserve"><value>配信タイトル</value></data>

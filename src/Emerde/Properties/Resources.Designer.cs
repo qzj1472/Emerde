@@ -2655,6 +2655,12 @@ namespace Emerde.Properties {
             }
         }
 
+        public static string NotificationHistory {
+            get {
+                return ResourceManager.GetString("NotificationHistory", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Whether to notify the start of the streaming through Windows system notifications, etc.
         /// </summary>

@@ -156,4 +156,15 @@ public sealed class UpgradeNoticeServiceTests
         Assert.Contains(ReleaseNotesCatalog.Entries, entry => entry.Version == "1.6.7.0");
         Assert.Equal("1.6.7.2", ReleaseNotesCatalog.GetEntry("1.6.7.2").Version);
     }
+
+    [Fact]
+    public void ReleaseNotes1672_MapsEveryLocalizedItemExactlyOnce()
+    {
+        ReleaseNoteEntry entry = ReleaseNotesCatalog.GetEntry("1.6.7.2");
+        string[] items = entry.Sections.SelectMany(section => section.Items).ToArray();
+
+        Assert.Equal([5, 9, 3, 5], entry.Sections.Select(section => section.Items.Count));
+        Assert.Equal(22, items.Length);
+        Assert.Equal(items.Length, items.Distinct(StringComparer.Ordinal).Count());
+    }
 }

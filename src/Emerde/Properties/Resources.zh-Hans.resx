@@ -109,6 +109,9 @@
   <data name="LiveNotification" xml:space="preserve">
     <value>开播通知</value>
   </data>
+  <data name="NotificationHistory" xml:space="preserve">
+    <value>通知记录</value>
+  </data>
   <data name="GotoLiveRoom" xml:space="preserve">
     <value>进入直播间</value>
   </data>
@@ -601,7 +604,7 @@
     <value>视频分段</value>
   </data>
   <data name="SegmentHint" xml:space="preserve">
-    <value>指定每个输出视频的时间长度（单位为秒）</value>
+    <value>设置每个输出片段的时长，可选择单位。</value>
   </data>
   <data name="Save" xml:space="preserve">
     <value>保存</value>
@@ -714,13 +717,19 @@
     <value>测速失败</value>
   </data>
   <data name="RefreshTooFrequently" xml:space="preserve">
-    <value>刷新过于频繁，请等待 5 秒后再试。</value>
+    <value>刷新过于频繁，请等待 {0} 秒后再试。</value>
   </data>
+  <data name="RefreshInProgress" xml:space="preserve"><value>正在刷新，请稍候。</value></data>
   <data name="PreviewRefreshTooFrequently" xml:space="preserve">
     <value>预览刷新过于频繁，请等待 {0} 秒后再试。</value>
   </data>
+  <data name="PreviewRefreshInProgress" xml:space="preserve"><value>预览正在刷新，请稍候。</value></data>
+  <data name="VideoListRefreshTooFrequently" xml:space="preserve"><value>视频列表刷新过于频繁，请等待 {0} 秒后再试。</value></data>
+  <data name="VideoListRefreshInProgress" xml:space="preserve"><value>视频列表正在刷新，请稍候。</value></data>
   <data name="VideoListTitle" xml:space="preserve"><value>视频列表</value></data>
   <data name="RefreshButton" xml:space="preserve"><value>刷新</value></data>
+  <data name="VideoListRefreshComplete" xml:space="preserve"><value>视频列表已刷新</value></data>
+  <data name="VideoListRefreshFailed" xml:space="preserve"><value>视频列表刷新失败</value></data>
   <data name="ImportFolder" xml:space="preserve"><value>导入</value></data>
   <data name="MergeVideos" xml:space="preserve"><value>合并</value></data>
   <data name="DeleteButton" xml:space="preserve"><value>删除</value></data>
@@ -758,6 +767,16 @@
   <data name="TranscodingVideo" xml:space="preserve"><value>正在转码...</value></data>
   <data name="TranscodingChip" xml:space="preserve"><value>转码中</value></data>
   <data name="StallSegmentChip" xml:space="preserve"><value>卡顿分段</value></data>
+  <data name="WaitingProcessingChip" xml:space="preserve"><value>等待处理</value></data>
+  <data name="MergingChip" xml:space="preserve"><value>合并中</value></data>
+  <data name="RepairingChip" xml:space="preserve"><value>修复中</value></data>
+  <data name="SplittingChip" xml:space="preserve"><value>分割中</value></data>
+  <data name="OrganizingChip" xml:space="preserve"><value>整理中</value></data>
+  <data name="WaitingRetryChip" xml:space="preserve"><value>等待重试</value></data>
+  <data name="ProcessingFailedChip" xml:space="preserve"><value>处理失败</value></data>
+  <data name="RepairedChip" xml:space="preserve"><value>已修复</value></data>
+  <data name="MediaIssueChip" xml:space="preserve"><value>音画异常</value></data>
+  <data name="SegmentPositionChip" xml:space="preserve"><value>分段 {0}/{1}</value></data>
   <data name="TranscodeComplete" xml:space="preserve"><value>转码完成</value></data>
   <data name="TranscodeFailed" xml:space="preserve"><value>转码失败</value></data>
   <data name="SplitDurationInvalid" xml:space="preserve"><value>分割时间无效</value></data>
@@ -795,9 +814,9 @@
   <data name="ReleaseNotesUserFacingLabel" xml:space="preserve"><value>用户可感知的更新</value></data>
   <data name="ReleaseNotesAdditionalLabel" xml:space="preserve"><value>其他改进</value></data>
   <data name="ReleaseNotes1672Title" xml:space="preserve"><value>Emerde 1.6.7.2</value></data>
-  <data name="ReleaseNotes1672Date" xml:space="preserve"><value>2026-08-15</value></data>
-  <data name="ReleaseNotes1672Items" xml:space="preserve"><value>软件运行期间会自动重新发现并排队处理已有的未转码 TS、FLV 录像，无需重启。|待处理录像较多时会分批执行，常规转码失败后会自动恢复可读取内容，不再提供单独修复入口或添加“修复”文件后缀。|自动清理现在会同时删除录像对应的元数据和空文件夹，并保留配置的录像根目录。|首页卡片大小、排序方式和预览卡片偏好会在重启后继续保留。|修复 UI-X 右键菜单选中状态、平台筛选和多选操作。|统一 UI-X 设置、关于页面和更新弹窗中输入框与版本选择框的描边颜色。|新增录像完成后命名，可使用标题、房间号、画质、帧率、编码、录制时间和视频时长等真实信息。|录像元数据新增结束时间、时长、帧率、画质、编码和优化音轨状态，并在转码、修复和恢复后继续保留。|UI-X 视频列表支持空白处双击刷新，卡片只显示开始时间，方向键可按整行和相邻卡片移动选中项。|自定义巡检支持在全局或单独设置中任意组合日期范围、星期和时间段。|旧的自定义命名规则会将“录制时间”占位符自动迁移为更准确的“录制开始时间”。|重新整理命名规则按钮、输出设置间距和更新弹窗内容。</value></data>
-  <data name="ReleaseNotes1672AdditionalItems" xml:space="preserve"><value>减少 UI-X 首页不必要的逐秒刷新，仅在打开直播间信息时计算并更新录制时长。|完善录像恢复策略迁移，使此前被阻止处理的录像可以重新尝试。|加强共享 UI 资源隔离，避免 UI-X 设置样式影响无关页面或旧 UI。</value></data>
+  <data name="ReleaseNotes1672Date" xml:space="preserve"><value>2026-08-18</value></data>
+  <data name="ReleaseNotes1672Items" xml:space="preserve"><value>软件运行期间会自动重新发现并排队处理已有的未转码 TS、FLV 录像，无需重启。|待处理录像较多时会分批执行，常规转码失败后会自动恢复可读取内容，不再提供单独修复入口或添加“修复”文件后缀。|自动清理现在会同时删除录像对应的元数据和空文件夹，并保留配置的录像根目录。|首页卡片大小、排序方式和预览卡片偏好会在重启后继续保留。|修复 UI-X 右键菜单选中状态、平台筛选和多选操作。|统一 UI-X 设置、关于页面和更新弹窗中输入框与版本选择框的描边颜色。|新增录像完成后命名，可使用标题、房间号、画质、帧率、编码、录制时间和视频时长等真实信息。|录像元数据新增结束时间、时长、帧率、画质、编码和优化音轨状态，并在转码、修复和恢复后继续保留。|UI-X 视频列表支持空白处双击刷新，卡片只显示开始时间，方向键可按整行和相邻卡片移动选中项。|自定义巡检支持在全局或单独设置中任意组合日期范围、星期和时间段。|旧的自定义命名规则会将“录制时间”占位符自动迁移为更准确的“录制开始时间”。|重新整理命名规则按钮、输出设置间距和更新弹窗内容。|录像结束后会从视频帧生成独立封面，并保存独立的头像与封面资源，主播更换头像不会影响已有视频封面。|视频卡片增加录制中、转码中、分段、处理失败等状态提示，处理进度更容易辨认。|通知改为更完整的通知卡片，并支持通知历史。|设置保存失败和重启后录制状态不一致的问题得到修复。|页面、导航、预览和卡片状态变化增加更连贯的过渡动画，减少突兀切换。|设置、关于、首页和视频列表的布局与窗口调整进行了适配，减少窗口变化时的卡顿和内容截断。</value></data>
+  <data name="ReleaseNotes1672AdditionalItems" xml:space="preserve"><value>减少 UI-X 首页不必要的逐秒刷新，仅在打开直播间信息时计算并更新录制时长。|完善录像恢复策略迁移，使此前被阻止处理的录像可以重新尝试。|视频列表刷新增加进行中、成功、失败和冷却提示，并在完成刷新时提供卡片反馈；同时减少窗口调整时的重复处理。|加强共享 UI 资源隔离，避免 UI-X 设置样式影响无关页面或旧 UI。</value></data>
   <data name="ReleaseNotes1671Title" xml:space="preserve"><value>Emerde 1.6.7.1</value></data>
   <data name="ReleaseNotes1671Date" xml:space="preserve"><value>2026-08-13</value></data>
   <data name="ReleaseNotes1671Items" xml:space="preserve"><value>提升长时间录制稳定性，改善直播卡顿、数据不连续、音画不同步和录制结束后转码失败。|新增录像修复，异常 TS、MP4 等视频可尝试恢复可播放的音视频内容。|优化直播间链接、短链接识别和重复检测，避免同一直播间被重复添加。|优化主播头像、开播状态和直播间信息同步，状态变化后能更及时地反映。|重做 UI-X 的新建直播间与单独设置工作台，优化设置继承、信息层级、操作区域和窗口适配。|优化首页卡片、预览卡片栏和窗口缩放，减少留白、截断、闪烁、卡死和调整窗口时的粘滞。|优化视频列表封面、文件名、主播信息、时间大小、格式提示、卡片排列和多选操作。|统一 UI-X 的设置、直播间信息、日志导出、恢复配置、转码、录像修复和确认弹窗，改善间距、底色、描边、模糊和交互。|完善首页与托盘右键菜单、快捷键、选中状态、设置、扩展和关于页面。</value></data>
@@ -881,6 +900,11 @@
   <data name="ConfigBackup" xml:space="preserve"><value>配置备份</value></data>
   <data name="ConfigBackupAlreadyExists" xml:space="preserve"><value>相同配置已存在，已选中已有备份点。</value></data>
   <data name="ConfigChangedRestartPrompt" xml:space="preserve"><value>{0}，重启后生效。{1}&#xA;&#xA;是否立即重启 Emerde？</value></data>
+  <data name="ConfigChangeRestartConfirmation" xml:space="preserve"><value>{0}需要立即重启软件。是否继续？</value></data>
+  <data name="ConfigRestartFailedRolledBack" xml:space="preserve"><value>Emerde 无法重启，已恢复之前的配置。</value></data>
+  <data name="ConfigurationSaveFailedRetrying" xml:space="preserve"><value>设置暂时无法保存，Emerde 将继续重试。</value></data>
+  <data name="ConfigurationSaveRecovered" xml:space="preserve"><value>设置已保存。</value></data>
+  <data name="ExtensionResponseTooLarge" xml:space="preserve"><value>扩展返回的数据过多。</value></data>
   <data name="ConfigExported" xml:space="preserve"><value>配置已导出</value></data>
   <data name="ConfigExportFailed" xml:space="preserve"><value>配置导出失败：{0}</value></data>
   <data name="ConfigImported" xml:space="preserve"><value>配置已导入</value></data>
@@ -1100,8 +1124,8 @@
   <data name="AutomaticMonitoring" xml:space="preserve"><value>自动监控</value></data>
   <data name="AutomaticMonitoringHint" xml:space="preserve"><value>控制跟随全局设置的房间是否自动检查直播状态。</value></data>
   <data name="MonitoringSchedule" xml:space="preserve"><value>监控计划</value></data>
-  <data name="GlobalMonitoringScheduleHint" xml:space="preserve"><value>按星期和时间段限制全局自动监控。</value></data>
-  <data name="RoomMonitoringScheduleHint" xml:space="preserve"><value>按星期和时间段限制此房间的自动监控。</value></data>
+  <data name="GlobalMonitoringScheduleHint" xml:space="preserve"><value>可组合日期范围、星期和时间段，限制全局自动监控。</value></data>
+  <data name="RoomMonitoringScheduleHint" xml:space="preserve"><value>可组合日期范围、星期和时间段，限制此直播间的自动监控。</value></data>
   <data name="StreamQualityHint" xml:space="preserve"><value>按当前平台支持的档位选择直播流画质。</value></data>
   <data name="ScheduleAlways" xml:space="preserve"><value>始终运行</value></data>
   <data name="ScheduleAlwaysHint" xml:space="preserve"><value>周一至周日，全天运行</value></data>
@@ -1112,7 +1136,7 @@
   <data name="ScheduleNight" xml:space="preserve"><value>夜间运行</value></data>
   <data name="ScheduleNightHint" xml:space="preserve"><value>每天 18:00 至次日 08:00 运行</value></data>
   <data name="ScheduleCustom" xml:space="preserve"><value>自定义计划</value></data>
-  <data name="ScheduleCustomHint" xml:space="preserve"><value>可组合日期范围、星期与时间段，留空或关闭的条件不限制巡检</value></data>
+  <data name="ScheduleCustomHint" xml:space="preserve"><value>日期范围、星期和时间段可任意组合；留空项不参与限制。</value></data>
   <data name="ScheduleDays" xml:space="preserve"><value>星期</value></data>
   <data name="Monday" xml:space="preserve"><value>周一</value></data>
   <data name="Tuesday" xml:space="preserve"><value>周二</value></data>
@@ -1161,7 +1185,7 @@
   <data name="AboutRecordingNeedsMonitoring" xml:space="preserve"><value>• 仅开启录制不会自动发现开播，需要同时开启监控</value></data>
   <data name="EnableRecording" xml:space="preserve"><value>开启录制</value></data>
   <data name="AboutAutoRecordOnStream" xml:space="preserve"><value>• 获取到可用直播流后自动开始录制</value></data>
-  <data name="AboutHomeShowsRecording" xml:space="preserve"><value>• 可在首页查看当前录制状态和时长</value></data>
+  <data name="AboutHomeShowsRecording" xml:space="preserve"><value>• 首页显示录制状态；直播间信息中显示实时录制时长</value></data>
   <data name="ManageVideos" xml:space="preserve"><value>管理视频</value></data>
   <data name="AboutVideoListProgress" xml:space="preserve"><value>• 在视频列表查看录制文件和处理进度</value></data>
   <data name="AboutVideoOperations" xml:space="preserve"><value>• 支持转码、分割、合并、移动和删除</value></data>
@@ -1201,7 +1225,7 @@
   <data name="ExitAndRecovery" xml:space="preserve"><value>退出与恢复</value></data>
   <data name="AboutCloseToTray" xml:space="preserve"><value>• 关闭主窗口后，软件仍会在系统托盘中运行</value></data>
   <data name="AboutExitFromMenu" xml:space="preserve"><value>• 需要完全退出时，请使用侧边栏或托盘菜单中的“退出”</value></data>
-  <data name="AboutResumePendingTasks" xml:space="preserve"><value>• 尚未完成的收尾、分割或转码任务会在下次启动后继续处理</value></data>
+  <data name="AboutResumePendingTasks" xml:space="preserve"><value>• 尚未完成的收尾、分割或转码任务会在软件运行期间及重启后继续处理</value></data>
   <data name="ShortcutReference" xml:space="preserve"><value>快捷键速查</value></data>
   <data name="ShortcutReferenceHint" xml:space="preserve"><value>快捷键仅在对应页面生效；输入框处于编辑状态时，撤销、恢复、复制和粘贴快捷键将用于文字操作。</value></data>
   <data name="PagesAndWindows" xml:space="preserve"><value>页面与窗口</value></data>
@@ -1259,7 +1283,7 @@
   <data name="UiXWorkspaceHierarchy" xml:space="preserve"><value>目录层级</value></data>
   <data name="UiXWorkspaceWaitingForAddress" xml:space="preserve"><value>输入直播间地址后自动识别</value></data>
   <data name="UiXWorkspaceIdentify" xml:space="preserve"><value>识别</value></data>
-  <data name="UiXWorkspaceGlobalDescription" xml:space="preserve"><value>继承的设置保持可见且只读，切换到“自定义”后可编辑此直播间。</value></data>
+  <data name="UiXWorkspaceGlobalDescription" xml:space="preserve"><value>此直播间使用全局设置。切换到“自定义”后可单独调整。</value></data>
   <data name="UiXWorkspaceCustomDescription" xml:space="preserve"><value>此直播间使用独立的监控、录制与输出设置。</value></data>
   <data name="UiXWorkspaceNoSegment" xml:space="preserve"><value>不分段</value></data>
   <data name="TokenLiveTitle" xml:space="preserve"><value>直播标题</value></data>

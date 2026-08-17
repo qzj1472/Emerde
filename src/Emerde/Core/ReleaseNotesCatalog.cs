@@ -23,17 +23,17 @@ internal static class ReleaseNotesCatalog
 
     private static ReleaseNoteEntry Create1672()
     {
-        IReadOnlyList<string> items = SplitItems(GetText("ReleaseNotes1672Items", "Automatically rediscovered unprocessed recordings and improved recovery queues|Improved recording cleanup and UI-X preference persistence|Refined UI-X menus and input states"));
-        IReadOnlyList<string> additional = SplitItems(GetText("ReleaseNotes1672AdditionalItems", "Reduced unnecessary UI refresh work|Improved recovery retries and UI resource isolation"));
+        IReadOnlyList<string> items = SplitItems(GetText("ReleaseNotes1672Items", "Automatically rediscovered unprocessed recordings and improved recovery queues|Improved recording cleanup and UI-X preference persistence|Refined UI-X menus and input states|Generated independent covers from recorded frames|Added clearer video processing status badges|Improved notifications and notification history|Improved configuration save and recording-state recovery"));
+        IReadOnlyList<string> additional = SplitItems(GetText("ReleaseNotes1672AdditionalItems", "Reduced unnecessary UI refresh work|Improved recovery retries|Improved video-list refresh feedback and resize performance|Improved shared UI resource isolation"));
         return new ReleaseNoteEntry(
             "1.6.7.2",
             GetText("ReleaseNotes1672Title", "Emerde 1.6.7.2"),
-            GetText("ReleaseNotes1672Date", "2026-08-15"),
+            GetText("ReleaseNotes1672Date", "2026-08-18"),
             RemoveEmpty(
-                Section("ReleaseNotesCategoryBugFixes", "Bug fixes", Pick(items, 2, 4, 5, 10)),
-                Section("ReleaseNotesCategoryFeatures", "Feature additions", Pick(items, 0, 1, 3, 6, 7, 9)),
-                Section("ReleaseNotesCategoryStability", "Performance and stability", additional),
-                Section("ReleaseNotesCategoryUi", "Interface changes", Pick(items, 8, 11))));
+                Section("ReleaseNotesCategoryBugFixes", "Bug fixes", Pick(items, 2, 4, 5, 10, 15)),
+                Section("ReleaseNotesCategoryFeatures", "Feature additions", Pick(items, 0, 1, 3, 6, 7, 9, 12, 13, 14)),
+                Section("ReleaseNotesCategoryStability", "Performance and stability", Pick(additional, 0, 1, 2)),
+                Section("ReleaseNotesCategoryUi", "Interface changes", Pick(items, 8, 11, 16, 17).Concat(Pick(additional, 3)).ToArray())));
     }
 
     private static ReleaseNoteEntry Create1671()
