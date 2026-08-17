@@ -193,10 +193,16 @@ public sealed partial class AddRoomContentDialog : ContentDialog
     private void UpdateRoomUrlInputBorder()
     {
         string brushKey = (IsUiXEnabled ? UiXRoomUrlTextBox : RoomUrlTextBox).IsKeyboardFocusWithin
-            ? "SystemAccentColorPrimaryBrush"
+            ? IsUiXEnabled ? "UiXSelectionStrokeBrush" : "SystemAccentColorPrimaryBrush"
             : IsUiXEnabled ? "UiXStrongStrokeBrush" : "ControlStrokeColorDefaultBrush";
-        (IsUiXEnabled ? UiXRoomUrlInputBorder : RoomUrlInputBorder)
-            .SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, brushKey);
+        if (IsUiXEnabled)
+        {
+            UiXRoomUrlTextBox.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, brushKey);
+        }
+        else
+        {
+            RoomUrlInputBorder.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, brushKey);
+        }
     }
 
     private async void OnPrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs e)
@@ -220,11 +226,11 @@ public sealed partial class AddRoomContentDialog : ContentDialog
                 e.Cancel = true;
                 if (result.IsWarning)
                 {
-                    Toast.Warning(result.ErrorMessage);
+                    AppFeedback.Warning(result.ErrorMessage);
                 }
                 else
                 {
-                    Toast.Error(result.ErrorMessage);
+                    AppFeedback.Error(result.ErrorMessage);
                 }
                 return;
             }
@@ -234,11 +240,11 @@ public sealed partial class AddRoomContentDialog : ContentDialog
             SpiderResult = result.SpiderResult;
             if (result.IsDeferred)
             {
-                Toast.Warning("AddRoomSucc".Tr(NickName));
+                AppFeedback.Warning("AddRoomSucc".Tr(NickName));
             }
             else
             {
-                Toast.Success("AddRoomSucc".Tr(NickName));
+                AppFeedback.Success("AddRoomSucc".Tr(NickName));
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -249,7 +255,7 @@ public sealed partial class AddRoomContentDialog : ContentDialog
         {
             e.Cancel = true;
             AppSessionLogger.WriteException(exception);
-            Toast.Error(GetRoomInfoErrorMessage(Url, exception.Message));
+            AppFeedback.Error(GetRoomInfoErrorMessage(Url, exception.Message));
         }
         finally
         {

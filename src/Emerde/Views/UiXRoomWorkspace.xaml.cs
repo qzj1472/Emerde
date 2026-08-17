@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Emerde.Controls;
 using Emerde.Core;
 using Emerde.ViewModels;
 using System.ComponentModel;
@@ -63,7 +64,21 @@ public sealed partial class UiXRoomWorkspace : WpfUserControl, IDisposable
         OnPropertyChanged(nameof(RecordingVisibility));
         OnPropertyChanged(nameof(OutputVisibility));
         StageScrollViewer?.ScrollToTop();
-        Dispatcher.BeginInvoke(UpdateSurfaceSize);
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            UpdateSurfaceSize();
+            FrameworkElement? stage = SelectedStage switch
+            {
+                1 => RunStage,
+                2 => RecordingStage,
+                3 => OutputStage,
+                _ => null,
+            };
+            if (stage?.IsVisible == true)
+            {
+                MotionAssist.PlayEntrance(stage);
+            }
+        }), DispatcherPriority.Render);
     }
 
     [ObservableProperty]
@@ -369,7 +384,7 @@ public sealed partial class UiXRoomWorkspace : WpfUserControl, IDisposable
                 DetectionForeground = FindBrush("UiXDangerForegroundBrush");
                 if (showErrorToast)
                 {
-                    Wpf.Ui.Violeta.Controls.Toast.Error(resolved.ErrorMessage);
+                    AppFeedback.Error(resolved.ErrorMessage);
                 }
                 return false;
             }

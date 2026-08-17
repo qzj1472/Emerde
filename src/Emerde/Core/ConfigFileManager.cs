@@ -45,6 +45,63 @@ internal static class ConfigFileManager
             ReplaceConfigurationFile(sourcePath, AppPaths.ActiveConfigFilePath, ConfigurationManager.Setup));
     }
 
+    public static ConfigurationSessionSnapshot CaptureSessionSnapshot()
+    {
+        return ConfigurationSaveScheduler.ExecuteExclusive(() =>
+        {
+            ConfigurationSaveScheduler.SaveNow();
+            string snapshotDirectory = Path.Combine(
+                AppPaths.CacheDirectory,
+                "config-change",
+                Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(snapshotDirectory);
+            List<ConfigurationSessionFile> files = [];
+            try
+            {
+                foreach (string sourcePath in AppPaths.GetConfigFiles())
+                {
+                    string snapshotPath = Path.Combine(snapshotDirectory, Path.GetFileName(sourcePath));
+                    File.Copy(sourcePath, snapshotPath, overwrite: false);
+                    files.Add(new ConfigurationSessionFile(sourcePath, snapshotPath));
+                }
+                return new ConfigurationSessionSnapshot(
+                    snapshotDirectory,
+                    AppPaths.ActiveConfigFilePath,
+                    [.. files]);
+            }
+            catch
+            {
+                TryDeleteSessionSnapshotDirectory(snapshotDirectory);
+                throw;
+            }
+        });
+    }
+
+    public static void RestoreSessionSnapshot(ConfigurationSessionSnapshot snapshot)
+    {
+        ConfigurationSaveScheduler.ExecuteExclusive(() =>
+        {
+            foreach (string path in AppPaths.GetConfigFiles())
+            {
+                File.Delete(path);
+            }
+            foreach (ConfigurationSessionFile file in snapshot.Files)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(file.OriginalPath) ?? AppPaths.ConfigFilesDirectory);
+                File.Copy(file.SnapshotPath, file.OriginalPath, overwrite: true);
+            }
+            ConfigurationManager.Setup(snapshot.ActiveConfigPath);
+            ConfigurationSaveScheduler.ResumeAfterCancelledRestart();
+            TryDeleteSessionSnapshotDirectory(snapshot.DirectoryPath);
+            return true;
+        });
+    }
+
+    public static void DiscardSessionSnapshot(ConfigurationSessionSnapshot snapshot)
+    {
+        TryDeleteSessionSnapshotDirectory(snapshot.DirectoryPath);
+    }
+
     public static string Export(string targetPath)
     {
         ConfigurationSaveScheduler.ExecuteExclusive(() =>
@@ -362,6 +419,21 @@ internal static class ConfigFileManager
         try
         {
             File.Delete(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(e);
+        }
+    }
+
+    private static void TryDeleteSessionSnapshotDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, recursive: true);
+            }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -770,3 +842,10 @@ internal static class ConfigFileManager
 }
 
 internal sealed record ConfigurationBackupPoint(string FileName, string FilePath, DateTime LastWriteTime);
+
+internal sealed record ConfigurationSessionFile(string OriginalPath, string SnapshotPath);
+
+internal sealed record ConfigurationSessionSnapshot(
+    string DirectoryPath,
+    string ActiveConfigPath,
+    IReadOnlyList<ConfigurationSessionFile> Files);

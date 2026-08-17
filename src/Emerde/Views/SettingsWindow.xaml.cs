@@ -21,6 +21,12 @@ namespace Emerde.Views;
 public partial class SettingsWindow : System.Windows.Controls.UserControl
 {
     private const int InitialSettingsElementCount = 4;
+    private const double SettingsUiXTwoColumnEnterWidth = 1000d;
+    private const double SettingsUiXTwoColumnExitWidth = 940d;
+    private const double SettingsUiXSaveMetadataOneRowEnterWidth = 712d;
+    private const double SettingsUiXSaveMetadataOneRowExitWidth = 688d;
+    private const double SettingsUiXGroupSpacing = 16d;
+    private const double SettingsUiXChildIndent = 52d;
 
     private static readonly BooleanToVisibilityConverter SettingsUiXVisibilityConverter = new();
     private static readonly Dictionary<int, string> SettingsUiXGroupTitleKeys = new()
@@ -40,7 +46,8 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
     private readonly Dictionary<CardExpander, bool> initialCardExpanderStates = [];
     private readonly Dictionary<CardExpander, object?> settingsUiXDependentExpanderContents = [];
     private readonly Dictionary<FrameworkElement, Thickness> settingsUiXOriginalMargins = [];
-    private readonly Dictionary<int, (System.Windows.Controls.StackPanel GroupPanel, System.Windows.Controls.StackPanel RowsPanel)> settingsUiXGroups = [];
+    private readonly Dictionary<FrameworkElement, Dictionary<DependencyProperty, object>> settingsSectionPresentations = [];
+    private readonly Dictionary<int, (System.Windows.Controls.Border Container, System.Windows.Controls.StackPanel GroupPanel, System.Windows.Controls.StackPanel RowsPanel)> settingsUiXGroups = [];
     private readonly Dictionary<int, System.Windows.Controls.TextBlock> settingsUiXGroupTitles = [];
     private readonly Stopwatch startupRestoreStopwatch = new();
     private List<UIElement> settingsSectionOrder = [];
@@ -48,7 +55,14 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
     private int startupRestoreBatchCount;
     private bool startupSectionsQueued;
     private bool? isSettingsUiXTwoColumnApplied;
+    private bool? isSettingsUiXSaveMetadataOneRowApplied;
+    private bool? isSettingsUiXSaveMetadataModeApplied;
+    private double? pendingSettingsScrollOffset;
+    private int settingsScrollRestoreVersion;
     private int selectedSettingsFocus;
+    private DispatcherOperation? settingsFocusIndicatorUpdateOperation;
+    private DispatcherOperation? settingsResponsiveLayoutUpdateOperation;
+    private bool pendingSettingsFocusIndicatorAnimation;
 
     public SettingsViewModel ViewModel { get; }
 
@@ -60,12 +74,17 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
         ViewModel.OwnerWindow = Application.Current.MainWindow;
         InitializeComponent();
         settingsSectionOrder = SettingsStackPanel.Children.OfType<UIElement>().ToList();
+        foreach (FrameworkElement section in settingsSectionOrder.OfType<FrameworkElement>())
+        {
+            CaptureSettingsSectionPresentation(section);
+        }
         foreach (CardExpander expander in FindLogicalDescendants<CardExpander>(SettingsLayoutHost))
         {
             initialCardExpanderStates[expander] = expander.IsExpanded;
         }
         ViewModel.PropertyChanged += SettingsViewModelPropertyChanged;
         SizeChanged += SettingsDialogSizeChanged;
+        SettingsFocusNavigationPanel.SizeChanged += SettingsFocusNavigationPanelSizeChanged;
         SaveMetadataLayout.SizeChanged += SaveMetadataLayoutSizeChanged;
         ApplySettingsLayoutMode();
         long initializeElapsed = stopwatch.ElapsedMilliseconds;
@@ -81,6 +100,7 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
     private void SettingsDialogLoaded(object sender, RoutedEventArgs e)
     {
         QueueStartupSectionRestore();
+        QueueSettingsFocusIndicatorUpdate(false);
     }
 
     private void SettingsDialogIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -98,7 +118,13 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
         Unloaded -= SettingsDialogUnloaded;
         ViewModel.PropertyChanged -= SettingsViewModelPropertyChanged;
         SizeChanged -= SettingsDialogSizeChanged;
+        SettingsFocusNavigationPanel.SizeChanged -= SettingsFocusNavigationPanelSizeChanged;
         SaveMetadataLayout.SizeChanged -= SaveMetadataLayoutSizeChanged;
+        settingsFocusIndicatorUpdateOperation?.Abort();
+        settingsFocusIndicatorUpdateOperation = null;
+        settingsResponsiveLayoutUpdateOperation?.Abort();
+        settingsResponsiveLayoutUpdateOperation = null;
+        pendingSettingsFocusIndicatorAnimation = false;
 
         foreach (CardExpander expander in deferredCardExpanderContents.Keys.ToArray())
         {
@@ -109,6 +135,7 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
 
         RestoreAllSettingsUiXDependentExpanderContents();
         RestoreSettingsUiXControlMargins();
+        CancelPendingSettingsScrollRestore();
         deferredCardExpanderContents.Clear();
         settingsUiXDependentExpanderContents.Clear();
         deferredStartupSections.Clear();
@@ -137,15 +164,51 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
 
     private void SettingsDialogSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        UpdateSettingsUiXItemWidths();
+        if (e.WidthChanged && ViewModel.IsUiXEnabled)
+        {
+            QueueSettingsResponsiveLayoutUpdate();
+        }
+    }
+
+    private void SettingsFocusNavigationPanelSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (ViewModel.IsUiXEnabled && e.HeightChanged)
+        {
+            QueueSettingsFocusIndicatorUpdate(false);
+        }
     }
 
     private void SaveMetadataLayoutSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (ViewModel.IsUiXEnabled)
+        if (ViewModel.IsUiXEnabled && e.WidthChanged)
         {
-            ApplySettingsUiXSaveMetadataLayout();
+            QueueSettingsResponsiveLayoutUpdate();
         }
+    }
+
+    private void QueueSettingsResponsiveLayoutUpdate()
+    {
+        if (settingsResponsiveLayoutUpdateOperation is { Status: DispatcherOperationStatus.Pending or DispatcherOperationStatus.Executing })
+        {
+            return;
+        }
+
+        settingsResponsiveLayoutUpdateOperation = Dispatcher.BeginInvoke(() =>
+        {
+            try
+            {
+                if (!IsLoaded || !ViewModel.IsUiXEnabled)
+                {
+                    return;
+                }
+                UpdateSettingsUiXItemWidths();
+                ApplySettingsUiXSaveMetadataLayout();
+            }
+            finally
+            {
+                settingsResponsiveLayoutUpdateOperation = null;
+            }
+        }, DispatcherPriority.Render);
     }
 
     protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
@@ -360,23 +423,7 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
         SettingsUiXPanel.Visibility = ViewModel.IsUiXEnabled ? Visibility.Visible : Visibility.Collapsed;
         ApplyCardExpanderLayoutMode();
         ApplySettingsDependentVisibilityMode();
-        ApplySettingsUiXScheduleWidths();
-        UpdateSettingsUiXItemWidths();
-    }
-
-    private void ApplySettingsUiXScheduleWidths()
-    {
-        double width = 112d;
-        if (ViewModel.IsUiXEnabled && ShouldUseSettingsUiXTwoColumns())
-        {
-            double columnWidth = Math.Max(0d, (SettingsLayoutHost.ActualWidth - 16d) / 2d);
-            double scheduleContentWidth = Math.Max(0d, columnWidth - 152d);
-            width = Math.Clamp(Math.Floor(scheduleContentWidth / 4d), 64d, 112d);
-        }
-        RoutineScheduleStartHourInput.Width = width;
-        RoutineScheduleStartMinuteInput.Width = width;
-        RoutineScheduleEndHourInput.Width = width;
-        RoutineScheduleEndMinuteInput.Width = width;
+        UpdateSettingsUiXItemWidths(preserveScrollOffset: false);
     }
 
     private IReadOnlyList<UIElement> GetSettingsLayoutOrder()
@@ -434,10 +481,69 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
             return;
         }
 
+        if (ViewModel.IsUiXEnabled)
+        {
+            MotionAssist.PrepareEntrance(SettingsUiXColumns);
+            MotionAssist.PrepareEntrance(SettingsUiXBottomPanel);
+        }
         selectedSettingsFocus = Math.Clamp(focus, 0, 6);
         isSettingsUiXTwoColumnApplied = null;
         ApplySettingsLayoutMode();
         SettingsScrollViewer.ScrollToTop();
+        MoveSettingsFocusIndicator((System.Windows.Controls.RadioButton)sender, true);
+        if (ViewModel.IsUiXEnabled)
+        {
+            _ = Dispatcher.BeginInvoke(
+                () =>
+                {
+                    MotionAssist.PlayEntrance(SettingsUiXColumns);
+                    MotionAssist.PlayEntrance(SettingsUiXBottomPanel);
+                },
+                DispatcherPriority.DataBind);
+        }
+    }
+
+    private void QueueSettingsFocusIndicatorUpdate(bool animate)
+    {
+        pendingSettingsFocusIndicatorAnimation |= animate;
+        if (settingsFocusIndicatorUpdateOperation is { Status: DispatcherOperationStatus.Pending or DispatcherOperationStatus.Executing })
+        {
+            return;
+        }
+
+        settingsFocusIndicatorUpdateOperation = Dispatcher.BeginInvoke(() =>
+        {
+            bool shouldAnimate = pendingSettingsFocusIndicatorAnimation;
+            pendingSettingsFocusIndicatorAnimation = false;
+            settingsFocusIndicatorUpdateOperation = null;
+            if (!IsLoaded)
+            {
+                return;
+            }
+
+            System.Windows.Controls.RadioButton? selectedButton = SettingsFocusNavigationPanel.Children
+                .OfType<System.Windows.Controls.RadioButton>()
+                .FirstOrDefault(button => button.CommandParameter is string value
+                    && int.TryParse(value, out int focus)
+                    && focus == selectedSettingsFocus);
+            if (selectedButton != null)
+            {
+                MoveSettingsFocusIndicator(selectedButton, shouldAnimate);
+            }
+        }, DispatcherPriority.Render);
+    }
+
+    private void MoveSettingsFocusIndicator(System.Windows.Controls.RadioButton button, bool animate)
+    {
+        if (!ViewModel.IsUiXEnabled || !button.IsLoaded || button.ActualWidth <= 0d)
+        {
+            return;
+        }
+
+        WpfPoint position = button.TransformToAncestor(SettingsFocusNavigationRoot).Transform(new WpfPoint(0d, 0d));
+        double targetX = WindowSizing.RoundLayoutValue(position.X + (button.ActualWidth - SettingsFocusSelectionIndicator.Width) / 2d);
+        double targetY = WindowSizing.RoundLayoutValue(position.Y + button.ActualHeight - 5d);
+        MotionAssist.MoveNavigationIndicator(SettingsFocusSelectionIndicator, targetX, targetY, animate);
     }
 
     private void ApplyCardExpanderLayoutMode()
@@ -455,19 +561,17 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
         }
     }
 
-    private void UpdateSettingsUiXItemWidths()
+    private void UpdateSettingsUiXItemWidths(bool preserveScrollOffset = true)
     {
+        if (!preserveScrollOffset)
+        {
+            CancelPendingSettingsScrollRestore();
+        }
+
         if (!ViewModel.IsUiXEnabled)
         {
             RestoreSettingsUiXControlMargins();
-            foreach (FrameworkElement element in settingsSectionOrder.OfType<FrameworkElement>())
-            {
-                element.ClearValue(WidthProperty);
-                element.ClearValue(MarginProperty);
-                element.ClearValue(HorizontalAlignmentProperty);
-            }
             isSettingsUiXTwoColumnApplied = null;
-            ApplySettingsUiXScheduleWidths();
             ApplySettingsUiXSaveMetadataLayout();
             return;
         }
@@ -479,26 +583,25 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
         }
 
         bool useTwoColumns = ShouldUseSettingsUiXTwoColumns();
-        SettingsUiXGapColumnDefinition.Width = useTwoColumns ? new GridLength(16) : new GridLength(0);
-        SettingsUiXRightColumnDefinition.Width = useTwoColumns ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        SettingsUiXRightColumn.Visibility = useTwoColumns ? Visibility.Visible : Visibility.Collapsed;
-        ApplySettingsUiXScheduleWidths();
-        ApplySettingsUiXSaveMetadataLayout();
+        bool layoutChanged = isSettingsUiXTwoColumnApplied != useTwoColumns;
+        double verticalOffset = pendingSettingsScrollOffset ?? SettingsScrollViewer.VerticalOffset;
+        isSettingsUiXTwoColumnApplied = useTwoColumns;
 
-        if (isSettingsUiXTwoColumnApplied != useTwoColumns)
+        if (!layoutChanged)
         {
-            ReflowAttachedSettingsSections();
-            isSettingsUiXTwoColumnApplied = useTwoColumns;
-            ApplySettingsUiXControlAlignment();
             return;
         }
 
-        foreach (FrameworkElement element in GetAttachedSettingsSections().OfType<FrameworkElement>())
-        {
-            ApplySettingsSectionChrome(element);
-        }
-
+        ApplySettingsUiXSaveMetadataLayout();
+        SettingsUiXGapColumnDefinition.Width = useTwoColumns ? new GridLength(16) : new GridLength(0);
+        SettingsUiXRightColumnDefinition.Width = useTwoColumns ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        SettingsUiXRightColumn.Visibility = useTwoColumns ? Visibility.Visible : Visibility.Collapsed;
+        MoveSettingsUiXGroupContainers();
         ApplySettingsUiXControlAlignment();
+        if (preserveScrollOffset)
+        {
+            RestoreSettingsScrollOffset(verticalOffset);
+        }
     }
 
     private void RestoreAllDeferredStartupSections()
@@ -517,25 +620,21 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
             .ToList();
     }
 
-    private void ReflowAttachedSettingsSections()
+    private void MoveSettingsUiXGroupContainers()
     {
-        List<UIElement> attachedSections = GetAttachedSettingsSections()
-            .OrderBy(section => settingsSectionOrder.IndexOf(section))
-            .ToList();
-
-        foreach (UIElement section in attachedSections)
+        foreach ((int groupIndex, (System.Windows.Controls.Border container, _, _)) in settingsUiXGroups.OrderBy(pair => pair.Key))
         {
-            RemoveSettingsSectionFromParent(section);
-        }
+            WpfPanel targetColumn = GetSettingsUiXGroupColumn(groupIndex);
+            if (ReferenceEquals(container.Parent, targetColumn))
+            {
+                continue;
+            }
 
-        if (ViewModel.IsUiXEnabled)
-        {
-            ClearSettingsUiXLayout();
-        }
-
-        foreach (UIElement section in attachedSections)
-        {
-            AddSettingsSection(section);
+            if (container.Parent is WpfPanel currentColumn)
+            {
+                currentColumn.Children.Remove(container);
+            }
+            targetColumn.Children.Add(container);
         }
     }
 
@@ -578,14 +677,40 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
         }
 
         int groupIndex = GetSettingsUiXGroupIndex(section);
-        (System.Windows.Controls.StackPanel groupPanel, System.Windows.Controls.StackPanel rowsPanel) = GetOrCreateSettingsUiXGroup(groupIndex);
+        (_, _, System.Windows.Controls.StackPanel rowsPanel) = GetOrCreateSettingsUiXGroup(groupIndex);
         rowsPanel.Children.Add(section);
     }
 
     private void ApplySettingsUiXSaveMetadataLayout()
     {
+        bool isUiXEnabled = ViewModel.IsUiXEnabled;
+        double availableWidth = SaveMetadataLayout.ActualWidth > 0d
+            ? SaveMetadataLayout.ActualWidth
+            : Math.Max(0d, SettingsLayoutHost.ActualWidth - 140d);
+        bool keepOnOneRow = isUiXEnabled
+            && ResolveSettingsUiXSaveMetadataOneRowState(
+                availableWidth,
+                isSettingsUiXSaveMetadataModeApplied == true ? isSettingsUiXSaveMetadataOneRowApplied : null);
+        bool layoutChanged = isSettingsUiXSaveMetadataModeApplied != isUiXEnabled
+            || isSettingsUiXSaveMetadataOneRowApplied != keepOnOneRow;
+        isSettingsUiXSaveMetadataModeApplied = isUiXEnabled;
+        isSettingsUiXSaveMetadataOneRowApplied = keepOnOneRow;
+
+        double selectorWidth = isUiXEnabled
+            ? ShouldUseSettingsUiXTwoColumns() ? 148d : 168d
+            : 220d;
+        if (Math.Abs(SavePathLevelSelector.Width - selectorWidth) > 0.1d)
+        {
+            SavePathLevelSelector.Width = selectorWidth;
+        }
+
+        if (!layoutChanged)
+        {
+            return;
+        }
+
         DataRetentionControls.Children.Clear();
-        if (!ViewModel.IsUiXEnabled)
+        if (!isUiXEnabled)
         {
             DataRetentionSwitch.Margin = new Thickness(10, 0, 0, 0);
             DataRetentionValueInput.Margin = new Thickness(10, 0, 0, 0);
@@ -600,7 +725,6 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
             DataRetentionPanel.SetValue(System.Windows.Controls.Grid.ColumnProperty, 0);
             DataRetentionPanel.SetValue(System.Windows.Controls.Grid.ColumnSpanProperty, 3);
             DataRetentionPanel.Margin = new Thickness(0, 16, 0, 0);
-            SavePathLevelSelector.Width = 220d;
             return;
         }
 
@@ -610,10 +734,6 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
         DataRetentionControls.Children.Add(DataRetentionValueInput);
         DataRetentionControls.Children.Add(DataRetentionUnitSelector);
         DataRetentionControls.Children.Add(DataRetentionSwitch);
-        double availableWidth = SaveMetadataLayout.ActualWidth > 0d
-            ? SaveMetadataLayout.ActualWidth
-            : Math.Max(0d, SettingsLayoutHost.ActualWidth - 140d);
-        bool keepOnOneRow = availableWidth >= 712d;
         SavePathLevelPanel.SetValue(System.Windows.Controls.Grid.RowProperty, 0);
         SavePathLevelPanel.SetValue(System.Windows.Controls.Grid.ColumnProperty, 0);
         SavePathLevelPanel.SetValue(System.Windows.Controls.Grid.ColumnSpanProperty, keepOnOneRow ? 1 : 3);
@@ -621,18 +741,26 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
         DataRetentionPanel.SetValue(System.Windows.Controls.Grid.ColumnProperty, keepOnOneRow ? 2 : 0);
         DataRetentionPanel.SetValue(System.Windows.Controls.Grid.ColumnSpanProperty, keepOnOneRow ? 1 : 3);
         DataRetentionPanel.Margin = keepOnOneRow ? new Thickness(0) : new Thickness(0, 16, 0, 0);
-        SavePathLevelSelector.Width = ShouldUseSettingsUiXTwoColumns() ? 148d : 168d;
     }
 
-    private (System.Windows.Controls.StackPanel GroupPanel, System.Windows.Controls.StackPanel RowsPanel) GetOrCreateSettingsUiXGroup(int groupIndex)
+    internal static bool ResolveSettingsUiXSaveMetadataOneRowState(double availableWidth, bool? currentState)
     {
-        if (settingsUiXGroups.TryGetValue(groupIndex, out (System.Windows.Controls.StackPanel GroupPanel, System.Windows.Controls.StackPanel RowsPanel) group))
+        double threshold = currentState == true
+            ? SettingsUiXSaveMetadataOneRowExitWidth
+            : SettingsUiXSaveMetadataOneRowEnterWidth;
+        return availableWidth >= threshold;
+    }
+
+    private (System.Windows.Controls.Border Container, System.Windows.Controls.StackPanel GroupPanel, System.Windows.Controls.StackPanel RowsPanel) GetOrCreateSettingsUiXGroup(int groupIndex)
+    {
+        if (settingsUiXGroups.TryGetValue(groupIndex, out (System.Windows.Controls.Border Container, System.Windows.Controls.StackPanel GroupPanel, System.Windows.Controls.StackPanel RowsPanel) group))
         {
             return group;
         }
 
         System.Windows.Controls.Border container = new();
         container.SetResourceReference(StyleProperty, "UiXSettingsGroupBorderStyle");
+        container.Margin = new Thickness(0, 0, 0, SettingsUiXGroupSpacing);
 
         System.Windows.Controls.StackPanel groupPanel = new();
         System.Windows.Controls.StackPanel rowsPanel = new();
@@ -648,7 +776,7 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
         container.Child = groupPanel;
 
         GetSettingsUiXGroupColumn(groupIndex).Children.Add(container);
-        group = (groupPanel, rowsPanel);
+        group = (container, groupPanel, rowsPanel);
         settingsUiXGroups[groupIndex] = group;
         return group;
     }
@@ -667,7 +795,40 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
 
     private bool ShouldUseSettingsUiXTwoColumns()
     {
-        return ViewModel.IsUiXEnabled && selectedSettingsFocus == 0 && SettingsLayoutHost.ActualWidth >= 980;
+        return ViewModel.IsUiXEnabled
+            && selectedSettingsFocus == 0
+            && ResolveSettingsUiXTwoColumnState(SettingsLayoutHost.ActualWidth, isSettingsUiXTwoColumnApplied);
+    }
+
+    internal static bool ResolveSettingsUiXTwoColumnState(double availableWidth, bool? currentState)
+    {
+        double threshold = currentState == true
+            ? SettingsUiXTwoColumnExitWidth
+            : SettingsUiXTwoColumnEnterWidth;
+        return availableWidth >= threshold;
+    }
+
+    private void RestoreSettingsScrollOffset(double verticalOffset)
+    {
+        pendingSettingsScrollOffset = verticalOffset;
+        int restoreVersion = ++settingsScrollRestoreVersion;
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            if (restoreVersion != settingsScrollRestoreVersion || pendingSettingsScrollOffset is not double offset)
+            {
+                return;
+            }
+
+            pendingSettingsScrollOffset = null;
+            double boundedOffset = Math.Min(offset, SettingsScrollViewer.ScrollableHeight);
+            SettingsScrollViewer.ScrollToVerticalOffset(boundedOffset);
+        }, DispatcherPriority.Loaded);
+    }
+
+    private void CancelPendingSettingsScrollRestore()
+    {
+        settingsScrollRestoreVersion++;
+        pendingSettingsScrollOffset = null;
     }
 
     private int GetSettingsUiXGroupIndex(UIElement section)
@@ -796,7 +957,7 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
                 if (isIndentedContent)
                 {
                     settingsUiXOriginalMargins.TryAdd(element, margin);
-                    element.Margin = new Thickness(52, margin.Top, margin.Right, margin.Bottom);
+                    element.Margin = new Thickness(SettingsUiXChildIndent, margin.Top, margin.Right, margin.Bottom);
                     continue;
                 }
 
@@ -855,23 +1016,7 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
             return;
         }
 
-        element.ClearValue(WidthProperty);
-        element.ClearValue(MarginProperty);
-        element.ClearValue(HorizontalAlignmentProperty);
-        if (section is System.Windows.Controls.Control resetControl)
-        {
-            resetControl.ClearValue(System.Windows.Controls.Control.BackgroundProperty);
-            resetControl.ClearValue(System.Windows.Controls.Control.BorderBrushProperty);
-            resetControl.ClearValue(System.Windows.Controls.Control.BorderThicknessProperty);
-            resetControl.ClearValue(System.Windows.Controls.Control.PaddingProperty);
-            resetControl.ClearValue(MinHeightProperty);
-        }
-
-        if (section is CardExpander resetExpander)
-        {
-            resetExpander.ClearValue(CardExpander.ContentPaddingProperty);
-            resetExpander.ClearValue(TemplateProperty);
-        }
+        RestoreSettingsSectionPresentation(element);
 
         if (!ViewModel.IsUiXEnabled)
         {
@@ -901,6 +1046,44 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
             {
                 expander.SetResourceReference(Control.TemplateProperty, "UiXFixedCardExpanderTemplate");
             }
+        }
+    }
+
+    private void CaptureSettingsSectionPresentation(FrameworkElement element)
+    {
+        if (settingsSectionPresentations.ContainsKey(element))
+        {
+            return;
+        }
+
+        Dictionary<DependencyProperty, object> values = new()
+        {
+            [WidthProperty] = element.GetValue(WidthProperty),
+            [MarginProperty] = element.GetValue(MarginProperty),
+            [HorizontalAlignmentProperty] = element.GetValue(HorizontalAlignmentProperty),
+        };
+        if (element is System.Windows.Controls.Control control)
+        {
+            values[System.Windows.Controls.Control.BackgroundProperty] = control.GetValue(System.Windows.Controls.Control.BackgroundProperty);
+            values[System.Windows.Controls.Control.BorderBrushProperty] = control.GetValue(System.Windows.Controls.Control.BorderBrushProperty);
+            values[System.Windows.Controls.Control.BorderThicknessProperty] = control.GetValue(System.Windows.Controls.Control.BorderThicknessProperty);
+            values[System.Windows.Controls.Control.PaddingProperty] = control.GetValue(System.Windows.Controls.Control.PaddingProperty);
+            values[MinHeightProperty] = control.GetValue(MinHeightProperty);
+        }
+        if (element is CardExpander expander)
+        {
+            values[CardExpander.ContentPaddingProperty] = expander.GetValue(CardExpander.ContentPaddingProperty);
+            values[TemplateProperty] = expander.GetValue(TemplateProperty);
+        }
+        settingsSectionPresentations[element] = values;
+    }
+
+    private void RestoreSettingsSectionPresentation(FrameworkElement element)
+    {
+        CaptureSettingsSectionPresentation(element);
+        foreach ((DependencyProperty property, object value) in settingsSectionPresentations[element])
+        {
+            element.SetCurrentValue(property, value);
         }
     }
 

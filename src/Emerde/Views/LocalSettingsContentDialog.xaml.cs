@@ -305,6 +305,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         ShowIdentityHeader = showIdentityHeader;
         ShowSettingsHeader = showSettingsHeader;
         useGlobalQualityOptionsWhenPlatformUnknown = useGlobalQualityOptions;
+        IsUiXEnabled = Configurations.IsUiXEnabled.Get();
         QualityOptions = useGlobalQualityOptions
             ? StreamQualityCatalog.GlobalOptions
             : StreamQualityCatalog.GetOptions(room.PlatformName);
@@ -552,6 +553,11 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
 
     public RoomRecordingOptions GetRecordingOptions()
     {
+        string scheduleDays = BuildRoutineScheduleDays();
+        int scheduleStartHour = ClampHour(RoutineScheduleStartHour);
+        int scheduleStartMinute = ClampMinute(RoutineScheduleStartMinute);
+        int scheduleEndHour = ClampHour(RoutineScheduleEndHour);
+        int scheduleEndMinute = ClampMinute(RoutineScheduleEndMinute);
         return new RoomRecordingOptions
         {
             PreferredStreamQuality = PreferredQuality,
@@ -570,13 +576,17 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
             RoutineScheduleMode = Math.Clamp(RoutineScheduleModeIndex, 0, 4),
             RoutineScheduleStartDate = RoutineScheduleStartDate.HasValue ? DateOnly.FromDateTime(RoutineScheduleStartDate.Value) : null,
             RoutineScheduleEndDate = RoutineScheduleEndDate.HasValue ? DateOnly.FromDateTime(RoutineScheduleEndDate.Value) : null,
-            RoutineScheduleUseDays = RoutineScheduleUseDays,
-            RoutineScheduleDays = BuildRoutineScheduleDays(),
-            RoutineScheduleUseTimeRange = RoutineScheduleUseTimeRange,
-            RoutineScheduleStartHour = ClampHour(RoutineScheduleStartHour),
-            RoutineScheduleStartMinute = ClampMinute(RoutineScheduleStartMinute),
-            RoutineScheduleEndHour = ClampHour(RoutineScheduleEndHour),
-            RoutineScheduleEndMinute = ClampMinute(RoutineScheduleEndMinute),
+            RoutineScheduleUseDays = RoomRecordingSettings.HasRoutineScheduleDayRestriction(scheduleDays),
+            RoutineScheduleDays = scheduleDays,
+            RoutineScheduleUseTimeRange = RoomRecordingSettings.HasRoutineScheduleTimeRestriction(
+                scheduleStartHour,
+                scheduleStartMinute,
+                scheduleEndHour,
+                scheduleEndMinute),
+            RoutineScheduleStartHour = scheduleStartHour,
+            RoutineScheduleStartMinute = scheduleStartMinute,
+            RoutineScheduleEndHour = scheduleEndHour,
+            RoutineScheduleEndMinute = scheduleEndMinute,
             SaveFolder = SaveFolder,
             SaveFolderPathLevel = Math.Clamp(SaveFolderPathLevelIndex, 0, 3),
             SaveFileNameCustomRule = SaveFileNameCustomRule,
@@ -737,7 +747,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             AppSessionLogger.WriteException(e);
-            Wpf.Ui.Violeta.Controls.Toast.Warning("OpenSaveFolderFailed".Tr(e.Message));
+            AppFeedback.Warning("OpenSaveFolderFailed".Tr(e.Message));
         }
     }
 

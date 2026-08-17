@@ -351,22 +351,21 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock VerticalAlignment="Center" Text="{I18N Date}" />
-                                            <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                                <DatePicker Width="160" SelectedDate="{Binding RoutineScheduleStartDate, Mode=TwoWay}" />
-                                                <TextBlock Margin="12,0" VerticalAlignment="Center" Text="{I18N To}" />
-                                                <DatePicker Width="160" SelectedDate="{Binding RoutineScheduleEndDate, Mode=TwoWay}" />
-                                            </StackPanel>
+                                            <controls:DateRangePicker Grid.Column="1"
+                                                                      Width="224"
+                                                                      HorizontalAlignment="Left"
+                                                                      EndDate="{Binding RoutineScheduleEndDate, Mode=TwoWay}"
+                                                                      SeparatorText="{I18N To}"
+                                                                      StartDate="{Binding RoutineScheduleStartDate, Mode=TwoWay}"
+                                                                      UseUiXVisuals="{Binding IsUiXEnabled}" />
                                         </Grid>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="92" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
-                                                <TextBlock VerticalAlignment="Center" Text="{I18N ScheduleDays}" />
-                                                <ui:ToggleSwitch Margin="10,0,0,0" IsChecked="{Binding RoutineScheduleUseDays, Mode=TwoWay}" />
-                                            </StackPanel>
-                                            <UniformGrid Grid.Column="1" Columns="7" IsEnabled="{Binding RoutineScheduleUseDays}">
+                                            <TextBlock VerticalAlignment="Center" Text="{I18N ScheduleDays}" />
+                                            <UniformGrid Grid.Column="1" Columns="7">
                                                 <ToggleButton Margin="0,0,6,0" HorizontalAlignment="Stretch" Content="{I18N Monday}" IsChecked="{Binding RoutineScheduleMonday, Mode=TwoWay}" />
                                                 <ToggleButton Margin="0,0,6,0" HorizontalAlignment="Stretch" Content="{I18N Tuesday}" IsChecked="{Binding RoutineScheduleTuesday, Mode=TwoWay}" />
                                                 <ToggleButton Margin="0,0,6,0" HorizontalAlignment="Stretch" Content="{I18N Wednesday}" IsChecked="{Binding RoutineScheduleWednesday, Mode=TwoWay}" />
@@ -381,19 +380,25 @@
                                                 <ColumnDefinition Width="92" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
-                                                <TextBlock VerticalAlignment="Center" Text="{I18N TimeRange}" />
-                                                <ui:ToggleSwitch Margin="10,0,0,0" IsChecked="{Binding RoutineScheduleUseTimeRange, Mode=TwoWay}" />
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="1" Orientation="Horizontal" IsEnabled="{Binding RoutineScheduleUseTimeRange}">
-                                                <controls:CompactNumberBox Width="112" Maximum="23" Minimum="0" Value="{Binding RoutineScheduleStartHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                <TextBlock Margin="6,0" VerticalAlignment="Center" Text=":" />
-                                                <controls:CompactNumberBox Width="112" Maximum="59" Minimum="0" Value="{Binding RoutineScheduleStartMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                <TextBlock Margin="12,0" VerticalAlignment="Center" Text="{I18N To}" />
-                                                <controls:CompactNumberBox Width="112" Maximum="23" Minimum="0" Value="{Binding RoutineScheduleEndHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                                <TextBlock Margin="6,0" VerticalAlignment="Center" Text=":" />
-                                                <controls:CompactNumberBox Width="112" Maximum="59" Minimum="0" Value="{Binding RoutineScheduleEndMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                            </StackPanel>
+                                            <TextBlock VerticalAlignment="Center" Text="{I18N TimeRange}" />
+                                            <Grid Grid.Column="1">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" MinWidth="72" MaxWidth="112" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" MinWidth="72" MaxWidth="112" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" MinWidth="72" MaxWidth="112" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" MinWidth="72" MaxWidth="112" />
+                                                </Grid.ColumnDefinitions>
+                                                <controls:CompactNumberBox Grid.Column="0" Maximum="23" Minimum="0" Value="{Binding RoutineScheduleStartHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <TextBlock Grid.Column="1" Margin="6,0" VerticalAlignment="Center" Text=":" />
+                                                <controls:CompactNumberBox Grid.Column="2" Maximum="59" Minimum="0" Value="{Binding RoutineScheduleStartMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <TextBlock Grid.Column="3" Margin="12,0" VerticalAlignment="Center" Text="{I18N To}" />
+                                                <controls:CompactNumberBox Grid.Column="4" Maximum="23" Minimum="0" Value="{Binding RoutineScheduleEndHour, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                <TextBlock Grid.Column="5" Margin="6,0" VerticalAlignment="Center" Text=":" />
+                                                <controls:CompactNumberBox Grid.Column="6" Maximum="59" Minimum="0" Value="{Binding RoutineScheduleEndMinute, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            </Grid>
                                         </Grid>
                                     </ui:StackPanel>
                                 </ui:CardExpander>

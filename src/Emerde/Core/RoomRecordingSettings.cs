@@ -57,6 +57,20 @@ internal static class RoomRecordingSettings
 
     public static RoomRecordingOptions GetGlobal()
     {
+        string scheduleDays = Configurations.RoutineScheduleUseDays.Get()
+            ? NormalizeScheduleDaysSelection(Configurations.RoutineScheduleDays.Get())
+            : string.Empty;
+        int scheduleStartHour = Math.Clamp(Configurations.RoutineScheduleStartHour.Get(), 0, 23);
+        int scheduleStartMinute = Math.Clamp(Configurations.RoutineScheduleStartMinute.Get(), 0, 59);
+        int scheduleEndHour = Math.Clamp(Configurations.RoutineScheduleEndHour.Get(), 0, 23);
+        int scheduleEndMinute = Math.Clamp(Configurations.RoutineScheduleEndMinute.Get(), 0, 59);
+        if (!Configurations.RoutineScheduleUseTimeRange.Get())
+        {
+            scheduleStartHour = 0;
+            scheduleStartMinute = 0;
+            scheduleEndHour = 23;
+            scheduleEndMinute = 59;
+        }
         return new RoomRecordingOptions
         {
             PreferredStreamQuality = StreamQualityCatalog.NormalizePreference(Configurations.PreferredStreamQuality.Get()),
@@ -70,13 +84,17 @@ internal static class RoomRecordingSettings
             RoutineScheduleMode = Math.Clamp(Configurations.RoutineScheduleMode.Get(), 0, 4),
             RoutineScheduleStartDate = ParseScheduleDate(Configurations.RoutineScheduleStartDate.Get()),
             RoutineScheduleEndDate = ParseScheduleDate(Configurations.RoutineScheduleEndDate.Get()),
-            RoutineScheduleUseDays = Configurations.RoutineScheduleUseDays.Get(),
-            RoutineScheduleDays = NormalizeScheduleDays(Configurations.RoutineScheduleDays.Get()),
-            RoutineScheduleUseTimeRange = Configurations.RoutineScheduleUseTimeRange.Get(),
-            RoutineScheduleStartHour = Math.Clamp(Configurations.RoutineScheduleStartHour.Get(), 0, 23),
-            RoutineScheduleStartMinute = Math.Clamp(Configurations.RoutineScheduleStartMinute.Get(), 0, 59),
-            RoutineScheduleEndHour = Math.Clamp(Configurations.RoutineScheduleEndHour.Get(), 0, 23),
-            RoutineScheduleEndMinute = Math.Clamp(Configurations.RoutineScheduleEndMinute.Get(), 0, 59),
+            RoutineScheduleUseDays = HasRoutineScheduleDayRestriction(scheduleDays),
+            RoutineScheduleDays = scheduleDays,
+            RoutineScheduleUseTimeRange = HasRoutineScheduleTimeRestriction(
+                scheduleStartHour,
+                scheduleStartMinute,
+                scheduleEndHour,
+                scheduleEndMinute),
+            RoutineScheduleStartHour = scheduleStartHour,
+            RoutineScheduleStartMinute = scheduleStartMinute,
+            RoutineScheduleEndHour = scheduleEndHour,
+            RoutineScheduleEndMinute = scheduleEndMinute,
             SaveFolder = Configurations.SaveFolder.Get() ?? string.Empty,
             SaveFolderPathLevel = Math.Clamp(Configurations.SaveFolderPathLevel.Get(), 0, 3),
             SaveFileNameCustomRule = NormalizeCustomRule(Configurations.SaveFileNameCustomRule.Get()),
@@ -91,6 +109,22 @@ internal static class RoomRecordingSettings
             return global;
         }
 
+        string scheduleDays = room.RoutineScheduleUseDays == false
+            ? string.Empty
+            : room.RoutineScheduleDays == null
+                ? global.RoutineScheduleDays
+                : NormalizeScheduleDaysSelection(room.RoutineScheduleDays);
+        int scheduleStartHour = Math.Clamp(room.RoutineScheduleStartHour ?? global.RoutineScheduleStartHour, 0, 23);
+        int scheduleStartMinute = Math.Clamp(room.RoutineScheduleStartMinute ?? global.RoutineScheduleStartMinute, 0, 59);
+        int scheduleEndHour = Math.Clamp(room.RoutineScheduleEndHour ?? global.RoutineScheduleEndHour, 0, 23);
+        int scheduleEndMinute = Math.Clamp(room.RoutineScheduleEndMinute ?? global.RoutineScheduleEndMinute, 0, 59);
+        if (room.RoutineScheduleUseTimeRange == false)
+        {
+            scheduleStartHour = 0;
+            scheduleStartMinute = 0;
+            scheduleEndHour = 23;
+            scheduleEndMinute = 59;
+        }
         return new RoomRecordingOptions
         {
             PreferredStreamQuality = StreamQualityCatalog.NormalizePreference(room.PreferredStreamQuality, global.PreferredStreamQuality),
@@ -104,13 +138,17 @@ internal static class RoomRecordingSettings
             RoutineScheduleMode = Math.Clamp(room.RoutineScheduleMode ?? global.RoutineScheduleMode, 0, 4),
             RoutineScheduleStartDate = room.RoutineScheduleStartDate == null ? global.RoutineScheduleStartDate : ParseScheduleDate(room.RoutineScheduleStartDate),
             RoutineScheduleEndDate = room.RoutineScheduleEndDate == null ? global.RoutineScheduleEndDate : ParseScheduleDate(room.RoutineScheduleEndDate),
-            RoutineScheduleUseDays = room.RoutineScheduleUseDays ?? global.RoutineScheduleUseDays,
-            RoutineScheduleDays = NormalizeScheduleDays(room.RoutineScheduleDays, global.RoutineScheduleDays),
-            RoutineScheduleUseTimeRange = room.RoutineScheduleUseTimeRange ?? global.RoutineScheduleUseTimeRange,
-            RoutineScheduleStartHour = Math.Clamp(room.RoutineScheduleStartHour ?? global.RoutineScheduleStartHour, 0, 23),
-            RoutineScheduleStartMinute = Math.Clamp(room.RoutineScheduleStartMinute ?? global.RoutineScheduleStartMinute, 0, 59),
-            RoutineScheduleEndHour = Math.Clamp(room.RoutineScheduleEndHour ?? global.RoutineScheduleEndHour, 0, 23),
-            RoutineScheduleEndMinute = Math.Clamp(room.RoutineScheduleEndMinute ?? global.RoutineScheduleEndMinute, 0, 59),
+            RoutineScheduleUseDays = HasRoutineScheduleDayRestriction(scheduleDays),
+            RoutineScheduleDays = scheduleDays,
+            RoutineScheduleUseTimeRange = HasRoutineScheduleTimeRestriction(
+                scheduleStartHour,
+                scheduleStartMinute,
+                scheduleEndHour,
+                scheduleEndMinute),
+            RoutineScheduleStartHour = scheduleStartHour,
+            RoutineScheduleStartMinute = scheduleStartMinute,
+            RoutineScheduleEndHour = scheduleEndHour,
+            RoutineScheduleEndMinute = scheduleEndMinute,
             SaveFolder = room.SaveFolder ?? global.SaveFolder,
             SaveFolderPathLevel = Math.Clamp(room.SaveFolderPathLevel ?? global.SaveFolderPathLevel, 0, 3),
             SaveFileNameCustomRule = NormalizeCustomRule(room.SaveFileNameCustomRule, global.SaveFileNameCustomRule),
@@ -147,7 +185,7 @@ internal static class RoomRecordingSettings
         room.RoutineScheduleStartDate = FormatScheduleDate(settings.RoutineScheduleStartDate);
         room.RoutineScheduleEndDate = FormatScheduleDate(settings.RoutineScheduleEndDate);
         room.RoutineScheduleUseDays = settings.RoutineScheduleUseDays;
-        room.RoutineScheduleDays = NormalizeScheduleDays(settings.RoutineScheduleDays);
+        room.RoutineScheduleDays = NormalizeScheduleDaysSelection(settings.RoutineScheduleDays);
         room.RoutineScheduleUseTimeRange = settings.RoutineScheduleUseTimeRange;
         room.RoutineScheduleStartHour = Math.Clamp(settings.RoutineScheduleStartHour, 0, 23);
         room.RoutineScheduleStartMinute = Math.Clamp(settings.RoutineScheduleStartMinute, 0, 59);
@@ -204,6 +242,19 @@ internal static class RoomRecordingSettings
         return string.Join(",", order.Where(days.Contains));
     }
 
+    internal static string NormalizeScheduleDaysSelection(string? value, string fallback = DefaultScheduleDays)
+    {
+        if (value == null)
+        {
+            return fallback;
+        }
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+        return NormalizeScheduleDays(value, string.Empty);
+    }
+
     internal static DateOnly? ParseScheduleDate(string? value)
     {
         return DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly date)
@@ -214,6 +265,19 @@ internal static class RoomRecordingSettings
     internal static string FormatScheduleDate(DateOnly? value)
     {
         return value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty;
+    }
+
+    internal static bool HasRoutineScheduleDayRestriction(string? days)
+    {
+        return !string.IsNullOrEmpty(NormalizeScheduleDays(days, fallback: string.Empty));
+    }
+
+    internal static bool HasRoutineScheduleTimeRestriction(int startHour, int startMinute, int endHour, int endMinute)
+    {
+        return Math.Clamp(startHour, 0, 23) != 0
+            || Math.Clamp(startMinute, 0, 59) != 0
+            || Math.Clamp(endHour, 0, 23) != 23
+            || Math.Clamp(endMinute, 0, 59) != 59;
     }
 
     internal static string NormalizeCustomRule(string? value, string fallback = DefaultSaveFileNameCustomRule)
@@ -233,11 +297,14 @@ internal static class RoomRecordingSettings
         }
 
         int mode = Math.Clamp(Configurations.RoutineScheduleMode.Get(), 0, 4);
-        int startHour = Math.Clamp(Configurations.RoutineScheduleStartHour.Get(), 0, 23);
-        int startMinute = Math.Clamp(Configurations.RoutineScheduleStartMinute.Get(), 0, 59);
-        int endHour = Math.Clamp(Configurations.RoutineScheduleEndHour.Get(), 0, 23);
-        int endMinute = Math.Clamp(Configurations.RoutineScheduleEndMinute.Get(), 0, 59);
-        string days = NormalizeScheduleDays(Configurations.RoutineScheduleDays.Get());
+        bool useTimeRange = Configurations.RoutineScheduleUseTimeRange.Get();
+        int startHour = useTimeRange ? Math.Clamp(Configurations.RoutineScheduleStartHour.Get(), 0, 23) : 0;
+        int startMinute = useTimeRange ? Math.Clamp(Configurations.RoutineScheduleStartMinute.Get(), 0, 59) : 0;
+        int endHour = useTimeRange ? Math.Clamp(Configurations.RoutineScheduleEndHour.Get(), 0, 23) : 23;
+        int endMinute = useTimeRange ? Math.Clamp(Configurations.RoutineScheduleEndMinute.Get(), 0, 59) : 59;
+        string days = Configurations.RoutineScheduleUseDays.Get()
+            ? NormalizeScheduleDaysSelection(Configurations.RoutineScheduleDays.Get())
+            : string.Empty;
         DateOnly? startDate = ParseScheduleDate(Configurations.RoutineScheduleStartDate.Get());
         DateOnly? endDate = ParseScheduleDate(Configurations.RoutineScheduleEndDate.Get());
         NormalizeDateRange(ref startDate, ref endDate);
@@ -290,13 +357,26 @@ internal static class RoomRecordingSettings
     private static bool NormalizeRoomSchedule(Room room)
     {
         bool changed = false;
+        if (room.RoutineScheduleUseTimeRange == false)
+        {
+            changed |= room.RoutineScheduleStartHour != 0;
+            changed |= room.RoutineScheduleStartMinute != 0;
+            changed |= room.RoutineScheduleEndHour != 23;
+            changed |= room.RoutineScheduleEndMinute != 59;
+            room.RoutineScheduleStartHour = 0;
+            room.RoutineScheduleStartMinute = 0;
+            room.RoutineScheduleEndHour = 23;
+            room.RoutineScheduleEndMinute = 59;
+        }
         changed |= SetClampedValue(room.RoutineScheduleStartHour, 0, 23, value => room.RoutineScheduleStartHour = value);
         changed |= SetClampedValue(room.RoutineScheduleStartMinute, 0, 59, value => room.RoutineScheduleStartMinute = value);
         changed |= SetClampedValue(room.RoutineScheduleEndHour, 0, 23, value => room.RoutineScheduleEndHour = value);
         changed |= SetClampedValue(room.RoutineScheduleEndMinute, 0, 59, value => room.RoutineScheduleEndMinute = value);
         if (room.RoutineScheduleDays != null)
         {
-            string days = NormalizeScheduleDays(room.RoutineScheduleDays);
+            string days = room.RoutineScheduleUseDays == false
+                ? string.Empty
+                : NormalizeScheduleDaysSelection(room.RoutineScheduleDays);
             changed |= !string.Equals(room.RoutineScheduleDays, days, StringComparison.Ordinal);
             room.RoutineScheduleDays = days;
         }

@@ -450,6 +450,68 @@ public sealed class GlobalMonitorTests
         Assert.Equal(new DateOnly(2026, 8, 20), end);
     }
 
+    [Theory]
+    [InlineData("", false)]
+    [InlineData("Monday", true)]
+    [InlineData("invalid", false)]
+    public void RoutineScheduleDayRestriction_UsesEmptySelectionAsNoRestriction(string days, bool expected)
+    {
+        Assert.Equal(expected, RoomRecordingSettings.HasRoutineScheduleDayRestriction(days));
+    }
+
+    [Theory]
+    [InlineData(0, 0, 23, 59, false)]
+    [InlineData(8, 0, 23, 59, true)]
+    [InlineData(0, 0, 18, 30, true)]
+    public void RoutineScheduleTimeRestriction_UsesFullDayAsNoRestriction(
+        int startHour,
+        int startMinute,
+        int endHour,
+        int endMinute,
+        bool expected)
+    {
+        Assert.Equal(expected, RoomRecordingSettings.HasRoutineScheduleTimeRestriction(
+            startHour,
+            startMinute,
+            endHour,
+            endMinute));
+    }
+
+    [Fact]
+    public void RoomRecordingSettings_PreservesDisabledLegacyScheduleRestrictions()
+    {
+        Room room = new()
+        {
+            IsFollowGlobalSettings = false,
+            RoutineScheduleUseDays = false,
+            RoutineScheduleDays = DayOfWeek.Monday.ToString(),
+            RoutineScheduleUseTimeRange = false,
+            RoutineScheduleStartHour = 9,
+            RoutineScheduleStartMinute = 0,
+            RoutineScheduleEndHour = 18,
+            RoutineScheduleEndMinute = 0,
+        };
+
+        RoomRecordingOptions settings = RoomRecordingSettings.Get(room);
+
+        Assert.False(settings.RoutineScheduleUseDays);
+        Assert.Empty(settings.RoutineScheduleDays);
+        Assert.False(settings.RoutineScheduleUseTimeRange);
+        Assert.Equal(0, settings.RoutineScheduleStartHour);
+        Assert.Equal(0, settings.RoutineScheduleStartMinute);
+        Assert.Equal(23, settings.RoutineScheduleEndHour);
+        Assert.Equal(59, settings.RoutineScheduleEndMinute);
+    }
+
+    [Fact]
+    public void NormalizeScheduleDaysSelection_PreservesExplicitEmptySelection()
+    {
+        Assert.Empty(RoomRecordingSettings.NormalizeScheduleDaysSelection(string.Empty));
+        Assert.Equal(
+            "Monday,Wednesday",
+            RoomRecordingSettings.NormalizeScheduleDaysSelection("Wednesday,Monday"));
+    }
+
     [Fact]
     public void ApplyRoomRecordingSettings_MigratesLegacyRecordingTimeToken()
     {

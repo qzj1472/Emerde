@@ -64,19 +64,19 @@ public sealed class SettingsViewModelTests
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml"));
         string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml.cs"));
         XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
-        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace controls = "clr-namespace:Emerde.Controls";
 
         Assert.Contains(document.Descendants(), element =>
             element.Name.LocalName == "Grid"
             && (string?)element.Attribute(xaml + "Name") == "SettingsUiXPanel");
         XElement leftColumn = document.Descendants().Single(element =>
-            element.Name.LocalName == "StackPanel"
+            element.Name.LocalName == "ResizeOptimizedStackPanel"
             && (string?)element.Attribute(xaml + "Name") == "SettingsUiXLeftColumn");
         XElement rightColumn = document.Descendants().Single(element =>
-            element.Name.LocalName == "StackPanel"
+            element.Name.LocalName == "ResizeOptimizedStackPanel"
             && (string?)element.Attribute(xaml + "Name") == "SettingsUiXRightColumn");
-        Assert.Equal(presentation, leftColumn.Name.Namespace);
-        Assert.Equal(presentation, rightColumn.Name.Namespace);
+        Assert.Equal(controls, leftColumn.Name.Namespace);
+        Assert.Equal(controls, rightColumn.Name.Namespace);
         Assert.Contains(document.Descendants(), element =>
             element.Name.LocalName == "StackPanel"
             && (string?)element.Attribute(xaml + "Name") == "SettingsUiXBottomPanel");
@@ -103,7 +103,7 @@ public sealed class SettingsViewModelTests
             && (string?)element.Attribute(xaml + "Name") == "UiXChevronPath");
         Assert.Contains("isIndentedContent", code, StringComparison.Ordinal);
         Assert.Contains("if (isIndentedContent)", code, StringComparison.Ordinal);
-        Assert.Contains("new Thickness(52, margin.Top, margin.Right, margin.Bottom)", code, StringComparison.Ordinal);
+        Assert.Contains("new Thickness(SettingsUiXChildIndent, margin.Top, margin.Right, margin.Bottom)", code, StringComparison.Ordinal);
         Assert.Contains("if (!isTrailingControl)", code, StringComparison.Ordinal);
         Assert.DoesNotContain("? new Thickness(0, margin.Top, 0, margin.Bottom)", code, StringComparison.Ordinal);
         Assert.Contains("ViewModel.IsUiXEnabled && !ReferenceEquals(expander, CookieSettingsExpander)", code, StringComparison.Ordinal);
@@ -302,29 +302,98 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
-    public void SettingsUiX_CustomScheduleUsesCompactInputsWithoutChangingLegacyWidth()
+    public void Settings_CustomScheduleTimeInputsShareAvailableWidthWithinLimits()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml"));
+        XElement timeGrid = document.Descendants()
+            .Single(element => element.Name.LocalName == "Grid"
+                && element.Elements().Count(child => child.Name.LocalName == "CompactNumberBox") == 4);
+        XElement definitions = timeGrid.Elements().Single(element => element.Name.LocalName == "Grid.ColumnDefinitions");
+        XElement[] flexibleColumns = definitions.Elements()
+            .Where(element => (string?)element.Attribute("Width") == "*")
+            .ToArray();
+
+        Assert.Equal(4, flexibleColumns.Length);
+        Assert.All(flexibleColumns, column =>
+        {
+            Assert.Equal("72", (string?)column.Attribute("MinWidth"));
+            Assert.Equal("112", (string?)column.Attribute("MaxWidth"));
+        });
+    }
+
+    [Theory]
+    [InlineData(939, true, false)]
+    [InlineData(940, true, true)]
+    [InlineData(940, false, false)]
+    [InlineData(999, true, true)]
+    [InlineData(999, false, false)]
+    [InlineData(1000, false, true)]
+    [InlineData(1000, null, true)]
+    public void SettingsUiXResponsiveColumns_UseDirectionalHysteresis(double width, bool? currentState, bool expected)
+    {
+        Assert.Equal(expected, SettingsWindow.ResolveSettingsUiXTwoColumnState(width, currentState));
+    }
+
+    [Theory]
+    [InlineData(687, true, false)]
+    [InlineData(688, true, true)]
+    [InlineData(711, false, false)]
+    [InlineData(712, false, true)]
+    public void SettingsSaveMetadataLayout_UsesDirectionalHysteresis(double width, bool? currentState, bool expected)
+    {
+        Assert.Equal(expected, SettingsWindow.ResolveSettingsUiXSaveMetadataOneRowState(width, currentState));
+    }
+
+    [Fact]
+    public void SettingsUiXResponsiveLayout_UsesAutomaticScrollingAndPreservesLocalSpacing()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml"));
         string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml.cs"));
         XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
-        string[] names =
-        [
-            "RoutineScheduleStartHourInput",
-            "RoutineScheduleStartMinuteInput",
-            "RoutineScheduleEndHourInput",
-            "RoutineScheduleEndMinuteInput",
-        ];
 
-        foreach (string name in names)
-        {
-            XElement input = document.Descendants()
-                .Single(element => (string?)element.Attribute(xaml + "Name") == name);
-            Assert.Equal("112", (string?)input.Attribute("Width"));
-        }
+        XElement scrollViewer = document.Descendants()
+            .Single(element => (string?)element.Attribute(xaml + "Name") == "SettingsScrollViewer");
+        XElement bottomPanel = document.Descendants()
+            .Single(element => (string?)element.Attribute(xaml + "Name") == "SettingsUiXBottomPanel");
 
-        Assert.Contains("if (ViewModel.IsUiXEnabled && ShouldUseSettingsUiXTwoColumns())", code, StringComparison.Ordinal);
-        Assert.Contains("Math.Clamp(Math.Floor(scheduleContentWidth / 4d), 64d, 112d)", code, StringComparison.Ordinal);
-        Assert.Contains("ApplySettingsUiXScheduleWidths();", code, StringComparison.Ordinal);
+        Assert.Equal("Auto", (string?)scrollViewer.Attribute("VerticalScrollBarVisibility"));
+        Assert.Equal("0", (string?)bottomPanel.Attribute("Margin"));
+        Assert.Contains("SettingsUiXGroupSpacing = 16d", code, StringComparison.Ordinal);
+        Assert.Contains("SettingsUiXChildIndent = 52d", code, StringComparison.Ordinal);
+        Assert.Contains("double verticalOffset = pendingSettingsScrollOffset ?? SettingsScrollViewer.VerticalOffset", code, StringComparison.Ordinal);
+        Assert.Contains("RestoreSettingsScrollOffset(verticalOffset)", code, StringComparison.Ordinal);
+        Assert.Contains("UpdateSettingsUiXItemWidths(preserveScrollOffset: false)", code, StringComparison.Ordinal);
+        Assert.Contains("CancelPendingSettingsScrollRestore()", code, StringComparison.Ordinal);
+        Assert.Contains("RestoreSettingsSectionPresentation(element)", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("element.ClearValue(WidthProperty)", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SettingsUiXResize_UsesNaturalLayoutAndCoalescesIndicatorUpdates()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml"));
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml.cs"));
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement content = document.Descendants()
+            .Single(element => (string?)element.Attribute(xaml + "Name") == "SettingsDialogContent");
+        XElement leftColumn = document.Descendants()
+            .Single(element => (string?)element.Attribute(xaml + "Name") == "SettingsUiXLeftColumn");
+        XElement rightColumn = document.Descendants()
+            .Single(element => (string?)element.Attribute(xaml + "Name") == "SettingsUiXRightColumn");
+
+        Assert.Same(document.Root, content.Parent);
+        Assert.Equal("ResizeOptimizedStackPanel", leftColumn.Name.LocalName);
+        Assert.Equal("ResizeOptimizedStackPanel", rightColumn.Name.LocalName);
+        Assert.DoesNotContain(document.Descendants(), element => (string?)element.Attribute(xaml + "Name") is "SettingsResizeViewport" or "SettingsResizeSurface");
+        Assert.DoesNotContain("interactiveResizeScale", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("BeginInteractiveResize", code, StringComparison.Ordinal);
+        Assert.Contains("MoveSettingsUiXGroupContainers()", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReflowAttachedSettingsSections", code, StringComparison.Ordinal);
+        Assert.Contains("SettingsFocusNavigationPanel.SizeChanged", code, StringComparison.Ordinal);
+        Assert.Contains("QueueSettingsResponsiveLayoutUpdate()", code, StringComparison.Ordinal);
+        Assert.Contains("settingsResponsiveLayoutUpdateOperation", code, StringComparison.Ordinal);
+        Assert.Contains("DispatcherOperationStatus.Pending or DispatcherOperationStatus.Executing", code, StringComparison.Ordinal);
+        Assert.Contains("DispatcherPriority.Render", code, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -440,8 +509,9 @@ public sealed class SettingsViewModelTests
         XElement retentionControls = retentionPanel.Descendants()
             .Single(element => (string?)element.Attribute(xaml + "Name") == "DataRetentionControls");
         Assert.Equal(["CompactNumberBox", "ComboBox", "ToggleSwitch"], retentionControls.Elements().Select(element => element.Name.LocalName));
-        Assert.Contains("bool keepOnOneRow = availableWidth >= 712d", code, StringComparison.Ordinal);
-        Assert.Contains("SavePathLevelSelector.Width = ShouldUseSettingsUiXTwoColumns() ? 148d : 168d", code, StringComparison.Ordinal);
+        Assert.Contains("ResolveSettingsUiXSaveMetadataOneRowState", code, StringComparison.Ordinal);
+        Assert.Contains("SettingsUiXSaveMetadataOneRowExitWidth = 688d", code, StringComparison.Ordinal);
+        Assert.Contains("double selectorWidth = isUiXEnabled", code, StringComparison.Ordinal);
         Assert.Contains("DataRetentionControls.Children.Add(DataRetentionSwitch)", code, StringComparison.Ordinal);
         Assert.Contains("DataRetentionControls.Children.Add(DataRetentionValueInput)", code, StringComparison.Ordinal);
     }
@@ -502,13 +572,17 @@ public sealed class SettingsViewModelTests
             .Single(element => element.Name.LocalName == "Border"
                 && ((string?)element.Attribute("Visibility"))?.Contains("IsRoutineScheduleCustom", StringComparison.Ordinal) == true);
         Assert.DoesNotContain(customSchedule.Descendants(), element => element.Name.LocalName == "DockPanel");
-        Assert.Equal(2, customSchedule.Descendants().Count(element => element.Name.LocalName == "DatePicker"));
+        Assert.DoesNotContain(customSchedule.Descendants(), element => element.Name.LocalName == "DatePicker");
+        Assert.Single(customSchedule.Descendants(), element => element.Name.LocalName == "DateRangePicker");
         Assert.Contains(customSchedule.Descendants(), element => element.Name.LocalName == "UniformGrid"
             && (string?)element.Attribute("Columns") == "7");
-        Assert.Contains(customSchedule.Descendants(), element => element.Name.LocalName == "ToggleSwitch"
-            && ((string?)element.Attribute("IsChecked"))?.Contains("RoutineScheduleUseDays", StringComparison.Ordinal) == true);
-        Assert.Contains(customSchedule.Descendants(), element => element.Name.LocalName == "ToggleSwitch"
-            && ((string?)element.Attribute("IsChecked"))?.Contains("RoutineScheduleUseTimeRange", StringComparison.Ordinal) == true);
+        Assert.DoesNotContain(customSchedule.Descendants(), element => element.Name.LocalName == "ToggleSwitch"
+            && (((string?)element.Attribute("IsChecked"))?.Contains("RoutineScheduleUseDays", StringComparison.Ordinal) == true
+                || ((string?)element.Attribute("IsChecked"))?.Contains("RoutineScheduleUseTimeRange", StringComparison.Ordinal) == true));
+        XElement timeLayout = customSchedule.Descendants()
+            .Single(element => element.Name.LocalName == "Grid"
+                && element.Elements().Count(child => child.Name.LocalName == "CompactNumberBox") == 4);
+        Assert.Equal(4, timeLayout.Elements().Count(element => element.Name.LocalName == "CompactNumberBox"));
 
         XElement saveFolder = document.Descendants()
             .Single(element => element.Name.LocalName == "TextBox"
@@ -517,6 +591,9 @@ public sealed class SettingsViewModelTests
         Assert.Contains("RoutineScheduleStartDate = settings.RoutineScheduleStartDate", editorCode, StringComparison.Ordinal);
         Assert.Contains("RoutineScheduleUseDays = settings.RoutineScheduleUseDays", editorCode, StringComparison.Ordinal);
         Assert.Contains("RoutineScheduleUseTimeRange = settings.RoutineScheduleUseTimeRange", editorCode, StringComparison.Ordinal);
+        Assert.Contains("IsUiXEnabled = Configurations.IsUiXEnabled.Get()", editorCode, StringComparison.Ordinal);
+        Assert.Contains("HasRoutineScheduleDayRestriction", editorCode, StringComparison.Ordinal);
+        Assert.Contains("HasRoutineScheduleTimeRestriction", editorCode, StringComparison.Ordinal);
         Assert.Contains("SaveFileNameCustomRule = settings.SaveFileNameCustomRule", editorCode, StringComparison.Ordinal);
         Assert.DoesNotContain("? string.Empty\n            : settings.SaveFileNameCustomRule", editorCode, StringComparison.Ordinal);
     }
@@ -684,7 +761,8 @@ public sealed class SettingsViewModelTests
                 && element.Elements().Count(child => child.Name.LocalName == "ToggleButton") == 7);
 
         Assert.Equal("7", (string?)uniformGrid.Attribute("Columns"));
-        Assert.All(uniformGrid.Elements(), button => Assert.Equal("Stretch", (string?)button.Attribute("HorizontalAlignment")));
+        Assert.All(uniformGrid.Elements().Where(element => element.Name.LocalName == "ToggleButton"),
+            button => Assert.Equal("Stretch", (string?)button.Attribute("HorizontalAlignment")));
     }
 
     [Theory]

@@ -428,11 +428,11 @@ public partial class SettingsViewModel : ReactiveObject
 
         if (succeeded)
         {
-            Toast.Success("SuccOp".Tr());
+            AppFeedback.Success("SuccOp".Tr());
         }
         else
         {
-            Toast.Warning("FailOp".Tr());
+            AppFeedback.Warning("FailOp".Tr());
         }
     }
 
@@ -819,17 +819,17 @@ public partial class SettingsViewModel : ReactiveObject
             });
             if (result.Deferred > 0)
             {
-                Toast.Warning("TranscodeStopPending".Tr());
+                AppFeedback.Warning("TranscodeStopPending".Tr(), key: "transcode-stop");
             }
             else if (result.Cancelled > 0)
             {
-                Toast.Information("TranscodeStopCompleted".Tr());
+                AppFeedback.Information("TranscodeStopCompleted".Tr(), key: "transcode-stop");
             }
         }
         catch (Exception e)
         {
             AppSessionLogger.WriteException(e);
-            Toast.Warning("TranscodeStopFailed".Tr());
+            AppFeedback.Warning("TranscodeStopFailed".Tr(), key: "transcode-stop");
         }
     }
 
@@ -1107,7 +1107,7 @@ public partial class SettingsViewModel : ReactiveObject
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             AppSessionLogger.WriteException(e);
-            Toast.Warning("OpenSaveFolderFailed".Tr(e.Message));
+            AppFeedback.Warning("OpenSaveFolderFailed".Tr(e.Message));
         }
     }
 
@@ -1220,7 +1220,7 @@ public partial class SettingsViewModel : ReactiveObject
     {
         if (!TryCreateProxyUri(ProxyUrl, out Uri? proxyUri, out string errorKey))
         {
-            Toast.Error(errorKey.Tr());
+            AppFeedback.Error(errorKey.Tr());
             return;
         }
 
@@ -1238,15 +1238,15 @@ public partial class SettingsViewModel : ReactiveObject
             using HttpResponseMessage response = await httpClient.GetAsync("https://www.google.com", timeout.Token);
             response.EnsureSuccessStatusCode();
 
-            Toast.Success("ProxySuccOfStatusCode".Tr(response.StatusCode));
+            AppFeedback.Success("ProxySuccOfStatusCode".Tr(response.StatusCode));
         }
         catch (HttpRequestException e)
         {
-            Toast.Error("ProxyErrorOfExceptionMessage".Tr(e.Message));
+            AppFeedback.Error("ProxyErrorOfExceptionMessage".Tr(e.Message));
         }
         catch (OperationCanceledException)
         {
-            Toast.Error("ProxyErrorOfExceptionMessage".Tr("Timeout"));
+            AppFeedback.Error("ProxyErrorOfExceptionMessage".Tr("Timeout"));
         }
     }
 
@@ -1335,7 +1335,7 @@ public partial class SettingsViewModel : ReactiveObject
         if (!PlatformCookieAcquisition.TryGetProfile(item.PlatformName, out PlatformCookieAcquisitionProfile? profile)
             || profile == null)
         {
-            Toast.Warning("CookieLoginUnsupported".Tr());
+            AppFeedback.Warning("CookieLoginUnsupported".Tr());
             return;
         }
 
@@ -1345,7 +1345,7 @@ public partial class SettingsViewModel : ReactiveObject
             if (window.ShowDialog() == true && !string.IsNullOrWhiteSpace(window.AcquiredCookieHeader))
             {
                 item.Cookie = window.AcquiredCookieHeader;
-                Toast.Success("CookieLoginSaved".Tr(item.DisplayName));
+                AppFeedback.Success("CookieLoginSaved".Tr(item.DisplayName));
             }
         }
         catch (Exception exception)
@@ -1355,7 +1355,7 @@ public partial class SettingsViewModel : ReactiveObject
                 item.PlatformName,
                 type = exception.GetType().Name,
             });
-            Toast.Error("CookieLoginOpenFailed".Tr(exception.Message));
+            AppFeedback.Error("CookieLoginOpenFailed".Tr(exception.Message));
         }
     }
 
@@ -1455,12 +1455,12 @@ public partial class SettingsViewModel : ReactiveObject
                 ? LogExporter.ExportToday(targetDirectory)
                 : LogExporter.ExportAll(targetDirectory));
             AppSessionLogger.Write($"logs exported to {exportPath}");
-            Toast.Success("LogsExported".Tr(exportPath));
+            AppFeedback.Success("LogsExported".Tr(exportPath));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             AppSessionLogger.WriteException(e);
-            Toast.Error("LogExportFailed".Tr(e.Message));
+            AppFeedback.Error("LogExportFailed".Tr(e.Message));
         }
     }
 
@@ -1503,12 +1503,12 @@ public partial class SettingsViewModel : ReactiveObject
         {
             string exportPath = ConfigFileManager.Export(dialog.FileName);
             AppSessionLogger.Write($"config exported to {exportPath}");
-            Toast.Success("ConfigExported".Tr());
+            AppFeedback.Success("ConfigExported".Tr());
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             AppSessionLogger.WriteException(e);
-            Toast.Error("ConfigExportFailed".Tr(e.Message));
+            AppFeedback.Error("ConfigExportFailed".Tr(e.Message));
         }
     }
 
@@ -1579,7 +1579,7 @@ public partial class SettingsViewModel : ReactiveObject
 
         if (selected.Action == ConfigRestoreOptionAction.Reset)
         {
-            await ResetConfigCoreAsync(confirmBeforeReset: false);
+            await ResetConfigCoreAsync();
             return;
         }
 
@@ -1589,17 +1589,26 @@ public partial class SettingsViewModel : ReactiveObject
             return;
         }
 
+        ConfigurationSessionSnapshot? snapshot = null;
+        bool applied = false;
         try
         {
+            if (!await ConfirmConfigChangeRestartAsync("ConfigRestored".Tr()))
+            {
+                return;
+            }
+            snapshot = ConfigFileManager.CaptureSessionSnapshot();
             string backupPath = ConfigFileManager.RestoreBackup(selected.FilePath);
+            applied = true;
             AppSessionLogger.Write($"config restored from {selected.FilePath}; backup={backupPath}");
-            Toast.Success("ConfigRestored".Tr());
-            await RestartIfConfirmedAsync(BuildConfigChangedRestartMessage("ConfigRestored".Tr(), backupPath));
+            AppFeedback.Success("ConfigRestored".Tr());
+            await RestartAfterConfigChangeAsync(snapshot);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
         {
+            RestoreOrDiscardConfigSnapshot(snapshot, applied);
             AppSessionLogger.WriteException(e);
-            Toast.Error("ConfigRestoreFailed".Tr(e.Message));
+            AppFeedback.Error("ConfigRestoreFailed".Tr(e.Message));
         }
     }
 
@@ -1627,20 +1636,20 @@ public partial class SettingsViewModel : ReactiveObject
             if (content.SelectOptionByFilePath(point.FilePath))
             {
                 AppSessionLogger.Write($"config import reused existing restore point from {importPath}; stored={point.FilePath}");
-                Toast.Information("ConfigBackupAlreadyExists".Tr());
+                AppFeedback.Information("ConfigBackupAlreadyExists".Tr());
                 return true;
             }
 
             ConfigRestoreOption option = BuildConfigRestoreOption(point);
             content.AddOptionAndSelect(option);
             AppSessionLogger.Write($"config staged for restore import from {importPath}; stored={point.FilePath}");
-            Toast.Success("ConfigAddedToRestoreList".Tr());
+            AppFeedback.Success("ConfigAddedToRestoreList".Tr());
             return true;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
         {
             AppSessionLogger.WriteException(e);
-            Toast.Error("ConfigImportFailed".Tr(e.Message));
+            AppFeedback.Error("ConfigImportFailed".Tr(e.Message));
             return false;
         }
     }
@@ -1661,73 +1670,66 @@ public partial class SettingsViewModel : ReactiveObject
 
     private async Task ImportSelectedConfigAsync(ConfigRestoreOption selected)
     {
+        ConfigurationSessionSnapshot? snapshot = null;
+        bool applied = false;
         try
         {
+            if (!await ConfirmConfigChangeRestartAsync("ConfigImported".Tr()))
+            {
+                return;
+            }
+            snapshot = ConfigFileManager.CaptureSessionSnapshot();
             string backupPath = ConfigFileManager.Import(selected.FilePath);
+            applied = true;
             string[] unavailableSecrets = SecretProtector.GetUnavailableStoredSecretNames();
             AppSessionLogger.Write($"config imported from {selected.FilePath}; backup={backupPath}");
             if (unavailableSecrets.Length == 0)
             {
-                Toast.Success("ConfigImported".Tr());
+                AppFeedback.Success("ConfigImported".Tr());
             }
             else
             {
-                Toast.Warning("ConfigImportedUnavailableSecrets".Tr(string.Join("、", unavailableSecrets)));
+                AppFeedback.Warning("ConfigImportedUnavailableSecrets".Tr(string.Join("、", unavailableSecrets)));
             }
-            await RestartIfConfirmedAsync(BuildConfigChangedRestartMessage("ConfigImported".Tr(), backupPath));
+            await RestartAfterConfigChangeAsync(snapshot);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
         {
+            RestoreOrDiscardConfigSnapshot(snapshot, applied);
             AppSessionLogger.WriteException(e);
-            Toast.Error("ConfigImportFailed".Tr(e.Message));
+            AppFeedback.Error("ConfigImportFailed".Tr(e.Message));
         }
     }
 
     [RelayCommand]
     private async Task ResetConfigAsync()
     {
-        await ResetConfigCoreAsync(confirmBeforeReset: true);
+        await ResetConfigCoreAsync();
     }
 
-    private async Task ResetConfigCoreAsync(bool confirmBeforeReset)
+    private async Task ResetConfigCoreAsync()
     {
-        if (confirmBeforeReset)
+        if (!await ConfirmConfigChangeRestartAsync("ConfigReset".Tr()))
         {
-            bool confirmed;
-            if (UiXDialogContent.IsEnabled)
-            {
-                confirmed = await UiXDialogContent.ConfirmAsync(
-                    OwnerWindow,
-                    "ConfigReset".Tr(),
-                    "ConfirmResetConfig".Tr(),
-                    "Yes".Tr(),
-                    "No".Tr(),
-                    Wpf.Ui.Controls.FontSymbols.Delete,
-                    UiXDialogTone.Danger);
-            }
-            else
-            {
-                using DialogBlurScope blurScope = DialogBlurScope.ForMessageBox(OwnerWindow);
-                confirmed = MessageBox.Question("ConfirmResetConfig".Tr()) == System.Windows.MessageBoxResult.Yes;
-            }
-            if (!confirmed)
-            {
-                return;
-            }
+            return;
         }
 
+        ConfigurationSessionSnapshot? snapshot = null;
+        bool applied = false;
         try
         {
+            snapshot = ConfigFileManager.CaptureSessionSnapshot();
             string[] backupPaths = ConfigFileManager.Reset();
-            string backupText = backupPaths.Length == 0 ? "NoConfigFilesToBackup".Tr() : string.Join(Environment.NewLine, backupPaths);
+            applied = true;
             AppSessionLogger.Write($"config reset; backups={string.Join("|", backupPaths)}");
-            Toast.Success("ConfigReset".Tr());
-            await RestartIfConfirmedAsync("ConfigResetRestartPrompt".Tr(backupText));
+            AppFeedback.Success("ConfigReset".Tr());
+            await RestartAfterConfigChangeAsync(snapshot);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
+            RestoreOrDiscardConfigSnapshot(snapshot, applied);
             AppSessionLogger.WriteException(e);
-            Toast.Error("ConfigResetFailed".Tr(e.Message));
+            AppFeedback.Error("ConfigResetFailed".Tr(e.Message));
         }
     }
 
@@ -1760,14 +1762,6 @@ public partial class SettingsViewModel : ReactiveObject
             imported ? ConfigRestoreOptionAction.Import : ConfigRestoreOptionAction.Restore);
     }
 
-    private static string BuildConfigChangedRestartMessage(string actionText, string backupPath)
-    {
-        string backupText = string.IsNullOrWhiteSpace(backupPath)
-            ? "NoMeaningfulConfigBackup".Tr()
-            : "CurrentConfigBackup".Tr(backupPath);
-        return "ConfigChangedRestartPrompt".Tr(actionText, backupText);
-    }
-
     private static bool IsRoutineScheduleDayEnabled(DayOfWeek day)
     {
         return Configurations.RoutineScheduleDays.Get()
@@ -1775,12 +1769,12 @@ public partial class SettingsViewModel : ReactiveObject
             .Contains(day.ToString(), StringComparer.OrdinalIgnoreCase);
     }
 
-    private async Task RestartIfConfirmedAsync(string message)
+    private async Task<bool> ConfirmConfigChangeRestartAsync(string actionText)
     {
-        bool confirmed;
+        string message = "ConfigChangeRestartConfirmation".Tr(actionText);
         if (UiXDialogContent.IsEnabled)
         {
-            confirmed = await UiXDialogContent.ConfirmAsync(
+            return await UiXDialogContent.ConfirmAsync(
                 OwnerWindow,
                 "Title".Tr(),
                 message,
@@ -1789,15 +1783,34 @@ public partial class SettingsViewModel : ReactiveObject
                 Wpf.Ui.Controls.FontSymbols.PowerButton,
                 UiXDialogTone.Information);
         }
-        else
+        using DialogBlurScope blurScope = DialogBlurScope.ForMessageBox(OwnerWindow);
+        return await MessageBox.QuestionAsync(message) == System.Windows.MessageBoxResult.Yes;
+    }
+
+    private async Task RestartAfterConfigChangeAsync(ConfigurationSessionSnapshot snapshot)
+    {
+        bool restarted = await TrayIconManager.GetInstance().RestartApplicationAsync(
+            confirmRecording: false,
+            beforeSuccessfulExit: () => ConfigFileManager.DiscardSessionSnapshot(snapshot),
+            restartFailed: () => ConfigFileManager.RestoreSessionSnapshot(snapshot));
+        if (!restarted)
         {
-            using DialogBlurScope blurScope = DialogBlurScope.ForMessageBox(OwnerWindow);
-            confirmed = await MessageBox.QuestionAsync(message) == System.Windows.MessageBoxResult.Yes;
+            AppFeedback.Error("ConfigRestartFailedRolledBack".Tr());
         }
-        if (confirmed)
+    }
+
+    private static void RestoreOrDiscardConfigSnapshot(ConfigurationSessionSnapshot? snapshot, bool restore)
+    {
+        if (snapshot == null)
         {
-            await TrayIconManager.GetInstance().RestartApplicationAsync(confirmRecording: false);
+            return;
         }
+        if (restore)
+        {
+            ConfigFileManager.RestoreSessionSnapshot(snapshot);
+            return;
+        }
+        ConfigFileManager.DiscardSessionSnapshot(snapshot);
     }
 
     private static void NotifyRuntimeConfigurationChanged(bool recheckRooms = false)
@@ -1817,7 +1830,14 @@ public partial class SettingsViewModel : ReactiveObject
         if (RoutineScheduleSaturday) days.Add(DayOfWeek.Saturday.ToString());
         if (RoutineScheduleSunday) days.Add(DayOfWeek.Sunday.ToString());
 
-        Configurations.RoutineScheduleDays.Set(string.Join(",", days));
+        string value = string.Join(",", days);
+        bool useDays = RoomRecordingSettings.HasRoutineScheduleDayRestriction(value);
+        Configurations.RoutineScheduleDays.Set(value);
+        if (RoutineScheduleUseDays != useDays)
+        {
+            RoutineScheduleUseDays = useDays;
+            return;
+        }
         SaveRoutineScheduleChange();
     }
 
@@ -1895,6 +1915,17 @@ public partial class SettingsViewModel : ReactiveObject
 
             Configurations.RoutineScheduleEndHour.Set(normalizedHour);
             Configurations.RoutineScheduleEndMinute.Set(normalizedMinute);
+        }
+
+        bool useTimeRange = RoomRecordingSettings.HasRoutineScheduleTimeRestriction(
+            RoutineScheduleStartHour,
+            RoutineScheduleStartMinute,
+            RoutineScheduleEndHour,
+            RoutineScheduleEndMinute);
+        if (RoutineScheduleUseTimeRange != useTimeRange)
+        {
+            RoutineScheduleUseTimeRange = useTimeRange;
+            return;
         }
 
         SaveRoutineScheduleChange();

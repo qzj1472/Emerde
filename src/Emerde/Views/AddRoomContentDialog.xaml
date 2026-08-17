@@ -120,6 +120,10 @@
             </ui:StackPanel>
         </ui:StackPanel>
         <StackPanel Grid.Row="0">
+            <StackPanel.Resources>
+                <StaticResource x:Key="EmerdeTextInputBorderBrush" ResourceKey="UiXStrongStrokeBrush" />
+                <StaticResource x:Key="EmerdeTextInputFocusedBorderBrush" ResourceKey="UiXSelectionStrokeBrush" />
+            </StackPanel.Resources>
             <StackPanel.Style>
                 <Style TargetType="{x:Type StackPanel}">
                     <Setter Property="Visibility" Value="Collapsed" />
@@ -146,17 +150,13 @@
                                ToolTip="{Binding SupportedPlatformsText}" />
                     <Grid Height="44">
                         <ui:TextBox x:Name="UiXRoomUrlTextBox"
-                                    BorderBrush="Transparent"
-                                    BorderThickness="0"
+                                    Background="{DynamicResource UiXDialogElevatedBrush}"
+                                    BorderBrush="{DynamicResource EmerdeTextInputBorderBrush}"
+                                    BorderThickness="1"
                                     FocusVisualStyle="{x:Null}"
                                     IsKeyboardFocusWithinChanged="RoomUrlTextBoxFocusWithinChanged"
                                     PlaceholderText="https://live.douyin.com/xxx / https://live.bilibili.com/xxx"
                                     Text="{Binding Url, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                        <Border x:Name="UiXRoomUrlInputBorder"
-                                BorderBrush="{DynamicResource UiXStrongStrokeBrush}"
-                                BorderThickness="1"
-                                CornerRadius="{DynamicResource ControlCornerRadius}"
-                                IsHitTestVisible="False" />
                     </Grid>
                     <Grid Margin="0,14,0,0">
                         <Grid.ColumnDefinitions>

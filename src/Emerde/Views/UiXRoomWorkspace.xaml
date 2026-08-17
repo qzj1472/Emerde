@@ -15,6 +15,18 @@
              UseLayoutRounding="True"
              mc:Ignorable="d">
     <UserControl.Resources>
+        <StaticResource x:Key="EmerdeTextInputBorderBrush" ResourceKey="UiXStrongStrokeBrush" />
+        <StaticResource x:Key="EmerdeTextInputFocusedBorderBrush" ResourceKey="UiXSelectionStrokeBrush" />
+        <Style x:Key="WorkspaceReadOnlyValueStyle" TargetType="{x:Type ui:TextBox}" BasedOn="{StaticResource {x:Type ui:TextBox}}">
+            <Setter Property="Background" Value="{DynamicResource UiXDialogSubtleBrush}" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+            <Setter Property="Cursor" Value="Arrow" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="IsTabStop" Value="False" />
+        </Style>
         <Style BasedOn="{StaticResource {x:Type controls:CompactNumberBox}}" TargetType="{x:Type controls:CompactNumberBox}">
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         </Style>
@@ -59,6 +71,31 @@
                                 <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource UiXDialogSelectionBrush}" />
                                 <Setter TargetName="Indicator" Property="Opacity" Value="1" />
                                 <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Indicator"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             From="0"
+                                                             To="1"
+                                                             Duration="0:0:0.28">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <CubicEase EasingMode="EaseOut" />
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Indicator"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0"
+                                                             Duration="0:0:0.18" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -133,14 +170,17 @@
         </Style>
     </UserControl.Resources>
     <Border x:Name="WorkspaceSurface"
-            MaxWidth="832"
+             MaxWidth="832"
             Margin="0"
             HorizontalAlignment="Stretch"
             VerticalAlignment="Top"
             Background="Transparent"
             BorderThickness="0"
-            CornerRadius="0"
-            Focusable="False">
+             CornerRadius="0"
+             Focusable="False"
+             controls:MotionAssist.IsEntranceEnabled="True"
+             controls:MotionAssist.EntranceOffsetY="10"
+             controls:MotionAssist.EntranceScale="0.992">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -321,22 +361,20 @@
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock VerticalAlignment="Center" Text="{I18N Date}" />
-                                                <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                                    <DatePicker Width="140" SelectedDate="{Binding Editor.RoutineScheduleStartDate, Mode=TwoWay}" />
-                                                    <TextBlock Margin="10,0" VerticalAlignment="Center" Text="{I18N To}" />
-                                                    <DatePicker Width="140" SelectedDate="{Binding Editor.RoutineScheduleEndDate, Mode=TwoWay}" />
-                                                </StackPanel>
+                                                <controls:DateRangePicker Grid.Column="1"
+                                                                          Width="224"
+                                                                          HorizontalAlignment="Left"
+                                                                          EndDate="{Binding Editor.RoutineScheduleEndDate, Mode=TwoWay}"
+                                                                          SeparatorText="{I18N To}"
+                                                                          StartDate="{Binding Editor.RoutineScheduleStartDate, Mode=TwoWay}" />
                                             </Grid>
                                             <Grid Margin="0,12,0,0">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="92" />
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
-                                                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
-                                                    <TextBlock VerticalAlignment="Center" Text="{I18N ScheduleDays}" />
-                                                    <ui:ToggleSwitch Margin="8,0,0,0" IsChecked="{Binding Editor.RoutineScheduleUseDays, Mode=TwoWay}" />
-                                                </StackPanel>
-                                                <UniformGrid Grid.Column="1" Columns="7" IsEnabled="{Binding Editor.RoutineScheduleUseDays}">
+                                                <TextBlock VerticalAlignment="Center" Text="{I18N ScheduleDays}" />
+                                                <UniformGrid Grid.Column="1" Columns="7">
                                                     <ToggleButton Margin="0,0,6,0" HorizontalAlignment="Stretch" Content="{I18N Monday}" IsChecked="{Binding Editor.RoutineScheduleMonday, Mode=TwoWay}" />
                                                     <ToggleButton Margin="0,0,6,0" HorizontalAlignment="Stretch" Content="{I18N Tuesday}" IsChecked="{Binding Editor.RoutineScheduleTuesday, Mode=TwoWay}" />
                                                     <ToggleButton Margin="0,0,6,0" HorizontalAlignment="Stretch" Content="{I18N Wednesday}" IsChecked="{Binding Editor.RoutineScheduleWednesday, Mode=TwoWay}" />
@@ -351,19 +389,25 @@
                                                     <ColumnDefinition Width="92" />
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
-                                                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
-                                                    <TextBlock VerticalAlignment="Center" Text="{I18N TimeRange}" />
-                                                    <ui:ToggleSwitch Margin="8,0,0,0" IsChecked="{Binding Editor.RoutineScheduleUseTimeRange, Mode=TwoWay}" />
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="1" Orientation="Horizontal" IsEnabled="{Binding Editor.RoutineScheduleUseTimeRange}">
-                                                    <controls:CompactNumberBox Width="60" Maximum="23" Minimum="0" Value="{Binding Editor.RoutineScheduleStartHour, Mode=TwoWay}" />
-                                                    <TextBlock Margin="4,0" VerticalAlignment="Center" Text=":" />
-                                                    <controls:CompactNumberBox Width="60" Maximum="59" Minimum="0" Value="{Binding Editor.RoutineScheduleStartMinute, Mode=TwoWay}" />
-                                                    <TextBlock Margin="8,0" VerticalAlignment="Center" Text="{I18N To}" />
-                                                    <controls:CompactNumberBox Width="60" Maximum="23" Minimum="0" Value="{Binding Editor.RoutineScheduleEndHour, Mode=TwoWay}" />
-                                                    <TextBlock Margin="4,0" VerticalAlignment="Center" Text=":" />
-                                                    <controls:CompactNumberBox Width="60" Maximum="59" Minimum="0" Value="{Binding Editor.RoutineScheduleEndMinute, Mode=TwoWay}" />
-                                                </StackPanel>
+                                                <TextBlock VerticalAlignment="Center" Text="{I18N TimeRange}" />
+                                                <Grid Grid.Column="1">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" MinWidth="72" MaxWidth="112" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" MinWidth="72" MaxWidth="112" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" MinWidth="72" MaxWidth="112" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" MinWidth="72" MaxWidth="112" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <controls:CompactNumberBox Grid.Column="0" Maximum="23" Minimum="0" Value="{Binding Editor.RoutineScheduleStartHour, Mode=TwoWay}" />
+                                                    <TextBlock Grid.Column="1" Margin="6,0" VerticalAlignment="Center" Text=":" />
+                                                    <controls:CompactNumberBox Grid.Column="2" Maximum="59" Minimum="0" Value="{Binding Editor.RoutineScheduleStartMinute, Mode=TwoWay}" />
+                                                    <TextBlock Grid.Column="3" Margin="12,0" VerticalAlignment="Center" Text="{I18N To}" />
+                                                    <controls:CompactNumberBox Grid.Column="4" Maximum="23" Minimum="0" Value="{Binding Editor.RoutineScheduleEndHour, Mode=TwoWay}" />
+                                                    <TextBlock Grid.Column="5" Margin="6,0" VerticalAlignment="Center" Text=":" />
+                                                    <controls:CompactNumberBox Grid.Column="6" Maximum="59" Minimum="0" Value="{Binding Editor.RoutineScheduleEndMinute, Mode=TwoWay}" />
+                                                </Grid>
                                             </Grid>
                                         </StackPanel>
                                     </Border>
@@ -531,9 +575,15 @@
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBox MinHeight="40"
-                                                 VerticalContentAlignment="Center"
-                                                 Text="{Binding Editor.SaveFileNameCustomRule, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                         <ui:TextBox Height="40"
+                                                     VerticalContentAlignment="Center"
+                                                     controls:MotionAssist.EntranceOffsetY="3"
+                                                     controls:MotionAssist.EntranceTrigger="{Binding Editor.SaveFileNameCustomRule}"
+                                                     controls:MotionAssist.IsEntranceEnabled="True"
+                                                     IsReadOnly="True"
+                                                     IsTabStop="False"
+                                                     Style="{StaticResource WorkspaceReadOnlyValueStyle}"
+                                                     Text="{Binding Editor.SaveFileNameCustomRule, Mode=OneWay}" />
                                         <Button Grid.Column="1"
                                                 Width="40"
                                                 Height="40"
