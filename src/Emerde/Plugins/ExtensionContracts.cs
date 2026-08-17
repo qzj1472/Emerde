@@ -555,6 +555,8 @@ public sealed class ExtensionProcessResponse
 
 public sealed record ExtensionExecutionResult(bool Success, string Message, JsonElement Data, int ExitCode = 0);
 
+internal sealed record BoundedTextReadResult(string Text, bool ExceededLimit);
+
 public sealed record ExtensionUiContribution(string ExtensionId, string RegionName, FrameworkElement Content, int Order);
 
 public sealed record ExtensionPageContribution(string ExtensionId, ExtensionPageDefinition Page);

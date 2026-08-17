@@ -63,7 +63,7 @@ public sealed class SoopSpider : ISpider
         }
 
         string? watchJson = SpiderRequest.PostForm(
-            "http://api.m.sooplive.co.kr/broad/a/watch",
+            "https://api.m.sooplive.co.kr/broad/a/watch",
             new Dictionary<string, string>
             {
                 ["bj_id"] = bjId,
@@ -79,7 +79,7 @@ public sealed class SoopSpider : ISpider
 
         if (result.IsLiveStreaming == true && !string.IsNullOrWhiteSpace(result.BroadNo) && !string.IsNullOrWhiteSpace(result.HlsAuthenticationKey))
         {
-            string? cdnJson = SpiderRequest.Get(BuildCdnUrl(result.BroadNo), WatchHeaders(), PlatformCookieStore.GetCookie("SOOP", SecretProtector.GetOverseaCookie()));
+            string? cdnJson = SpiderRequest.Get(BuildCdnUrl(result.BroadNo), WatchHeaders());
             ApplyCdnInfo(cdnJson, result);
         }
 

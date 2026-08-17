@@ -8,6 +8,24 @@ namespace Emerde.Tests;
 public sealed class ExtensionContractsTests
 {
     [Fact]
+    public void FailedRestartRestoresGlobalMonitorBeforeMaintenanceWorkers()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "TrayIconManager.cs"));
+        int failureBranch = source.IndexOf("if (!restarted)", StringComparison.Ordinal);
+        int resourceShutdown = source.IndexOf("await ShutdownRestartResourcesAsync();", StringComparison.Ordinal);
+        int restartAttempt = source.IndexOf("RuntimeHelper.Restart", StringComparison.Ordinal);
+        int resourceResume = source.IndexOf("await ResumeRestartResourcesAsync();", failureBranch, StringComparison.Ordinal);
+        int monitorRestart = source.IndexOf("GlobalMonitor.Start();", failureBranch, StringComparison.Ordinal);
+        int recoveryRestart = source.IndexOf("RecordingRecoveryService.QueueRun();", failureBranch, StringComparison.Ordinal);
+
+        Assert.True(failureBranch >= 0);
+        Assert.True(resourceShutdown >= 0 && resourceShutdown < restartAttempt);
+        Assert.True(resourceResume > failureBranch && resourceResume < monitorRestart);
+        Assert.True(monitorRestart > failureBranch);
+        Assert.True(recoveryRestart > monitorRestart);
+    }
+
+    [Fact]
     public void RemoveExtension_UsesSharedDialogBlurScope()
     {
         string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "ViewModels", "ExtensionCenterViewModel.cs"));
@@ -488,6 +506,29 @@ public sealed class ExtensionContractsTests
     }
 
     [Fact]
+    public void MediaFileWorkflow_MergedOutputDoesNotRetainSegmentIdentity()
+    {
+        VideoRecordingMetadata metadata = new()
+        {
+            SegmentGroupId = "group",
+            SegmentIndex = 1,
+            SegmentCount = 3,
+            SegmentKind = "stall",
+            SegmentReason = VideoRecordingMetadataStore.TimelineStallSegmentReason,
+            MediaIssue = "timeline_mismatch",
+        };
+
+        MediaFileWorkflow.ClearMergedSegmentIdentity(metadata);
+
+        Assert.Empty(metadata.SegmentGroupId);
+        Assert.Equal(-1, metadata.SegmentIndex);
+        Assert.Equal(0, metadata.SegmentCount);
+        Assert.Empty(metadata.SegmentKind);
+        Assert.Empty(metadata.SegmentReason);
+        Assert.Equal("timeline_mismatch", metadata.MediaIssue);
+    }
+
+    [Fact]
     public async Task MediaFileWorkflow_RejectsConcurrentTargetPathClaims()
     {
         string root = Path.Combine(Path.GetTempPath(), $"Emerde.MediaWorkflow.Tests.{Guid.NewGuid():N}");
@@ -931,6 +972,15 @@ public sealed class ExtensionContractsTests
             Assert.Equal("secret", (await service.GetSettingsAsync(extension.Manifest.Id))["token"]);
             Assert.DoesNotContain("secret", await File.ReadAllTextAsync(Path.Combine(extensionsDirectory, "extensions-state.json")));
 
+            string statePath = Path.Combine(extensionsDirectory, "extensions-state.json");
+            await using (FileStream stateLock = new(statePath, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                await Assert.ThrowsAnyAsync<IOException>(() => service.SaveSettingsAsync(
+                    extension.Manifest.Id,
+                    new Dictionary<string, string> { ["token"] = "changed" }));
+                Assert.Equal("secret", (await service.GetSettingsAsync(extension.Manifest.Id))["token"]);
+            }
+
             await service.UninstallAsync(extension.Manifest.Id);
 
             Assert.Empty(await service.GetInstalledExtensionsAsync());
@@ -942,6 +992,28 @@ public sealed class ExtensionContractsTests
                 Directory.Delete(root, true);
             }
         }
+    }
+
+    [Fact]
+    public async Task ReadBoundedTextAsync_RetainsProtocolPrefixAndDiagnosticTail()
+    {
+        int limitNotifications = 0;
+        BoundedTextReadResult protocol = await ExtensionService.ReadBoundedTextAsync(
+            new StringReader("abcdefgh"),
+            5,
+            retainTail: false,
+            () => limitNotifications++);
+        BoundedTextReadResult diagnostics = await ExtensionService.ReadBoundedTextAsync(
+            new StringReader("abcdefgh"),
+            5,
+            retainTail: true,
+            null);
+
+        Assert.Equal("abcde", protocol.Text);
+        Assert.True(protocol.ExceededLimit);
+        Assert.Equal(1, limitNotifications);
+        Assert.Equal("defgh", diagnostics.Text);
+        Assert.True(diagnostics.ExceededLimit);
     }
 
     [Fact]
@@ -1102,6 +1174,10 @@ public sealed class ExtensionContractsTests
             Assert.True(restored.IsEnabled);
             Assert.True(restored.IsLoaded);
             Assert.Equal("working", (await service.GetSettingsAsync(restored.Manifest.Id))["mode"]);
+
+            await service.ShutdownAsync();
+            InstalledExtensionInfo reloaded = Assert.Single(await service.GetInstalledExtensionsAsync());
+            Assert.True(reloaded.IsLoaded);
         }
         finally
         {

@@ -38,6 +38,8 @@ public sealed partial class ExtensionService
     private const int CurrentSchemaVersion = 1;
     private const int MaximumPackageEntryCount = 4096;
     private const long MaximumPackageExpandedBytes = 2L * 1024L * 1024L * 1024L;
+    private const int MaximumProcessStandardOutputCharacters = 4 * 1024 * 1024;
+    private const int MaximumProcessStandardErrorCharacters = 64 * 1024;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -272,7 +274,15 @@ public sealed partial class ExtensionService
             persistedState.Settings = settings.ToDictionary(pair => pair.Key, pair => pair.Value ?? string.Empty, StringComparer.OrdinalIgnoreCase);
             if (!extension.IsLoaded)
             {
-                await SaveStateAsync(cancellationToken);
+                try
+                {
+                    await SaveStateAsync(cancellationToken);
+                }
+                catch
+                {
+                    persistedState.Settings = previousSettings;
+                    throw;
+                }
                 return;
             }
             await UnloadExtensionAsync(extensionId, cancellationToken);
@@ -387,6 +397,7 @@ public sealed partial class ExtensionService
         await operationGate.WaitAsync(cancellationToken);
         try
         {
+            isInitialized = false;
             foreach (string extensionId in loadedExtensions.Keys.ToArray())
             {
                 await UnloadExtensionAsync(extensionId, cancellationToken);
@@ -698,19 +709,38 @@ public sealed partial class ExtensionService
                 Settings = settings,
                 Payload = JsonSerializer.SerializeToElement(payload, JsonOptions),
             };
-            Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-            Task<string> stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
-            await process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(request, JsonOptions));
-            process.StandardInput.Close();
+            int outputLimitExceeded = 0;
             using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(extension.Manifest.TimeoutSeconds));
+            Task<BoundedTextReadResult> stdoutTask = ReadBoundedTextAsync(
+                process.StandardOutput,
+                MaximumProcessStandardOutputCharacters,
+                retainTail: false,
+                () =>
+                {
+                    Interlocked.Exchange(ref outputLimitExceeded, 1);
+                    TryKill(process);
+                },
+                CancellationToken.None);
+            Task<BoundedTextReadResult> stderrTask = ReadBoundedTextAsync(
+                process.StandardError,
+                MaximumProcessStandardErrorCharacters,
+                retainTail: true,
+                null,
+                CancellationToken.None);
+            await process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(request, JsonOptions));
+            process.StandardInput.Close();
             await process.WaitForExitAsync(timeout.Token);
-            string stdout = await stdoutTask;
-            string stderr = await stderrTask;
-            ExtensionProcessResponse? response = ParseResponse(stdout, requestId);
+            BoundedTextReadResult stdout = await stdoutTask;
+            BoundedTextReadResult stderr = await stderrTask;
+            if (stdout.ExceededLimit || Volatile.Read(ref outputLimitExceeded) != 0)
+            {
+                return new ExtensionExecutionResult(false, "ExtensionResponseTooLarge".Tr(), EmptyJson(), process.ExitCode);
+            }
+            ExtensionProcessResponse? response = ParseResponse(stdout.Text, requestId);
             if (response == null)
             {
-                string message = string.IsNullOrWhiteSpace(stderr) ? "ExtensionResponseInvalid".Tr(process.ExitCode) : stderr.Trim();
+                string message = string.IsNullOrWhiteSpace(stderr.Text) ? "ExtensionResponseInvalid".Tr(process.ExitCode) : stderr.Text.Trim();
                 return new ExtensionExecutionResult(false, message, EmptyJson(), process.ExitCode);
             }
             return new ExtensionExecutionResult(response.Success, response.Message, response.Data, process.ExitCode);
@@ -730,6 +760,47 @@ public sealed partial class ExtensionService
         {
             runningProcesses.TryRemove(new KeyValuePair<string, Process>(extension.Manifest.Id, process));
         }
+    }
+
+    internal static async Task<BoundedTextReadResult> ReadBoundedTextAsync(
+        TextReader reader,
+        int maximumCharacters,
+        bool retainTail,
+        Action? limitExceeded,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumCharacters);
+        char[] buffer = new char[4096];
+        StringBuilder retained = new(Math.Min(maximumCharacters, buffer.Length));
+        long totalCharacters = 0;
+        bool exceededLimit = false;
+        while (true)
+        {
+            int read = await reader.ReadAsync(buffer.AsMemory(), cancellationToken);
+            if (read == 0)
+            {
+                break;
+            }
+            totalCharacters += read;
+            if (retainTail)
+            {
+                retained.Append(buffer, 0, read);
+                if (retained.Length > maximumCharacters)
+                {
+                    retained.Remove(0, retained.Length - maximumCharacters);
+                }
+            }
+            else if (retained.Length < maximumCharacters)
+            {
+                retained.Append(buffer, 0, Math.Min(read, maximumCharacters - retained.Length));
+            }
+            if (!exceededLimit && totalCharacters > maximumCharacters)
+            {
+                exceededLimit = true;
+                limitExceeded?.Invoke();
+            }
+        }
+        return new BoundedTextReadResult(retained.ToString(), exceededLimit);
     }
 
     private static ProcessStartInfo BuildProcessStartInfo(InstalledExtensionInfo extension)

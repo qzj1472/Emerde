@@ -60,9 +60,14 @@ internal static class SpiderRequest
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(cookie))
+        if (!string.IsNullOrWhiteSpace(cookie) && ShouldAttachCookie(request.RequestUri))
         {
             request.Headers.TryAddWithoutValidation("Cookie", cookie);
         }
+    }
+
+    internal static bool ShouldAttachCookie(Uri? uri)
+    {
+        return uri != null && uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
     }
 }

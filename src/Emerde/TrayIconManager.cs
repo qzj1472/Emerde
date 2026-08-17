@@ -6,6 +6,7 @@ using System.Windows.Interop;
 using Emerde.Core;
 using Emerde.Extensions;
 using Emerde.Models;
+using Emerde.Plugins;
 using Emerde.Threading;
 using Emerde.Views;
 using Wpf.Ui.Appearance;
@@ -133,16 +134,19 @@ internal sealed class TrayIconManager : IDisposable
         }
     }
 
-    public async Task RestartApplicationAsync(bool confirmRecording = true)
+    public async Task<bool> RestartApplicationAsync(
+        bool confirmRecording = true,
+        Action? beforeSuccessfulExit = null,
+        Action? restartFailed = null)
     {
         if (confirmRecording && !await ConfirmRecordingInterruptionAsync())
         {
-            return;
+            return false;
         }
 
         if (Interlocked.CompareExchange(ref shutdownInProgress, 1, 0) != 0)
         {
-            return;
+            return false;
         }
 
         try
@@ -158,26 +162,89 @@ internal sealed class TrayIconManager : IDisposable
                 RecordingRecoveryService.WaitForMaintenanceAsync(TimeSpan.FromSeconds(5)),
                 RecordingCleanupService.WaitForScheduledWorkAsync(TimeSpan.FromSeconds(5)),
                 MediaOperationRegistry.WaitForCompletionAsync(TimeSpan.FromSeconds(5)));
+            await ShutdownRestartResourcesAsync();
 
             bool restarted = RuntimeHelper.Restart(forced: true, beforeExit: () =>
             {
                 IsShutdownTriggered = true;
                 Dispose();
                 _ = ConfigurationSaveScheduler.TrySaveNow();
+                beforeSuccessfulExit?.Invoke();
                 ChildProcessTracerPeriodicTimer.Default.Stop(killChildren: true);
                 RuntimeResourceLogger.Stop();
                 AppSessionLogger.Stop();
             });
             if (!restarted)
             {
+                Exception? recoveryException = null;
+                try
+                {
+                    restartFailed?.Invoke();
+                }
+                catch (Exception exception)
+                {
+                    recoveryException = exception;
+                    AppSessionLogger.WriteException(exception);
+                }
+                await ResumeRestartResourcesAsync();
+                GlobalMonitor.Start();
                 RecordingRecoveryService.QueueRun();
                 RecordingCleanupService.ResumeScheduledWork();
                 ActivateMainWindow();
+                if (recoveryException != null)
+                {
+                    throw recoveryException;
+                }
             }
+            return restarted;
         }
         finally
         {
             Interlocked.Exchange(ref shutdownInProgress, 0);
+        }
+    }
+
+    private static async Task ShutdownRestartResourcesAsync()
+    {
+        try
+        {
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(10));
+            await ExtensionService.Default.ShutdownAsync(timeout.Token);
+        }
+        catch (Exception exception)
+        {
+            AppSessionLogger.WriteException(exception);
+        }
+
+        try
+        {
+            DouyinWebViewResolver.Shutdown();
+        }
+        catch (Exception exception)
+        {
+            AppSessionLogger.WriteException(exception);
+        }
+    }
+
+    private static async Task ResumeRestartResourcesAsync()
+    {
+        try
+        {
+            DouyinWebViewResolver.Resume();
+        }
+        catch (Exception exception)
+        {
+            AppSessionLogger.WriteException(exception);
+        }
+
+        try
+        {
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(10));
+            await ExtensionService.Default.InitializeAsync(timeout.Token);
+        }
+        catch (Exception exception)
+        {
+            AppSessionLogger.WriteException(exception);
         }
     }
 

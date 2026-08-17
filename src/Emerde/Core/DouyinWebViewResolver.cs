@@ -14,7 +14,8 @@ internal static class DouyinWebViewResolver
 {
     private static readonly TimeSpan BrowserInitializationTimeout = TimeSpan.FromSeconds(8);
     private static readonly SemaphoreSlim ResolveGate = new(1, 1);
-    private static readonly CancellationTokenSource ShutdownCancellation = new();
+    private static readonly object ShutdownSync = new();
+    private static CancellationTokenSource shutdownCancellation = new();
     private static Window? hostWindow;
     private static WebView2? browser;
     private static string browserProxyKey = string.Empty;
@@ -60,7 +61,7 @@ internal static class DouyinWebViewResolver
         {
             throw;
         }
-        catch (OperationCanceledException) when (ShutdownCancellation.IsCancellationRequested)
+        catch (OperationCanceledException) when (IsShutdownRequested())
         {
             return default;
         }
@@ -77,10 +78,26 @@ internal static class DouyinWebViewResolver
 
     public static void Shutdown()
     {
-        ShutdownCancellation.Cancel();
+        lock (ShutdownSync)
+        {
+            shutdownCancellation.Cancel();
+        }
         allowClose = true;
         interactiveClosed?.TrySetResult();
         DisposeBrowser();
+    }
+
+    public static void Resume()
+    {
+        lock (ShutdownSync)
+        {
+            if (shutdownCancellation.IsCancellationRequested)
+            {
+                shutdownCancellation.Dispose();
+                shutdownCancellation = new CancellationTokenSource();
+            }
+        }
+        allowClose = false;
     }
 
     private static async Task<DouyinWebViewSnapshot> ResolveAsync(
@@ -90,9 +107,14 @@ internal static class DouyinWebViewResolver
         bool allowInteractiveVerification,
         CancellationToken cancellationToken)
     {
+        CancellationToken shutdownToken;
+        lock (ShutdownSync)
+        {
+            shutdownToken = shutdownCancellation.Token;
+        }
         using CancellationTokenSource linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
-            ShutdownCancellation.Token);
+            shutdownToken);
         CancellationToken token = linkedCancellation.Token;
         await ResolveGate.WaitAsync(token);
         try
@@ -544,5 +566,13 @@ internal static class DouyinWebViewResolver
         allowClose = true;
         detachedWindow.Close();
         allowClose = false;
+    }
+
+    private static bool IsShutdownRequested()
+    {
+        lock (ShutdownSync)
+        {
+            return shutdownCancellation.IsCancellationRequested;
+        }
     }
 }

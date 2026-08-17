@@ -4,6 +4,14 @@ namespace Emerde.Tests;
 
 public sealed class SpiderTests
 {
+    [Theory]
+    [InlineData("https://example.test/path", true)]
+    [InlineData("http://example.test/path", false)]
+    public void SpiderRequest_OnlyAttachesCookiesToHttps(string url, bool expected)
+    {
+        Assert.Equal(expected, SpiderRequest.ShouldAttachCookie(new Uri(url)));
+    }
+
     [Fact]
     public void GetResult_StopsBeforeResolvingWhenCancellationIsRequested()
     {
