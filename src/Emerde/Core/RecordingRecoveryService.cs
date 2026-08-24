@@ -12,11 +12,10 @@ namespace Emerde.Core;
 internal static class RecordingRecoveryService
 {
     private const int MaxAutomaticRecoveryFailures = 3;
-    private const int CurrentRecoveryPolicyVersion = 1;
+    private const int CurrentRecoveryPolicyVersion = 2;
     private const int PendingProcessingBatchSize = 8;
-    private const int EmbeddedMetadataProbeBatchSize = 8;
-    private const int MaximumEmbeddedProbeCacheSize = 8192;
-    private static readonly TimeSpan PendingDiscoveryInterval = TimeSpan.FromMinutes(1);
+    private const int FinalizationAttemptCount = 5;
+    private static readonly TimeSpan CleanupReconciliationInterval = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan CompletedOutputProbeTimeout = TimeSpan.FromSeconds(3);
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -28,18 +27,16 @@ internal static class RecordingRecoveryService
     private static readonly Dictionary<string, SourceProcessingTask> SourceProcessingTasks = new(StringComparer.OrdinalIgnoreCase);
     private static readonly object SourceProcessingTasksSync = new();
     private static readonly SemaphoreSlim PendingOptionsUpdateGate = new(1, 1);
-    private static readonly SemaphoreSlim PendingDiscoveryGate = new(1, 1);
+    private static readonly SemaphoreSlim PendingProcessingGate = new(1, 1);
     private static readonly SemaphoreSlim RecoveryOperationGate = new(2, 2);
     private static readonly object PendingMarkerMutationLock = new();
     private static readonly object StartupMaintenanceLock = new();
-    private static readonly Dictionary<string, EmbeddedProbeFingerprint> EmbeddedProbeFailures = new(StringComparer.OrdinalIgnoreCase);
     private static readonly DateTime ProcessStartedAtUtc = Process.GetCurrentProcess().StartTime.ToUniversalTime();
     private static CancellationTokenSource maintenanceCancellation = new();
     private static bool maintenanceRestartRequested;
     private static Task? startupMaintenanceTask;
     private static Task? periodicDiscoveryTask;
     private static Task? maintenanceRestartTask;
-    private static int embeddedProbeCursor;
 
     public static string? Register(string sourcePattern, RoomRecordingOptions options, string roomUrl = "", bool finalizeName = false)
     {
@@ -269,7 +266,7 @@ internal static class RecordingRecoveryService
         maintenanceRestartRequested = false;
         startupMaintenanceTask ??= Task.Run(() => RunStartupMaintenanceAsync(maintenanceCancellation.Token));
         Task initialMaintenanceTask = startupMaintenanceTask;
-        periodicDiscoveryTask ??= Task.Run(() => RunPeriodicDiscoveryAsync(initialMaintenanceTask, maintenanceCancellation.Token));
+        periodicDiscoveryTask ??= Task.Run(() => RunPeriodicMaintenanceAsync(initialMaintenanceTask, maintenanceCancellation.Token));
     }
 
     private static async Task RestartMaintenanceWhenStoppedAsync(Task[] stoppingTasks)
@@ -384,24 +381,17 @@ internal static class RecordingRecoveryService
         }
     }
 
-    private static async Task RunPeriodicDiscoveryAsync(Task initialMaintenanceTask, CancellationToken token)
+    private static async Task RunPeriodicMaintenanceAsync(Task initialMaintenanceTask, CancellationToken token)
     {
         try
         {
             await initialMaintenanceTask.WaitAsync(token);
-            int cleanupReconciliationCycles = 0;
             while (true)
             {
-                await Task.Delay(PendingDiscoveryInterval, token);
+                await Task.Delay(CleanupReconciliationInterval, token);
                 try
                 {
-                    await ProcessPendingAsync(token);
-                    cleanupReconciliationCycles++;
-                    if (cleanupReconciliationCycles >= 15)
-                    {
-                        cleanupReconciliationCycles = 0;
-                        await RecordingCleanupService.RunAsync(token);
-                    }
+                    await RecordingCleanupService.RunAsync(token);
                 }
                 catch (OperationCanceledException) when (token.IsCancellationRequested)
                 {
@@ -448,291 +438,15 @@ internal static class RecordingRecoveryService
 
     public static async Task ProcessPendingAsync(CancellationToken token)
     {
-        await PendingDiscoveryGate.WaitAsync(token);
+        await PendingProcessingGate.WaitAsync(token);
         try
         {
-            await Task.Run(() => DiscoverUnregisteredRecordings(token), token);
+            await ProcessPendingAsync(GetPendingPaths(), token);
         }
         finally
         {
-            PendingDiscoveryGate.Release();
+            PendingProcessingGate.Release();
         }
-        await ProcessPendingAsync(GetPendingPaths(), token);
-    }
-
-    private static void DiscoverUnregisteredRecordings(CancellationToken token)
-    {
-        string[] pendingPatterns = GetPendingSourcePatterns();
-        EnumerationOptions enumerationOptions = new()
-        {
-            IgnoreInaccessible = true,
-            RecurseSubdirectories = true,
-            AttributesToSkip = FileAttributes.ReparsePoint,
-        };
-        Dictionary<string, List<string>> sourceGroups = new(StringComparer.OrdinalIgnoreCase);
-        List<string> embeddedMetadataCandidates = [];
-        foreach (string root in MediaFileCatalog.GetConfiguredSaveFolders().Where(Directory.Exists))
-        {
-            token.ThrowIfCancellationRequested();
-            try
-            {
-                foreach (string source in Directory.EnumerateFiles(root, "*", enumerationOptions))
-                {
-                    token.ThrowIfCancellationRequested();
-                    try
-                    {
-                        string extension = Path.GetExtension(source);
-                        if (!extension.Equals(".ts", StringComparison.OrdinalIgnoreCase)
-                            && !extension.Equals(".flv", StringComparison.OrdinalIgnoreCase)
-                            || MediaOperationRegistry.IsPathProtected(source)
-                            || IsPendingSourcePath(source, pendingPatterns))
-                        {
-                            continue;
-                        }
-
-                        FileInfo file = new(source);
-                        if (file.Length <= 0)
-                        {
-                            continue;
-                        }
-
-                        if (!VideoRecordingMetadataStore.HasValidMetadata(file))
-                        {
-                            embeddedMetadataCandidates.Add(source);
-                            continue;
-                        }
-
-                        VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(file);
-                        AddDiscoveredSource(sourceGroups, source, metadata);
-                    }
-                    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-                    {
-                        AppSessionLogger.WriteException(exception);
-                    }
-                }
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-                AppSessionLogger.WriteException(exception);
-            }
-        }
-
-        DiscoverEmbeddedMetadataRecordings(embeddedMetadataCandidates, sourceGroups, token);
-
-        int discovered = 0;
-        foreach ((string sourcePattern, List<string> sources) in sourceGroups)
-        {
-            token.ThrowIfCancellationRequested();
-            try
-            {
-                VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(new FileInfo(sources[0]));
-                RoomRecordingOptions options = RoomRecordingSettings.GetCurrent(metadata.RoomUrl, RoomRecordingSettings.GetGlobal());
-                string? targetFormat = Recorder.GetTargetFormat(options.RecordFormat);
-                if (string.IsNullOrWhiteSpace(targetFormat) || HasCompletedOutput(sourcePattern, targetFormat))
-                {
-                    continue;
-                }
-
-                bool sessionPattern = IsSessionPattern(sourcePattern);
-                bool isStallSegment = sources.Any(source =>
-                    VideoRecordingMetadataStore.Load(new FileInfo(source)).SegmentReason.Equals(
-                        VideoRecordingMetadataStore.TimelineStallSegmentReason,
-                        StringComparison.Ordinal));
-                string? markerPath = sessionPattern
-                    ? RegisterSessionParts(
-                        sourcePattern,
-                        targetFormat,
-                        options.IsRemoveTs,
-                        metadata.RoomUrl,
-                        options.IsOptimizeAudio,
-                        mergeSessionParts: !isStallSegment,
-                        segmentReason: isStallSegment ? VideoRecordingMetadataStore.TimelineStallSegmentReason : string.Empty)
-                    : Register(sourcePattern, options, metadata.RoomUrl);
-                if (!string.IsNullOrWhiteSpace(markerPath))
-                {
-                    discovered++;
-                }
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-                AppSessionLogger.WriteException(exception);
-            }
-        }
-
-        if (discovered > 0)
-        {
-            AppSessionLogger.Event("info", "recovery", "orphaned_recordings_discovered", "unprocessed recordings were added to the recovery queue", new { discovered });
-        }
-    }
-
-    private static void DiscoverEmbeddedMetadataRecordings(
-        IReadOnlyCollection<string> candidates,
-        Dictionary<string, List<string>> sourceGroups,
-        CancellationToken token)
-    {
-        string[] ordered = candidates
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        if (ordered.Length == 0)
-        {
-            embeddedProbeCursor = 0;
-            return;
-        }
-
-        int start = Math.Abs(embeddedProbeCursor % ordered.Length);
-        int inspected = 0;
-        int probed = 0;
-        while (inspected < ordered.Length && probed < EmbeddedMetadataProbeBatchSize)
-        {
-            token.ThrowIfCancellationRequested();
-            string path = ordered[(start + inspected) % ordered.Length];
-            inspected++;
-            try
-            {
-                FileInfo file = new(path);
-                EmbeddedProbeFingerprint fingerprint = new(file.Length, file.LastWriteTimeUtc.Ticks);
-                if (EmbeddedProbeFailures.TryGetValue(path, out EmbeddedProbeFingerprint previous)
-                    && previous == fingerprint)
-                {
-                    continue;
-                }
-
-                probed++;
-                if (FfmpegMediaEngine.TryProbe(path, out FfmpegMediaProbeResult probe, out _, token)
-                    && probe.HasEmerdeMetadata
-                    && VideoRecordingMetadataStore.HasAnyMetadata(probe.Metadata)
-                    && VideoRecordingMetadataStore.WriteCompletedMetadata(path, probe.Metadata))
-                {
-                    EmbeddedProbeFailures.Remove(path);
-                    AddDiscoveredSource(sourceGroups, path, probe.Metadata);
-                    continue;
-                }
-                EmbeddedProbeFailures[path] = fingerprint;
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
-            {
-                AppSessionLogger.WriteException(exception);
-            }
-        }
-        embeddedProbeCursor = (start + Math.Max(1, inspected)) % ordered.Length;
-        TrimEmbeddedProbeFailures(ordered);
-    }
-
-    private static void AddDiscoveredSource(
-        Dictionary<string, List<string>> sourceGroups,
-        string source,
-        VideoRecordingMetadata metadata)
-    {
-        string sourcePattern = ResolveRecoverySourcePattern(source, metadata);
-        if (!sourceGroups.TryGetValue(sourcePattern, out List<string>? group))
-        {
-            group = [];
-            sourceGroups.Add(sourcePattern, group);
-        }
-        group.Add(source);
-    }
-
-    private static void TrimEmbeddedProbeFailures(IReadOnlyCollection<string> candidates)
-    {
-        if (EmbeddedProbeFailures.Count <= MaximumEmbeddedProbeCacheSize)
-        {
-            return;
-        }
-        HashSet<string> active = candidates.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (string path in EmbeddedProbeFailures.Keys.Where(path => !active.Contains(path)).ToArray())
-        {
-            EmbeddedProbeFailures.Remove(path);
-        }
-        foreach (string path in EmbeddedProbeFailures.Keys.Take(Math.Max(0, EmbeddedProbeFailures.Count - MaximumEmbeddedProbeCacheSize)).ToArray())
-        {
-            EmbeddedProbeFailures.Remove(path);
-        }
-    }
-
-    internal static string BuildRecoverySourcePattern(string sourcePath)
-    {
-        string directory = Path.GetDirectoryName(sourcePath) ?? string.Empty;
-        string extension = Path.GetExtension(sourcePath);
-        string stem = Path.GetFileNameWithoutExtension(sourcePath);
-        Match match = Regex.Match(stem, @"^(?<base>.+)_\d{3,}$", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
-        return match.Success
-            ? Path.Combine(directory, match.Groups["base"].Value + "_%03d" + extension)
-            : sourcePath;
-    }
-
-    internal static string ResolveRecoverySourcePattern(string sourcePath, VideoRecordingMetadata metadata)
-    {
-        string sourcePattern = BuildRecoverySourcePattern(sourcePath);
-        if (!IsSessionPattern(sourcePattern))
-        {
-            return sourcePath;
-        }
-
-        string metadataFileName = Path.GetFileName(metadata.FileName);
-        string sourceFileName = Path.GetFileName(sourcePath);
-        string patternFileName = Path.GetFileName(sourcePattern);
-        string sessionFileName = patternFileName.Replace("_%03d", string.Empty, StringComparison.Ordinal);
-        if (!string.IsNullOrWhiteSpace(metadataFileName))
-        {
-            if (metadataFileName.Equals(sourceFileName, StringComparison.OrdinalIgnoreCase))
-            {
-                return sourcePath;
-            }
-            if (metadataFileName.Equals(sessionFileName, StringComparison.OrdinalIgnoreCase))
-            {
-                return sourcePattern;
-            }
-        }
-
-        string initialSegment = sourcePattern.Replace("%03d", "000", StringComparison.Ordinal);
-        return File.Exists(initialSegment) ? sourcePattern : sourcePath;
-    }
-
-    private static bool HasCompletedOutput(string sourcePattern, string targetFormat)
-    {
-        string expectedPath = IsSessionPattern(sourcePattern)
-            ? Converter.BuildSessionTargetPath(sourcePattern, targetFormat)
-            : Converter.BuildTargetPath([new FileInfo(sourcePattern)], targetFormat);
-        string? directory = Path.GetDirectoryName(expectedPath);
-        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
-        {
-            return false;
-        }
-
-        string expectedStem = Path.GetFileNameWithoutExtension(expectedPath);
-        try
-        {
-            return Directory.EnumerateFiles(directory, "*" + targetFormat, SearchOption.TopDirectoryOnly)
-                .Any(path =>
-                {
-                    string stem = Path.GetFileNameWithoutExtension(path);
-                    return IsCompletedOutputStem(expectedStem, stem)
-                        && IsCompletedMediaOutput(path);
-                });
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            AppSessionLogger.WriteException(exception);
-            return false;
-        }
-    }
-
-    internal static bool IsCompletedOutputStem(string expectedStem, string candidateStem)
-    {
-        if (candidateStem.Equals(expectedStem, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        string suffix = candidateStem.Length > expectedStem.Length
-            ? candidateStem[expectedStem.Length..]
-            : string.Empty;
-        return suffix.Length > 1
-            && suffix[0] == '_'
-            && int.TryParse(suffix.AsSpan(1), out int collisionIndex)
-            && collisionIndex >= 2
-            && suffix.AsSpan(1).SequenceEqual(collisionIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     private static async Task ProcessPendingAsync(IEnumerable<string> paths, CancellationToken token = default)
@@ -1096,6 +810,7 @@ internal static class RecordingRecoveryService
         if (item.RecoveryPolicyVersion < CurrentRecoveryPolicyVersion)
         {
             item.RecoveryPolicyVersion = CurrentRecoveryPolicyVersion;
+            item.FinalizeName = item.FinalizeName || ShouldFinalizeRecoveredTemporaryName(item.SourcePattern);
             ResetFailureState(item);
             if (!Save(path, item))
             {
@@ -1118,6 +833,14 @@ internal static class RecordingRecoveryService
             }
         }
         string sourceStateFingerprint = CreateSourceStateFingerprint(sourceFiles);
+        if (item.RetryBlocked && IsTransientRecoveryFailure(item.LastFailureReason))
+        {
+            ResetFailureState(item);
+            if (!Save(path, item))
+            {
+                return false;
+            }
+        }
         if (item.RetryBlocked)
         {
             bool canFinalizeExistingOutput = sourceFiles.Length == 0 && HasUsableOutput(item);
@@ -1157,7 +880,8 @@ internal static class RecordingRecoveryService
         {
             if (!item.MergeSessionParts || DeleteSources(item.SourcePattern))
             {
-                if (!TryFinalizeOutputs(path, item, sourceFiles, token, out string[] finalizedSourceFiles))
+                (bool finalized, string[] finalizedSourceFiles) = await TryFinalizeOutputsAsync(path, item, sourceFiles, token);
+                if (!finalized)
                 {
                     return false;
                 }
@@ -1233,7 +957,9 @@ internal static class RecordingRecoveryService
             reason => failureReason = SelectFailureReason(failureReason, reason));
         if (completed)
         {
-            if (!TryFinalizeOutputs(path, item, sourceFiles, token, out string[] finalizedSourceFiles))
+            sourceFiles = MergeSourceSnapshots(sourceFiles, GetSourceFiles(item.SourcePattern));
+            (bool finalized, string[] finalizedSourceFiles) = await TryFinalizeOutputsAsync(path, item, sourceFiles, token);
+            if (!finalized)
             {
                 return false;
             }
@@ -1247,6 +973,17 @@ internal static class RecordingRecoveryService
         {
             DeleteMarker(path);
             return true;
+        }
+
+        if (IsTransientRecoveryFailure(failureReason))
+        {
+            ResetFailureState(item);
+            AppSessionLogger.Event("info", "recovery", "recovery_source_busy_deferred", "recording source is still in use and will be retried after recording releases it", new
+            {
+                item.SourcePattern,
+            });
+            _ = Save(path, item);
+            return false;
         }
 
         if (!string.IsNullOrWhiteSpace(failureReason))
@@ -1271,6 +1008,20 @@ internal static class RecordingRecoveryService
             _ = Save(path, item);
         }
         return false;
+    }
+
+    private static string[] MergeSourceSnapshots(IEnumerable<string> initialSources, IEnumerable<string> currentSources)
+    {
+        return initialSources
+            .Concat(currentSources)
+            .Where(IsUsableSource)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    internal static bool ShouldFinalizeRecoveredTemporaryName(string sourcePattern)
+    {
+        return Path.GetFileName(sourcePattern).StartsWith("录制中-", StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task PublishFinalizedMediaAsync(
@@ -1431,10 +1182,6 @@ internal static class RecordingRecoveryService
                     onTargetReserved: onMergeTargetReserved,
                     onFailed: onFailure))
                 {
-                    if (targetIsSourceFormat)
-                    {
-                        return false;
-                    }
                     return await ProcessSourcesIndividuallyAsync(
                         sources,
                         targetFormat,
@@ -1657,7 +1404,7 @@ internal static class RecordingRecoveryService
 
         VideoRepairResult result = await new VideoRepairService().RepairAsync(source, targetFormat, token);
         token.ThrowIfCancellationRequested();
-        if (result.Status is VideoRepairStatus.Repaired or VideoRepairStatus.PartiallyRepaired
+        if (result.Status is VideoRepairStatus.Repaired
             && IsUsableSource(result.OutputPath))
         {
             return result.OutputPath;
@@ -1745,7 +1492,7 @@ internal static class RecordingRecoveryService
             }
             RecordingRecoveryStatus status = new(
                 isProcessing,
-                item.FinalizeOnly,
+                IsFinalizationPending(item),
                 item.MergeSessionParts,
                 item.RetryBlocked,
                 item.FailureCount);
@@ -1775,6 +1522,15 @@ internal static class RecordingRecoveryService
     private static int GetRecoveryStatusPriority(RecordingRecoveryStatus status)
     {
         return status.IsProcessing ? 3 : status.RetryBlocked ? 2 : status.FailureCount > 0 ? 1 : 0;
+    }
+
+    private static bool IsFinalizationPending(PendingRecording item)
+    {
+        return item.FinalizeOnly
+            || item.FinalizeName
+                && (item.FinalizationOutputs.Count > 0
+                    || IsUsableSource(item.CompletedTargetPath)
+                    || item.CompletedSources.Values.Any(IsUsableSource));
     }
 
     private static IEnumerable<string> GetProtectedPaths(PendingRecording item)
@@ -1850,17 +1606,15 @@ internal static class RecordingRecoveryService
         }
     }
 
-    private static bool TryFinalizeOutputs(
+    private static async Task<(bool Success, string[] Paths)> TryFinalizeOutputsAsync(
         string markerPath,
         PendingRecording item,
         IReadOnlyCollection<string> sourceFiles,
-        CancellationToken token,
-        out string[] finalizedSourceFiles)
+        CancellationToken token)
     {
         if (!item.FinalizeName)
         {
-            finalizedSourceFiles = sourceFiles.ToArray();
-            return true;
+            return (true, sourceFiles.ToArray());
         }
 
         List<string> outputs = [];
@@ -1893,9 +1647,12 @@ internal static class RecordingRecoveryService
             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))
             ?? Guid.NewGuid().ToString("N");
 
+        HashSet<string> reservedTargets = item.FinalizationOutputs
+            .Select(output => output.TargetPath)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (item.FinalizationOutputs.Count == 0)
         {
-            HashSet<string> reservedTargets = new(StringComparer.OrdinalIgnoreCase);
             for (int outputIndex = 0; outputIndex < outputPaths.Length; outputIndex++)
             {
                 string output = outputPaths[outputIndex];
@@ -1920,8 +1677,7 @@ internal static class RecordingRecoveryService
                 }
                 if (!VideoRecordingMetadataStore.WriteCompletedMetadata(output, metadata))
                 {
-                    finalizedSourceFiles = sourceFiles.ToArray();
-                    return false;
+                    return (false, sourceFiles.ToArray());
                 }
                 RecordingFinalizationPlan plan = RecordingFinalizationService.PlanFile(
                     output,
@@ -1932,8 +1688,7 @@ internal static class RecordingRecoveryService
                 if (!plan.Success)
                 {
                     AppSessionLogger.Event("warn", "recovery", "recording_finalization_plan_failed", plan.Error, new { markerPath, output });
-                    finalizedSourceFiles = sourceFiles.ToArray();
-                    return false;
+                    return (false, sourceFiles.ToArray());
                 }
                 item.FinalizationOutputs.Add(new PendingOutputFinalization
                 {
@@ -1944,8 +1699,7 @@ internal static class RecordingRecoveryService
             }
             if (!Save(markerPath, item))
             {
-                finalizedSourceFiles = sourceFiles.ToArray();
-                return false;
+                return (false, sourceFiles.ToArray());
             }
         }
 
@@ -1954,8 +1708,11 @@ internal static class RecordingRecoveryService
             token.ThrowIfCancellationRequested();
             if (!TryResolveFinalizationInputPath(output, out string inputPath))
             {
-                finalizedSourceFiles = sourceFiles.ToArray();
-                return false;
+                if (!ShouldReplanFinalizationOutput(output)
+                    || !TryReplanFinalizationOutput(markerPath, item, output, preserveSegmentSuffix, reservedTargets, token, out inputPath))
+                {
+                    return (false, sourceFiles.ToArray());
+                }
             }
             if (output.Committed
                 && inputPath.Equals(output.TargetPath, StringComparison.OrdinalIgnoreCase))
@@ -1964,28 +1721,197 @@ internal static class RecordingRecoveryService
                 continue;
             }
             output.Committed = false;
-            RecordingFinalizationResult result = RecordingFinalizationService.FinalizeFile(
+            bool released = await MediaOperationRegistry.WaitForPathReleaseAsync(
+                MediaOperationKind.Recording,
+                [inputPath],
+                TimeSpan.FromSeconds(10));
+            if (!released)
+            {
+                AppSessionLogger.Event("warn", "recovery", "recording_finalization_wait_timeout", "recording source did not release before finalization", new
+                {
+                    markerPath,
+                    inputPath,
+                });
+                return (false, sourceFiles.ToArray());
+            }
+            RecordingFinalizationResult result = await FinalizePlannedOutputAsync(
+                markerPath,
+                item,
+                output,
                 inputPath,
-                item.FileNameRule,
-                preserveSegmentSuffix: preserveSegmentSuffix,
-                plannedTargetPath: output.TargetPath,
-                token: token);
+                preserveSegmentSuffix,
+                reservedTargets,
+                token);
             if (!result.Success)
             {
                 AppSessionLogger.Event("warn", "recovery", "recording_finalization_failed", result.Error, new { markerPath, output = inputPath });
-                finalizedSourceFiles = sourceFiles.ToArray();
-                return false;
+                return (false, sourceFiles.ToArray());
             }
             output.Committed = true;
             UpdateFinalizedOutputPath(item, output.OriginalPath, result.Path);
             if (!Save(markerPath, item))
             {
-                finalizedSourceFiles = sourceFiles.ToArray();
-                return false;
+                return (false, sourceFiles.ToArray());
             }
         }
-        finalizedSourceFiles = sourceFiles.ToArray();
-        return true;
+
+        if (!item.RemoveSource)
+        {
+            foreach (string sourcePath in GetRetainedSourcePaths(sourceFiles, item.TargetFormat, item.IntermediateTargetPath))
+            {
+                token.ThrowIfCancellationRequested();
+                bool released = await MediaOperationRegistry.WaitForPathReleaseAsync(
+                    MediaOperationKind.Recording,
+                    [sourcePath],
+                    TimeSpan.FromSeconds(10));
+                if (!released)
+                {
+                    AppSessionLogger.Event("warn", "recovery", "recording_source_finalization_wait_timeout", "recording source did not release before finalization", new
+                    {
+                        markerPath,
+                        sourcePath,
+                    });
+                    return (false, sourceFiles.ToArray());
+                }
+
+                RecordingFinalizationResult result = await FinalizeRetainedSourceAsync(
+                    sourcePath,
+                    item.FileNameRule,
+                    preserveSegmentSuffix,
+                    token);
+                if (!result.Success)
+                {
+                    AppSessionLogger.Event("warn", "recovery", "recording_source_finalization_failed", result.Error, new { markerPath, sourcePath });
+                    return (false, sourceFiles.ToArray());
+                }
+                if (item.IntermediateTargetPath.Equals(sourcePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    item.IntermediateTargetPath = result.Path;
+                    if (!Save(markerPath, item))
+                    {
+                        return (false, sourceFiles.ToArray());
+                    }
+                }
+            }
+        }
+        return (true, sourceFiles.ToArray());
+    }
+
+    internal static string[] GetRetainedSourcePaths(IEnumerable<string> sourceFiles, string targetFormat, string? intermediateTargetPath = null)
+    {
+        return sourceFiles
+            .Concat(string.IsNullOrWhiteSpace(intermediateTargetPath) ? [] : [intermediateTargetPath])
+            .Where(IsUsableSource)
+            .Where(path => !Path.GetExtension(path).Equals(targetFormat, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    internal static bool ShouldReplanFinalizationOutput(string originalPath, string targetPath, bool committed)
+    {
+        return !committed
+            && !originalPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase)
+            && IsUsableSource(originalPath)
+            && IsUsableSource(targetPath);
+    }
+
+    private static bool ShouldReplanFinalizationOutput(PendingOutputFinalization output)
+    {
+        return ShouldReplanFinalizationOutput(output.OriginalPath, output.TargetPath, output.Committed);
+    }
+
+    private static bool TryReplanFinalizationOutput(
+        string markerPath,
+        PendingRecording item,
+        PendingOutputFinalization output,
+        bool preserveSegmentSuffix,
+        ISet<string> reservedTargets,
+        CancellationToken token,
+        out string inputPath)
+    {
+        inputPath = output.OriginalPath;
+        RecordingFinalizationPlan plan = RecordingFinalizationService.PlanFile(
+            inputPath,
+            item.FileNameRule,
+            preserveSegmentSuffix,
+            reservedTargets,
+            token);
+        if (!plan.Success)
+        {
+            return false;
+        }
+        output.TargetPath = plan.TargetPath;
+        reservedTargets.Add(plan.TargetPath);
+        return Save(markerPath, item);
+    }
+
+    private static async Task<RecordingFinalizationResult> FinalizePlannedOutputAsync(
+        string markerPath,
+        PendingRecording item,
+        PendingOutputFinalization output,
+        string inputPath,
+        bool preserveSegmentSuffix,
+        ISet<string> reservedTargets,
+        CancellationToken token)
+    {
+        RecordingFinalizationResult result = new(false, inputPath, new VideoRecordingMetadata());
+        for (int attempt = 0; attempt < FinalizationAttemptCount; attempt++)
+        {
+            token.ThrowIfCancellationRequested();
+            result = RecordingFinalizationService.FinalizeFile(
+                inputPath,
+                item.FileNameRule,
+                preserveSegmentSuffix: preserveSegmentSuffix,
+                plannedTargetPath: output.TargetPath,
+                token: token);
+            if (result.Success)
+            {
+                return result;
+            }
+            if (result.FailureKind == RecordingFinalizationFailureKind.TargetCollision)
+            {
+                if (!TryReplanFinalizationOutput(markerPath, item, output, preserveSegmentSuffix, reservedTargets, token, out inputPath))
+                {
+                    return result;
+                }
+            }
+            else if (result.FailureKind != RecordingFinalizationFailureKind.Rename)
+            {
+                return result;
+            }
+            if (attempt + 1 < FinalizationAttemptCount)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(250 * (attempt + 1)), token);
+            }
+        }
+        return result;
+    }
+
+    private static async Task<RecordingFinalizationResult> FinalizeRetainedSourceAsync(
+        string sourcePath,
+        string fileNameRule,
+        bool preserveSegmentSuffix,
+        CancellationToken token)
+    {
+        RecordingFinalizationResult result = new(false, sourcePath, new VideoRecordingMetadata());
+        for (int attempt = 0; attempt < FinalizationAttemptCount; attempt++)
+        {
+            token.ThrowIfCancellationRequested();
+            result = RecordingFinalizationService.FinalizeFile(
+                sourcePath,
+                fileNameRule,
+                preserveSegmentSuffix,
+                token: token);
+            if (result.Success || result.FailureKind != RecordingFinalizationFailureKind.Rename)
+            {
+                return result;
+            }
+            if (attempt + 1 < FinalizationAttemptCount)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(250 * (attempt + 1)), token);
+            }
+        }
+        return result;
     }
 
     private static string? ResolveExistingFinalizationPath(PendingRecording item, string originalPath)
@@ -2506,8 +2432,16 @@ internal static class RecordingRecoveryService
 
     internal static bool IsTerminalRecoveryFailure(string? failureReason)
     {
-        return failureReason?.StartsWith("output_track_timeline_mismatch", StringComparison.Ordinal) == true
-            || failureReason?.StartsWith("duration_mismatch", StringComparison.Ordinal) == true;
+        return failureReason?.Contains("output_track_timeline_mismatch", StringComparison.Ordinal) == true
+            || failureReason?.Contains("duration_mismatch", StringComparison.Ordinal) == true
+            || failureReason?.Contains("native_exit_code:-28", StringComparison.OrdinalIgnoreCase) == true
+            || failureReason?.Contains("no space left", StringComparison.OrdinalIgnoreCase) == true
+            || failureReason?.Contains("not enough space", StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    internal static bool IsTransientRecoveryFailure(string? failureReason)
+    {
+        return string.Equals(failureReason, "source_busy", StringComparison.Ordinal);
     }
 
     private static bool ReconcileReservedOutputs(PendingRecording item)
@@ -2599,7 +2533,19 @@ internal static class RecordingRecoveryService
         lock (PendingMarkerMutationLock)
         {
             PendingRecording? item = Load(path, out _, validateAllowedDirectory: false);
-            if (item == null || item.RetryBlocked)
+            if (item == null)
+            {
+                return;
+            }
+
+            if (IsTransientRecoveryFailure(reason))
+            {
+                ResetFailureState(item);
+                _ = Save(path, item);
+                return;
+            }
+
+            if (item.RetryBlocked)
             {
                 return;
             }
@@ -2757,5 +2703,3 @@ internal sealed record RecordingRecoveryStatus(
     bool IsMerging,
     bool RetryBlocked,
     int FailureCount);
-
-internal readonly record struct EmbeddedProbeFingerprint(long Length, long LastWriteTimeUtcTicks);

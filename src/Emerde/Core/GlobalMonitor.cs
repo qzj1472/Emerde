@@ -2264,6 +2264,7 @@ internal static class GlobalMonitor
                 : null,
             ReconnectExhausted = () => PauseRoomRecordStart(room.RoomUrl, room.NickName, "reconnect_exhausted"),
             RapidExitDetected = () => PauseRoomRecordStart(room.RoomUrl, room.NickName, "rapid_exit"),
+            StorageExhausted = () => PauseRoomRecordStart(room.RoomUrl, room.NickName, "storage_exhausted"),
         };
 
         Lazy<bool> defaultRecordingStart = new(() =>

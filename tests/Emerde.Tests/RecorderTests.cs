@@ -240,6 +240,31 @@ public sealed class RecorderTests
         Assert.Equal(expected, fallback);
     }
 
+    [Theory]
+    [InlineData("Douyin", "https://example.test/live.flv", true, true, false, "https://example.test/live.m3u8")]
+    [InlineData("douyin", "https://example.test/live.flv", true, true, true, null)]
+    [InlineData("Douyin", "https://example.test/live.flv", false, true, false, null)]
+    [InlineData("Douyin", "https://example.test/live.flv", true, false, false, null)]
+    [InlineData("Bilibili", "https://example.test/live.flv", true, true, false, null)]
+    public void SelectInputFallbackAfterStall_UsesDouyinHlsOnlyOnceAfterProgress(
+        string platformName,
+        string currentUrl,
+        bool hadMediaProgress,
+        bool wasStalled,
+        bool alreadyTried,
+        string? expected)
+    {
+        string? fallback = Recorder.SelectInputFallbackAfterStall(
+            platformName,
+            currentUrl,
+            "https://example.test/live.m3u8",
+            hadMediaProgress,
+            wasStalled,
+            alreadyTried);
+
+        Assert.Equal(expected, fallback);
+    }
+
     [Fact]
     public void InputFallback_RemovesFailedOutputBeforeAdvancingSessionPart()
     {
@@ -327,6 +352,45 @@ public sealed class RecorderTests
     public void BuildSessionOutputFileName_UsesSourceContainerForInternalParts(string sourceExtension, string expected)
     {
         Assert.Equal(Path.Combine("D:\\records", expected), Recorder.BuildSessionOutputFileName("D:\\records", "record", sourceExtension));
+    }
+
+    [Fact]
+    public void ReserveSessionOutput_SkipsExistingFinalMediaFromPreviousSession()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-recorder-session-reservation-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        File.WriteAllBytes(Path.Combine(directory, "Host.mp4"), [1]);
+
+        try
+        {
+            using Recorder.OutputReservation reservation = Recorder.ReserveSessionOutput(directory, "Host", "ts");
+
+            Assert.Equal("Host_2", reservation.BaseFileName);
+            Assert.Equal(Path.Combine(directory, "Host_2_%03d.ts"), reservation.OutputPattern);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Fact]
+    public void ReserveSessionOutput_DoesNotMatchAnotherBaseName()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-recorder-session-name-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        File.WriteAllBytes(Path.Combine(directory, "Hostess.mp4"), [1]);
+
+        try
+        {
+            using Recorder.OutputReservation reservation = Recorder.ReserveSessionOutput(directory, "Host", "ts");
+
+            Assert.Equal("Host", reservation.BaseFileName);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
     }
 
     [Fact]

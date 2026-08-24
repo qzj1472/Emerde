@@ -48,6 +48,58 @@ public sealed class RecordingCoverStoreTests
     }
 
     [Fact]
+    public void MaterializeDisplayImage_CanSuppressAvatarFallbackForFinalizedVideo()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"emerde-final-cover-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        string mediaPath = Path.Combine(root, "record.mp4");
+        string cachePath = Path.Combine(root, "cache", "cover.jpg");
+        try
+        {
+            File.WriteAllText(mediaPath, "media");
+
+            string displayPath = RecordingCoverStore.MaterializeDisplayImage(
+                mediaPath,
+                new VideoRecordingMetadata { RecordingAvatar = Png },
+                cachePath,
+                allowAvatarFallback: false);
+
+            Assert.Empty(displayPath);
+            Assert.False(File.Exists(cachePath));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MaterializeRecordingAvatar_UsesOnlyTheRecordedAvatarSnapshot()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"emerde-recording-avatar-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        string mediaPath = Path.Combine(root, "recording.ts");
+        string cachePath = Path.Combine(root, "cache", "cover.jpg");
+        try
+        {
+            File.WriteAllText(mediaPath, "recording");
+            Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
+            File.WriteAllBytes(cachePath, [1, 2, 3]);
+            string displayPath = RecordingCoverStore.MaterializeRecordingAvatar(
+                mediaPath,
+                new VideoRecordingMetadata { RecordingAvatar = Png },
+                cachePath);
+
+            Assert.Equal(cachePath, displayPath);
+            Assert.Equal(Png, File.ReadAllBytes(displayPath));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void ComposeCover_KeepsVideoOpaqueAndLimitsAvatarToRightThirtyFivePercent()
     {
         BitmapSource frame = CreatePixel(0, 0, 255);

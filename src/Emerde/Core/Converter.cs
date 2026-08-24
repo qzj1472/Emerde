@@ -3,7 +3,10 @@ using System.Text.RegularExpressions;
 
 namespace Emerde.Core;
 
-public sealed record ConverterOptions(string TargetFormat, bool OptimizeAudio = false);
+public sealed record ConverterOptions(
+    string TargetFormat,
+    bool OptimizeAudio = false,
+    bool RemoveSource = false);
 
 public sealed class Converter
 {
@@ -198,6 +201,9 @@ public sealed class Converter
                 return false;
             }
             FfmpegMediaProbeResult[] sourceProbes = probeBatch.Probes;
+            double[] sourceTimelineEndSeconds = sourceProbes
+                .Select(GetSourceTimelineEndSeconds)
+                .ToArray();
             double probedSourceDuration = sourceProbes.Sum(probe => Math.Max(0d, probe.DurationSeconds));
             double sourceAudioEndSeconds = sourceProbes.Sum(probe => Math.Max(0d, probe.AudioEndSeconds));
             double sourceVideoEndSeconds = sourceProbes.Sum(probe => Math.Max(0d, probe.VideoEndSeconds));
@@ -227,8 +233,14 @@ public sealed class Converter
                         temporaryTargetFileName,
                         metadata,
                         token,
-                        parallelizePreparation: sourcePaths.Length > 1 && !GlobalMonitor.HasActiveRecorders)
-                    : FfmpegMediaEngine.RemuxFiles(sourcePaths, temporaryTargetFileName, metadata, token),
+                        parallelizePreparation: sourcePaths.Length > 1 && !GlobalMonitor.HasActiveRecorders,
+                        sourceTimelineEndSeconds: sourceTimelineEndSeconds)
+                    : FfmpegMediaEngine.RemuxFiles(
+                        sourcePaths,
+                        temporaryTargetFileName,
+                        metadata,
+                        token,
+                        sourceTimelineEndSeconds: sourceTimelineEndSeconds),
                 token);
             if (result.WasCanceled)
             {
@@ -250,7 +262,12 @@ public sealed class Converter
                 optimizedAudioFallback = true;
                 optimizeAudio = false;
                 result = await Task.Run(
-                    () => FfmpegMediaEngine.RemuxFiles(sourcePaths, temporaryTargetFileName, metadata, token),
+                    () => FfmpegMediaEngine.RemuxFiles(
+                        sourcePaths,
+                        temporaryTargetFileName,
+                        metadata,
+                        token,
+                        sourceTimelineEndSeconds: sourceTimelineEndSeconds),
                     token);
                 if (result.WasCanceled)
                 {
@@ -275,6 +292,10 @@ public sealed class Converter
                 }
                 onCompleted?.Invoke(targetFileName);
                 completionAcknowledged = true;
+                if (converterOptions.RemoveSource)
+                {
+                    _ = TryDeleteSourceFiles(sourcePaths);
+                }
             }
             AppSessionLogger.Event(succeeded ? "info" : "error", "converter", "conversion_finished", "recording conversion finished", new
             {
@@ -342,6 +363,34 @@ public sealed class Converter
     internal static ConverterOptions CreateDefaultOptions(string targetFormat)
     {
         return new ConverterOptions(targetFormat, false);
+    }
+
+    internal static bool TryDeleteSourceFiles(IEnumerable<string> sourcePaths)
+    {
+        bool deleted = true;
+        foreach (string sourcePath in sourcePaths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                if (!File.Exists(sourcePath))
+                {
+                    continue;
+                }
+
+                File.Delete(sourcePath);
+                VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(sourcePath);
+                RecordingAssociatedAssets.Delete(sourcePath);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                deleted = false;
+                AppSessionLogger.WriteException(exception);
+            }
+        }
+
+        return deleted;
     }
 
     private static async Task<(bool Succeeded, string ValidationError)> ValidateConversionAsync(
@@ -563,6 +612,13 @@ public sealed class Converter
     internal static double SelectExpectedDuration(double probedDuration, double processedDuration)
     {
         return processedDuration > 0d ? processedDuration : Math.Max(0d, probedDuration);
+    }
+
+    internal static double GetSourceTimelineEndSeconds(FfmpegMediaProbeResult probe)
+    {
+        return Math.Max(
+            Math.Max(0d, probe.AudioEndSeconds),
+            Math.Max(Math.Max(0d, probe.VideoEndSeconds), Math.Max(0d, probe.DurationSeconds)));
     }
 
     internal static bool IsRecordingDurationComplete(double expectedDuration, double actualDuration)

@@ -79,6 +79,7 @@ internal static unsafe partial class FfmpegMediaEngine
 {
     private const long MaximumSharedTimelineGapMicroseconds = 10L * 1_000_000;
     private const long MaximumPacketForwardGapMicroseconds = 30L * 1_000_000;
+    private const double TimelineBoundaryToleranceSeconds = 2d;
     internal const long VideoTimelineStallThresholdMicroseconds = 3L * 1_000_000;
     internal const long InitialMediaSyncMaximumDurationMicroseconds = 10L * 1_000_000;
     internal const long InitialMediaSyncMaximumBytes = 64L * 1024 * 1024;
@@ -143,9 +144,17 @@ internal static unsafe partial class FfmpegMediaEngine
         string targetFileName,
         VideoRecordingMetadata metadata,
         CancellationToken token,
-        Action<long>? onProgress = null)
+        Action<long>? onProgress = null,
+        IReadOnlyList<double>? sourceTimelineEndSeconds = null)
     {
-        return Remux(sourceFileNames, targetFileName, metadata, null, token, onProgress);
+        return Remux(
+            sourceFileNames,
+            targetFileName,
+            metadata,
+            null,
+            token,
+            onProgress,
+            sourceTimelineEndSeconds: sourceTimelineEndSeconds);
     }
 
     public static FfmpegMediaRunResult RepairFile(
@@ -153,9 +162,18 @@ internal static unsafe partial class FfmpegMediaEngine
         string targetFileName,
         VideoRecordingMetadata metadata,
         CancellationToken token,
-        Action<long>? onProgress = null)
+        Action<long>? onProgress = null,
+        double maximumTimelineEndSeconds = 0d)
     {
-        return Remux([sourceFileName], targetFileName, metadata, null, token, onProgress, salvageDamagedFile: true);
+        return Remux(
+            [sourceFileName],
+            targetFileName,
+            metadata,
+            null,
+            token,
+            onProgress,
+            salvageDamagedFile: true,
+            maximumTimelineEndSeconds: maximumTimelineEndSeconds);
     }
 
     public static FfmpegMediaRunResult RecordStream(
@@ -1688,7 +1706,9 @@ internal static unsafe partial class FfmpegMediaEngine
         Action<long>? onProgress,
         Action<FfmpegPacketProgress>? onPacketProgress = null,
         Action<bool, bool>? onStreamsDiscovered = null,
-        bool salvageDamagedFile = false)
+        bool salvageDamagedFile = false,
+        double maximumTimelineEndSeconds = 0d,
+        IReadOnlyList<double>? sourceTimelineEndSeconds = null)
     {
         if (sourceFileNames.Count == 0 || string.IsNullOrWhiteSpace(targetFileName))
         {
@@ -1798,6 +1818,11 @@ internal static unsafe partial class FfmpegMediaEngine
                     }
 
                     long sourceTimestampBase = inputContext->start_time;
+                    double sourceTimelineLimitSeconds = GetSourceTimelineEndSeconds(
+                        maximumTimelineEndSeconds,
+                        sourceTimelineEndSeconds,
+                        sourceIndex,
+                        inputContext);
                     long sourceDecodeEndTimestamp = timelineOffset;
                     int referenceStreamIndex = GetSegmentReferenceStreamIndex(inputContext);
                     if (referenceStreamIndex < 0)
@@ -2041,6 +2066,13 @@ internal static unsafe partial class FfmpegMediaEngine
                             inputStream,
                             sourceTimestampBase,
                             AddSaturated(sourceClock.CurrentCorrection, timelineRecoveryResult.PacketTimestampCorrection));
+                        if (sourceTimelineLimitSeconds > 0d
+                            && PacketExceedsTimelineLimit(packet, inputStream, sourceTimelineLimitSeconds))
+                        {
+                            discardedPackets++;
+                            ffmpeg.av_packet_unref(packet);
+                            continue;
+                        }
                         ffmpeg.av_packet_rescale_ts(packet, inputStream->time_base, outputStream->time_base);
                         ApplyTimelineOffset(packet, outputStream, timelineOffset);
                         NormalizePacketDts(packet, outputStream, outputStreamIndex, lastPacketEnds);
@@ -2178,6 +2210,67 @@ internal static unsafe partial class FfmpegMediaEngine
         {
             packet->dts -= inputOffset;
         }
+    }
+
+    private static bool PacketExceedsTimelineLimit(
+        AVPacket* packet,
+        AVStream* inputStream,
+        double maximumTimelineEndSeconds)
+    {
+        long packetTimestamp = GetPacketTimestamp(packet, inputStream);
+        if (packetTimestamp == ffmpeg.AV_NOPTS_VALUE)
+        {
+            return false;
+        }
+
+        long packetEnd = AddSaturated(packetTimestamp, GetPacketDurationMicroseconds(packet, inputStream));
+        long maximumTimestamp = (long)Math.Ceiling(
+            (maximumTimelineEndSeconds + TimelineBoundaryToleranceSeconds) * ffmpeg.AV_TIME_BASE);
+        return packetEnd > maximumTimestamp;
+    }
+
+    private static bool PacketExceedsSourceTimelineLimit(
+        AVPacket* packet,
+        AVStream* inputStream,
+        long sourceTimestampBaseMicroseconds,
+        double maximumTimelineEndSeconds)
+    {
+        long packetTimestamp = GetPacketTimestamp(packet, inputStream);
+        if (packetTimestamp == ffmpeg.AV_NOPTS_VALUE)
+        {
+            return false;
+        }
+
+        long relativeTimestamp = sourceTimestampBaseMicroseconds == ffmpeg.AV_NOPTS_VALUE
+            ? packetTimestamp
+            : SubtractSaturated(packetTimestamp, sourceTimestampBaseMicroseconds);
+        long packetEnd = AddSaturated(relativeTimestamp, GetPacketDurationMicroseconds(packet, inputStream));
+        long maximumTimestamp = (long)Math.Ceiling(
+            (maximumTimelineEndSeconds + TimelineBoundaryToleranceSeconds) * ffmpeg.AV_TIME_BASE);
+        return packetEnd > maximumTimestamp;
+    }
+
+    private static double GetSourceTimelineEndSeconds(
+        double fallbackTimelineEndSeconds,
+        IReadOnlyList<double>? sourceTimelineEndSeconds,
+        int sourceIndex,
+        AVFormatContext* inputContext)
+    {
+        if (sourceTimelineEndSeconds != null
+            && sourceIndex < sourceTimelineEndSeconds.Count
+            && sourceTimelineEndSeconds[sourceIndex] > 0d)
+        {
+            return sourceTimelineEndSeconds[sourceIndex];
+        }
+
+        if (fallbackTimelineEndSeconds > 0d)
+        {
+            return fallbackTimelineEndSeconds;
+        }
+
+        return inputContext->duration > 0
+            ? inputContext->duration / (double)ffmpeg.AV_TIME_BASE
+            : 0d;
     }
 
     private static void ApplyPacketTimestampCorrection(

@@ -3,11 +3,22 @@ using System.Text.RegularExpressions;
 
 namespace Emerde.Core;
 
+internal enum RecordingFinalizationFailureKind
+{
+    None,
+    SourceMissing,
+    Probe,
+    TargetCollision,
+    Rename,
+    Metadata,
+}
+
 internal sealed record RecordingFinalizationResult(
     bool Success,
     string Path,
     VideoRecordingMetadata Metadata,
-    string Error = "");
+    string Error = "",
+    RecordingFinalizationFailureKind FailureKind = RecordingFinalizationFailureKind.None);
 
 internal sealed record RecordingFinalizationPlan(
     bool Success,
@@ -32,14 +43,14 @@ internal static partial class RecordingFinalizationService
         token.ThrowIfCancellationRequested();
         if (!File.Exists(mediaPath))
         {
-            return new RecordingFinalizationResult(false, mediaPath, new VideoRecordingMetadata(), "media file does not exist");
+            return new RecordingFinalizationResult(false, mediaPath, new VideoRecordingMetadata(), "media file does not exist", RecordingFinalizationFailureKind.SourceMissing);
         }
 
         FileInfo source = new(mediaPath);
         VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(source);
         if (!FfmpegMediaEngine.TryProbe(mediaPath, out FfmpegMediaProbeResult probe, out string probeError, token))
         {
-            return new RecordingFinalizationResult(false, mediaPath, metadata, probeError);
+            return new RecordingFinalizationResult(false, mediaPath, metadata, probeError, RecordingFinalizationFailureKind.Probe);
         }
 
         ApplyProbe(metadata, probe, hasOptimizedAudio);
@@ -52,11 +63,18 @@ internal static partial class RecordingFinalizationService
                 : Path.GetFullPath(plannedTargetPath);
             if (!PathsEqual(mediaPath, targetPath) && File.Exists(targetPath))
             {
-                return new RecordingFinalizationResult(false, mediaPath, metadata, "planned target already exists");
+                return new RecordingFinalizationResult(false, mediaPath, metadata, "planned target already exists", RecordingFinalizationFailureKind.TargetCollision);
             }
             if (!PathsEqual(mediaPath, targetPath))
             {
-                File.Move(mediaPath, targetPath, false);
+                try
+                {
+                    File.Move(mediaPath, targetPath, false);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    return new RecordingFinalizationResult(false, mediaPath, metadata, exception.Message, RecordingFinalizationFailureKind.Rename);
+                }
             }
         }
 
@@ -88,7 +106,7 @@ internal static partial class RecordingFinalizationService
             }
             _ = RecordingAssociatedAssets.Move(targetPath, mediaPath);
         }
-        return new RecordingFinalizationResult(false, mediaPath, metadata, "metadata could not be stored");
+        return new RecordingFinalizationResult(false, mediaPath, metadata, "metadata could not be stored", RecordingFinalizationFailureKind.Metadata);
     }
 
     internal static RecordingFinalizationPlan PlanFile(

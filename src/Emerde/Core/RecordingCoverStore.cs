@@ -120,7 +120,11 @@ internal static class RecordingCoverStore
         }
     }
 
-    internal static string MaterializeDisplayImage(string mediaPath, VideoRecordingMetadata metadata, string cachePath)
+    internal static string MaterializeDisplayImage(
+        string mediaPath,
+        VideoRecordingMetadata metadata,
+        string cachePath,
+        bool allowAvatarFallback = true)
     {
         byte[] bytes;
         DateTime sourceWriteTimeUtc;
@@ -128,12 +132,27 @@ internal static class RecordingCoverStore
         {
             return WriteDisplayCache(cachePath, bytes, sourceWriteTimeUtc);
         }
-        if (metadata.RecordingAvatar.Length > 0)
+        if (allowAvatarFallback && metadata.RecordingAvatar.Length > 0)
         {
             sourceWriteTimeUtc = GetMetadataWriteTimeUtc(mediaPath);
             return WriteDisplayCache(cachePath, metadata.RecordingAvatar, sourceWriteTimeUtc);
         }
         return string.Empty;
+    }
+
+    internal static string MaterializeRecordingAvatar(string mediaPath, VideoRecordingMetadata metadata, string cachePath)
+    {
+        if (metadata.RecordingAvatar.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        DateTime sourceWriteTimeUtc = VideoRecordingMetadataStore.GetMetadataCandidates(new FileInfo(mediaPath))
+            .Where(File.Exists)
+            .Select(File.GetLastWriteTimeUtc)
+            .DefaultIfEmpty(File.GetCreationTimeUtc(mediaPath))
+            .Max();
+        return WriteDisplayCache(cachePath, metadata.RecordingAvatar, sourceWriteTimeUtc, force: true);
     }
 
     internal static string GetDisplayCachePath(string mediaPath, string cacheDirectory)
@@ -362,11 +381,12 @@ internal static class RecordingCoverStore
         return false;
     }
 
-    private static string WriteDisplayCache(string cachePath, byte[] bytes, DateTime sourceWriteTimeUtc)
+    private static string WriteDisplayCache(string cachePath, byte[] bytes, DateTime sourceWriteTimeUtc, bool force = false)
     {
         try
         {
-            if (File.Exists(cachePath)
+            if (!force
+                && File.Exists(cachePath)
                 && new FileInfo(cachePath).Length > 0
                 && File.GetLastWriteTimeUtc(cachePath) >= sourceWriteTimeUtc)
             {

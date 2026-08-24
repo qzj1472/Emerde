@@ -739,6 +739,10 @@ internal static class VideoRecordingMetadataStore
         try
         {
             using FileStream stream = new(handle, FileAccess.Read);
+            if (stream.Length == 0)
+            {
+                return null;
+            }
             return JsonSerializer.Deserialize<VideoRecordingMetadata>(stream);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or NotSupportedException)

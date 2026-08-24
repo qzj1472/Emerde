@@ -91,6 +91,38 @@ public sealed class ConverterTests
     }
 
     [Theory]
+    [InlineData(20d, 18d, 19d, 20d)]
+    [InlineData(0d, 18d, 19d, 19d)]
+    [InlineData(20d, 0d, 0d, 20d)]
+    public void SourceTimelineEnd_UsesTheLatestAvailableProbeBoundary(
+        double audioEndSeconds,
+        double videoEndSeconds,
+        double durationSeconds,
+        double expected)
+    {
+        Assert.Equal(
+            expected,
+            Converter.GetSourceTimelineEndSeconds(new FfmpegMediaProbeResult(
+                audioEndSeconds > 0,
+                videoEndSeconds > 0,
+                audioEndSeconds > 0 ? 1 : 0,
+                videoEndSeconds > 0 ? 1 : 0,
+                audioEndSeconds,
+                videoEndSeconds,
+                1920,
+                1080,
+                30,
+                durationSeconds,
+                0,
+                "h264",
+                "aac",
+                false,
+                string.Empty,
+                new VideoRecordingMetadata(),
+                false)));
+    }
+
+    [Theory]
     [InlineData(22278.651, 22082.523, false)]
     [InlineData(3600, 3585, true)]
     [InlineData(3600, 3584.9, false)]

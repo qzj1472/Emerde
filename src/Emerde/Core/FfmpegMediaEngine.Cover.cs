@@ -41,13 +41,7 @@ internal static unsafe partial class FfmpegMediaEngine
                 return false;
             }
 
-            int videoStreamIndex = ffmpeg.av_find_best_stream(
-                inputContext,
-                AVMediaType.AVMEDIA_TYPE_VIDEO,
-                -1,
-                -1,
-                null,
-                0);
+            int videoStreamIndex = FindCoverVideoStream(inputContext);
             if (videoStreamIndex < 0)
             {
                 error = "video stream was not found";
@@ -157,6 +151,34 @@ internal static unsafe partial class FfmpegMediaEngine
                 interruptHandle.Free();
             }
         }
+    }
+
+    private static int FindCoverVideoStream(AVFormatContext* inputContext)
+    {
+        int preferredStreamIndex = ffmpeg.av_find_best_stream(
+            inputContext,
+            AVMediaType.AVMEDIA_TYPE_VIDEO,
+            -1,
+            -1,
+            null,
+            0);
+        if (preferredStreamIndex >= 0
+            && (inputContext->streams[preferredStreamIndex]->disposition & ffmpeg.AV_DISPOSITION_ATTACHED_PIC) == 0)
+        {
+            return preferredStreamIndex;
+        }
+
+        for (uint index = 0; index < inputContext->nb_streams; index++)
+        {
+            AVStream* stream = inputContext->streams[index];
+            if (stream->codecpar->codec_type == AVMediaType.AVMEDIA_TYPE_VIDEO
+                && (stream->disposition & ffmpeg.AV_DISPOSITION_ATTACHED_PIC) == 0)
+            {
+                return (int)index;
+            }
+        }
+
+        return -1;
     }
 
     private static BitmapSource ConvertCoverFrame(AVFrame* source, ref SwsContext* scaleContext)

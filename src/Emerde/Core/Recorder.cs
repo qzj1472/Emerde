@@ -407,6 +407,19 @@ public sealed class Recorder
                     break;
                 }
 
+                if (IsInsufficientStorageFailure(exitCode, lastProcessErrorOutput))
+                {
+                    AppSessionLogger.Event("error", "recorder", "record_storage_exhausted", "recording stopped because the output disk is full", new
+                    {
+                        startInfo.RoomUrl,
+                        startInfo.NickName,
+                        exitCode,
+                        outputFileName,
+                    });
+                    startInfo.StorageExhausted?.Invoke();
+                    break;
+                }
+
                 string? fallbackUrl = SelectInputFallback(
                     startInfo.PlatformName,
                     Url,
@@ -489,6 +502,30 @@ public sealed class Recorder
 
                 if (isLiveAfterRefresh == true)
                 {
+                    string? stalledFallbackUrl = SelectInputFallbackAfterStall(
+                        startInfo.PlatformName,
+                        Url,
+                        startInfo.HlsUrl,
+                        lastAttemptHadMediaProgress,
+                        lastAttemptWasStalled,
+                        hasTriedInputFallback);
+                    bool switchedAfterStall = !string.IsNullOrWhiteSpace(stalledFallbackUrl);
+                    if (switchedAfterStall)
+                    {
+                        string failedUrl = Url;
+                        Url = stalledFallbackUrl!;
+                        startInfo.RecordUrl = Url;
+                        hasTriedInputFallback = true;
+                        isHls = IsHlsUrl(Url, startInfo);
+                        AppSessionLogger.Event("warn", "recorder", "record_input_fallback_after_stall", "recording switched to the fallback stream after a stalled media segment", new
+                        {
+                            startInfo.RoomUrl,
+                            startInfo.NickName,
+                            startInfo.PlatformName,
+                            failedInputKind = IsHlsUrl(failedUrl, startInfo) ? "hls" : "flv",
+                            fallbackInputKind = isHls ? "hls" : "flv",
+                        });
+                    }
                     if (hasTriedInputFallback
                         && string.Equals(startInfo.PlatformName, "Bilibili", StringComparison.OrdinalIgnoreCase)
                         && !string.IsNullOrWhiteSpace(startInfo.FlvUrl))
@@ -501,6 +538,10 @@ public sealed class Recorder
                     if (!useSessionPartFiles)
                     {
                         useTransportStream = ShouldUseTransportStream(isHls, isToSegment, targetFormat);
+                    }
+                    if (switchedAfterStall)
+                    {
+                        continue;
                     }
                 }
 
@@ -1943,6 +1984,20 @@ public sealed class Recorder
         return !offlineConfirmed && (exitCode != 0 || hasStreamRefresh);
     }
 
+    internal static bool IsInsufficientStorageFailure(int exitCode, string? errorOutput)
+    {
+        if (exitCode == -28)
+        {
+            return true;
+        }
+
+        string output = errorOutput ?? string.Empty;
+        return output.Contains("no space left", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("not enough space", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("disk full", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("errno=28", StringComparison.OrdinalIgnoreCase);
+    }
+
     internal static bool ShouldConsumeReconnectAttempt(bool? isLiveAfterRefresh, bool hadMediaProgress)
     {
         return isLiveAfterRefresh != true || !hadMediaProgress;
@@ -2011,6 +2066,29 @@ public sealed class Recorder
         }
 
         return flvUrl;
+    }
+
+    internal static string? SelectInputFallbackAfterStall(
+        string? platformName,
+        string? currentUrl,
+        string? hlsUrl,
+        bool hadMediaProgress,
+        bool wasStalled,
+        bool alreadyTried)
+    {
+        if (alreadyTried
+            || !hadMediaProgress
+            || !wasStalled
+            || !string.Equals(platformName, "Douyin", StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(currentUrl)
+            || string.IsNullOrWhiteSpace(hlsUrl)
+            || currentUrl.Contains(".m3u8", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentUrl, hlsUrl, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return hlsUrl;
     }
 
     private async Task<bool?> TryRefreshInputAsync(RecorderStartInfo startInfo, CancellationToken token)
@@ -2339,11 +2417,36 @@ public sealed class Recorder
             return true;
         }
 
+        if (!isToSegment)
+        {
+            return File.Exists(outputPattern);
+        }
+
         string extension = Path.GetExtension(outputPattern);
-        return isToSegment
-            ? File.Exists(Path.Combine(saveFolder, $"{baseFileName}{extension}"))
-              || Directory.EnumerateFiles(saveFolder, $"{baseFileName}_*{extension}", SearchOption.TopDirectoryOnly).Any()
-            : File.Exists(outputPattern);
+        if (File.Exists(Path.Combine(saveFolder, $"{baseFileName}{extension}"))
+            || Directory.EnumerateFiles(saveFolder, $"{baseFileName}_*{extension}", SearchOption.TopDirectoryOnly).Any())
+        {
+            return true;
+        }
+
+        try
+        {
+            return Directory.EnumerateFiles(saveFolder, $"{baseFileName}*", SearchOption.TopDirectoryOnly)
+                .Any(path => MediaFileCatalog.IsMediaPath(path)
+                    && IsSameSessionBaseFile(path, baseFileName));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(exception);
+            return true;
+        }
+    }
+
+    private static bool IsSameSessionBaseFile(string path, string baseFileName)
+    {
+        string candidateStem = Path.GetFileNameWithoutExtension(path);
+        return candidateStem.Equals(baseFileName, StringComparison.OrdinalIgnoreCase)
+            || candidateStem.StartsWith(baseFileName + "_", StringComparison.OrdinalIgnoreCase);
     }
 
     internal sealed class OutputReservation(string baseFileName, string outputPattern) : IDisposable
@@ -2717,6 +2820,8 @@ public record RecorderStartInfo
     internal Action? ReconnectExhausted { get; set; }
 
     internal Action? RapidExitDetected { get; set; }
+
+    internal Action? StorageExhausted { get; set; }
 }
 
 internal sealed record RecorderStreamRefreshResult

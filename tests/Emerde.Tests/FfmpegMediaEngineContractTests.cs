@@ -128,6 +128,17 @@ public sealed class FfmpegMediaEngineContractTests
     }
 
     [Fact]
+    public void Remux_UsesPerSourceTimelineBoundariesBeforeWritingPackets()
+    {
+        string source = ReadSource();
+
+        Assert.Contains("IReadOnlyList<double>? sourceTimelineEndSeconds", source);
+        Assert.Contains("GetSourceTimelineEndSeconds(", source);
+        Assert.Contains("PacketExceedsTimelineLimit(packet, inputStream, sourceTimelineLimitSeconds)", source);
+        Assert.Contains("TimelineBoundaryToleranceSeconds", source);
+    }
+
+    [Fact]
     public void OptimizedAudio_PadsPartialFifoFramesAndReportsBaseDuration()
     {
         string source = ReadOptimizedAudioSource();
@@ -193,6 +204,16 @@ public sealed class FfmpegMediaEngineContractTests
         Assert.Contains("CreateStreamCompatibilities", source);
         Assert.Contains("BuildStreamCompatibility", source);
         Assert.Contains("streamSignatures.Order(StringComparer.Ordinal)", source);
+    }
+
+    [Fact]
+    public void OptimizedAudio_UsesTheSamePerSourceTimelineBoundaries()
+    {
+        string source = ReadOptimizedAudioSource();
+
+        Assert.Contains("IReadOnlyList<double>? sourceTimelineEndSeconds", source);
+        Assert.Contains("PacketExceedsSourceTimelineLimit", source);
+        Assert.Contains("sourceTimelineLimitSeconds", source);
     }
 
     [Fact]

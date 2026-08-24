@@ -69,8 +69,16 @@ internal sealed class VideoRepairService
                 VideoRecordingMetadataStore.Load(new FileInfo(fullSourcePath)),
                 Path.GetFileName(targetPath));
             using IDisposable workSlot = await ConversionWorkScheduler.EnterAsync(false, token);
+            double maximumTimelineEndSeconds = Math.Max(
+                Math.Max(0d, sourceProbe.AudioEndSeconds),
+                Math.Max(0d, sourceProbe.VideoEndSeconds));
             FfmpegMediaRunResult runResult = await Task.Run(
-                () => FfmpegMediaEngine.RepairFile(fullSourcePath, temporaryPath, metadata, token),
+                () => FfmpegMediaEngine.RepairFile(
+                    fullSourcePath,
+                    temporaryPath,
+                    metadata,
+                    token,
+                    maximumTimelineEndSeconds: maximumTimelineEndSeconds),
                 token);
             if (runResult.WasCanceled)
             {
@@ -279,6 +287,21 @@ internal sealed class VideoRepairService
         if (source.HasVideo && !output.HasVideo)
         {
             return "repair_output_video_missing";
+        }
+        if (!Converter.IsTrackTimelineWithinTolerance(
+                output.AudioEndSeconds,
+                output.VideoEndSeconds,
+                source.AudioEndSeconds,
+                source.VideoEndSeconds))
+        {
+            return $"repair_output_track_timeline_mismatch:audio={output.AudioEndSeconds:F3},video={output.VideoEndSeconds:F3}";
+        }
+
+        double sourceTimelineEndSeconds = Math.Max(source.AudioEndSeconds, source.VideoEndSeconds);
+        if (sourceTimelineEndSeconds > 0d
+            && !Converter.IsDurationWithinTolerance(sourceTimelineEndSeconds, output.DurationSeconds))
+        {
+            return $"repair_output_duration_mismatch:expected={sourceTimelineEndSeconds:F3},actual={output.DurationSeconds:F3}";
         }
         return string.Empty;
     }

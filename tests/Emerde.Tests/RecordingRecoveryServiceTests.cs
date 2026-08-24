@@ -17,9 +17,22 @@ public sealed class RecordingRecoveryServiceTests
         Assert.Contains("CancellationTokenSource.CreateLinkedTokenSource(token)", code, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void IncompatibleSameFormatPartsFallBackToIndependentOutputs()
+    {
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "RecordingRecoveryService.cs"));
+
+        Assert.Contains("ProcessSourcesIndividuallyAsync(", code, StringComparison.Ordinal);
+        Assert.Contains("WaitForPathReleaseAsync(", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("TryFinalizeOutputs(\r\n", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("if (targetIsSourceFormat)\r\n                    {\r\n                        return false;\r\n                    }", code, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("output_track_timeline_mismatch:audio=1.000,video=4.000", true)]
     [InlineData("duration_mismatch:expected=10.000,actual=1.000", true)]
+    [InlineData("repair_failed:repair_output_track_timeline_mismatch:audio=1.000,video=4.000", true)]
+    [InlineData("repair_failed:repair_output_duration_mismatch:expected=10.000,actual=1.000", true)]
     [InlineData("native_exit_code:1", false)]
     [InlineData(null, false)]
     public void IsTerminalRecoveryFailure_OnlyBlocksUnrecoverableValidationFailures(
@@ -27,6 +40,29 @@ public sealed class RecordingRecoveryServiceTests
         bool expected)
     {
         Assert.Equal(expected, RecordingRecoveryService.IsTerminalRecoveryFailure(failureReason));
+    }
+
+    [Theory]
+    [InlineData("source_busy", true)]
+    [InlineData("native_exit_code:1", false)]
+    [InlineData(null, false)]
+    public void IsTransientRecoveryFailure_OnlyMatchesActiveSourceUse(
+        string? failureReason,
+        bool expected)
+    {
+        Assert.Equal(expected, RecordingRecoveryService.IsTransientRecoveryFailure(failureReason));
+    }
+
+    [Fact]
+    public void SourceBusyIsRecognizedAsTransientBeforeRetryBlockChecks()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "RecordingRecoveryService.cs"));
+        string normalized = source.Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains(
+            "if (item.RetryBlocked && IsTransientRecoveryFailure(item.LastFailureReason))\n        {",
+            normalized,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -97,19 +133,6 @@ public sealed class RecordingRecoveryServiceTests
         }
     }
 
-    [Theory]
-    [InlineData("host_2026-08-14_000.ts", "host_2026-08-14_%03d.ts")]
-    [InlineData("host_2026-08-14_0123.flv", "host_2026-08-14_%03d.flv")]
-    [InlineData("host_2026-08-14.ts", "host_2026-08-14.ts")]
-    public void BuildRecoverySourcePattern_GroupsSessionParts(string fileName, string expectedFileName)
-    {
-        string directory = Path.Combine(Path.GetTempPath(), "emerde-recovery-pattern");
-
-        Assert.Equal(
-            Path.Combine(directory, expectedFileName),
-            RecordingRecoveryService.BuildRecoverySourcePattern(Path.Combine(directory, fileName)));
-    }
-
     [Fact]
     public void ResolveFinalizationInputPath_ResumesFromDiskWithoutDuplicatingCommittedRename()
     {
@@ -137,42 +160,25 @@ public sealed class RecordingRecoveryServiceTests
         }
     }
 
-    [Theory]
-    [InlineData("host_20260815.ts", "host_20260815.ts", "host_20260815.ts")]
-    [InlineData("host_20260815.ts", "host.ts", "host_%03d.ts")]
-    [InlineData("host.ts", "host.ts", "host.ts")]
-    public void ResolveRecoverySourcePattern_UsesMetadataToDistinguishStandaloneFiles(
-        string sourceFileName,
-        string metadataFileName,
-        string expectedFileName)
+    [Fact]
+    public void ShouldReplanFinalizationOutput_RecognizesAnOccupiedPlannedTarget()
     {
-        string directory = Path.Combine(Path.GetTempPath(), "emerde-recovery-pattern");
-        string sourcePath = Path.Combine(directory, sourceFileName);
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-finalization-collision-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string originalPath = Path.Combine(directory, "录制中-主播.mp4");
+        string targetPath = Path.Combine(directory, "主播_2026-08-22.mp4");
+        File.WriteAllBytes(originalPath, [1]);
+        File.WriteAllBytes(targetPath, [2]);
 
-        Assert.Equal(
-            Path.Combine(directory, expectedFileName),
-            RecordingRecoveryService.ResolveRecoverySourcePattern(
-                sourcePath,
-                new VideoRecordingMetadata { FileName = metadataFileName }));
-    }
-
-    [Theory]
-    [InlineData("record", "record", true)]
-    [InlineData("record", "record_2", true)]
-    [InlineData("record", "record_27", true)]
-    [InlineData("record", "record_000", false)]
-    [InlineData("record", "record_001", false)]
-    [InlineData("record", "record_02", false)]
-    [InlineData("record", "record_1", false)]
-    [InlineData("record", "record_backup", false)]
-    [InlineData("record", "record_2_backup", false)]
-    [InlineData("record", "recording", false)]
-    public void IsCompletedOutputStem_AcceptsOnlyReservedNumericSuffixes(
-        string expectedStem,
-        string candidateStem,
-        bool expected)
-    {
-        Assert.Equal(expected, RecordingRecoveryService.IsCompletedOutputStem(expectedStem, candidateStem));
+        try
+        {
+            Assert.True(RecordingRecoveryService.ShouldReplanFinalizationOutput(originalPath, targetPath, committed: false));
+            Assert.False(RecordingRecoveryService.ShouldReplanFinalizationOutput(originalPath, targetPath, committed: true));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     [Fact]
@@ -205,7 +211,8 @@ public sealed class RecordingRecoveryServiceTests
             await RecordingRecoveryService.ProcessAsync(markerPath);
 
             JsonNode saved = JsonNode.Parse(File.ReadAllText(markerPath))!;
-            Assert.Equal(1, saved["RecoveryPolicyVersion"]!.GetValue<int>());
+            Assert.Equal(2, saved["RecoveryPolicyVersion"]!.GetValue<int>());
+            Assert.False(saved["FinalizeName"]!.GetValue<bool>());
             Assert.Equal(1, saved["FailureCount"]!.GetValue<int>());
             Assert.False(saved["RetryBlocked"]!.GetValue<bool>());
         }
@@ -892,6 +899,55 @@ public sealed class RecordingRecoveryServiceTests
         Assert.Equal(orderedSemanticKey, reversedSemanticKey);
         Assert.NotEqual(orderedSemanticKey, differentRemoveSource);
         Assert.NotEqual(orderedSemanticKey, differentMergeMode);
+    }
+
+    [Theory]
+    [InlineData(@"D:\records\录制中-主播_%03d.ts", true)]
+    [InlineData(@"D:\records\录制中-主播.flv", true)]
+    [InlineData(@"D:\records\主播_2026-08-20.ts", false)]
+    public void ShouldFinalizeRecoveredTemporaryName_OnlyMatchesRecorderTemporaryNames(string sourcePattern, bool expected)
+    {
+        Assert.Equal(expected, RecordingRecoveryService.ShouldFinalizeRecoveredTemporaryName(sourcePattern));
+    }
+
+    [Fact]
+    public void RetainedSourcePaths_ExcludesCompletedTargetFormat()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-retained-source-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string source = Path.Combine(directory, "录制中-主播.ts");
+        string target = Path.Combine(directory, "主播.mkv");
+        File.WriteAllBytes(source, [1]);
+        File.WriteAllBytes(target, [2]);
+
+        try
+        {
+            Assert.Equal([source], RecordingRecoveryService.GetRetainedSourcePaths([source, target], ".mkv"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void RetainedSourcePaths_IncludesMergedIntermediateSource()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-retained-intermediate-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string intermediate = Path.Combine(directory, "录制中-主播.ts");
+        File.WriteAllBytes(intermediate, [1]);
+
+        try
+        {
+            Assert.Equal(
+                [intermediate],
+                RecordingRecoveryService.GetRetainedSourcePaths([], ".mp4", intermediate));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     [Fact]

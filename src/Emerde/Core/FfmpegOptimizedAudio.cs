@@ -16,7 +16,8 @@ internal static unsafe partial class FfmpegMediaEngine
         string targetFileName,
         VideoRecordingMetadata metadata,
         CancellationToken token,
-        bool parallelizePreparation = false)
+        bool parallelizePreparation = false,
+        IReadOnlyList<double>? sourceTimelineEndSeconds = null)
     {
         string baseVideoPath = BuildOptimizedAudioTemporaryPath(targetFileName, "base", ".mp4");
         string optimizedAudioPath = BuildOptimizedAudioTemporaryPath(targetFileName, "audio", ".m4a");
@@ -36,7 +37,8 @@ internal static unsafe partial class FfmpegMediaEngine
                     baseVideoPath,
                     optimizedAudioPath,
                     metadata,
-                    token);
+                    token,
+                    sourceTimelineEndSeconds);
                 audioResult = preparation.AudioResult;
                 audioMilliseconds = preparation.AudioMilliseconds;
                 baseMilliseconds = preparation.BaseMilliseconds;
@@ -48,7 +50,7 @@ internal static unsafe partial class FfmpegMediaEngine
             else
             {
                 (audioResult, audioMilliseconds) = RunMeasured(
-                    () => EncodeOptimizedAudio(sourceFileNames, optimizedAudioPath, token));
+                    () => EncodeOptimizedAudio(sourceFileNames, optimizedAudioPath, token, sourceTimelineEndSeconds));
                 if (!IsSuccessfulPreparation(audioResult))
                 {
                     return finalResult = audioResult;
@@ -60,7 +62,12 @@ internal static unsafe partial class FfmpegMediaEngine
                 if (sourceFileNames.Count > 1)
                 {
                     (FfmpegMediaRunResult baseResult, long elapsedMilliseconds) = RunMeasured(
-                        () => RemuxFiles(sourceFileNames, baseVideoPath, metadata, token));
+                        () => RemuxFiles(
+                            sourceFileNames,
+                            baseVideoPath,
+                            metadata,
+                            token,
+                            sourceTimelineEndSeconds: sourceTimelineEndSeconds));
                     baseMilliseconds = elapsedMilliseconds;
                     if (!IsSuccessfulPreparation(baseResult))
                     {
@@ -99,13 +106,23 @@ internal static unsafe partial class FfmpegMediaEngine
         string baseVideoPath,
         string optimizedAudioPath,
         VideoRecordingMetadata metadata,
-        CancellationToken token)
+        CancellationToken token,
+        IReadOnlyList<double>? sourceTimelineEndSeconds)
     {
         using CancellationTokenSource preparationCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
         Task<(FfmpegMediaRunResult Result, long ElapsedMilliseconds)> audioTask = Task.Run(
-            () => RunMeasured(() => EncodeOptimizedAudio(sourceFileNames, optimizedAudioPath, preparationCancellation.Token)));
+            () => RunMeasured(() => EncodeOptimizedAudio(
+                sourceFileNames,
+                optimizedAudioPath,
+                preparationCancellation.Token,
+                sourceTimelineEndSeconds)));
         Task<(FfmpegMediaRunResult Result, long ElapsedMilliseconds)> baseTask = Task.Run(
-            () => RunMeasured(() => RemuxFiles(sourceFileNames, baseVideoPath, metadata, preparationCancellation.Token)));
+            () => RunMeasured(() => RemuxFiles(
+                sourceFileNames,
+                baseVideoPath,
+                metadata,
+                preparationCancellation.Token,
+                sourceTimelineEndSeconds: sourceTimelineEndSeconds)));
         try
         {
             Task<(FfmpegMediaRunResult Result, long ElapsedMilliseconds)> firstTask = Task.WhenAny(audioTask, baseTask).GetAwaiter().GetResult();
@@ -177,7 +194,8 @@ internal static unsafe partial class FfmpegMediaEngine
     private static FfmpegMediaRunResult EncodeOptimizedAudio(
         IReadOnlyList<string> sourceFileNames,
         string targetFileName,
-        CancellationToken token)
+        CancellationToken token,
+        IReadOnlyList<double>? sourceTimelineEndSeconds)
     {
         AVFormatContext* outputContext = null;
         AVCodecContext* encoderContext = null;
@@ -247,10 +265,10 @@ internal static unsafe partial class FfmpegMediaEngine
             }
             AudioDynamicsProcessor dynamicsProcessor = new(encoderContext->sample_rate);
 
-            foreach (string sourceFileName in sourceFileNames)
+            for (int sourceIndex = 0; sourceIndex < sourceFileNames.Count; sourceIndex++)
             {
                 FfmpegMediaRunResult sourceResult = DecodeSourceAudioToFifo(
-                    sourceFileName,
+                    sourceFileNames[sourceIndex],
                     encoderContext,
                     outputContext,
                     outputStream,
@@ -259,7 +277,9 @@ internal static unsafe partial class FfmpegMediaEngine
                     dynamicsProcessor,
                     ref nextPts,
                     ref hadProgress,
-                    token);
+                    token,
+                    sourceTimelineEndSeconds,
+                    sourceIndex);
                 if (sourceResult.ExitCode != 0 || sourceResult.WasCanceled)
                 {
                     return sourceResult with { HadMediaProgress = hadProgress || sourceResult.HadMediaProgress };
@@ -318,7 +338,9 @@ internal static unsafe partial class FfmpegMediaEngine
         AudioDynamicsProcessor dynamicsProcessor,
         ref long nextPts,
         ref bool hadProgress,
-        CancellationToken token)
+        CancellationToken token,
+        IReadOnlyList<double>? sourceTimelineEndSeconds,
+        int sourceIndex)
     {
         AVFormatContext* inputContext = null;
         AVCodecContext* decoderContext = null;
@@ -377,6 +399,11 @@ internal static unsafe partial class FfmpegMediaEngine
             }
             long sourceOutputStartPts = nextPts + ffmpeg.av_audio_fifo_size(audioFifo);
             long sourceTimestampBaseUs = inputContext->start_time;
+            double sourceTimelineLimitSeconds = GetSourceTimelineEndSeconds(
+                0d,
+                sourceTimelineEndSeconds,
+                sourceIndex,
+                inputContext);
             long sourceDurationUs = 0;
             long[] lastPacketEnds = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)inputContext->nb_streams).ToArray();
             int referenceStreamIndex = GetSegmentReferenceStreamIndex(inputContext);
@@ -422,6 +449,16 @@ internal static unsafe partial class FfmpegMediaEngine
                         }
                         ApplyPacketTimestampCorrection(inputPacket, packetStream, sourceClock.CurrentCorrection);
                         NormalizePacketDts(inputPacket, packetStream, packetStreamIndex, lastPacketEnds);
+                        if (sourceTimelineLimitSeconds > 0d
+                            && PacketExceedsSourceTimelineLimit(
+                                inputPacket,
+                                packetStream,
+                                sourceTimestampBaseUs,
+                                sourceTimelineLimitSeconds))
+                        {
+                            ffmpeg.av_packet_unref(inputPacket);
+                            continue;
+                        }
                     }
                 }
                 UpdateSourceTimeline(inputContext, inputPacket, ref sourceTimestampBaseUs, ref sourceDurationUs);
