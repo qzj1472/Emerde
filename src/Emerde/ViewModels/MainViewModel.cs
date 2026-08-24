@@ -3186,9 +3186,10 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                         {
                             lastRecordedAt = recordedAt;
                         }
-                        if (file.LastWriteTime > lastEndedAt)
+                        DateTime endedAt = GetRecordingEndedAt(metadata, file);
+                        if (endedAt > lastEndedAt)
                         {
-                            lastEndedAt = file.LastWriteTime;
+                            lastEndedAt = endedAt;
                         }
                     }
                     catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException)
@@ -3204,6 +3205,21 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         }
 
         return new RoomRecordingSummary(lastRecordedAt, lastEndedAt, totalBytes);
+    }
+
+    internal static DateTime GetRecordingEndedAt(VideoRecordingMetadata metadata, FileInfo file)
+    {
+        if (metadata.EndedAt > DateTime.MinValue)
+        {
+            return NormalizeRoomInformationDate(metadata.EndedAt);
+        }
+
+        if (metadata.RecordedAt > DateTime.MinValue && metadata.DurationSeconds > 0d)
+        {
+            return NormalizeRoomInformationDate(metadata.RecordedAt.AddSeconds(metadata.DurationSeconds));
+        }
+
+        return file.LastWriteTime;
     }
 
     private void CompleteSelectedRoomRecordingSummary(CancellationTokenSource cancellation)

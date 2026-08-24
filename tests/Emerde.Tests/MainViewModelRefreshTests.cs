@@ -107,4 +107,57 @@ public sealed class MainViewModelRefreshTests
         Assert.Throws<OperationCanceledException>(() =>
             MainViewModel.GetRoomRecordingSummary(room, cancellation.Token));
     }
+
+    [Fact]
+    public void RecordingSummaryEndTime_UsesRecordingMetadataInsteadOfTranscodeWriteTime()
+    {
+        DateTime recordedAt = new(2026, 8, 17, 2, 0, 0);
+        DateTime endedAt = recordedAt.AddMinutes(12);
+        string path = Path.Combine(Path.GetTempPath(), $"emerde-summary-{Guid.NewGuid():N}.mkv");
+        File.WriteAllBytes(path, [1]);
+        File.SetLastWriteTime(path, endedAt.AddHours(4));
+
+        try
+        {
+            DateTime result = MainViewModel.GetRecordingEndedAt(
+                new VideoRecordingMetadata
+                {
+                    RecordedAt = recordedAt,
+                    EndedAt = endedAt,
+                    DurationSeconds = 720,
+                },
+                new FileInfo(path));
+
+            Assert.Equal(endedAt, result);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void RecordingSummaryEndTime_CanDeriveEndTimeFromDuration()
+    {
+        DateTime recordedAt = new(2026, 8, 17, 2, 0, 0);
+        string path = Path.Combine(Path.GetTempPath(), $"emerde-summary-{Guid.NewGuid():N}.ts");
+        File.WriteAllBytes(path, [1]);
+
+        try
+        {
+            DateTime result = MainViewModel.GetRecordingEndedAt(
+                new VideoRecordingMetadata
+                {
+                    RecordedAt = recordedAt,
+                    DurationSeconds = 90,
+                },
+                new FileInfo(path));
+
+            Assert.Equal(recordedAt.AddSeconds(90), result);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }
