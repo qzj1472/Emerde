@@ -23,17 +23,24 @@ internal static class ReleaseNotesCatalog
 
     private static ReleaseNoteEntry Create1672()
     {
-        IReadOnlyList<string> items = SplitItems(GetText("ReleaseNotes1672Items", "Automatically rediscovered unprocessed recordings and improved recovery queues|Improved recording cleanup and UI-X preference persistence|Refined UI-X menus and input states|Generated independent covers from recorded frames|Added clearer video processing status badges|Improved notifications and notification history|Improved configuration save and recording-state recovery"));
+        IReadOnlyList<string> items = [
+            GetText("ReleaseNotes1672RecoveryItem", "Recordings stopped during shutdown or restart are saved as pending tasks and processed on the next startup; unregistered TS and FLV files are no longer scanned automatically."),
+            .. SplitItems(GetText("ReleaseNotes1672Items", "Automatically rediscovered unprocessed recordings and improved recovery queues|Improved recording cleanup and UI-X preference persistence|Refined UI-X menus and input states|Generated independent covers from recorded frames|Added clearer video processing status badges|Improved notifications and notification history|Improved configuration save and recording-state recovery")).Skip(1),
+            GetText("ReleaseNotes1672Item18", "Video card titles now hide file-format extensions."),
+            GetText("ReleaseNotes1672Item19", "Recovered recordings now complete final naming instead of retaining temporary names."),
+            GetText("ReleaseNotes1672Item20", "Recording video cards now use the complete streamer avatar saved at recording start as their cover."),
+            GetText("ReleaseNotes1672Item21", "Manual transcode now lets you choose whether to delete the source file after a successful conversion; the default follows recording settings."),
+        ];
         IReadOnlyList<string> additional = SplitItems(GetText("ReleaseNotes1672AdditionalItems", "Reduced unnecessary UI refresh work|Improved recovery retries|Improved video-list refresh feedback and resize performance|Improved shared UI resource isolation"));
         return new ReleaseNoteEntry(
             "1.6.7.2",
             GetText("ReleaseNotes1672Title", "Emerde 1.6.7.2"),
             GetText("ReleaseNotes1672Date", "2026-08-18"),
             RemoveEmpty(
-                Section("ReleaseNotesCategoryBugFixes", "Bug fixes", Pick(items, 2, 4, 5, 10, 15)),
-                Section("ReleaseNotesCategoryFeatures", "Feature additions", Pick(items, 0, 1, 3, 6, 7, 9, 12, 13, 14)),
-                Section("ReleaseNotesCategoryStability", "Performance and stability", Pick(additional, 0, 1, 2)),
-                Section("ReleaseNotesCategoryUi", "Interface changes", Pick(items, 8, 11, 16, 17).Concat(Pick(additional, 3)).ToArray())));
+                Section("ReleaseNotesCategoryBugFixes", "Bug fixes", Pick(items, 2, 4, 5, 10, 15, 19)),
+                Section("ReleaseNotesCategoryFeatures", "Feature additions", Pick(items, 0, 1, 3, 6, 7, 9, 12, 13, 14, 20, 21)),
+                Section("ReleaseNotesCategoryStability", "Performance and stability", Pick(additional, 0, 1, 2, 4, 5, 6, 7)),
+                Section("ReleaseNotesCategoryUi", "Interface changes", Pick(items, 8, 11, 16, 17, 18).Concat(Pick(additional, 3)).ToArray())));
     }
 
     private static ReleaseNoteEntry Create1671()

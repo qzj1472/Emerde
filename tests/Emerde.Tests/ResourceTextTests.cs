@@ -155,7 +155,7 @@ public sealed class ResourceTextTests
             "VideoListTitle", "RefreshButton", "ImportFolder", "MergeVideos", "DeleteButton",
             "MoveButton", "CopyButton", "SelectAll", "InvertSelection", "MultiSelect",
             "StreamerLabel", "TimeRangeLabel", "OpenVideo", "TranscodeVideo", "SplitButton",
-            "TargetFormat", "CreateOptimizedAudioTrack", "OptimizedAudioTrackDescription",
+            "TargetFormat", "CreateOptimizedAudioTrack", "OptimizedAudioTrackDescription", "DeleteSourceAfterTranscode",
             "SplitVideo", "SplitInterval", "Minutes", "Seconds", "Hours", "StartButton",
             "VideoAllStreamers", "CommonUnknown", "TimeRangeAll", "TimeRangeLast24Hours",
             "TimeRangeLastWeek", "TimeRangeLastMonth", "TimeRangeLastThreeMonths", "TimeRangeLastYear",

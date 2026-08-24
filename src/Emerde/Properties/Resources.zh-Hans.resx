@@ -745,6 +745,7 @@
   <data name="TargetFormat" xml:space="preserve"><value>目标格式</value></data>
   <data name="CreateOptimizedAudioTrack" xml:space="preserve"><value>创建优化音频轨道（推荐）</value></data>
   <data name="OptimizedAudioTrackDescription" xml:space="preserve"><value>MP4 会保留原音轨，并额外创建经过增益、压缩和限幅处理的 AAC 音轨。</value></data>
+  <data name="DeleteSourceAfterTranscode" xml:space="preserve"><value>转码成功后删除源文件</value></data>
   <data name="SplitButton" xml:space="preserve"><value>分割</value></data>
   <data name="SplitVideo" xml:space="preserve"><value>分割视频</value></data>
   <data name="SplitInterval" xml:space="preserve"><value>分割间隔</value></data>
@@ -814,9 +815,14 @@
   <data name="ReleaseNotesUserFacingLabel" xml:space="preserve"><value>用户可感知的更新</value></data>
   <data name="ReleaseNotesAdditionalLabel" xml:space="preserve"><value>其他改进</value></data>
   <data name="ReleaseNotes1672Title" xml:space="preserve"><value>Emerde 1.6.7.2</value></data>
-  <data name="ReleaseNotes1672Date" xml:space="preserve"><value>2026-08-18</value></data>
+  <data name="ReleaseNotes1672Date" xml:space="preserve"><value>2026-08-21</value></data>
+  <data name="ReleaseNotes1672Item18" xml:space="preserve"><value>视频卡片名称不再显示文件格式后缀。</value></data>
+  <data name="ReleaseNotes1672Item19" xml:space="preserve"><value>遗留录像处理完成后会执行最终命名，不再保留“录制中”中转名称。</value></data>
+  <data name="ReleaseNotes1672Item20" xml:space="preserve"><value>正在录制的视频卡片使用录制开始时保存的完整主播头像作为封面。</value></data>
+  <data name="ReleaseNotes1672RecoveryItem" xml:space="preserve"><value>关闭软件或重启时未完成的录像处理会保存为待处理任务，并在下次启动时继续处理；没有任务记录的 TS、FLV 文件不再自动扫描。</value></data>
+  <data name="ReleaseNotes1672Item21" xml:space="preserve"><value>手动转码新增是否删除源文件的选择，默认跟随录制设置；只有转码或完整修复成功后才会删除源文件。</value></data>
   <data name="ReleaseNotes1672Items" xml:space="preserve"><value>软件运行期间会自动重新发现并排队处理已有的未转码 TS、FLV 录像，无需重启。|待处理录像较多时会分批执行，常规转码失败后会自动恢复可读取内容，不再提供单独修复入口或添加“修复”文件后缀。|自动清理现在会同时删除录像对应的元数据和空文件夹，并保留配置的录像根目录。|首页卡片大小、排序方式和预览卡片偏好会在重启后继续保留。|修复 UI-X 右键菜单选中状态、平台筛选和多选操作。|统一 UI-X 设置、关于页面和更新弹窗中输入框与版本选择框的描边颜色。|新增录像完成后命名，可使用标题、房间号、画质、帧率、编码、录制时间和视频时长等真实信息。|录像元数据新增结束时间、时长、帧率、画质、编码和优化音轨状态，并在转码、修复和恢复后继续保留。|UI-X 视频列表支持空白处双击刷新，卡片只显示开始时间，方向键可按整行和相邻卡片移动选中项。|自定义巡检支持在全局或单独设置中任意组合日期范围、星期和时间段。|旧的自定义命名规则会将“录制时间”占位符自动迁移为更准确的“录制开始时间”。|重新整理命名规则按钮、输出设置间距和更新弹窗内容。|录像结束后会从视频帧生成独立封面，并保存独立的头像与封面资源，主播更换头像不会影响已有视频封面。|视频卡片增加录制中、转码中、分段、处理失败等状态提示，处理进度更容易辨认。|通知改为更完整的通知卡片，并支持通知历史。|设置保存失败和重启后录制状态不一致的问题得到修复。|页面、导航、预览和卡片状态变化增加更连贯的过渡动画，减少突兀切换。|设置、关于、首页和视频列表的布局与窗口调整进行了适配，减少窗口变化时的卡顿和内容截断。</value></data>
-  <data name="ReleaseNotes1672AdditionalItems" xml:space="preserve"><value>减少 UI-X 首页不必要的逐秒刷新，仅在打开直播间信息时计算并更新录制时长。|完善录像恢复策略迁移，使此前被阻止处理的录像可以重新尝试。|视频列表刷新增加进行中、成功、失败和冷却提示，并在完成刷新时提供卡片反馈；同时减少窗口调整时的重复处理。|加强共享 UI 资源隔离，避免 UI-X 设置样式影响无关页面或旧 UI。</value></data>
+  <data name="ReleaseNotes1672AdditionalItems" xml:space="preserve"><value>减少 UI-X 首页不必要的逐秒刷新，仅在打开直播间信息时计算并更新录制时长。|完善录像恢复策略迁移，使此前被阻止处理的录像可以重新尝试。|视频列表刷新增加进行中、成功、失败和冷却提示，并在完成刷新时提供卡片反馈；同时减少窗口调整时的重复处理。|加强共享 UI 资源隔离，避免 UI-X 设置样式影响无关页面或旧 UI。|磁盘空间不足时停止录制重连，并暂停对应直播间的启动处理，避免持续制造失败任务。|磁盘空间不足导致的转码失败不再进行无意义的恢复重试。|空元数据流不再持续产生异常日志。|视频列表刷新和托盘隐藏场景的异常处理更加稳定。</value></data>
   <data name="ReleaseNotes1671Title" xml:space="preserve"><value>Emerde 1.6.7.1</value></data>
   <data name="ReleaseNotes1671Date" xml:space="preserve"><value>2026-08-13</value></data>
   <data name="ReleaseNotes1671Items" xml:space="preserve"><value>提升长时间录制稳定性，改善直播卡顿、数据不连续、音画不同步和录制结束后转码失败。|新增录像修复，异常 TS、MP4 等视频可尝试恢复可播放的音视频内容。|优化直播间链接、短链接识别和重复检测，避免同一直播间被重复添加。|优化主播头像、开播状态和直播间信息同步，状态变化后能更及时地反映。|重做 UI-X 的新建直播间与单独设置工作台，优化设置继承、信息层级、操作区域和窗口适配。|优化首页卡片、预览卡片栏和窗口缩放，减少留白、截断、闪烁、卡死和调整窗口时的粘滞。|优化视频列表封面、文件名、主播信息、时间大小、格式提示、卡片排列和多选操作。|统一 UI-X 的设置、直播间信息、日志导出、恢复配置、转码、录像修复和确认弹窗，改善间距、底色、描边、模糊和交互。|完善首页与托盘右键菜单、快捷键、选中状态、设置、扩展和关于页面。</value></data>
