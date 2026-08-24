@@ -431,7 +431,7 @@ internal sealed class AppFeedbackService : IDisposable
     internal static TimeSpan? CalculateDisplayDuration(AppFeedbackKind kind, string title, string? body = null, bool isTaskCompleted = false)
     {
         string combined = string.Join(' ', new[] { title, body }.Where(value => !string.IsNullOrWhiteSpace(value)));
-        if (kind == AppFeedbackKind.Error || ContainsPath(combined))
+        if (kind == AppFeedbackKind.Error || kind != AppFeedbackKind.Success && ContainsPath(combined))
         {
             return null;
         }

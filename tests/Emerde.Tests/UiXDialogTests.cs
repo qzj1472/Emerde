@@ -58,6 +58,11 @@ public sealed class UiXDialogTests
     {
         string viewModel = File.ReadAllText(FindRepositoryFile("src", "Emerde", "ViewModels", "SettingsViewModel.cs"));
         string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "UiXExportLogsContent.xaml"));
+        XDocument document = XDocument.Parse(xaml);
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement surface = document.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "Surface");
+        XElement contentGrid = document.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "ContentGrid");
+        XElement selectionWash = document.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "SelectionWash");
 
         Assert.Contains("new UiXExportLogsContent()", viewModel, StringComparison.Ordinal);
         Assert.Contains("uiXContent!.TodayOnly", viewModel, StringComparison.Ordinal);
@@ -65,6 +70,9 @@ public sealed class UiXDialogTests
         Assert.Contains("isUiXEnabled ? \"Export\".Tr() : \"ExportAll\".Tr()", viewModel, StringComparison.Ordinal);
         Assert.Contains("UiXDialogSectionBrush", xaml, StringComparison.Ordinal);
         Assert.Contains("UiXDialogSelectionBrush", xaml, StringComparison.Ordinal);
+        Assert.Null(surface.Attribute("Padding"));
+        Assert.Equal("14", (string?)contentGrid.Attribute("Margin"));
+        Assert.Same(selectionWash.Parent, contentGrid.Parent);
         Assert.DoesNotContain("UiXCardBrush", xaml, StringComparison.Ordinal);
         Assert.Equal(1, CountOccurrences(xaml, "Text=\"{I18N ExportLogsPrompt}\""));
     }

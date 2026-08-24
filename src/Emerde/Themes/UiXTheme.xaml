@@ -10,7 +10,7 @@
     <CornerRadius x:Key="UiXMenuCornerRadius">8</CornerRadius>
     <Thickness x:Key="UiXSurfaceBorderThickness">0</Thickness>
     <Thickness x:Key="UiXPageHeaderMargin">20,0,20,0</Thickness>
-    <SolidColorBrush x:Key="UiXShellBrush" Color="#D0E5EBEE" />
+    <SolidColorBrush x:Key="UiXShellBrush" Color="#E2F1F4F5" />
     <SolidColorBrush x:Key="UiXWindowFallbackBrush" Color="#F1F4F5" />
     <SolidColorBrush x:Key="UiXNavigationBrush" Color="#D8E9EEF0" />
     <SolidColorBrush x:Key="UiXPanelBrush" Color="#D0E5EBEE" />

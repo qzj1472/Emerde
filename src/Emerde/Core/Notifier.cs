@@ -24,12 +24,19 @@ internal static class Notifier
             return;
         }
 
-        new ToastContentBuilder()
-            .AddHeader("AddNotice", header, "AddNotice")
-            .AddText(title)
-            .AddAttributionTextIf(!string.IsNullOrEmpty(detail), detail)
-            .SetToastDuration(duration)
-            .Show();
+        try
+        {
+            new ToastContentBuilder()
+                .AddHeader("AddNotice", header, "AddNotice")
+                .AddText(title)
+                .AddAttributionTextIf(!string.IsNullOrEmpty(detail), detail)
+                .SetToastDuration(duration)
+                .Show();
+        }
+        catch (Exception exception)
+        {
+            AppSessionLogger.Event("warn", "notification", "system_notification_failed", exception.Message, new { header, title });
+        }
     }
 
     public static void AddNoticeWithButton(string header, string title, ToastContentButtonOption[] buttons, ToastDuration duration = ToastDuration.Short)
@@ -39,12 +46,19 @@ internal static class Notifier
             return;
         }
 
-        new ToastContentBuilder()
-            .AddHeader("AddNotice", header, "AddNotice")
-            .AddText(title)
-            .AddButtons(buttons)
-            .SetToastDuration(duration)
-            .Show();
+        try
+        {
+            new ToastContentBuilder()
+                .AddHeader("AddNotice", header, "AddNotice")
+                .AddText(title)
+                .AddButtons(buttons)
+                .SetToastDuration(duration)
+                .Show();
+        }
+        catch (Exception exception)
+        {
+            AppSessionLogger.Event("warn", "notification", "system_notification_failed", exception.Message, new { header, title });
+        }
     }
 
     public static void ClearNotice()

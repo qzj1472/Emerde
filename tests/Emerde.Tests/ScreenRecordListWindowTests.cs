@@ -65,6 +65,22 @@ public sealed class ScreenRecordListWindowTests
         Assert.Throws<ArgumentOutOfRangeException>(() => ScreenRecordListViewModel.CreateTranscodeOptions(-1, true));
     }
 
+    [Theory]
+    [InlineData(0, true, true)]
+    [InlineData(1, false, true)]
+    public void CreateTranscodeOptions_PreservesSourceDeletionChoice(
+        int selectedIndex,
+        bool expectedOptimization,
+        bool removeSource)
+    {
+        ConverterOptions options = ScreenRecordListViewModel.CreateTranscodeOptions(
+            selectedIndex,
+            optimizeAudio: expectedOptimization,
+            removeSource);
+
+        Assert.True(options.RemoveSource);
+    }
+
     [Fact]
     public void IsIdle_AllowsUserTakeoverWhileListTranscodeIsRunning()
     {
@@ -493,7 +509,8 @@ public sealed class ScreenRecordListWindowTests
         Assert.Contains("Height\" Value=\"{Binding VideoCardHeight", xaml, StringComparison.Ordinal);
         Assert.Contains("HorizontalAlignment=\"Stretch\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding FormatText}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Binding=\"{Binding IsTargetFormat}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Binding=\"{Binding IsNonTargetTranscodableFormat}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Binding=\"{Binding IsNonTargetCompletedFormat}\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("NonStandardFormatText", xaml, StringComparison.Ordinal);
         Assert.Contains("UpdateVideoCardMetrics", code, StringComparison.Ordinal);
         Assert.Contains("CalculateVideoCardColumns", code, StringComparison.Ordinal);
@@ -541,9 +558,10 @@ public sealed class ScreenRecordListWindowTests
         Assert.Contains("TextWrapping=\"Wrap\"", xaml, StringComparison.Ordinal);
         Assert.Contains("MaxHeight=\"32\"", xaml, StringComparison.Ordinal);
         Assert.Contains("ClipToBounds=\"True\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Text=\"{Binding FileName}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("UiXWrappedFileName => FileName", code, StringComparison.Ordinal);
-        Assert.DoesNotContain("\\u200B", code, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding DisplayFileName}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding UiXWrappedFileName}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("UiXWrappedFileName => AddFileNameBreakOpportunities(DisplayFileName)", code, StringComparison.Ordinal);
+        Assert.Contains("result.Append('\\u200B')", code, StringComparison.Ordinal);
         Assert.Contains("FontSize=\"13\"", xaml, StringComparison.Ordinal);
         Assert.Contains("FontSize=\"12\"", xaml, StringComparison.Ordinal);
         Assert.Contains("FontSize=\"11\"", xaml, StringComparison.Ordinal);
@@ -703,6 +721,19 @@ public sealed class ScreenRecordListWindowTests
         Assert.True(cardWidth + 12d <= slotWidth);
     }
 
+    [Fact]
+    public void VideoDateGrouping_DoesNotDeferCollectionMutationAndBatchesEnrichmentRefreshes()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
+        string normalizedSource = source.Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("        ReconcileVideoItems(videos, items);\n\n        UpdateStreamerOptions();", normalizedSource, StringComparison.Ordinal);
+        Assert.Contains("Volatile.Read(ref videoEnrichmentWorkerCount) != 0", source, StringComparison.Ordinal);
+        Assert.Contains("TryScheduleVideoViewRefresh();", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("using (Videos.DeferRefresh())\n            {\n                Videos.Refresh();\n            }", normalizedSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("[NotifyPropertyChangedFor(nameof(DateGroupKey))]", source, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(900d)]
     [InlineData(975d)]
@@ -748,6 +779,20 @@ public sealed class ScreenRecordListWindowTests
         Assert.Contains("ProjectRoomCardMarqueeToViewport", homeCode, StringComparison.Ordinal);
         Assert.Contains("!isRoomCardDragging && !isRoomCardMarqueeSelecting", homeCode, StringComparison.Ordinal);
         Assert.Contains("roomCardMarqueeCreatedMultiSelectMode", homeCode, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void HomeMarqueeSelection_RebuildsItemsForCurrentRectangle()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
+        source = source.Replace("\r\n", "\n", StringComparison.Ordinal);
+        string method = source[(source.IndexOf("private void AccumulateRoomCardMarqueeItems", StringComparison.Ordinal))..];
+        method = method[..method.IndexOf("private void UpdateRoomCardMarqueeAutoScroll", StringComparison.Ordinal)];
+
+        Assert.StartsWith(
+            "private void AccumulateRoomCardMarqueeItems(Rect selection)\n    {\n        roomCardMarqueeItems.Clear();",
+            method,
+            StringComparison.Ordinal);
     }
 
     [Theory]
@@ -895,6 +940,39 @@ public sealed class ScreenRecordListWindowTests
     public void IsTargetVideoFormat_MatchesConfiguredOutput(string filePath, string recordFormat, bool expected)
     {
         Assert.Equal(expected, ScreenRecordListViewModel.IsTargetVideoFormat(filePath, recordFormat));
+    }
+
+    [Theory]
+    [InlineData("video.ts", false)]
+    [InlineData("video.flv", false)]
+    [InlineData("video.mp4", true)]
+    [InlineData("video.mkv", true)]
+    [InlineData("video.webm", false)]
+    public void IsCompletedVideoFormat_RecognizesFinalContainers(string filePath, bool expected)
+    {
+        Assert.Equal(expected, ScreenRecordListViewModel.IsCompletedVideoFormat(filePath));
+    }
+
+    [Fact]
+    public void VideoFormatStatus_SeparatesTranscodableAndCompletedNonTargets()
+    {
+        RecordedVideoItem source = new()
+        {
+            FullPath = "video.ts",
+            SupportsTranscode = true,
+            TargetRecordFormat = "TS/FLV -> MP4",
+        };
+        RecordedVideoItem completed = new()
+        {
+            FullPath = "video.mp4",
+            SupportsTranscode = false,
+            TargetRecordFormat = "TS/FLV",
+        };
+
+        Assert.True(source.IsNonTargetTranscodableFormat);
+        Assert.False(source.IsNonTargetCompletedFormat);
+        Assert.False(completed.IsNonTargetTranscodableFormat);
+        Assert.True(completed.IsNonTargetCompletedFormat);
     }
 
     [Theory]
@@ -1075,6 +1153,24 @@ public sealed class ScreenRecordListWindowTests
         Assert.True(first.IsSelected);
         Assert.True(second.IsSelected);
         Assert.True(viewModel.IsMultiSelectMode);
+    }
+
+    [Fact]
+    public void VideoMarqueeSelection_ReplacesPreviouslySelectedItems()
+    {
+        ScreenRecordListViewModel viewModel = new();
+        ObservableCollection<RecordedVideoItem> videos = Assert.IsType<ObservableCollection<RecordedVideoItem>>(viewModel.Videos.SourceCollection);
+        RecordedVideoItem first = new() { FullPath = @"C:\videos\first.ts" };
+        RecordedVideoItem second = new() { FullPath = @"C:\videos\second.ts" };
+        videos.Add(first);
+        videos.Add(second);
+
+        viewModel.ReplaceSelectionWithItems([first]);
+        viewModel.ReplaceSelectionWithItems([second]);
+
+        Assert.False(first.IsSelected);
+        Assert.True(second.IsSelected);
+        Assert.Equal(1, viewModel.SelectedVideoCount);
     }
 
     [Fact]
@@ -1564,6 +1660,33 @@ public sealed class ScreenRecordListWindowTests
         Assert.NotNull(viewModel.DeleteContextCommand);
         Assert.NotNull(viewModel.OpenMergeSelectedCommand);
         Assert.NotNull(viewModel.ConfirmMergeSelectedCommand);
+    }
+
+    [Fact]
+    public void VideoContextMenu_BindsCommandsOnlyAfterCardResolution()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
+
+        Assert.DoesNotContain("CommandParameter=\"{Binding DataContext}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Command=\"{Binding Tag.", xaml, StringComparison.Ordinal);
+        Assert.Contains("card.DataContext is not RecordedVideoItem item", code, StringComparison.Ordinal);
+        Assert.Contains("ConfigureVideoContextMenuItem(menuItem, item, viewModel)", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FileNameBreakOpportunities_PreserveTextElementsAndDisplayNameOmitsExtension()
+    {
+        const string fileName = "主播😀_2026-08-20.mkv";
+
+        string displayName = RecordedVideoItem.AddFileNameBreakOpportunities(fileName);
+        RecordedVideoItem item = new() { FileName = fileName };
+
+        Assert.Equal(fileName, displayName.Replace("\u200B", string.Empty, StringComparison.Ordinal));
+        Assert.Contains("\u200B", displayName, StringComparison.Ordinal);
+        Assert.DoesNotContain("\uD83D\u200B\uDE00", displayName, StringComparison.Ordinal);
+        Assert.Equal("主播😀_2026-08-20", item.DisplayFileName);
+        Assert.Equal(item.DisplayFileName, item.UiXWrappedFileName.Replace("\u200B", string.Empty, StringComparison.Ordinal));
     }
 
     private static string FindRepositoryFile(params string[] parts)

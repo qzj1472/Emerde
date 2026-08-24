@@ -2920,7 +2920,7 @@ public partial class MainWindow : FluentWindow
             CompletePreviewFullScreenExit();
         }
 
-        HomePreviewPanel.HidePreviewControlsImmediately();
+        HomePreviewPanel?.HidePreviewControlsImmediately();
     }
 
     private void EnterPreviewFullScreen()
@@ -3536,7 +3536,7 @@ public partial class MainWindow : FluentWindow
                 ? DialogBlurScope.ForLightDismiss(this, dialog)
                 : DialogBlurScope.ForDialog(this, dialog);
             Wpf.Ui.Violeta.Controls.ContentDialogResult result = await WindowSizing.ShowContentDialogAsync(dialog, this, 680d, 760d);
-            if (ShouldMarkUpgradeNoticeAcknowledgement(result))
+            if (ShouldMarkUpgradeNoticeAsShown(result))
             {
                 UpgradeNoticeService.MarkShown(notice);
             }
@@ -3607,9 +3607,11 @@ public partial class MainWindow : FluentWindow
         return result == Wpf.Ui.Violeta.Controls.ContentDialogResult.Primary;
     }
 
-    internal static bool ShouldMarkUpgradeNoticeAcknowledgement(Wpf.Ui.Violeta.Controls.ContentDialogResult result)
+    internal static bool ShouldMarkUpgradeNoticeAsShown(Wpf.Ui.Violeta.Controls.ContentDialogResult result)
     {
-        return result == Wpf.Ui.Violeta.Controls.ContentDialogResult.Primary;
+        return result is Wpf.Ui.Violeta.Controls.ContentDialogResult.None
+            or Wpf.Ui.Violeta.Controls.ContentDialogResult.Primary
+            or Wpf.Ui.Violeta.Controls.ContentDialogResult.Secondary;
     }
 
     private void RoomCardListPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -3884,6 +3886,7 @@ public partial class MainWindow : FluentWindow
 
     private void AccumulateRoomCardMarqueeItems(Rect selection)
     {
+        roomCardMarqueeItems.Clear();
         for (int index = 0; index < RoomCardList.Items.Count; index++)
         {
             if (RoomCardList.ItemContainerGenerator.ContainerFromIndex(index) is ListBoxItem item

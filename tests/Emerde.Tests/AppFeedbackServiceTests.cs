@@ -21,8 +21,9 @@ public sealed class AppFeedbackServiceTests
     }
 
     [Fact]
-    public void CalculateDisplayDuration_KeepsPathsErrorsAndActiveTasksPersistent()
+    public void CalculateDisplayDuration_AutoArchivesSuccessfulPathsAndKeepsOtherCriticalFeedbackPersistent()
     {
+        Assert.NotNull(AppFeedbackService.CalculateDisplayDuration(AppFeedbackKind.Success, "导出完成", @"C:\Users\User\Desktop\Emerde logs.zip"));
         Assert.Null(AppFeedbackService.CalculateDisplayDuration(AppFeedbackKind.Information, "导出完成", @"C:\Users\User\Desktop\Emerde logs.zip"));
         Assert.Null(AppFeedbackService.CalculateDisplayDuration(AppFeedbackKind.Information, @"日志已导出：E:\logs.zip"));
         Assert.Null(AppFeedbackService.CalculateDisplayDuration(AppFeedbackKind.Error, "保存失败", "无法写入配置"));
@@ -216,6 +217,15 @@ public sealed class AppFeedbackServiceTests
         Assert.Contains("StopNotificationCardAnimations", source, StringComparison.Ordinal);
         Assert.Contains("CreateGestureFallbackTimer", source, StringComparison.Ordinal);
         Assert.Contains("TryFinalizeNotificationGesture", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SystemNotificationsAreIsolatedFromMonitorFlow()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "Notifier.cs"));
+
+        Assert.Contains("system_notification_failed", source, StringComparison.Ordinal);
+        Assert.Contains("catch (Exception exception)", source, StringComparison.Ordinal);
     }
 
     [Fact]

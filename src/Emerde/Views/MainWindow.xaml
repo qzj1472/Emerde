@@ -2639,16 +2639,88 @@
         </controls:UiXNotificationHost>
 
         <Grid x:Name="ShellTitleBar"
-              Height="36"
               VerticalAlignment="Top"
               Panel.ZIndex="50">
-            <ui:TitleBar Height="36"
+            <Grid.Style>
+                <Style TargetType="{x:Type Grid}">
+                    <Setter Property="Height" Value="36" />
+                    <Setter Property="Background" Value="Transparent" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                            <Setter Property="Height" Value="40" />
+                            <Setter Property="Background" Value="{DynamicResource UiXShellBrush}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <ui:TitleBar x:Name="ShellTitleBarControl"
                          Title=""
-                         ShowMaximize="True" />
+                         ShowMinimize="True"
+                         ShowMaximize="True"
+                         ShowClose="True">
+                <ui:TitleBar.Resources>
+                    <Style TargetType="{x:Type ui:TitleBarButton}"
+                           BasedOn="{StaticResource {x:Type ui:TitleBarButton}}">
+                        <Setter Property="Height" Value="36" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                                <Setter Property="Height" Value="40" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:TitleBar.Resources>
+            </ui:TitleBar>
+            <StackPanel HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        IsHitTestVisible="False"
+                        Orientation="Horizontal">
+                <StackPanel.Style>
+                    <Style TargetType="{x:Type StackPanel}">
+                        <Setter Property="Margin" Value="22,0,0,0" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                                <Setter Property="Margin" Value="16,0,0,0" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <Image VerticalAlignment="Center"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       Source="pack://application:,,,/Assets/Favicon.png">
+                    <Image.Style>
+                        <Style TargetType="{x:Type Image}">
+                            <Setter Property="Width" Value="16" />
+                            <Setter Property="Height" Value="16" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                                    <Setter Property="Width" Value="20" />
+                                    <Setter Property="Height" Value="20" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                </Image>
+                <TextBlock VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                           Text="{I18N Title}">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Setter Property="Margin" Value="12,0,0,0" />
+                            <Setter Property="FontSize" Value="12" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding StatusOfIsUiXEnabled}" Value="True">
+                                    <Setter Property="Margin" Value="8,0,0,0" />
+                                    <Setter Property="FontSize" Value="15" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
             <Button x:Name="NotificationHistoryButton"
                     Width="32"
                     Height="32"
-                    Margin="0,2,140,2"
+                    Margin="0,0,140,0"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Center"
                     Click="NotificationHistoryButtonClick"
@@ -2670,9 +2742,8 @@
                         </Style.Triggers>
                     </Style>
                 </Button.Style>
-                <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                             FontSize="15"
-                             Glyph="{x:Static ui:FontSymbols.Ringer}" />
+                <ui:SymbolIcon FontSize="16"
+                               Symbol="Alert20" />
             </Button>
             <Popup x:Name="NotificationHistoryPopup"
                    AllowsTransparency="True"
@@ -2753,21 +2824,6 @@
                     </Grid>
                 </Border>
             </Popup>
-            <StackPanel Margin="22,0,0,0"
-                        HorizontalAlignment="Left"
-                        VerticalAlignment="Center"
-                        IsHitTestVisible="False"
-                        Orientation="Horizontal">
-                <Image Width="16"
-                       Height="16"
-                       RenderOptions.BitmapScalingMode="HighQuality"
-                       Source="pack://application:,,,/Assets/Favicon.png" />
-                <TextBlock Margin="12,0,0,0"
-                           VerticalAlignment="Center"
-                           FontSize="12"
-                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                           Text="{I18N Title}" />
-            </StackPanel>
         </Grid>
     </Grid>
 </ui:FluentWindow>

@@ -982,6 +982,7 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
 
     private void AccumulateVideoMarqueeItems(Rect selection)
     {
+        videoMarqueeItems.Clear();
         foreach (ListBoxItem item in EnumerateVisualDescendants<ListBoxItem>(VideoListBox))
         {
             if (TryGetElementBounds(item, VideoListBox, out Rect bounds)
@@ -1052,7 +1053,7 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
             return;
         }
 
-        ViewModel.SelectItems(videoMarqueeItems);
+        ViewModel.ReplaceSelectionWithItems(videoMarqueeItems);
         videoMarqueeItems.Clear();
     }
 
@@ -1140,14 +1141,22 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
 
     private void PopulateVideoCardContextMenu(FrameworkElement card)
     {
-        if (card.ContextMenu is not { } contextMenu)
+        if (card.ContextMenu is not { } contextMenu
+            || card.DataContext is not RecordedVideoItem item
+            || card.Tag is not ScreenRecordListViewModel viewModel)
         {
             return;
         }
 
-        foreach (object item in contextMenu.Items.Cast<object>().Where(item => item is MenuItem { Tag: ExtensionVideoActionTag }).ToArray())
+        contextMenu.DataContext = card;
+        foreach (MenuItem menuItem in contextMenu.Items.OfType<MenuItem>())
         {
-            contextMenu.Items.Remove(item);
+            ConfigureVideoContextMenuItem(menuItem, item, viewModel);
+        }
+
+        foreach (object menuItemObject in contextMenu.Items.Cast<object>().Where(item => item is MenuItem { Tag: ExtensionVideoActionTag }).ToArray())
+        {
+            contextMenu.Items.Remove(menuItemObject);
         }
 
         IReadOnlyList<ExtensionVideoFileInfo> files = ViewModel.GetSelectedFiles();
@@ -1202,6 +1211,58 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
                 }
             };
             contextMenu.Items.Insert(insertionIndex++, menuItem);
+        }
+    }
+
+    private static void ConfigureVideoContextMenuItem(MenuItem menuItem, RecordedVideoItem item, ScreenRecordListViewModel viewModel)
+    {
+        switch (menuItem.Tag as string)
+        {
+            case "OpenVideo":
+                menuItem.Command = viewModel.OpenVideoCommand;
+                menuItem.CommandParameter = item;
+                menuItem.IsEnabled = item.CanModify;
+                break;
+            case "OpenFolder":
+                menuItem.Command = viewModel.OpenDirectoryCommand;
+                menuItem.CommandParameter = item;
+                menuItem.IsEnabled = item.CanModify;
+                break;
+            case "Rename":
+                menuItem.Command = viewModel.RenameVideoCommand;
+                menuItem.CommandParameter = item;
+                menuItem.IsEnabled = item.CanModify;
+                break;
+            case "Transcode":
+                menuItem.Command = viewModel.TranscodeVideoCommand;
+                menuItem.CommandParameter = item;
+                menuItem.IsEnabled = item.CanTranscode;
+                break;
+            case "Merge":
+                menuItem.Command = viewModel.OpenMergeSelectedCommand;
+                menuItem.CommandParameter = null;
+                menuItem.IsEnabled = viewModel.CanMergeSelectedVideos;
+                break;
+            case "Split":
+                menuItem.Command = viewModel.SplitContextCommand;
+                menuItem.CommandParameter = item;
+                menuItem.IsEnabled = item.CanModify;
+                break;
+            case "Move":
+                menuItem.Command = viewModel.MoveContextCommand;
+                menuItem.CommandParameter = item;
+                menuItem.IsEnabled = item.CanModify;
+                break;
+            case "Copy":
+                menuItem.Command = viewModel.CopyContextCommand;
+                menuItem.CommandParameter = item;
+                menuItem.IsEnabled = item.CanModify;
+                break;
+            case "Delete":
+                menuItem.Command = viewModel.DeleteContextCommand;
+                menuItem.CommandParameter = item;
+                menuItem.IsEnabled = item.CanModify;
+                break;
         }
     }
 
@@ -1676,6 +1737,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
     private bool isRestoringSelection;
     private bool isApplyingSelectionChange;
     private int videoEnrichmentWorkerCount;
+    private int videoViewRefreshRequested;
     private int videoViewRefreshPending;
     private readonly Dictionary<string, FileSystemWatcher> directoryWatchers = new(StringComparer.OrdinalIgnoreCase);
     private string[] watchedRoots = [];
@@ -2576,16 +2638,24 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         });
     }
 
-    internal void SelectItems(IEnumerable<RecordedVideoItem> items)
+    internal void ReplaceSelectionWithItems(IEnumerable<RecordedVideoItem> items)
     {
         RecordedVideoItem[] targets = items.Where(item => item.CanSelect).Distinct().ToArray();
-        if (targets.Length == 0)
-        {
-            return;
-        }
 
         ApplySelectionChange(() =>
         {
+            foreach (RecordedVideoItem item in videos)
+            {
+                SetItemSelection(item, false);
+            }
+
+            if (targets.Length == 0)
+            {
+                IsMultiSelectMode = false;
+                lastSelectedItem = null;
+                return;
+            }
+
             IsMultiSelectMode = true;
             foreach (RecordedVideoItem item in targets)
             {
@@ -2593,6 +2663,11 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             }
             lastSelectedItem = targets[^1];
         });
+    }
+
+    internal void SelectItems(IEnumerable<RecordedVideoItem> items)
+    {
+        ReplaceSelectionWithItems(items);
     }
 
     internal void UndoSelection()
@@ -2809,6 +2884,10 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
                 switch (repairResult.Status)
                 {
                     case VideoRepairStatus.Repaired:
+                        if (options.RemoveSource)
+                        {
+                            _ = Converter.TryDeleteSourceFiles([item.FullPath]);
+                        }
                         AppFeedback.Success(GetResourceText("TranscodeComplete", "Transcoding complete"));
                         break;
                     case VideoRepairStatus.PartiallyRepaired:
@@ -2957,6 +3036,12 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             IsChecked = Configurations.IsOptimizeAudio.Get(),
             Margin = new Thickness(0, 16, 0, 0),
         };
+        System.Windows.Controls.CheckBox removeSource = new()
+        {
+            Content = GetResourceText("DeleteSourceAfterTranscode", "Delete source file after successful transcode"),
+            IsChecked = Configurations.IsRemoveTs.Get(),
+            Margin = new Thickness(0, 16, 0, 0),
+        };
         TextBlock description = new()
         {
             Text = GetResourceText("OptimizedAudioTrackDescription", "MP4 keeps the original audio and adds an AAC track with gain, compression, and limiting."),
@@ -2985,6 +3070,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
                 formatSelector,
                 optimizeAudio,
                 description,
+                removeSource,
             },
         };
         if (UiXDialogContent.IsEnabled)
@@ -3015,7 +3101,10 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         {
             return null;
         }
-        ConverterOptions options = CreateTranscodeOptions(formatSelector.SelectedIndex, optimizeAudio.IsChecked == true);
+        ConverterOptions options = CreateTranscodeOptions(
+            formatSelector.SelectedIndex,
+            optimizeAudio.IsChecked == true,
+            removeSource.IsChecked == true);
         if (options.TargetFormat == ".mp4")
         {
             Configurations.IsOptimizeAudio.Set(options.OptimizeAudio);
@@ -3028,12 +3117,12 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         return options;
     }
 
-    internal static ConverterOptions CreateTranscodeOptions(int selectedIndex, bool optimizeAudio)
+    internal static ConverterOptions CreateTranscodeOptions(int selectedIndex, bool optimizeAudio, bool removeSource = false)
     {
         return selectedIndex switch
         {
-            0 => new ConverterOptions(".mp4", optimizeAudio),
-            1 => new ConverterOptions(".mkv", false),
+            0 => new ConverterOptions(".mp4", optimizeAudio, removeSource),
+            1 => new ConverterOptions(".mkv", false, removeSource),
             _ => throw new ArgumentOutOfRangeException(nameof(selectedIndex)),
         };
     }
@@ -3753,11 +3842,19 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
         string nickName = NormalizeStreamerName(string.IsNullOrWhiteSpace(metadata.NickName) ? InferNickName(snapshot.Path, snapshot.RootFolder) : metadata.NickName);
         DateTime createdAt = metadata.RecordedAt > DateTime.MinValue ? metadata.RecordedAt : fileInfo.LastWriteTime;
-        string thumbnailPath = RecordingCoverStore.MaterializeDisplayImage(
-            fileInfo.FullName,
-            metadata,
-            GetThumbnailCachePath(fileInfo.FullName));
-        if (string.IsNullOrWhiteSpace(thumbnailPath))
+        string thumbnailPath = isRecordingFile
+            ? RecordingCoverStore.MaterializeRecordingAvatar(
+                fileInfo.FullName,
+                metadata,
+                GetThumbnailCachePath(fileInfo.FullName))
+            : RecordingCoverStore.MaterializeDisplayImage(
+                fileInfo.FullName,
+                metadata,
+                GetThumbnailCachePath(fileInfo.FullName),
+                allowAvatarFallback: true);
+        if (!isRecordingFile
+            && string.IsNullOrWhiteSpace(thumbnailPath)
+            && RecordingCoverStore.HasFinalizedCover(fileInfo.FullName))
         {
             thumbnailPath = GetExistingThumbnailPath(fileInfo.FullName, metadata.CoverPath);
         }
@@ -3772,6 +3869,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             Bitrate = bitrate,
             CoverPath = metadata.CoverPath,
             ThumbnailPath = thumbnailPath,
+            ThumbnailSource = isRecordingFile ? ThumbnailImageConverter.TryLoadImage(thumbnailPath) : null,
             Title = BuildDisplayTitle(metadata.Title, createdAt, fileInfo),
             CreatedAt = createdAt,
             SupportsTranscode = fileInfo.Extension.Equals(".ts", StringComparison.OrdinalIgnoreCase)
@@ -3828,6 +3926,12 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         return string.IsNullOrWhiteSpace(targetFormat)
             ? extension is ".ts" or ".flv"
             : extension.Equals(targetFormat, StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool IsCompletedVideoFormat(string filePath)
+    {
+        string extension = Path.GetExtension(filePath).ToLowerInvariant();
+        return extension is ".mp4" or ".mkv";
     }
 
     internal static VideoRecordingMetadata LoadMetadata(FileInfo file)
@@ -4115,6 +4219,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
                 {
                     StartVideoEnrichmentWorker(source.Token);
                 }
+                TryScheduleVideoViewRefresh();
             }
         }, CancellationToken.None);
     }
@@ -4138,23 +4243,20 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             {
                 _ = VideoRecordingMetadataStore.WriteCompletedMetadata(item.FullPath, metadata);
             }
-            string coverPath = string.IsNullOrWhiteSpace(metadata.CoverPath) ? item.CoverPath : metadata.CoverPath;
             string thumbnailPath = RecordingCoverStore.HasCurrentFinalizedCover(item.FullPath, metadata)
                 ? RecordingCoverStore.MaterializeDisplayImage(
                     item.FullPath,
                     metadata,
-                    GetThumbnailCachePath(item.FullPath))
+                    GetThumbnailCachePath(item.FullPath),
+                    allowAvatarFallback: true)
                 : await ExtractThumbnailAsync(item.FullPath, metadata, token);
             if (string.IsNullOrWhiteSpace(thumbnailPath))
             {
                 thumbnailPath = RecordingCoverStore.MaterializeDisplayImage(
                     item.FullPath,
                     metadata,
-                    GetThumbnailCachePath(item.FullPath));
-            }
-            if (string.IsNullOrWhiteSpace(thumbnailPath) && File.Exists(coverPath))
-            {
-                thumbnailPath = coverPath;
+                    GetThumbnailCachePath(item.FullPath),
+                    allowAvatarFallback: true);
             }
             System.Windows.Media.ImageSource? thumbnailSource = ThumbnailImageConverter.TryLoadImage(thumbnailPath);
             file.Refresh();
@@ -4175,15 +4277,9 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
                     item.NickName = NormalizeStreamerName(string.IsNullOrWhiteSpace(metadata.NickName) ? item.NickName : metadata.NickName);
                     item.Resolution = resolution;
                     item.Bitrate = bitrate;
-                    item.CoverPath = coverPath;
-                    if (!string.IsNullOrWhiteSpace(thumbnailPath))
-                    {
-                        item.ThumbnailPath = thumbnailPath;
-                    }
-                    if (thumbnailSource != null)
-                    {
-                        item.ThumbnailSource = thumbnailSource;
-                    }
+                    item.CoverPath = metadata.CoverPath;
+                    item.ThumbnailPath = thumbnailPath;
+                    item.ThumbnailSource = thumbnailSource;
                     item.CreatedAt = createdAt;
                     item.Title = BuildDisplayTitle(metadata.Title, createdAt, file);
                     item.IsStallSegment = string.Equals(metadata.SegmentReason, VideoRecordingMetadataStore.TimelineStallSegmentReason, StringComparison.Ordinal);
@@ -4240,18 +4336,23 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         Lazy<Task<string>> extraction = thumbnailExtractionTasks.GetOrAdd(
             filePath,
             path => new Lazy<Task<string>>(
-                () => Task.Run(() =>
+                () => Task.Run(async () =>
                 {
-                    if (!FfmpegMediaEngine.TryProbe(path, out FfmpegMediaProbeResult probe, out _, token))
+                    for (int attempt = 0; attempt < 3; attempt++)
                     {
-                        return string.Empty;
+                        if (FfmpegMediaEngine.TryProbe(path, out FfmpegMediaProbeResult probe, out _, token)
+                            && RecordingCoverStore.TryEnsureFinalizedCover(path, metadata, probe.DurationSeconds, token))
+                        {
+                            _ = VideoRecordingMetadataStore.WriteCompletedMetadata(path, metadata);
+                            return RecordingCoverStore.MaterializeDisplayImage(path, metadata, imagePath, allowAvatarFallback: true);
+                        }
+
+                        if (attempt < 2)
+                        {
+                            await Task.Delay(400, token);
+                        }
                     }
-                    if (!RecordingCoverStore.TryEnsureFinalizedCover(path, metadata, probe.DurationSeconds, token))
-                    {
-                        return string.Empty;
-                    }
-                    _ = VideoRecordingMetadataStore.WriteCompletedMetadata(path, metadata);
-                    return RecordingCoverStore.MaterializeDisplayImage(path, metadata, imagePath);
+                    return RecordingCoverStore.MaterializeDisplayImage(path, metadata, imagePath, allowAvatarFallback: true);
                 }, token),
                 LazyThreadSafetyMode.ExecutionAndPublication));
         try
@@ -4873,13 +4974,13 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         {
             listView.CustomSort = new RecordedVideoItemComparer(IsSortDescending);
         }
-        Videos.Refresh();
+        TryRefreshVideos();
         VisibleItemsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void ApplyFilters()
     {
-        Videos.Refresh();
+        TryRefreshVideos();
         NormalizeSelectionForVisibleVideos();
         NormalizeSelectionOrders();
         RefreshSelectionSummary();
@@ -4888,7 +4989,16 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
     private void QueueVideoViewRefresh()
     {
-        if (Interlocked.Exchange(ref videoViewRefreshPending, 1) != 0)
+        Interlocked.Exchange(ref videoViewRefreshRequested, 1);
+        TryScheduleVideoViewRefresh();
+    }
+
+    private void TryScheduleVideoViewRefresh()
+    {
+        if (Volatile.Read(ref videoViewRefreshRequested) == 0
+            || Volatile.Read(ref videoEnrichmentWorkerCount) != 0
+            || !videoEnrichmentQueue.IsEmpty
+            || Interlocked.CompareExchange(ref videoViewRefreshPending, 1, 0) != 0)
         {
             return;
         }
@@ -4903,12 +5013,34 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         _ = dispatcher.InvokeAsync(() =>
         {
             Interlocked.Exchange(ref videoViewRefreshPending, 0);
-            using (Videos.DeferRefresh())
+            if (Volatile.Read(ref videoEnrichmentWorkerCount) != 0 || !videoEnrichmentQueue.IsEmpty)
             {
-                Videos.Refresh();
+                return;
             }
-            VisibleItemsChanged?.Invoke(this, EventArgs.Empty);
+            if (Interlocked.Exchange(ref videoViewRefreshRequested, 0) == 0)
+            {
+                return;
+            }
+            if (TryRefreshVideos())
+            {
+                VisibleItemsChanged?.Invoke(this, EventArgs.Empty);
+            }
+            TryScheduleVideoViewRefresh();
         }, DispatcherPriority.Background);
+    }
+
+    private bool TryRefreshVideos()
+    {
+        try
+        {
+            Videos.Refresh();
+            return true;
+        }
+        catch (Exception e)
+        {
+            AppSessionLogger.WriteException(e);
+            return false;
+        }
     }
 
     private void NormalizeSelectionForVisibleVideos()
@@ -5552,12 +5684,15 @@ public partial class RecordedVideoItem : ObservableObject
     internal DateTime MetadataLastWriteTimeUtc { get; init; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayFileName))]
     [NotifyPropertyChangedFor(nameof(UiXWrappedFileName))]
     private string fileName = string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FormatText))]
     [NotifyPropertyChangedFor(nameof(IsTargetFormat))]
+    [NotifyPropertyChangedFor(nameof(IsNonTargetTranscodableFormat))]
+    [NotifyPropertyChangedFor(nameof(IsNonTargetCompletedFormat))]
     private string fullPath = string.Empty;
 
     [ObservableProperty]
@@ -5598,11 +5733,12 @@ public partial class RecordedVideoItem : ObservableObject
     [NotifyPropertyChangedFor(nameof(RecordingDetailsText))]
     [NotifyPropertyChangedFor(nameof(RecordingTimeText))]
     [NotifyPropertyChangedFor(nameof(UiXSummaryText))]
-    [NotifyPropertyChangedFor(nameof(DateGroupKey))]
     private DateTime createdAt;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsTargetFormat))]
+    [NotifyPropertyChangedFor(nameof(IsNonTargetTranscodableFormat))]
+    [NotifyPropertyChangedFor(nameof(IsNonTargetCompletedFormat))]
     private string targetRecordFormat = "TS/FLV";
 
     [ObservableProperty]
@@ -5725,13 +5861,43 @@ public partial class RecordedVideoItem : ObservableObject
         }
     }
 
-    public string UiXWrappedFileName => FileName;
+    public string DisplayFileName => Path.GetFileNameWithoutExtension(FileName);
+
+    public string UiXWrappedFileName => AddFileNameBreakOpportunities(DisplayFileName);
+
+    internal static string AddFileNameBreakOpportunities(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return value;
+        }
+
+        StringBuilder result = new(value.Length + 8);
+        TextElementEnumerator elements = StringInfo.GetTextElementEnumerator(value);
+        bool isFirst = true;
+        while (elements.MoveNext())
+        {
+            if (!isFirst)
+            {
+                result.Append('\u200B');
+            }
+            result.Append(elements.GetTextElement());
+            isFirst = false;
+        }
+        return result.ToString();
+    }
 
     public DateTime DateGroupKey => CreatedAt.Date;
 
     public string FormatText => ScreenRecordListViewModel.GetVideoFormatText(FullPath);
 
     public bool IsTargetFormat => ScreenRecordListViewModel.IsTargetVideoFormat(FullPath, TargetRecordFormat);
+
+    public bool IsNonTargetTranscodableFormat => !IsTargetFormat && SupportsTranscode;
+
+    public bool IsNonTargetCompletedFormat => !IsTargetFormat
+        && !SupportsTranscode
+        && ScreenRecordListViewModel.IsCompletedVideoFormat(FullPath);
 
     public bool CanModify => !IsInProgress && !IsRecordingFile;
 

@@ -1344,6 +1344,9 @@ public sealed class FocusVisualTests
         Assert.DoesNotContain("MaterialType.Acrylic", mainWindowCode, StringComparison.Ordinal);
         Assert.Contains("UiXWindowFallbackBrush", mainWindowCode, StringComparison.Ordinal);
         Assert.Contains("MaterialType.None", mainWindowCode, StringComparison.Ordinal);
+        Assert.Contains("Color=\"#E2F1F4F5\"", uiXTheme, StringComparison.Ordinal);
+        Assert.Contains("Color=\"#D8E9EEF0\"", uiXTheme, StringComparison.Ordinal);
+        Assert.Contains("Color=\"#D0E5EBEE\"", uiXTheme, StringComparison.Ordinal);
         Assert.Contains("UiXPanelBrush", uiXTheme, StringComparison.Ordinal);
         Assert.Contains("UiXCardBrush", uiXTheme, StringComparison.Ordinal);
         Assert.Contains("UiXVideoCardBrush", uiXTheme, StringComparison.Ordinal);
@@ -1360,6 +1363,9 @@ public sealed class FocusVisualTests
         Assert.Contains("<Setter TargetName=\"ButtonSurface\" Property=\"Width\" Value=\"40\" />", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<Setter TargetName=\"ButtonSurface\" Property=\"Height\" Value=\"40\" />", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<Setter TargetName=\"ButtonSurface\" Property=\"CornerRadius\" Value=\"{StaticResource UiXNavigationInsetCornerRadius}\" />", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ShowMinimize=\"True\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ShowMaximize=\"True\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ShowClose=\"True\"", mainWindow, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1567,7 +1573,7 @@ public sealed class FocusVisualTests
         Assert.DoesNotContain(uiX.Descendants(), element => element.Name.LocalName == "Button");
         Assert.Contains(uiX.Descendants(), element =>
             element.Name.LocalName == "TextBlock"
-            && (string?)element.Attribute("Text") == "{Binding FileName}");
+            && (string?)element.Attribute("Text") == "{Binding UiXWrappedFileName}");
         Assert.Contains(uiX.Descendants(), element =>
             element.Name.LocalName == "TextBlock"
             && (string?)element.Attribute("Text") == "{Binding UiXStreamerText}");

@@ -617,9 +617,39 @@ public static class MotionAssist
         }
 
         StateTransitionState state = new();
+        element.Loaded += StateTransitionLoaded;
+        element.IsVisibleChanged += StateTransitionIsVisibleChanged;
         element.Unloaded += StateTransitionElementUnloaded;
         element.SetValue(StateTransitionStateProperty, state);
         return state;
+    }
+
+    private static void StateTransitionLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement element)
+        {
+            SynchronizeStateTransitionOpacity(element);
+        }
+    }
+
+    private static void StateTransitionIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is FrameworkElement element && element.IsVisible)
+        {
+            SynchronizeStateTransitionOpacity(element);
+        }
+    }
+
+    private static void SynchronizeStateTransitionOpacity(FrameworkElement element)
+    {
+        double targetOpacity = GetIsStateTransitionActive(element) ? 1d : 0d;
+        if (Math.Abs(element.Opacity - targetOpacity) < 0.001d)
+        {
+            return;
+        }
+
+        element.BeginAnimation(UIElement.OpacityProperty, null);
+        element.Opacity = targetOpacity;
     }
 
     private static void StateTransitionElementUnloaded(object sender, RoutedEventArgs e)

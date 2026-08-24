@@ -24,7 +24,7 @@ internal static class AppThemeBrushes
         SetBrush("EmerdeCardBrush", isLightTheme ? Color.FromRgb(0xFF, 0xFF, 0xFF) : Color.FromRgb(0x24, 0x24, 0x24), durationMilliseconds);
         SetBrush("EmerdeDialogBackgroundBrush", isLightTheme ? Color.FromRgb(0xF1, 0xF4, 0xF5) : Color.FromRgb(0x12, 0x15, 0x19), durationMilliseconds);
         SetBrush("EmerdeDialogOuterBorderBrush", isLightTheme ? Colors.Black : Colors.White, durationMilliseconds);
-        SetBrush("UiXShellBrush", isLightTheme ? Color.FromArgb(0xD0, 0xE5, 0xEB, 0xEE) : Color.FromArgb(0xC7, 0x1B, 0x20, 0x26), durationMilliseconds);
+        SetBrush("UiXShellBrush", isLightTheme ? Color.FromArgb(0xE2, 0xF1, 0xF4, 0xF5) : Color.FromArgb(0xE8, 0x12, 0x15, 0x19), durationMilliseconds);
         SetBrush("UiXWindowFallbackBrush", isLightTheme ? Color.FromRgb(0xF1, 0xF4, 0xF5) : Color.FromRgb(0x12, 0x15, 0x19), durationMilliseconds);
         SetBrush("UiXNavigationBrush", isLightTheme ? Color.FromArgb(0xD8, 0xE9, 0xEE, 0xF0) : Color.FromArgb(0xD4, 0x18, 0x1C, 0x21), durationMilliseconds);
         SetBrush("UiXPanelBrush", isLightTheme ? Color.FromArgb(0xD0, 0xE5, 0xEB, 0xEE) : Color.FromArgb(0xC7, 0x1B, 0x20, 0x26), durationMilliseconds);

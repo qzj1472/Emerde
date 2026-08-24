@@ -593,46 +593,28 @@
                                 </Style>
                             </Border.Style>
                             <Border.ContextMenu>
-                                <ContextMenu DataContext="{Binding PlacementTarget, RelativeSource={RelativeSource Self}}"
-                                             Placement="MousePoint"
+                                <ContextMenu Placement="MousePoint"
                                              StaysOpen="False">
                                     <MenuItem Header="{I18N OpenVideo}"
-                                              Command="{Binding Tag.OpenVideoCommand}"
-                                              CommandParameter="{Binding DataContext}"
-                                              IsEnabled="{Binding DataContext.CanModify}" />
+                                              Tag="OpenVideo" />
                                     <MenuItem Header="{I18N OpenFolder}"
-                                              Command="{Binding Tag.OpenDirectoryCommand}"
-                                              CommandParameter="{Binding DataContext}"
-                                              IsEnabled="{Binding DataContext.CanModify}" />
+                                              Tag="OpenFolder" />
                                     <MenuItem Header="{I18N Rename}"
-                                              Command="{Binding Tag.RenameVideoCommand}"
-                                              CommandParameter="{Binding DataContext}"
-                                              IsEnabled="{Binding DataContext.CanModify}" />
+                                              Tag="Rename" />
                                     <MenuItem Header="{I18N TranscodeVideo}"
-                                              Command="{Binding Tag.TranscodeVideoCommand}"
-                                              CommandParameter="{Binding DataContext}"
-                                              IsEnabled="{Binding DataContext.CanTranscode}" />
+                                              Tag="Transcode" />
                                     <Separator />
                                     <MenuItem Header="{I18N MergeVideos}"
-                                              Command="{Binding Tag.OpenMergeSelectedCommand}"
-                                              IsEnabled="{Binding Tag.CanMergeSelectedVideos}" />
+                                              Tag="Merge" />
                                     <MenuItem Header="{I18N SplitButton}"
-                                              Command="{Binding Tag.SplitContextCommand}"
-                                              CommandParameter="{Binding DataContext}"
-                                              IsEnabled="{Binding DataContext.CanModify}" />
+                                              Tag="Split" />
                                     <MenuItem Header="{I18N MoveButton}"
-                                              Command="{Binding Tag.MoveContextCommand}"
-                                              CommandParameter="{Binding DataContext}"
-                                              IsEnabled="{Binding DataContext.CanModify}" />
+                                              Tag="Move" />
                                     <MenuItem Header="{I18N CopyButton}"
-                                              Command="{Binding Tag.CopyContextCommand}"
-                                              CommandParameter="{Binding DataContext}"
-                                              IsEnabled="{Binding DataContext.CanModify}" />
+                                              Tag="Copy" />
                                     <Separator />
                                     <MenuItem Header="{I18N DeleteButton}"
-                                              Command="{Binding Tag.DeleteContextCommand}"
-                                              CommandParameter="{Binding DataContext}"
-                                              IsEnabled="{Binding DataContext.CanModify}" />
+                                              Tag="Delete" />
                                 </ContextMenu>
                             </Border.ContextMenu>
                             <Grid>
@@ -737,7 +719,7 @@
                                         <StackPanel Grid.Column="1" Margin="14,0,18,0" VerticalAlignment="Center">
                                             <TextBlock FontSize="16"
                                                        FontWeight="SemiBold"
-                                                       Text="{Binding FileName}"
+                                                       Text="{Binding DisplayFileName}"
                                                        TextTrimming="CharacterEllipsis" />
                                             <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
                                                 <Border MaxWidth="110"
@@ -947,7 +929,7 @@
                                                         FontWeight="SemiBold"
                                                         LineHeight="16"
                                                         LineStackingStrategy="BlockLineHeight"
-                                                        Text="{Binding FileName}"
+                                                        Text="{Binding UiXWrappedFileName}"
                                                         TextTrimming="CharacterEllipsis"
                                                         TextWrapping="Wrap"
                                                         ToolTip="{Binding FileName}" />
@@ -1076,8 +1058,11 @@
                                                             <Style TargetType="{x:Type TextBlock}">
                                                                 <Setter Property="Foreground" Value="{DynamicResource UiXTextSecondaryBrush}" />
                                                                 <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsTargetFormat}" Value="False">
+                                                                    <DataTrigger Binding="{Binding IsNonTargetTranscodableFormat}" Value="True">
                                                                         <Setter Property="Foreground" Value="{DynamicResource UiXDangerForegroundBrush}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsNonTargetCompletedFormat}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource UiXTranscodeForegroundBrush}" />
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
