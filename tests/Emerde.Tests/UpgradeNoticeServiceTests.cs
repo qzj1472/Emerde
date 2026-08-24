@@ -163,8 +163,8 @@ public sealed class UpgradeNoticeServiceTests
         ReleaseNoteEntry entry = ReleaseNotesCatalog.GetEntry("1.6.7.2");
         string[] items = entry.Sections.SelectMany(section => section.Items).ToArray();
 
-        Assert.Equal([6, 11, 3, 6], entry.Sections.Select(section => section.Items.Count));
-        Assert.Equal(26, items.Length);
+        Assert.Equal([6, 11, 7, 6], entry.Sections.Select(section => section.Items.Count));
+        Assert.Equal(30, items.Length);
         Assert.Equal(items.Length, items.Distinct(StringComparer.Ordinal).Count());
     }
 }
