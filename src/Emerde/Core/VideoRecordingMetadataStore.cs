@@ -12,13 +12,19 @@ internal static class VideoRecordingMetadataStore
 
     private const string MetadataSuffix = ".mplr.json";
     private const string AttachedMetadataStream = ":emerde.metadata";
+    private const string AttachedMetadataBackupStream = ":emerde.metadata.backup";
+    private const int AttachedMetadataReadAttempts = 2;
+    private const int AttachedMetadataReadRetryMilliseconds = 50;
     private const uint GenericRead = 0x80000000;
     private const uint GenericWrite = 0x40000000;
+    private const uint GenericDelete = 0x00010000;
+    private const int FileRenameInfo = 3;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
     };
+    private static readonly object AttachedMetadataCommitSync = new();
 
     private static readonly string[] AssociatedVideoExtensions = [".ts", ".flv", ".mp4", ".mkv", ".mov", ".m4v", ".webm", ".avi"];
 
@@ -722,34 +728,72 @@ internal static class VideoRecordingMetadataStore
             return null;
         }
 
-        SafeFileHandle handle = CreateFile(
+        Exception? finalStreamError = null;
+        VideoRecordingMetadata? metadata = TryReadAttachedMetadataStream(
             mediaPath + AttachedMetadataStream,
-            GenericRead,
-            FileShare.ReadWrite | FileShare.Delete,
-            IntPtr.Zero,
-            FileMode.Open,
-            FileAttributes.Normal,
-            IntPtr.Zero);
-        if (handle.IsInvalid)
+            out finalStreamError);
+        if (metadata != null)
         {
-            handle.Dispose();
-            return null;
+            return metadata;
         }
 
-        try
+        metadata = TryReadAttachedMetadataStream(
+            mediaPath + AttachedMetadataBackupStream,
+            out _);
+        if (metadata != null)
         {
-            using FileStream stream = new(handle, FileAccess.Read);
-            if (stream.Length == 0)
+            return metadata;
+        }
+
+        if (finalStreamError != null)
+        {
+            AppSessionLogger.WriteException(finalStreamError);
+        }
+        return null;
+    }
+
+    private static VideoRecordingMetadata? TryReadAttachedMetadataStream(
+        string streamPath,
+        out Exception? lastError)
+    {
+        lastError = null;
+        for (int attempt = 0; attempt < AttachedMetadataReadAttempts; attempt++)
+        {
+            try
             {
-                return null;
+                SafeFileHandle handle = CreateFile(
+                    streamPath,
+                    GenericRead,
+                    FileShare.ReadWrite | FileShare.Delete,
+                    IntPtr.Zero,
+                    FileMode.Open,
+                    FileAttributes.Normal,
+                    IntPtr.Zero);
+                if (handle.IsInvalid)
+                {
+                    handle.Dispose();
+                    return null;
+                }
+
+                using FileStream stream = new(handle, FileAccess.Read);
+                if (stream.Length == 0)
+                {
+                    return null;
+                }
+                return JsonSerializer.Deserialize<VideoRecordingMetadata>(stream);
             }
-            return JsonSerializer.Deserialize<VideoRecordingMetadata>(stream);
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or NotSupportedException)
+            {
+                lastError = e;
+                if (attempt + 1 >= AttachedMetadataReadAttempts)
+                {
+                    return null;
+                }
+                Thread.Sleep(AttachedMetadataReadRetryMilliseconds);
+            }
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or NotSupportedException)
-        {
-            AppSessionLogger.WriteException(e);
-            return null;
-        }
+
+        return null;
     }
 
     private static bool WriteAttachedMetadata(string mediaPath, VideoRecordingMetadata metadata)
@@ -759,12 +803,14 @@ internal static class VideoRecordingMetadataStore
             return false;
         }
 
+        string temporaryPath = mediaPath + $":emerde.metadata.tmp-{Guid.NewGuid():N}";
+        bool committed = false;
         SafeFileHandle handle = CreateFile(
-            mediaPath + AttachedMetadataStream,
+            temporaryPath,
             GenericWrite,
-            FileShare.Read | FileShare.Delete,
+            FileShare.None,
             IntPtr.Zero,
-            FileMode.Create,
+            FileMode.CreateNew,
             FileAttributes.Normal,
             IntPtr.Zero);
         if (handle.IsInvalid)
@@ -778,12 +824,134 @@ internal static class VideoRecordingMetadataStore
             using FileStream stream = new(handle, FileAccess.Write);
             JsonSerializer.Serialize(stream, metadata, JsonOptions);
             stream.Flush(flushToDisk: true);
-            return true;
+            stream.Close();
+            lock (AttachedMetadataCommitSync)
+            {
+                committed = TryCommitAttachedMetadata(temporaryPath, mediaPath);
+            }
+            return committed;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
         {
             AppSessionLogger.WriteException(e);
             return false;
+        }
+        finally
+        {
+            if (!committed)
+            {
+                try
+                {
+                    File.Delete(temporaryPath);
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    AppSessionLogger.WriteException(e);
+                }
+            }
+        }
+    }
+
+    private static bool TryCommitAttachedMetadata(string temporaryPath, string mediaPath)
+    {
+        string finalPath = mediaPath + AttachedMetadataStream;
+        string backupPath = mediaPath + AttachedMetadataBackupStream;
+        bool backupCreated = false;
+        try
+        {
+            if (File.Exists(finalPath))
+            {
+                if (File.Exists(backupPath))
+                {
+                    File.Delete(backupPath);
+                }
+                if (!TryRenameAttachedMetadata(finalPath, AttachedMetadataBackupStream, false))
+                {
+                    return false;
+                }
+                backupCreated = true;
+            }
+
+            if (!TryRenameAttachedMetadata(temporaryPath, AttachedMetadataStream, false))
+            {
+                if (backupCreated && !File.Exists(finalPath))
+                {
+                    _ = TryRenameAttachedMetadata(backupPath, AttachedMetadataStream, false);
+                }
+                return false;
+            }
+
+            TryDeleteAttachedMetadataStream(backupPath);
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            if (backupCreated && !File.Exists(finalPath))
+            {
+                _ = TryRenameAttachedMetadata(backupPath, AttachedMetadataStream, false);
+            }
+            AppSessionLogger.WriteException(e);
+            return false;
+        }
+    }
+
+    private static bool TryRenameAttachedMetadata(string sourcePath, string targetStream, bool replaceIfExists)
+    {
+        SafeFileHandle handle = CreateFile(
+            sourcePath,
+            GenericWrite | GenericDelete,
+            FileShare.ReadWrite | FileShare.Delete,
+            IntPtr.Zero,
+            FileMode.Open,
+            FileAttributes.Normal,
+            IntPtr.Zero);
+        if (handle.IsInvalid)
+        {
+            handle.Dispose();
+            return false;
+        }
+
+        try
+        {
+            return TryRenameAttachedMetadata(handle, targetStream, replaceIfExists);
+        }
+        finally
+        {
+            handle.Dispose();
+        }
+    }
+
+    private static bool TryRenameAttachedMetadata(SafeFileHandle handle, string targetStream, bool replaceIfExists)
+    {
+        byte[] name = System.Text.Encoding.Unicode.GetBytes(targetStream + "\0");
+        int bufferSize = 20 + name.Length;
+        IntPtr buffer = Marshal.AllocHGlobal(bufferSize);
+        try
+        {
+            for (int index = 0; index < bufferSize; index++)
+            {
+                Marshal.WriteByte(buffer, index, 0);
+            }
+            Marshal.WriteInt32(buffer, 0, replaceIfExists ? 1 : 0);
+            Marshal.WriteInt32(buffer, 16, name.Length - sizeof(char));
+            Marshal.Copy(name, 0, IntPtr.Add(buffer, 20), name.Length);
+            return SetFileInformationByHandle(handle, FileRenameInfo, buffer, (uint)bufferSize);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    private static void TryDeleteAttachedMetadataStream(string streamPath)
+    {
+        try
+        {
+            File.Delete(streamPath);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            AppSessionLogger.WriteException(e);
         }
     }
 
@@ -796,6 +964,13 @@ internal static class VideoRecordingMetadataStore
         FileMode creationDisposition,
         FileAttributes flagsAndAttributes,
         IntPtr templateFile);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetFileInformationByHandle(
+        SafeFileHandle fileHandle,
+        int fileInformationClass,
+        IntPtr fileInformation,
+        uint bufferSize);
 }
 
 internal sealed class StagedVideoMetadata(string temporaryPath, string finalPath) : IDisposable
