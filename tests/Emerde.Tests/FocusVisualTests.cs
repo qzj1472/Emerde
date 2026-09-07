@@ -1627,6 +1627,9 @@ public sealed class FocusVisualTests
     public void ConfigRestoreCards_DrawStateStrokesInsideTheSurface()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ConfigRestoreContentDialog.xaml"));
+        XElement header = document.Descendants()
+            .Single(element => element.Name.LocalName == "Grid"
+                && (string?)element.Attribute("Grid.Row") == "0");
         XElement card = document.Descendants()
             .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "Card");
         XElement strokeLayer = document.Descendants()
@@ -1635,6 +1638,7 @@ public sealed class FocusVisualTests
 
         Assert.Equal("0", (string?)card.Attribute("Padding"));
         Assert.Equal("0", (string?)card.Attribute("BorderThickness"));
+        Assert.Equal("0,0,0,18", (string?)header.Attribute("Margin"));
         Assert.Equal("1", (string?)strokeLayer.Attribute("BorderThickness"));
         Assert.Same(surface, strokeLayer.Parent);
         Assert.DoesNotContain(document.Descendants(), element =>
