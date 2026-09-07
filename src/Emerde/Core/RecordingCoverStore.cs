@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Media;
@@ -14,6 +15,9 @@ internal static class RecordingCoverStore
     private const int CoverWidth = 480;
     private const int CoverHeight = 320;
     private static readonly SemaphoreSlim GenerationGate = new(1, 1);
+    private static readonly ConcurrentDictionary<string, UnavailableCoverState> UnavailableCoverStates = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly TimeSpan UnavailableCoverRetryInterval = TimeSpan.FromMinutes(5);
+    private const int MaximumUnavailableCoverStates = 512;
 
     internal static byte[] CaptureAvatarSnapshot(string source)
     {
@@ -48,9 +52,21 @@ internal static class RecordingCoverStore
         {
             return false;
         }
+        if (HasFinalizedCover(mediaPath))
+        {
+            return true;
+        }
+        if (!ShouldGenerateNewCover(metadata))
+        {
+            return false;
+        }
         if (HasCurrentFinalizedCover(mediaPath, metadata))
         {
             return true;
+        }
+        if (ShouldSkipUnavailableCover(mediaPath))
+        {
+            return false;
         }
 
         GenerationGate.Wait(token);
@@ -60,10 +76,18 @@ internal static class RecordingCoverStore
             {
                 return true;
             }
+            if (ShouldSkipUnavailableCover(mediaPath))
+            {
+                return false;
+            }
 
             double position = GetFramePosition(metadata.RecordingSessionId, mediaPath, durationSeconds);
             if (!FfmpegMediaEngine.TryExtractCoverFrame(mediaPath, position, token, out BitmapSource frame, out string error))
             {
+                if (IsUnavailableVideoStreamError(error))
+                {
+                    RememberUnavailableCover(mediaPath);
+                }
                 if (!string.IsNullOrWhiteSpace(error))
                 {
                     AppSessionLogger.Event("warn", "media", "recording_cover_frame_failed", error, new { mediaPath, position });
@@ -81,6 +105,7 @@ internal static class RecordingCoverStore
             {
                 return false;
             }
+            UnavailableCoverStates.TryRemove(Path.GetFullPath(mediaPath), out _);
             metadata.CoverCompositionVersion = CurrentCompositionVersion;
             metadata.CoverPath = string.Empty;
             return true;
@@ -98,17 +123,22 @@ internal static class RecordingCoverStore
         double durationSeconds,
         CancellationToken token)
     {
-        if (metadata.CoverCompositionVersion >= CurrentCompositionVersion)
+        foreach (string sourcePath in sourcePaths)
         {
-            foreach (string sourcePath in sourcePaths)
+            if (TryReadCover(sourcePath, out byte[] cover) && TryWriteCover(targetPath, cover))
             {
-                if (TryReadCover(sourcePath, out byte[] cover) && TryWriteCover(targetPath, cover))
-                {
-                    metadata.CoverCompositionVersion = CurrentCompositionVersion;
-                    metadata.CoverPath = string.Empty;
-                    return true;
-                }
+                metadata.CoverCompositionVersion = CurrentCompositionVersion;
+                metadata.CoverPath = string.Empty;
+                return true;
             }
+        }
+        if (HasFinalizedCover(targetPath))
+        {
+            return true;
+        }
+        if (!ShouldGenerateNewCover(metadata))
+        {
+            return false;
         }
         try
         {
@@ -172,6 +202,17 @@ internal static class RecordingCoverStore
     internal static bool HasCurrentFinalizedCover(string mediaPath, VideoRecordingMetadata metadata)
     {
         return metadata.CoverCompositionVersion >= CurrentCompositionVersion && HasFinalizedCover(mediaPath);
+    }
+
+    internal static bool ShouldGenerateNewCover(VideoRecordingMetadata metadata)
+    {
+        return !string.IsNullOrWhiteSpace(metadata.RecordingSessionId)
+            && metadata.RecordedAt > DateTime.MinValue;
+    }
+
+    internal static bool IsUnavailableVideoStreamError(string? error)
+    {
+        return string.Equals(error, "video stream was not found", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static void DeleteAssociatedAssets(string mediaPath)
@@ -425,6 +466,84 @@ internal static class RecordingCoverStore
         return latest;
     }
 
+    private static bool ShouldSkipUnavailableCover(string mediaPath)
+    {
+        string key = Path.GetFullPath(mediaPath);
+        if (!UnavailableCoverStates.TryGetValue(key, out UnavailableCoverState state))
+        {
+            return false;
+        }
+
+        if (state.ExpiresAtUtc <= DateTime.UtcNow
+            || !TryGetMediaStamp(mediaPath, out long length, out DateTime lastWriteTimeUtc)
+            || state.Length != length
+            || state.LastWriteTimeUtc != lastWriteTimeUtc)
+        {
+            UnavailableCoverStates.TryRemove(key, out _);
+            return false;
+        }
+
+        return true;
+    }
+
+    private static void RememberUnavailableCover(string mediaPath)
+    {
+        if (TryGetMediaStamp(mediaPath, out long length, out DateTime lastWriteTimeUtc))
+        {
+            UnavailableCoverStates[Path.GetFullPath(mediaPath)] = new UnavailableCoverState(
+                length,
+                lastWriteTimeUtc,
+                DateTime.UtcNow + UnavailableCoverRetryInterval);
+            TrimUnavailableCoverStates();
+        }
+    }
+
+    private static void TrimUnavailableCoverStates()
+    {
+        if (UnavailableCoverStates.Count <= MaximumUnavailableCoverStates)
+        {
+            return;
+        }
+
+        DateTime now = DateTime.UtcNow;
+        foreach ((string key, UnavailableCoverState state) in UnavailableCoverStates)
+        {
+            if (state.ExpiresAtUtc <= now)
+            {
+                UnavailableCoverStates.TryRemove(key, out _);
+            }
+        }
+
+        int excess = UnavailableCoverStates.Count - MaximumUnavailableCoverStates;
+        if (excess <= 0)
+        {
+            return;
+        }
+
+        foreach (string key in UnavailableCoverStates.Keys.Take(excess).ToArray())
+        {
+            UnavailableCoverStates.TryRemove(key, out _);
+        }
+    }
+
+    private static bool TryGetMediaStamp(string mediaPath, out long length, out DateTime lastWriteTimeUtc)
+    {
+        try
+        {
+            FileInfo file = new(mediaPath);
+            file.Refresh();
+            length = file.Length;
+            lastWriteTimeUtc = file.LastWriteTimeUtc;
+            return file.Exists;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            length = 0;
+            lastWriteTimeUtc = DateTime.MinValue;
+            return false;
+        }
+    }
+
     private static void TryDelete(string path)
     {
         try
@@ -435,4 +554,6 @@ internal static class RecordingCoverStore
         {
         }
     }
+
+    private readonly record struct UnavailableCoverState(long Length, DateTime LastWriteTimeUtc, DateTime ExpiresAtUtc);
 }

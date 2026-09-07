@@ -4243,13 +4243,19 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             {
                 _ = VideoRecordingMetadataStore.WriteCompletedMetadata(item.FullPath, metadata);
             }
-            string thumbnailPath = RecordingCoverStore.HasCurrentFinalizedCover(item.FullPath, metadata)
+            string thumbnailPath = RecordingCoverStore.HasFinalizedCover(item.FullPath)
                 ? RecordingCoverStore.MaterializeDisplayImage(
                     item.FullPath,
                     metadata,
                     GetThumbnailCachePath(item.FullPath),
                     allowAvatarFallback: true)
-                : await ExtractThumbnailAsync(item.FullPath, metadata, token);
+                : RecordingCoverStore.ShouldGenerateNewCover(metadata)
+                    ? await ExtractThumbnailAsync(item.FullPath, metadata, token)
+                    : RecordingCoverStore.MaterializeDisplayImage(
+                        item.FullPath,
+                        metadata,
+                        GetThumbnailCachePath(item.FullPath),
+                        allowAvatarFallback: true);
             if (string.IsNullOrWhiteSpace(thumbnailPath))
             {
                 thumbnailPath = RecordingCoverStore.MaterializeDisplayImage(
@@ -4327,10 +4333,14 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         Directory.CreateDirectory(cacheDir);
         string imagePath = GetThumbnailCachePath(filePath);
 
-        if (RecordingCoverStore.HasCurrentFinalizedCover(filePath, metadata)
+        if (RecordingCoverStore.HasFinalizedCover(filePath)
             && IsThumbnailCacheCurrent(filePath, imagePath))
         {
             return imagePath;
+        }
+        if (!RecordingCoverStore.ShouldGenerateNewCover(metadata))
+        {
+            return RecordingCoverStore.MaterializeDisplayImage(filePath, metadata, imagePath, allowAvatarFallback: true);
         }
 
         Lazy<Task<string>> extraction = thumbnailExtractionTasks.GetOrAdd(

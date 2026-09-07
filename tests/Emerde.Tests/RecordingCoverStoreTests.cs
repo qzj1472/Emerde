@@ -7,6 +7,17 @@ namespace Emerde.Tests;
 
 public sealed class RecordingCoverStoreTests
 {
+    [Theory]
+    [InlineData("video stream was not found", true)]
+    [InlineData("VIDEO STREAM WAS NOT FOUND", true)]
+    [InlineData("video decoder was not found", false)]
+    [InlineData("input could not be opened", false)]
+    [InlineData(null, false)]
+    public void IsUnavailableVideoStreamError_OnlyMatchesStableMissingStream(string? error, bool expected)
+    {
+        Assert.Equal(expected, RecordingCoverStore.IsUnavailableVideoStreamError(error));
+    }
+
     private static readonly byte[] Png = Convert.FromBase64String(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+XhoWAAAAAElFTkSuQmCC");
 
@@ -66,6 +77,47 @@ public sealed class RecordingCoverStoreTests
 
             Assert.Empty(displayPath);
             Assert.False(File.Exists(cachePath));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData("", false, false)]
+    [InlineData("session", false, false)]
+    [InlineData("session", true, true)]
+    public void ShouldGenerateNewCover_RequiresRecordingSessionAndRecordedAt(
+        string recordingSessionId,
+        bool hasRecordedAt,
+        bool expected)
+    {
+        Assert.Equal(expected, RecordingCoverStore.ShouldGenerateNewCover(new VideoRecordingMetadata
+        {
+            RecordingSessionId = recordingSessionId,
+            RecordedAt = hasRecordedAt ? new DateTime(2026, 9, 4, 0, 0, 0) : DateTime.MinValue,
+        }));
+    }
+
+    [Fact]
+    public void TryCopyOrCreateFinalizedCover_CopiesExistingCoverWithoutCurrentCompositionVersion()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"emerde-cover-old-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        string sourcePath = Path.Combine(root, "old.mp4");
+        string targetPath = Path.Combine(root, "target.mp4");
+        File.WriteAllBytes(RecordingCoverStore.GetCoverSidecarPath(sourcePath), Png);
+        File.WriteAllText(targetPath, "media");
+        try
+        {
+            Assert.True(RecordingCoverStore.TryCopyOrCreateFinalizedCover(
+                [sourcePath],
+                targetPath,
+                new VideoRecordingMetadata(),
+                30,
+                CancellationToken.None));
+            Assert.True(RecordingCoverStore.HasFinalizedCover(targetPath));
         }
         finally
         {
