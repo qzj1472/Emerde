@@ -13,6 +13,7 @@ internal static partial class StreamResolver
     private const int RequestTimeoutSeconds = 5;
     private const int RedirectTimeoutSeconds = 3;
     private const int PlaylistTimeoutSeconds = 2;
+    private const int LastErrorCacheLimit = 512;
     private const int HlsVariantCacheLimit = 256;
     internal const int DouyinResolverConcurrency = 6;
     internal const int DouyinResolverQueueTimeoutMilliseconds = 5000;
@@ -2500,6 +2501,21 @@ internal static partial class StreamResolver
     {
         string key = NormalizeUrl(url, allowNetwork: false) ?? url.Trim();
         LastErrors[key] = error;
+        TrimLastErrors();
+    }
+
+    private static void TrimLastErrors()
+    {
+        int excess = LastErrors.Count - LastErrorCacheLimit;
+        if (excess <= 0)
+        {
+            return;
+        }
+
+        foreach (string key in LastErrors.Keys.Take(excess).ToArray())
+        {
+            _ = LastErrors.TryRemove(key, out _);
+        }
     }
 
     private static Regex JsonStringRegex(string key)

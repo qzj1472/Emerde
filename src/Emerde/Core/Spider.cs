@@ -115,12 +115,20 @@ internal static class Spider
             exception => exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested);
     }
 
-    internal static ISpiderResult? GetLegacyResult(string url, string? preferredQuality = null)
+    internal static ISpiderResult? GetLegacyResult(
+        string url,
+        string? preferredQuality = null,
+        CancellationToken cancellationToken = default)
     {
         foreach (ISpider spider in Spiders.Value)
         {
             if (!string.IsNullOrWhiteSpace(spider.ParseUrl(url)))
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (spider is TwitchSpider twitch)
+                {
+                    return twitch.GetResult(url, cancellationToken);
+                }
                 return spider is IQualitySelectableSpider qualitySelectable
                     ? qualitySelectable.GetResult(url, preferredQuality)
                     : spider.GetResult(url);

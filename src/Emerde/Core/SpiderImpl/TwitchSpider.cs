@@ -35,6 +35,12 @@ public sealed class TwitchSpider : ISpider
 
     public ISpiderResult GetResult(string url)
     {
+        return GetResult(url, CancellationToken.None);
+    }
+
+    internal ISpiderResult GetResult(string url, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         string? roomUrl = ParseUrl(url);
         TwitchSpiderResult result = new()
         {
@@ -48,18 +54,26 @@ public sealed class TwitchSpider : ISpider
         }
 
         string channel = roomUrl.Split('/').Last();
-        string? tokenJson = SpiderRequest.PostJson(
-            "https://gql.twitch.tv/gql",
-            BuildAccessTokenBody(channel),
-            Headers(),
-            PlatformCookieStore.GetCookie("Twitch", SecretProtector.GetOverseaCookie()));
-        TwitchAccessToken? token = ExtractPlaybackAccessToken(tokenJson);
         string? roomJson = SpiderRequest.PostJson(
             "https://gql.twitch.tv/gql",
             BuildRoomInfoBody(channel),
             Headers(),
-            PlatformCookieStore.GetCookie("Twitch", SecretProtector.GetOverseaCookie()));
+            PlatformCookieStore.GetCookie("Twitch", SecretProtector.GetOverseaCookie()),
+            cancellationToken);
         ExtractRoomInfo(roomJson, result);
+        if (result.IsLiveStreaming != true)
+        {
+            return result;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        string? tokenJson = SpiderRequest.PostJson(
+            "https://gql.twitch.tv/gql",
+            BuildAccessTokenBody(channel),
+            Headers(),
+            PlatformCookieStore.GetCookie("Twitch", SecretProtector.GetOverseaCookie()),
+            cancellationToken);
+        TwitchAccessToken? token = ExtractPlaybackAccessToken(tokenJson);
 
         if (result.IsLiveStreaming == true && token != null)
         {

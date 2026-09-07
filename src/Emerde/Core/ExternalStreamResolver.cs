@@ -5,6 +5,7 @@ namespace Emerde.Core;
 
 internal static class ExternalStreamResolver
 {
+    private const int LastErrorCacheLimit = 512;
     private static readonly ConcurrentDictionary<string, string> LastErrorsByUrl = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Regex UrlCandidateRegex = new(
         "(?:https?|rtmps?)://[^\\s<>\"'\\u2018\\u2019\\u201c\\u201d\\u3001\\u3002\\u300a\\u300b\\u3010\\u3011\\uff08\\uff09\\uff0c\\uff1a\\uff1b\\uff01\\uff1f]+",
@@ -263,7 +264,7 @@ internal static class ExternalStreamResolver
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        ISpiderResult? legacyResult = Spider.GetLegacyResult(normalizedUrl, streamQuality);
+        ISpiderResult? legacyResult = Spider.GetLegacyResult(normalizedUrl, streamQuality, cancellationToken);
         StreamResolverResult result = StreamResolver.MergeResults(normalizedUrl, resolverResult, legacyResult);
         if (ShouldResolveHlsVariant(result.PlatformName, result.HlsUrl))
         {
@@ -323,7 +324,23 @@ internal static class ExternalStreamResolver
             }
         }
 
+        TrimLastErrors();
+
         return error;
+    }
+
+    private static void TrimLastErrors()
+    {
+        int excess = LastErrorsByUrl.Count - LastErrorCacheLimit;
+        if (excess <= 0)
+        {
+            return;
+        }
+
+        foreach (string key in LastErrorsByUrl.Keys.Take(excess).ToArray())
+        {
+            _ = LastErrorsByUrl.TryRemove(key, out _);
+        }
     }
 
     internal static void ClearLastError(string? originalUrl, string? normalizedUrl = null)
