@@ -1309,4 +1309,10 @@
   <data name="ReleaseNotesCategoryStability" xml:space="preserve"><value>Performance and stability</value></data>
   <data name="ReleaseNotesCategoryUi" xml:space="preserve"><value>Interface changes</value></data>
   <data name="ReleaseNotesCategoryInstall" xml:space="preserve"><value>Installation and upgrade</value></data>
+  <data name="StorageSpaceLowTitle" xml:space="preserve"><value>Insufficient disk space</value></data>
+  <data name="StorageSpaceLowMessage" xml:space="preserve"><value>Available space is {0}. Recording requires strictly more than 10 GiB free space. Please free disk space now.</value></data>
+  <data name="StorageExhaustedTitle" xml:space="preserve"><value>Disk space exhausted</value></data>
+  <data name="StorageExhaustedMessage" xml:space="preserve"><value>Recording for all rooms has been paused and new recordings are blocked. Free space on the recording disks immediately.</value></data>
+  <data name="StorageExhaustedCurrentSpace" xml:space="preserve"><value>Detected available space: {0}</value></data>
+  <data name="StorageExhaustedRecovery" xml:space="preserve"><value>This alert closes only after every recording disk has strictly more than 10 GiB free. A small amount of additional space will not resume recording.</value></data>
 </root>

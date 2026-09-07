@@ -1312,4 +1312,10 @@
   <data name="ReleaseNotesCategoryStability" xml:space="preserve"><value>パフォーマンスと安定性</value></data>
   <data name="ReleaseNotesCategoryUi" xml:space="preserve"><value>画面変更</value></data>
   <data name="ReleaseNotesCategoryInstall" xml:space="preserve"><value>インストールと更新</value></data>
+  <data name="StorageSpaceLowTitle" xml:space="preserve"><value>ディスク容量不足</value></data>
+  <data name="StorageSpaceLowMessage" xml:space="preserve"><value>空き容量は {0} です。録画には 10 GiB を超える空き容量が必要です。ディスク容量を解放してください。</value></data>
+  <data name="StorageExhaustedTitle" xml:space="preserve"><value>ディスク容量が枯渇しました</value></data>
+  <data name="StorageExhaustedMessage" xml:space="preserve"><value>すべての配信の録画を一時停止し、新しい録画を禁止しました。録画ディスクの空き容量を直ちに確保してください。</value></data>
+  <data name="StorageExhaustedCurrentSpace" xml:space="preserve"><value>検出された空き容量: {0}</value></data>
+  <data name="StorageExhaustedRecovery" xml:space="preserve"><value>すべての録画ディスクの空き容量が 10 GiB を厳密に超えるまで、この警告は閉じません。少量の空き容量では録画を再開しません。</value></data>
 </root>

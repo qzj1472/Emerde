@@ -1309,4 +1309,10 @@
   <data name="ReleaseNotesCategoryStability" xml:space="preserve"><value>性能与稳定性</value></data>
   <data name="ReleaseNotesCategoryUi" xml:space="preserve"><value>界面修改</value></data>
   <data name="ReleaseNotesCategoryInstall" xml:space="preserve"><value>安装与升级</value></data>
+  <data name="StorageSpaceLowTitle" xml:space="preserve"><value>磁盘空间不足</value></data>
+  <data name="StorageSpaceLowMessage" xml:space="preserve"><value>检测到可用空间为 {0}。录制要求可用空间严格大于 10 GiB，请立即处理磁盘空间。</value></data>
+  <data name="StorageExhaustedTitle" xml:space="preserve"><value>磁盘空间已耗尽</value></data>
+  <data name="StorageExhaustedMessage" xml:space="preserve"><value>所有房间的录制已暂停，新的录制已禁止。请立即释放录制磁盘空间。</value></data>
+  <data name="StorageExhaustedCurrentSpace" xml:space="preserve"><value>当前检测到的可用空间：{0}</value></data>
+  <data name="StorageExhaustedRecovery" xml:space="preserve"><value>只有所有录制磁盘的可用空间都恢复到严格大于 10 GiB 后，此提示才会关闭。仅增加少量空间不会恢复录制。</value></data>
 </root>

@@ -964,6 +964,7 @@ public partial class SettingsViewModel : ReactiveObject
         Configurations.SaveFolder.Set(value);
         ConfigurationSaveScheduler.Request();
         RecordingCleanupService.QueueRun();
+        GlobalMonitor.CheckStorageNow("save_folder_changed");
     }
 
     [ObservableProperty]

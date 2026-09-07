@@ -25,6 +25,8 @@ internal static class GlobalMonitor
     private const int MaximumBatchSize = MaximumMonitorConcurrency;
     private const int MaximumRecordingBatchSize = MaximumRecordingConcurrency;
     private const int MaximumRecordingConcurrency = 4;
+    private const string StorageExhaustedBlockReason = "storage_exhausted";
+    private static readonly TimeSpan StorageCheckInterval = TimeSpan.FromHours(12);
     private static readonly TimeSpan MaximumSchedulerDelay = TimeSpan.FromDays(1);
     internal const long FixedRoomMetadataRefreshIntervalMilliseconds = 60 * 60 * 1000;
     internal const long InconclusiveLogIntervalMilliseconds = 60 * 60 * 1000;
@@ -62,9 +64,13 @@ internal static class GlobalMonitor
 
     private static readonly ConcurrentDictionary<string, long> InconclusiveLogTimestamps = new(StringComparer.OrdinalIgnoreCase);
 
-    private static readonly ConcurrentDictionary<string, byte> ScheduledRoomChecks = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, bool> ScheduledRoomChecks = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly ConcurrentDictionary<string, long> DispatchDelayLogTimestamps = new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly object StorageProtectionSync = new();
+
+    private static readonly System.Threading.Timer StorageCheckTimer = new(StorageCheckTimerTick, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 
     private static readonly SemaphoreSlim RoutineRoomCheckConcurrency = new(MaximumMonitorConcurrency, MaximumMonitorConcurrency);
 
@@ -89,6 +95,14 @@ internal static class GlobalMonitor
     private static double dispatchDelaySummaryTotalSeconds;
 
     private static double dispatchDelaySummaryMaximumSeconds;
+
+    private static StorageProtectionState storageProtectionState = StorageProtectionState.Empty;
+
+    private static int storageCheckActive;
+
+    private static int storageCheckPending;
+
+    internal static event EventHandler<StorageProtectionChangedEventArgs>? StorageProtectionChanged;
 
     public static PeriodicWait RoutinePeriodicWait = new(GetRoutinePeriod(), TimeSpan.Zero);
 
@@ -615,8 +629,14 @@ internal static class GlobalMonitor
 
             if (!force && !recordingLaneOnly.HasValue)
             {
-                DispatchScheduledRoomChecks(SelectDueRooms(dueRooms, recordingLane: false), RoutineRoomCheckConcurrency, token);
-                DispatchScheduledRoomChecks(SelectDueRooms(dueRooms, recordingLane: true), RecordingRoomCheckConcurrency, token);
+                DispatchScheduledRoomChecks(
+                    SelectDueRooms(dueRooms, recordingLane: false, RoutineRoomCheckConcurrency.CurrentCount),
+                    RoutineRoomCheckConcurrency,
+                    token);
+                DispatchScheduledRoomChecks(
+                    SelectDueRooms(dueRooms, recordingLane: true, RecordingRoomCheckConcurrency.CurrentCount),
+                    RecordingRoomCheckConcurrency,
+                    token);
                 return;
             }
 
@@ -634,7 +654,7 @@ internal static class GlobalMonitor
             List<Task> tasks = new(selectedRooms.Length);
             foreach (PendingRoomCheck pending in selectedRooms)
             {
-                if (!force && !ScheduledRoomChecks.TryAdd(pending.Room.RoomUrl, 1))
+                if (!force && !ScheduledRoomChecks.TryAdd(pending.Room.RoomUrl, UsesRecordingCheckLane(pending.RoomStatus.RecordStatus)))
                 {
                     continue;
                 }
@@ -690,7 +710,7 @@ internal static class GlobalMonitor
         }
     }
 
-    private static PendingRoomCheck[] SelectDueRooms(IEnumerable<PendingRoomCheck> dueRooms, bool recordingLane)
+    private static PendingRoomCheck[] SelectDueRooms(IEnumerable<PendingRoomCheck> dueRooms, bool recordingLane, int availableSlots)
     {
         PendingRoomCheck[] laneRooms = dueRooms
             .Where(item => UsesRecordingCheckLane(item.RoomStatus.RecordStatus) == recordingLane)
@@ -699,8 +719,184 @@ internal static class GlobalMonitor
             .ThenBy(item => item.DueAt)
             .ToArray();
         return laneRooms
-            .Take(GetRoutineBatchSize(laneRooms.Length, force: false, recordingLane))
+            .Take(GetRoutineDispatchBatchSize(laneRooms.Length, availableSlots, recordingLane))
             .ToArray();
+    }
+
+    internal static StorageProtectionState CurrentStorageProtection
+    {
+        get
+        {
+            lock (StorageProtectionSync)
+            {
+                return storageProtectionState;
+            }
+        }
+    }
+
+    internal static bool IsStorageExhausted => CurrentStorageProtection.IsExhausted;
+
+    internal static void StartStorageProtection()
+    {
+        CheckStorageNow("startup");
+        StorageCheckTimer.Change(StorageCheckInterval, StorageCheckInterval);
+    }
+
+    internal static void StopStorageProtection()
+    {
+        StorageCheckTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+    }
+
+    internal static void CheckStorageNow(string trigger)
+    {
+        if (Interlocked.Exchange(ref storageCheckActive, 1) != 0)
+        {
+            Volatile.Write(ref storageCheckPending, 1);
+            return;
+        }
+
+        try
+        {
+            do
+            {
+                Volatile.Write(ref storageCheckPending, 0);
+                ApplyStorageCheck(trigger);
+            }
+            while (Volatile.Read(ref storageCheckPending) != 0);
+        }
+        finally
+        {
+            Volatile.Write(ref storageCheckActive, 0);
+        }
+    }
+
+    internal static void ReportStorageExhausted(string? path, string trigger)
+    {
+        StorageProtectionState previous;
+        StorageProtectionState next;
+        lock (StorageProtectionSync)
+        {
+            previous = storageProtectionState;
+            List<string> exhaustedPaths = previous.ExhaustedPaths.ToList();
+            if (!string.IsNullOrWhiteSpace(path)
+                && !exhaustedPaths.Contains(path, StringComparer.OrdinalIgnoreCase))
+            {
+                exhaustedPaths.Add(path);
+            }
+            next = previous with
+            {
+                IsLow = true,
+                IsExhausted = true,
+                ExhaustedPaths = exhaustedPaths,
+            };
+            storageProtectionState = next;
+            PublishStorageProtectionChange(previous, next, trigger, stopRecorders: !previous.IsExhausted);
+        }
+    }
+
+    private static void StorageCheckTimerTick(object? state)
+    {
+        CheckStorageNow("scheduled");
+    }
+
+    private static void ApplyStorageCheck(string trigger)
+    {
+        StorageProtectionState previous;
+        StorageProtectionState next;
+        lock (StorageProtectionSync)
+        {
+            RecordingStorageCheckResult check = RecordingStorageGuard.CheckConfiguredFolders();
+            previous = storageProtectionState;
+            bool exhausted = previous.IsExhausted;
+            if (!exhausted && check.ExhaustedPaths.Count > 0)
+            {
+                exhausted = true;
+            }
+            else if (exhausted
+                && check.ConfiguredPaths.Count > 0
+                && !check.HasUnreadablePath
+                && check.LowPaths.Count == 0)
+            {
+                exhausted = false;
+            }
+
+            next = new StorageProtectionState(
+                check.LowPaths.Count > 0 || exhausted,
+                exhausted,
+                check.MinimumAvailableBytes,
+                check.LowPaths,
+                check.ExhaustedPaths,
+                check.HasUnreadablePath);
+            storageProtectionState = next;
+            PublishStorageProtectionChange(previous, next, trigger, stopRecorders: !previous.IsExhausted && next.IsExhausted);
+        }
+    }
+
+    private static void PublishStorageProtectionChange(
+        StorageProtectionState previous,
+        StorageProtectionState next,
+        string trigger,
+        bool stopRecorders)
+    {
+        SetRecordStartBlock(StorageExhaustedBlockReason, next.IsExhausted);
+        if (stopRecorders)
+        {
+            AppSessionLogger.Event("error", "storage", "storage_exhausted", "recording was stopped because configured recording storage is exhausted", new
+            {
+                trigger,
+                paths = next.ExhaustedPaths,
+                availableBytes = next.MinimumAvailableBytes,
+            });
+            StopAllRecorders(deferPostProcessing: true);
+        }
+        else if (!previous.IsLow && next.IsLow && !next.IsExhausted)
+        {
+            AppSessionLogger.Event("warn", "storage", "storage_low", "configured recording storage is at or below the minimum free space threshold", new
+            {
+                trigger,
+                paths = next.LowPaths,
+                availableBytes = next.MinimumAvailableBytes,
+                requiredBytes = RecordingStorageGuard.MinimumFreeBytes,
+            });
+            try
+            {
+                Notifier.AddNotice("Emerde", "StorageSpaceLowTitle".Tr(), "StorageSpaceLowMessage".Tr(FormatStorageBytes(next.MinimumAvailableBytes)));
+            }
+            catch (Exception notificationError)
+            {
+                AppSessionLogger.WriteException(notificationError);
+            }
+        }
+
+        if (previous.IsExhausted != next.IsExhausted
+            || previous.IsLow != next.IsLow
+            || previous.MinimumAvailableBytes != next.MinimumAvailableBytes
+            || !previous.LowPaths.SequenceEqual(next.LowPaths, StringComparer.OrdinalIgnoreCase)
+            || !previous.ExhaustedPaths.SequenceEqual(next.ExhaustedPaths, StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                StorageProtectionChanged?.Invoke(null, new StorageProtectionChangedEventArgs(next, trigger));
+            }
+            catch (Exception exception)
+            {
+                AppSessionLogger.WriteException(exception);
+            }
+        }
+    }
+
+    private static string FormatStorageBytes(long? bytes)
+    {
+        return bytes is long value && value >= 0
+            ? $"{value / (1024d * 1024d * 1024d):0.##} GiB"
+            : "unknown";
+    }
+
+    internal static int GetRoutineDispatchBatchSize(int dueRoomCount, int availableSlots, bool recordingLane)
+    {
+        return Math.Min(
+            GetRoutineBatchSize(dueRoomCount, force: false, recordingLane),
+            Math.Max(0, availableSlots));
     }
 
     private static void DispatchScheduledRoomChecks(IEnumerable<PendingRoomCheck> rooms, SemaphoreSlim semaphore, CancellationToken token)
@@ -708,7 +904,7 @@ internal static class GlobalMonitor
         List<Task> tasks = [];
         foreach (PendingRoomCheck pending in rooms)
         {
-            if (!ScheduledRoomChecks.TryAdd(pending.Room.RoomUrl, 1))
+            if (!ScheduledRoomChecks.TryAdd(pending.Room.RoomUrl, UsesRecordingCheckLane(pending.RoomStatus.RecordStatus)))
             {
                 continue;
             }
@@ -1494,6 +1690,7 @@ internal static class GlobalMonitor
     internal static TimeSpan GetNextSchedulerDelay(IEnumerable<Room> rooms, DateTime now)
     {
         DateTime? nextCheckAt = null;
+        bool hasBlockedDueRoom = false;
         foreach (Room room in DistinctRoomsByUrl(rooms))
         {
             if (!GetEffectiveRoomMonitor(room))
@@ -1520,6 +1717,14 @@ internal static class GlobalMonitor
             }
 
             DateTime dueAt = GetRoomCheckDueAt(room.RoomUrl, now);
+            bool recordingLane = TryGetRoomStatus(room) is RoomStatus status
+                && UsesRecordingCheckLane(status.RecordStatus);
+            if (dueAt <= now
+                && GetScheduledRoomCheckCount(recordingLane) >= (recordingLane ? MaximumRecordingConcurrency : MaximumMonitorConcurrency))
+            {
+                hasBlockedDueRoom = true;
+                continue;
+            }
             if (!nextCheckAt.HasValue || dueAt < nextCheckAt.Value)
             {
                 nextCheckAt = dueAt;
@@ -1528,7 +1733,7 @@ internal static class GlobalMonitor
 
         if (!nextCheckAt.HasValue)
         {
-            return MaximumSchedulerDelay;
+            return hasBlockedDueRoom ? GetRoutinePeriod() : MaximumSchedulerDelay;
         }
 
         TimeSpan delay = nextCheckAt.Value - now;
@@ -1538,6 +1743,11 @@ internal static class GlobalMonitor
         }
 
         return delay > MaximumSchedulerDelay ? MaximumSchedulerDelay : delay;
+    }
+
+    private static int GetScheduledRoomCheckCount(bool recordingLane)
+    {
+        return ScheduledRoomChecks.Count(item => item.Value == recordingLane);
     }
 
     internal static DateTime? GetNextRoutineScheduleActivation(DateTime now, RoomRecordingOptions settings)
@@ -2182,6 +2392,12 @@ internal static class GlobalMonitor
 
     private static bool StartRecorderIfNeeded(Room room, RoomStatus roomStatus, RoomRecordingOptions settings, bool isLiveStreaming, bool usingPreservedStream)
     {
+        CheckStorageNow("recording_start");
+        if (IsStorageExhausted)
+        {
+            return false;
+        }
+
         if (IsRoomRecordStartPaused(room.RoomUrl, DateTime.Now))
         {
             return false;
@@ -2264,7 +2480,11 @@ internal static class GlobalMonitor
                 : null,
             ReconnectExhausted = () => PauseRoomRecordStart(room.RoomUrl, room.NickName, "reconnect_exhausted"),
             RapidExitDetected = () => PauseRoomRecordStart(room.RoomUrl, room.NickName, "rapid_exit"),
-            StorageExhausted = () => PauseRoomRecordStart(room.RoomUrl, room.NickName, "storage_exhausted"),
+            StorageExhausted = path =>
+            {
+                ReportStorageExhausted(path, "recorder");
+                PauseRoomRecordStart(room.RoomUrl, room.NickName, "storage_exhausted");
+            },
         };
 
         Lazy<bool> defaultRecordingStart = new(() =>
@@ -2808,4 +3028,22 @@ internal static class GlobalMonitor
             }
         }
     }
+}
+
+internal sealed record StorageProtectionState(
+    bool IsLow,
+    bool IsExhausted,
+    long? MinimumAvailableBytes,
+    IReadOnlyList<string> LowPaths,
+    IReadOnlyList<string> ExhaustedPaths,
+    bool HasUnreadablePath)
+{
+    internal static StorageProtectionState Empty { get; } = new(false, false, null, [], [], false);
+}
+
+internal sealed class StorageProtectionChangedEventArgs(StorageProtectionState state, string trigger) : EventArgs
+{
+    internal StorageProtectionState State { get; } = state;
+
+    internal string Trigger { get; } = trigger;
 }

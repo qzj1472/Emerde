@@ -167,6 +167,7 @@ public partial class App : Application
         {
             Debug.WriteLine(loggingException);
         }
+        GlobalMonitor.StartStorageProtection();
         MediaWorker.CleanupLegacyExecutables();
         try
         {
@@ -205,6 +206,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         TrayIconManager.Stop();
+        GlobalMonitor.StopStorageProtection();
         GlobalMonitor.Stop();
         GlobalMonitor.StopAllRecorders(deferPostProcessing: true);
         RecordingRecoveryService.CancelMaintenance();

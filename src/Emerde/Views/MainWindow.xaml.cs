@@ -374,6 +374,7 @@ public partial class MainWindow : FluentWindow
     private int previewOpeningTransitionGeneration;
     private DispatcherOperation? roomCardMetricsRefreshOperation;
     private DispatcherOperation? homeResponsiveLayoutUpdateOperation;
+    private DiskSpaceAlertWindow? storageAlertWindow;
     private double pendingRoomCardMetricsWidth = double.NaN;
     private bool pendingHomeResponsiveLayoutAnimation;
     private bool isHomePreviewColumnAnimationActive;
@@ -400,6 +401,7 @@ public partial class MainWindow : FluentWindow
         ExtensionHostRuntime.OverridesChanged += ExtensionOverridesChanged;
         ExtensionHostRuntime.UiContributionsChanged += ExtensionUiContributionsChanged;
         ConfigurationSaveScheduler.SaveStateChanged += ConfigurationSaveStateChanged;
+        GlobalMonitor.StorageProtectionChanged += MainWindowStorageProtectionChanged;
         extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.Application, Application.Current));
         extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.MainWindow, this));
         extensionHostRegistrations.Add(ExtensionHostRuntime.RegisterHostObject(ExtensionContractNames.MainViewModel, ViewModel));
@@ -448,6 +450,7 @@ public partial class MainWindow : FluentWindow
                 AppSessionLogger.WriteException(extensionException);
             }
             RecordingRecoveryService.QueueRun();
+            ApplyStorageProtection(GlobalMonitor.CurrentStorageProtection);
             EnforceBorderlessWindowChrome();
             AppSessionLogger.Write($"perf MainWindow loaded in {stopwatch.ElapsedMilliseconds} ms");
             QueueUpgradeReleaseNotesNotice();
@@ -525,6 +528,9 @@ public partial class MainWindow : FluentWindow
         ExtensionHostRuntime.OverridesChanged -= ExtensionOverridesChanged;
         ExtensionHostRuntime.UiContributionsChanged -= ExtensionUiContributionsChanged;
         ConfigurationSaveScheduler.SaveStateChanged -= ConfigurationSaveStateChanged;
+        GlobalMonitor.StorageProtectionChanged -= MainWindowStorageProtectionChanged;
+        storageAlertWindow?.CloseForShutdown();
+        storageAlertWindow = null;
         ComponentDispatcher.ThreadPreprocessMessage -= MainWindowThreadPreprocessMessage;
         ViewModel.IsPreviewDetached = false;
         HomePreviewPanel.FirstFrameReady -= HomePreviewPanelFirstFrameReady;
@@ -4403,6 +4409,7 @@ public partial class MainWindow : FluentWindow
         }
         else
         {
+            storageAlertWindow?.CloseForShutdown();
             if (Configurations.IsUseKeepAwake.Get())
             {
                 // Stop keep awake
@@ -4413,6 +4420,50 @@ public partial class MainWindow : FluentWindow
         }
 
         base.OnClosing(e);
+    }
+
+    private void MainWindowStorageProtectionChanged(object? sender, StorageProtectionChangedEventArgs e)
+    {
+        if (Dispatcher.CheckAccess())
+        {
+            ApplyStorageProtection(e.State);
+            return;
+        }
+
+        _ = Dispatcher.BeginInvoke(() => ApplyStorageProtection(e.State));
+    }
+
+    private void ApplyStorageProtection(StorageProtectionState state)
+    {
+        if (!IsLoaded || Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        if (!state.IsExhausted)
+        {
+            storageAlertWindow?.CloseAfterRecovery();
+            storageAlertWindow = null;
+            return;
+        }
+
+        try
+        {
+            storageAlertWindow ??= new DiskSpaceAlertWindow(this);
+            storageAlertWindow.UpdateState(state);
+            if (!storageAlertWindow.IsVisible)
+            {
+                storageAlertWindow.Show();
+            }
+            else
+            {
+                storageAlertWindow.Activate();
+            }
+        }
+        catch (InvalidOperationException exception)
+        {
+            AppSessionLogger.WriteException(exception);
+        }
     }
 
     private sealed class DragPreviewAdorner(UIElement adornedElement, Brush brush, Size size) : Adorner(adornedElement)

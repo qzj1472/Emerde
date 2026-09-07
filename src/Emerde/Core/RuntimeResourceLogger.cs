@@ -241,6 +241,8 @@ internal static class RuntimeResourceLogger
                 double elapsedSeconds = Math.Max(0.001d, Stopwatch.GetElapsedTime(context.LastSampleTimestamp, nowTimestamp).TotalSeconds);
                 double cpuPercent = CalculateCpuPercent(totalCpu, context.LastCpuTime, elapsedSeconds, Environment.ProcessorCount);
                 double workingSetMb = Math.Round(process.WorkingSet64 / 1024d / 1024d, 2);
+                double processPrivateMemoryMb = Math.Round(process.PrivateMemorySize64 / 1024d / 1024d, 2);
+                int threadCount = process.Threads.Count;
 
                 RuntimeProcessContext updatedContext = context with
                 {
@@ -261,6 +263,8 @@ internal static class RuntimeResourceLogger
                     context.ProcessId,
                     cpuPercent,
                     workingSetMb,
+                    processPrivateMemoryMb,
+                    threadCount,
                     context.StartedAt,
                     Math.Round(Stopwatch.GetElapsedTime(context.StartedTimestamp, nowTimestamp).TotalSeconds, 1)));
             }
@@ -277,6 +281,9 @@ internal static class RuntimeResourceLogger
 
         using Process current = Process.GetCurrentProcess();
         double ramMb = Math.Round(current.WorkingSet64 / 1024d / 1024d, 2);
+        double privateMemoryMb = Math.Round(current.PrivateMemorySize64 / 1024d / 1024d, 2);
+        double managedHeapMb = Math.Round(GC.GetTotalMemory(false) / 1024d / 1024d, 2);
+        int handleCount = current.HandleCount;
         DateTime snapshotAt = DateTime.Now;
         string processSignature = BuildProcessSignature(samples);
         if (!ShouldWriteSnapshot(snapshotAt, processSignature, ramMb))
@@ -284,6 +291,8 @@ internal static class RuntimeResourceLogger
             return;
         }
 
+        string snapshotId = Guid.NewGuid().ToString("N");
+        StorageSnapshot[] storage = GetStorageSnapshots();
         lastSnapshotAt = snapshotAt;
         lastSnapshotProcessSignature = processSignature;
         lastSnapshotRamMb = ramMb;
@@ -291,11 +300,16 @@ internal static class RuntimeResourceLogger
         {
             application = new
             {
+                snapshotId,
                 processId = Environment.ProcessId,
                 cpuTimeSeconds = Math.Round(current.TotalProcessorTime.TotalSeconds, 2),
                 ramMb,
+                privateMemoryMb,
+                managedHeapMb,
+                handleCount,
                 threadCount = current.Threads.Count,
             },
+            storage,
             network = network.IsValid ? new
             {
                 receiveMbps = network.ReceiveMbps,
@@ -317,8 +331,11 @@ internal static class RuntimeResourceLogger
                 sample.ProcessId,
                 cpuPercent = sample.CpuPercent,
                 ramMb = sample.RamMb,
+                privateMemoryMb = sample.PrivateMemoryMb,
+                threadCount = sample.ThreadCount,
                 startedAt = sample.StartedAt,
                 runningSeconds = sample.RunningSeconds,
+                snapshotId,
             }).ToArray(),
         });
     }
@@ -435,8 +452,36 @@ internal static class RuntimeResourceLogger
         int ProcessId,
         double CpuPercent,
         double RamMb,
+        double PrivateMemoryMb,
+        int ThreadCount,
         DateTime StartedAt,
         double RunningSeconds);
+
+    private sealed record StorageSnapshot(
+        string Path,
+        long AvailableBytes,
+        long TotalBytes);
+
+    private static StorageSnapshot[] GetStorageSnapshots()
+    {
+        try
+        {
+            return MediaFileCatalog.GetConfiguredSaveFolders()
+                .Select(path => Path.GetPathRoot(path))
+                .Where(root => !string.IsNullOrWhiteSpace(root))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(root =>
+                {
+                    DriveInfo drive = new(root!);
+                    return new StorageSnapshot(root!, drive.AvailableFreeSpace, drive.TotalSize);
+                })
+                .ToArray();
+        }
+        catch
+        {
+            return [];
+        }
+    }
 
     private sealed record NetworkSample(bool IsValid, double ReceiveMbps, double SendMbps, double IntervalSeconds)
     {

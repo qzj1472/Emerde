@@ -1,0 +1,59 @@
+<Window x:Class="Emerde.Views.DiskSpaceAlertWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="560"
+        MinHeight="260"
+        SizeToContent="Height"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowActivated="True"
+        ShowInTaskbar="False"
+        SnapsToDevicePixels="True"
+        Topmost="True"
+        UseLayoutRounding="True"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None">
+    <Grid Margin="12">
+        <Border Padding="28"
+                Background="{DynamicResource UiXDialogDangerBrush}"
+                BorderBrush="{DynamicResource UiXDangerForegroundBrush}"
+                BorderThickness="2"
+                CornerRadius="8"
+                SnapsToDevicePixels="True">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock x:Name="TitleText"
+                           FontSize="24"
+                           FontWeight="Bold"
+                           Foreground="{DynamicResource UiXDangerForegroundBrush}"
+                           TextWrapping="Wrap" />
+                <TextBlock x:Name="MessageText"
+                           Grid.Row="1"
+                           Margin="0,18,0,0"
+                           FontSize="16"
+                           Foreground="{DynamicResource UiXTextPrimaryBrush}"
+                           LineHeight="24"
+                           TextWrapping="Wrap" />
+                <TextBlock x:Name="CurrentSpaceText"
+                           Grid.Row="2"
+                           Margin="0,14,0,0"
+                           FontSize="14"
+                           Foreground="{DynamicResource UiXTextPrimaryBrush}"
+                           TextWrapping="Wrap" />
+                <TextBlock x:Name="RecoveryText"
+                           Grid.Row="3"
+                           Margin="0,12,0,0"
+                           FontSize="14"
+                           Foreground="{DynamicResource UiXTextSecondaryBrush}"
+                           LineHeight="22"
+                           TextWrapping="Wrap" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

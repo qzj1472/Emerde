@@ -566,6 +566,20 @@ public sealed class GlobalMonitorTests
     }
 
     [Theory]
+    [InlineData(22, 0, false, 0)]
+    [InlineData(22, 3, false, 3)]
+    [InlineData(22, 9, false, 5)]
+    [InlineData(22, 2, true, 2)]
+    public void GetRoutineDispatchBatchSize_DoesNotQueueBeyondAvailableSlots(
+        int dueRoomCount,
+        int availableSlots,
+        bool recordingLane,
+        int expected)
+    {
+        Assert.Equal(expected, GlobalMonitor.GetRoutineDispatchBatchSize(dueRoomCount, availableSlots, recordingLane));
+    }
+
+    [Theory]
     [InlineData(RecordStatus.Recording, true)]
     [InlineData(RecordStatus.NotRecording, false)]
     [InlineData(RecordStatus.Initialized, false)]
