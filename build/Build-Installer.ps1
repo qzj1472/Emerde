@@ -9,13 +9,17 @@ $sourceRoot = [System.IO.Path]::GetFullPath((Split-Path $PSScriptRoot -Parent))
 $workspaceRoot = [System.IO.Path]::GetFullPath((Split-Path $sourceRoot -Parent))
 $releaseDirectoryName = -join ([char[]](0x7F16, 0x8BD1, 0x53D1, 0x5E03, 0x7248, 0x672C))
 $releaseRoot = Join-Path $workspaceRoot $releaseDirectoryName
+$applicationProject = Join-Path $sourceRoot "src\Emerde\Emerde.csproj"
+$applicationVersion = (Select-Xml -LiteralPath $applicationProject -XPath "/Project/PropertyGroup/AssemblyVersion" | Select-Object -First 1).Node.InnerText.Trim()
+if ([string]::IsNullOrWhiteSpace($applicationVersion)) {
+    throw "Application version was not found in $applicationProject."
+}
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
-    $OutputPath = Join-Path $releaseRoot "Emerde.Setup.exe"
+    $OutputPath = Join-Path $releaseRoot "Emerde-$applicationVersion.exe"
 }
 $OutputPath = [System.IO.Path]::GetFullPath($OutputPath)
 
 $installerProject = Join-Path $sourceRoot "src\Emerde.Installer\Emerde.Installer.csproj"
-$applicationProject = Join-Path $sourceRoot "src\Emerde\Emerde.csproj"
 $uninstallerProject = Join-Path $sourceRoot "src\Emerde.Uninstaller\Emerde.Uninstaller.csproj"
 $cleanupProject = Join-Path $sourceRoot "src\Emerde.Cleanup\Emerde.Cleanup.csproj"
 $bootstrapProject = Join-Path $sourceRoot "src\Emerde.Setup.Bootstrap\Emerde.Setup.Bootstrap.csproj"
