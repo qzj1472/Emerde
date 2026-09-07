@@ -8,6 +8,12 @@
                 <ui:ThemesDictionary />
                 <ui:ControlsDictionary />
             </ResourceDictionary.MergedDictionaries>
+            <SolidColorBrush x:Key="DialogMaskBrush" Color="#33FFFFFF" />
+            <SolidColorBrush x:Key="EmerdeDialogSurfaceBrush" Color="#FFF1F4F5" />
+            <SolidColorBrush x:Key="EmerdeDialogBorderBrush" Color="#24000000" />
+            <SolidColorBrush x:Key="EmerdeDialogWarningBrush" Color="#FFF3E2CE" />
+            <SolidColorBrush x:Key="EmerdeDialogTextPrimaryBrush" Color="#E8171B20" />
+            <SolidColorBrush x:Key="EmerdeDialogTextSecondaryBrush" Color="#A8171B20" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>
