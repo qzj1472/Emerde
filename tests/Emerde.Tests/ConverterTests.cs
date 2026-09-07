@@ -45,6 +45,43 @@ public sealed class ConverterTests
                 sourceVideoEndSeconds));
     }
 
+    [Fact]
+    public void TryGetAlignedTimelineEnd_UsesTheSharedTrackBoundary()
+    {
+        FfmpegMediaProbeResult probe = new(
+            true,
+            true,
+            1,
+            1,
+            96,
+            100,
+            1920,
+            1080,
+            30,
+            100,
+            0,
+            "h264",
+            "aac",
+            false,
+            string.Empty,
+            new VideoRecordingMetadata(),
+            false);
+
+        Assert.True(Converter.TryGetAlignedTimelineEnd([probe], out double endSeconds));
+        Assert.Equal(96, endSeconds);
+    }
+
+    [Fact]
+    public void TryGetAlignedTimelineEnd_SumsSessionPartsBeforeAligning()
+    {
+        FfmpegMediaProbeResult first = new(
+            true, true, 1, 1, 40, 42, 1920, 1080, 30, 42, 0, "h264", "aac", false, string.Empty, new VideoRecordingMetadata(), false);
+        FfmpegMediaProbeResult second = first with { AudioEndSeconds = 50, VideoEndSeconds = 48, DurationSeconds = 50 };
+
+        Assert.True(Converter.TryGetAlignedTimelineEnd([first, second], out double endSeconds));
+        Assert.Equal(90, endSeconds);
+    }
+
     [Theory]
     [InlineData("mkv", false, ".mkv")]
     [InlineData(".MP4", false, ".mp4")]
@@ -60,11 +97,25 @@ public sealed class ConverterTests
     [Theory]
     [InlineData("mp4", false)]
     [InlineData(".MP4", false)]
-    [InlineData("mkv", false)]
+    [InlineData("mkv", true)]
     [InlineData("ts", false)]
-    public void CreateDefaultOptions_DisablesOptimizedAudioByDefault(string targetFormat, bool expected)
+    public void CreateDefaultOptions_UsesTheTargetFormatAudioPolicy(string targetFormat, bool expected)
     {
         Assert.Equal(expected, Converter.CreateDefaultOptions(targetFormat).OptimizeAudio);
+    }
+
+    [Theory]
+    [InlineData(".mkv", false, true)]
+    [InlineData(".mkv", true, true)]
+    [InlineData(".mp4", false, false)]
+    [InlineData(".mp4", true, true)]
+    [InlineData(".ts", true, false)]
+    public void ShouldOptimizeAudio_AlwaysEnablesMkvAndPreservesMp4Selection(
+        string targetFormat,
+        bool userRequested,
+        bool expected)
+    {
+        Assert.Equal(expected, Converter.ShouldOptimizeAudio(targetFormat, userRequested));
     }
 
     [Theory]

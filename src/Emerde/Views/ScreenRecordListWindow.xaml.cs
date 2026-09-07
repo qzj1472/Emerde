@@ -3122,7 +3122,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         return selectedIndex switch
         {
             0 => new ConverterOptions(".mp4", optimizeAudio, removeSource),
-            1 => new ConverterOptions(".mkv", false, removeSource),
+            1 => new ConverterOptions(".mkv", true, removeSource),
             _ => throw new ArgumentOutOfRangeException(nameof(selectedIndex)),
         };
     }
@@ -5859,6 +5859,10 @@ public partial class RecordedVideoItem : ObservableObject
             }
             if (!string.IsNullOrWhiteSpace(MediaIssue))
             {
+                if (MediaIssue.Equals("optimized_audio_failed", StringComparison.OrdinalIgnoreCase))
+                {
+                    return ScreenRecordListViewModel.GetResourceText("OptimizedAudioFailedChip", "Optimized audio failed");
+                }
                 return ScreenRecordListViewModel.GetResourceText("MediaIssueChip", "A/V issue");
             }
             if (IsStallSegment)

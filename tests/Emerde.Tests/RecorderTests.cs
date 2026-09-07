@@ -4,6 +4,41 @@ namespace Emerde.Tests;
 
 public sealed class RecorderTests
 {
+    [Theory]
+    [InlineData("sync|1000000|900000|100000|10", 1000000, 900000, 100000, 10d)]
+    public void TimelineSampleParser_ReadsLowFrequencySynchronizationSamples(
+        string line,
+        long expectedAudioPts,
+        long expectedVideoPts,
+        long expectedDifference,
+        double expectedElapsedSeconds)
+    {
+        Assert.True(Recorder.TryParseMediaWorkerTimelineSample(
+            line,
+            out long audioPts,
+            out long videoPts,
+            out long difference,
+            out double elapsedSeconds));
+        Assert.Equal(expectedAudioPts, audioPts);
+        Assert.Equal(expectedVideoPts, videoPts);
+        Assert.Equal(expectedDifference, difference);
+        Assert.Equal(expectedElapsedSeconds, elapsedSeconds);
+    }
+
+    [Fact]
+    public void TimelineDiagnostics_UsesFixedCapacityAndIdentifiesDrift()
+    {
+        RecordingTimelineDiagnostics diagnostics = new();
+        for (int index = 0; index < 40; index++)
+        {
+            _ = diagnostics.Add(DateTime.UtcNow, index, index, index * 20_000, 1d);
+        }
+
+        Assert.Equal(30, diagnostics.Count);
+        Assert.Equal("gradual_drift", RecordingTimelineDiagnostics.GetClassification(800_000, 800_000, 20_000));
+        Assert.Equal("sudden_jump", RecordingTimelineDiagnostics.GetClassification(800_000, 800_000, 600_000));
+    }
+
     [Fact]
     public void ProcessStopGracePeriod_KeepsExplicitStopResponsive()
     {
@@ -238,6 +273,32 @@ public sealed class RecorderTests
             alreadyTried);
 
         Assert.Equal(expected, fallback);
+    }
+
+    [Theory]
+    [InlineData("Bilibili", "https://example.test/old.flv", "https://example.test/new.flv", true, true, "Server returned 404 Not Found", true)]
+    [InlineData("Bilibili", "https://example.test/old.flv", "https://example.test/new.flv", true, true, "connection reset", false)]
+    [InlineData("Douyin", "https://example.test/old.flv", "https://example.test/new.flv", true, true, "Server returned 404 Not Found", false)]
+    [InlineData("Bilibili", "https://example.test/old.flv", "https://example.test/new.flv", true, false, "Server returned 404 Not Found", false)]
+    [InlineData("Bilibili", "https://example.test/old.flv", "https://example.test/old.flv", true, true, "Server returned 404 Not Found", false)]
+    public void ShouldPreferBilibiliFlvAfterNotFound_RequiresConfirmedLiveRefresh(
+        string platformName,
+        string failedUrl,
+        string refreshedFlvUrl,
+        bool? isLiveAfterRefresh,
+        bool hadMediaProgress,
+        string errorOutput,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            Recorder.ShouldPreferBilibiliFlvAfterNotFound(
+                platformName,
+                failedUrl,
+                refreshedFlvUrl,
+                isLiveAfterRefresh,
+                hadMediaProgress,
+                errorOutput));
     }
 
     [Theory]
@@ -546,6 +607,29 @@ public sealed class RecorderTests
         Assert.True(Recorder.TryParseMediaWorkerPacketProgress("progress|4096|8192|0|34|1|1", out videoPackets, out audioPackets, out bool hasVideoStream));
         Assert.True(hasVideoStream);
         Assert.False(Recorder.TryParseMediaWorkerPacketProgress("progress|4096|8192", out _, out _));
+    }
+
+    [Theory]
+    [InlineData("streams|1|1", true, true)]
+    [InlineData("streams|1|0", true, false)]
+    [InlineData("streams|0|1", false, true)]
+    public void MediaWorkerStreamPresence_ParsesLiveSourceDiagnostics(
+        string line,
+        bool expectedVideo,
+        bool expectedAudio)
+    {
+        Assert.True(Recorder.TryParseMediaWorkerStreamPresence(line, out bool hasVideo, out bool hasAudio));
+        Assert.Equal(expectedVideo, hasVideo);
+        Assert.Equal(expectedAudio, hasAudio);
+    }
+
+    [Theory]
+    [InlineData("streams|2|1")]
+    [InlineData("streams|1")]
+    [InlineData("progress|1|2")]
+    public void MediaWorkerStreamPresence_RejectsInvalidDiagnostics(string line)
+    {
+        Assert.False(Recorder.TryParseMediaWorkerStreamPresence(line, out _, out _));
     }
 
     [Theory]

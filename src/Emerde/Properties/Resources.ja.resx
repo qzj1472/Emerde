@@ -780,6 +780,7 @@
   <data name="ProcessingFailedChip" xml:space="preserve"><value>処理失敗</value></data>
   <data name="RepairedChip" xml:space="preserve"><value>修復済み</value></data>
   <data name="MediaIssueChip" xml:space="preserve"><value>音声・映像異常</value></data>
+  <data name="OptimizedAudioFailedChip" xml:space="preserve"><value>最適化音声失敗</value></data>
   <data name="SegmentPositionChip" xml:space="preserve"><value>分割 {0}/{1}</value></data>
   <data name="TranscodeComplete" xml:space="preserve"><value>変換が完了しました</value></data>
   <data name="TranscodeFailed" xml:space="preserve"><value>変換に失敗しました</value></data>

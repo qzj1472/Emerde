@@ -777,6 +777,7 @@
   <data name="ProcessingFailedChip" xml:space="preserve"><value>Processing failed</value></data>
   <data name="RepairedChip" xml:space="preserve"><value>Repaired</value></data>
   <data name="MediaIssueChip" xml:space="preserve"><value>A/V issue</value></data>
+  <data name="OptimizedAudioFailedChip" xml:space="preserve"><value>Optimized audio failed</value></data>
   <data name="SegmentPositionChip" xml:space="preserve"><value>Part {0}/{1}</value></data>
   <data name="TranscodeComplete" xml:space="preserve"><value>Transcoding complete</value></data>
   <data name="TranscodeFailed" xml:space="preserve"><value>Transcoding failed</value></data>

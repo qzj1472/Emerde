@@ -60,6 +60,8 @@ internal static class MediaWorker
             long inputBytes = 0;
             long videoPackets = 0;
             long audioPackets = 0;
+            long lastAudioTimelineTimestamp = -1;
+            long lastVideoTimelineTimestamp = -1;
             bool hasVideoStream = false;
             bool hasAudioStream = false;
             using CancellationTokenSource stopSource = new();
@@ -126,11 +128,30 @@ internal static class MediaWorker
                         Console.Out.WriteLine($"timeline|{eventCode}|{packetProgress.TimelineGapMicroseconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{videoPackets.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{audioPackets.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
                         Console.Out.Flush();
                     }
+                    if (packetProgress.AudioPresentationTimestampMicroseconds >= 0)
+                    {
+                        lastAudioTimelineTimestamp = packetProgress.AudioPresentationTimestampMicroseconds;
+                    }
+                    if (packetProgress.VideoPresentationTimestampMicroseconds >= 0)
+                    {
+                        lastVideoTimelineTimestamp = packetProgress.VideoPresentationTimestampMicroseconds;
+                    }
+                    if (packetProgress.IsTimelineSample)
+                    {
+                        bool hasDifference = lastAudioTimelineTimestamp >= 0 && lastVideoTimelineTimestamp >= 0;
+                        long difference = hasDifference
+                            ? lastAudioTimelineTimestamp - lastVideoTimelineTimestamp
+                            : 0;
+                        Console.Out.WriteLine($"sync|{lastAudioTimelineTimestamp.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{lastVideoTimelineTimestamp.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{difference.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{packetProgress.TimelineSampleElapsedSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+                        Console.Out.Flush();
+                    }
                 },
                 (hasVideo, hasAudio) =>
                 {
                     hasVideoStream = hasVideo;
                     hasAudioStream = hasAudio;
+                    Console.Out.WriteLine($"streams|{(hasVideo ? "1" : "0")}|{(hasAudio ? "1" : "0")}");
+                    Console.Out.Flush();
                 });
 
             if (!string.IsNullOrWhiteSpace(result.ErrorOutput))

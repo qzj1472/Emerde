@@ -108,6 +108,8 @@ public sealed class Recorder
 
     private readonly MediaSpeedSummaryWindow mediaSpeedSummaryWindow = new(MediaSpeedSummaryInterval);
 
+    private readonly RecordingTimelineDiagnostics timelineDiagnostics = new();
+
     private readonly object crossStreamVerificationLock = new();
 
     private Task<FfmpegCrossStreamAnalysisResult>? crossStreamVerificationTask;
@@ -145,6 +147,7 @@ public sealed class Recorder
             lastMediaInputBytes = 0;
             lastMediaProgressAt = DateTime.MinValue;
             mediaSpeedSummaryWindow.Reset();
+            timelineDiagnostics.Reset();
             DrainCrossStreamVerificationSignal();
             RequestedAt = DateTime.Now;
             StartTime = DateTime.MinValue;
@@ -198,6 +201,7 @@ public sealed class Recorder
         VideoRecordingMetadata? sessionMetadata = null;
         string? sessionPendingRecordingPath = null;
         bool sessionSplitByStall = false;
+        bool storageExhausted = false;
         try
         {
             if (!FfmpegMediaEngine.IsAvailable)
@@ -233,6 +237,21 @@ public sealed class Recorder
             saveFolder = BuildSaveFolder(saveFolder, startInfo.NickName, DateTime.Now, recordingOptions.SaveFolderPathLevel);
             activeSaveFolder = saveFolder;
             Directory.CreateDirectory(saveFolder);
+            if (RecordingStorageGuard.IsExhausted(saveFolder, out long availableStorageBytes))
+            {
+                storageExhausted = true;
+                Volatile.Write(ref deferPostProcessing, 1);
+                AppSessionLogger.Event("error", "recorder", "record_storage_exhausted", "recording was not started because the output disk is full", new
+                {
+                    startInfo.RoomUrl,
+                    startInfo.NickName,
+                    saveFolder,
+                    availableStorageBytes,
+                    requiredStorageBytes = RecordingStorageGuard.MinimumFreeBytes,
+                });
+                startInfo.StorageExhausted?.Invoke(saveFolder);
+                return;
+            }
 
             string userAgent = Configurations.UserAgent.Get();
             string httpProxy = ProxyAddress.Normalize(Configurations.ProxyUrl.Get());
@@ -310,6 +329,22 @@ public sealed class Recorder
             }
             while (!token.IsCancellationRequested && Volatile.Read(ref stopRequested) == 0)
             {
+                if (RecordingStorageGuard.IsExhausted(saveFolder, out availableStorageBytes))
+                {
+                    storageExhausted = true;
+                    Volatile.Write(ref deferPostProcessing, 1);
+                    AppSessionLogger.Event("error", "recorder", "record_storage_exhausted", "recording was stopped because the output disk is full", new
+                    {
+                        startInfo.RoomUrl,
+                        startInfo.NickName,
+                        saveFolder,
+                        availableStorageBytes,
+                        requiredStorageBytes = RecordingStorageGuard.MinimumFreeBytes,
+                    });
+                    startInfo.StorageExhausted?.Invoke(saveFolder);
+                    break;
+                }
+
                 DateTime now = DateTime.Now;
                 using OutputReservation? outputReservation = useSessionPartFiles
                     ? null
@@ -393,22 +428,26 @@ public sealed class Recorder
                     startInfo,
                     token);
                 DeleteEmptyOutputFiles(outputFileName);
+                LogRecordedSourceDiagnostics(startInfo, outputFileName, metadata);
                 bool hasSessionOutput = useSessionPartFiles && HasUsableOutput(outputFileName);
-                if (!useSessionPartFiles)
+                bool storageFailure = IsInsufficientStorageFailure(exitCode, lastProcessErrorOutput);
+                if (!useSessionPartFiles && !storageFailure)
                 {
                     DeleteMetadataIfNoOutput(FileName, MetadataPath);
                 }
                 if (token.IsCancellationRequested || Volatile.Read(ref stopRequested) != 0)
                 {
-                    if (!useSessionPartFiles)
+                    if (!useSessionPartFiles && !storageFailure && !storageExhausted)
                     {
                         FinalizeMetadataForOutput(FileName, MetadataPath);
                     }
                     break;
                 }
 
-                if (IsInsufficientStorageFailure(exitCode, lastProcessErrorOutput))
+                if (storageFailure)
                 {
+                    storageExhausted = true;
+                    Volatile.Write(ref deferPostProcessing, 1);
                     AppSessionLogger.Event("error", "recorder", "record_storage_exhausted", "recording stopped because the output disk is full", new
                     {
                         startInfo.RoomUrl,
@@ -416,7 +455,7 @@ public sealed class Recorder
                         exitCode,
                         outputFileName,
                     });
-                    startInfo.StorageExhausted?.Invoke();
+                    startInfo.StorageExhausted?.Invoke(outputFileName);
                     break;
                 }
 
@@ -455,13 +494,34 @@ public sealed class Recorder
                     sessionPartIndex++;
                 }
 
-                if (!useSessionPartFiles)
+                if (!useSessionPartFiles
+                    && !storageExhausted
+                    && !RecordingStorageGuard.IsExhausted(saveFolder, out _))
                 {
                     FinalizeMetadataForOutput(FileName, MetadataPath);
                 }
 
                 bool hasStreamRefresh = startInfo.RefreshStreamAsync != null;
+                string failedUrlBeforeRefresh = Url ?? string.Empty;
                 bool? isLiveAfterRefresh = await TryRefreshInputAsync(startInfo, token);
+                if (ShouldPreferBilibiliFlvAfterNotFound(
+                    startInfo.PlatformName,
+                    failedUrlBeforeRefresh,
+                    startInfo.FlvUrl,
+                    isLiveAfterRefresh,
+                    lastAttemptHadMediaProgress,
+                    lastProcessErrorOutput))
+                {
+                    Url = startInfo.FlvUrl;
+                    startInfo.RecordUrl = startInfo.FlvUrl;
+                    AppSessionLogger.Event("info", "recorder", "record_404_refresh_preferred_flv", "bilibili refreshed the FLV input after a not-found response", new
+                    {
+                        startInfo.RoomUrl,
+                        startInfo.NickName,
+                        failedUrl = failedUrlBeforeRefresh,
+                        refreshedFlvUrl = startInfo.FlvUrl,
+                    });
+                }
                 if (ShouldSuppressRapidRetry(exitCode, lastAttemptWasCanceled, lastAttemptWasStalled, lastAttemptDurationSeconds, isLiveAfterRefresh))
                 {
                     AppSessionLogger.Event("warn", "recorder", "record_rapid_retry_suppressed", "rapid recording retry was suppressed", new
@@ -628,7 +688,23 @@ public sealed class Recorder
             try
             {
                 EndTime = DateTime.Now;
-                if (sessionSplitByStall && sessionMetadata != null && sessionBaseFileName != null)
+                if (!storageExhausted
+                    && activeSaveFolder is string finalizationFolder
+                    && RecordingStorageGuard.IsExhausted(finalizationFolder, out long availableStorageBytes))
+                {
+                    storageExhausted = true;
+                    Volatile.Write(ref deferPostProcessing, 1);
+                    AppSessionLogger.Event("error", "recorder", "record_storage_exhausted", "recording post-processing was deferred because the output disk is full", new
+                    {
+                        startInfo.RoomUrl,
+                        startInfo.NickName,
+                        saveFolder = finalizationFolder,
+                        availableStorageBytes,
+                        requiredStorageBytes = RecordingStorageGuard.MinimumFreeBytes,
+                    });
+                    startInfo.StorageExhausted?.Invoke(finalizationFolder);
+                }
+                if (!storageExhausted && sessionSplitByStall && sessionMetadata != null && sessionBaseFileName != null)
                 {
                     sessionMetadata.SegmentReason = VideoRecordingMetadataStore.TimelineStallSegmentReason;
                     if (!string.IsNullOrWhiteSpace(sessionPendingRecordingPath))
@@ -640,8 +716,11 @@ public sealed class Recorder
                         sessionBaseFileName,
                         sessionMetadata) ?? sessionMetadataPath;
                 }
-                FinalizeMetadataForOutput(FileName ?? string.Empty, MetadataPath);
-                DeleteMetadataIfNoOutput(FileName ?? string.Empty, MetadataPath);
+                if (!storageExhausted)
+                {
+                    FinalizeMetadataForOutput(FileName ?? string.Empty, MetadataPath);
+                    DeleteMetadataIfNoOutput(FileName ?? string.Empty, MetadataPath);
+                }
                 lock (stateLock)
                 {
                     if (RecordStatus == RecordStatus.Recording)
@@ -669,7 +748,7 @@ public sealed class Recorder
                     AppSessionLogger.WriteException(e);
                 }
                 RoomRecordingOptions postProcessingOptions = startInfo.ResolveCurrentOptions?.Invoke() ?? recordingOptions;
-                bool processNow = Volatile.Read(ref deferPostProcessing) == 0;
+                bool processNow = !storageExhausted && Volatile.Read(ref deferPostProcessing) == 0;
                 foreach (string pendingRecordingPath in pendingRecordingPaths.ToArray())
                 {
                     if (RecordingRecoveryService.UpdateOptions(pendingRecordingPath, postProcessingOptions) && processNow)
@@ -930,7 +1009,9 @@ public sealed class Recorder
         FfmpegInputOptions inputOptions = new(userAgent, headers, isUseProxy, httpProxy, true);
         AppSessionLogger.Event("info", "recorder", "record_native_starting", "ffmpeg native recording is starting", new
         {
+            stage = "live_source",
             startInfo.PlatformName,
+            inputUrl = Url,
             FileName,
             outputFileName,
         });
@@ -974,6 +1055,7 @@ public sealed class Recorder
                 progressTracker,
                 startInfo,
                 outputFileName,
+                metadata,
                 processCancellation.Token,
                 processCancellation.Token);
             Task errorTask = ReadMediaWorkerErrorAsync(process.StandardError, errorOutput, processCancellation.Token);
@@ -1116,6 +1198,7 @@ public sealed class Recorder
         lastAttemptDurationSeconds = durationSeconds;
         AppSessionLogger.Event(GetProcessExitLogLevel(exitCode, wasCanceled, wasStalled), "recorder", "record_process_exited", "ffmpeg native recording exited", new
         {
+            stage = "live_source",
             startInfo.RoomUrl,
             startInfo.NickName,
             ExitCode = exitCode,
@@ -1460,6 +1543,7 @@ public sealed class Recorder
         RecorderProgressTracker progressTracker,
         RecorderStartInfo startInfo,
         string outputFileName,
+        VideoRecordingMetadata metadata,
         CancellationToken readToken,
         CancellationToken verificationToken)
     {
@@ -1501,10 +1585,12 @@ public sealed class Recorder
                         message,
                         new
                         {
+                            stage = "live_source",
                             startInfo.RoomUrl,
                             startInfo.NickName,
                             FileName,
                             outputFileName,
+                            recordingSessionId = metadata.RecordingSessionId,
                             gapSeconds = gapMicroseconds / 1_000_000d,
                             videoPackets = timelineVideoPackets,
                             audioPackets = timelineAudioPackets,
@@ -1513,6 +1599,57 @@ public sealed class Recorder
                     {
                         StartCrossStreamVerification(startInfo, verificationToken);
                     }
+                    continue;
+                }
+                if (TryParseMediaWorkerTimelineSample(
+                    line,
+                    out long audioPresentationTimestampMicroseconds,
+                    out long videoPresentationTimestampMicroseconds,
+                    out long audioVideoDifferenceMicroseconds,
+                    out double sampleElapsedSeconds))
+                {
+                    RecordingTimelineSample sample = timelineDiagnostics.Add(
+                        DateTime.Now,
+                        audioPresentationTimestampMicroseconds,
+                        videoPresentationTimestampMicroseconds,
+                        audioVideoDifferenceMicroseconds,
+                        sampleElapsedSeconds);
+                    AppSessionLogger.Event(
+                        sample.Classification == "aligned" ? "info" : "warn",
+                        "recorder",
+                        "record_timeline_sample",
+                        "recording audio-video timeline sample",
+                        new
+                        {
+                            stage = "live_source",
+                            startInfo.RoomUrl,
+                            startInfo.NickName,
+                            FileName,
+                            outputFileName,
+                            recordingSessionId = metadata.RecordingSessionId,
+                            sampleAt = sample.RecordedAt,
+                            audioPtsSeconds = sample.AudioPresentationTimestampMicroseconds / 1_000_000d,
+                            videoPtsSeconds = sample.VideoPresentationTimestampMicroseconds / 1_000_000d,
+                            differenceSeconds = sample.AudioVideoDifferenceMicroseconds / 1_000_000d,
+                            baselineDifferenceSeconds = sample.BaselineDifferenceMicroseconds / 1_000_000d,
+                            cumulativeDriftSeconds = sample.CumulativeDriftMicroseconds / 1_000_000d,
+                            driftRateSecondsPerSecond = sample.DriftRateMicrosecondsPerSecond / 1_000_000d,
+                            sample.Classification,
+                            sample.SampleCount,
+                            bufferedSampleCount = timelineDiagnostics.Count,
+                        });
+                    continue;
+                }
+                if (TryParseMediaWorkerStreamPresence(line, out bool liveHasVideoStream, out bool liveHasAudioStream))
+                {
+                    MediaDiagnostics.LogStreamPresence(
+                        "live_source",
+                        Url ?? string.Empty,
+                        liveHasVideoStream,
+                        liveHasAudioStream,
+                        startInfo.RoomUrl,
+                        outputFileName,
+                        metadata: metadata);
                     continue;
                 }
                 if (line.StartsWith("progress", StringComparison.Ordinal))
@@ -1599,6 +1736,29 @@ public sealed class Recorder
         return TryParseMediaWorkerPacketProgress(line, out videoPackets, out audioPackets, out _);
     }
 
+    internal static bool TryParseMediaWorkerTimelineSample(
+        string line,
+        out long audioPresentationTimestampMicroseconds,
+        out long videoPresentationTimestampMicroseconds,
+        out long audioVideoDifferenceMicroseconds,
+        out double sampleElapsedSeconds)
+    {
+        audioPresentationTimestampMicroseconds = 0;
+        videoPresentationTimestampMicroseconds = 0;
+        audioVideoDifferenceMicroseconds = 0;
+        sampleElapsedSeconds = 0d;
+        string[] parts = line.Split('|');
+        return parts.Length == 5
+            && string.Equals(parts[0], "sync", StringComparison.Ordinal)
+            && long.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out audioPresentationTimestampMicroseconds)
+            && audioPresentationTimestampMicroseconds >= 0
+            && long.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out videoPresentationTimestampMicroseconds)
+            && videoPresentationTimestampMicroseconds >= 0
+            && long.TryParse(parts[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out audioVideoDifferenceMicroseconds)
+            && double.TryParse(parts[4], NumberStyles.Float, CultureInfo.InvariantCulture, out sampleElapsedSeconds)
+            && sampleElapsedSeconds >= 0d;
+    }
+
     internal static bool TryParseMediaWorkerPacketProgress(
         string line,
         out long videoPackets,
@@ -1619,6 +1779,26 @@ public sealed class Recorder
             hasVideoStream = parts[5] == "1";
         }
         return parsed;
+    }
+
+    internal static bool TryParseMediaWorkerStreamPresence(string line, out bool hasVideoStream, out bool hasAudioStream)
+    {
+        hasVideoStream = false;
+        hasAudioStream = false;
+        string[] parts = line.Split('|');
+        if (parts.Length != 3 || !string.Equals(parts[0], "streams", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (parts[1] is not ("0" or "1") || parts[2] is not ("0" or "1"))
+        {
+            return false;
+        }
+
+        hasVideoStream = parts[1] == "1";
+        hasAudioStream = parts[2] == "1";
+        return true;
     }
 
     internal static bool TryParseMediaWorkerTimelineEvent(
@@ -1721,6 +1901,45 @@ public sealed class Recorder
         });
         PublishLifecycle("started", startInfo);
         _ = WeakReferenceMessenger.Default.Send(new RoomRecordingStateChangedMessage(startInfo.RoomUrl));
+    }
+
+    private static void LogRecordedSourceDiagnostics(
+        RecorderStartInfo startInfo,
+        string outputFileName,
+        VideoRecordingMetadata metadata)
+    {
+        string[] paths = outputFileName.Contains("%03d", StringComparison.Ordinal)
+            ? RecordingRecoveryService.GetSourceFiles(outputFileName)
+            : File.Exists(outputFileName)
+                ? [outputFileName]
+                : [];
+        if (paths.Length == 0)
+        {
+            MediaDiagnostics.LogProbeFailure(
+                MediaDiagnostics.GetFileStage(outputFileName),
+                outputFileName,
+                "recorded_source_missing",
+                metadata,
+                startInfo.RoomUrl,
+                outputFileName);
+            return;
+        }
+
+        foreach (string path in paths)
+        {
+            MediaDiagnostics.LogProbeOrFailure(
+                MediaDiagnostics.GetFileStage(path),
+                path,
+                metadata,
+                startInfo.RoomUrl,
+                outputFileName);
+            MediaDiagnostics.LogAudioContent(
+                MediaDiagnostics.GetFileStage(path),
+                path,
+                metadata,
+                startInfo.RoomUrl,
+                outputFileName);
+        }
     }
 
     private void PublishLifecycle(string phase, RecorderStartInfo startInfo, int attempt = 0)
@@ -1996,6 +2215,32 @@ public sealed class Recorder
             || output.Contains("not enough space", StringComparison.OrdinalIgnoreCase)
             || output.Contains("disk full", StringComparison.OrdinalIgnoreCase)
             || output.Contains("errno=28", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool ShouldPreferBilibiliFlvAfterNotFound(
+        string? platformName,
+        string? failedUrl,
+        string? refreshedFlvUrl,
+        bool? isLiveAfterRefresh,
+        bool hadMediaProgress,
+        string? errorOutput)
+    {
+        return isLiveAfterRefresh == true
+            && hadMediaProgress
+            && string.Equals(platformName, "Bilibili", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(failedUrl)
+            && failedUrl.Contains(".flv", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(refreshedFlvUrl)
+            && !string.Equals(failedUrl, refreshedFlvUrl, StringComparison.Ordinal)
+            && IsNotFoundError(errorOutput);
+    }
+
+    internal static bool IsNotFoundError(string? errorOutput)
+    {
+        return !string.IsNullOrWhiteSpace(errorOutput)
+            && (errorOutput.Contains("404 Not Found", StringComparison.OrdinalIgnoreCase)
+                || errorOutput.Contains("HTTP error 404", StringComparison.OrdinalIgnoreCase)
+                || errorOutput.Contains("Server returned 404", StringComparison.OrdinalIgnoreCase));
     }
 
     internal static bool ShouldConsumeReconnectAttempt(bool? isLiveAfterRefresh, bool hadMediaProgress)
@@ -2821,7 +3066,7 @@ public record RecorderStartInfo
 
     internal Action? RapidExitDetected { get; set; }
 
-    internal Action? StorageExhausted { get; set; }
+    internal Action<string?>? StorageExhausted { get; set; }
 }
 
 internal sealed record RecorderStreamRefreshResult

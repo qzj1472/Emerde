@@ -51,7 +51,7 @@ public sealed class ScreenRecordListWindowTests
     [Theory]
     [InlineData(0, true, ".mp4", true)]
     [InlineData(0, false, ".mp4", false)]
-    [InlineData(1, true, ".mkv", false)]
+    [InlineData(1, false, ".mkv", true)]
     public void CreateTranscodeOptions_MapsDialogSelection(int selectedIndex, bool optimizeAudio, string targetFormat, bool expectedOptimization)
     {
         ConverterOptions options = ScreenRecordListViewModel.CreateTranscodeOptions(selectedIndex, optimizeAudio);

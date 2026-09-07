@@ -134,7 +134,7 @@ public sealed class FfmpegMediaEngineContractTests
 
         Assert.Contains("IReadOnlyList<double>? sourceTimelineEndSeconds", source);
         Assert.Contains("GetSourceTimelineEndSeconds(", source);
-        Assert.Contains("PacketExceedsTimelineLimit(packet, inputStream, sourceTimelineLimitSeconds)", source);
+        Assert.Contains("PacketExceedsTimelineLimit(packet, inputStream, sourceTimelineLimitSeconds, strictTimelineLimit)", source);
         Assert.Contains("TimelineBoundaryToleranceSeconds", source);
     }
 
@@ -177,6 +177,16 @@ public sealed class FfmpegMediaEngineContractTests
         Assert.Contains("IsFileInputFullyConsumed(inputContext, sourceFileNames[sourceIndex])", source);
         Assert.Contains("input->error < 0", source);
         Assert.Contains("ffmpeg.avio_tell(input) >= inputSize", source);
+    }
+
+    [Fact]
+    public void FileRemux_ProvidesStrictTimelineTrimForAlignmentFallback()
+    {
+        string source = ReadSource();
+
+        Assert.Contains("bool strictTimelineLimit = false", source);
+        Assert.Contains("PacketExceedsTimelineLimit(packet, inputStream, sourceTimelineLimitSeconds, strictTimelineLimit)", source);
+        Assert.Contains("strict ? 0d : TimelineBoundaryToleranceSeconds", source);
     }
 
     [Fact]

@@ -777,6 +777,7 @@
   <data name="ProcessingFailedChip" xml:space="preserve"><value>处理失败</value></data>
   <data name="RepairedChip" xml:space="preserve"><value>已修复</value></data>
   <data name="MediaIssueChip" xml:space="preserve"><value>音画异常</value></data>
+  <data name="OptimizedAudioFailedChip" xml:space="preserve"><value>优化音频失败</value></data>
   <data name="SegmentPositionChip" xml:space="preserve"><value>分段 {0}/{1}</value></data>
   <data name="TranscodeComplete" xml:space="preserve"><value>转码完成</value></data>
   <data name="TranscodeFailed" xml:space="preserve"><value>转码失败</value></data>
