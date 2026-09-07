@@ -15,6 +15,8 @@ internal static class RecordingRecoveryService
     private const int CurrentRecoveryPolicyVersion = 2;
     private const int PendingProcessingBatchSize = 8;
     private const int FinalizationAttemptCount = 5;
+    private const int PendingMarkerSaveAttempts = 3;
+    private const int PendingMarkerSaveRetryMilliseconds = 75;
     private static readonly TimeSpan CleanupReconciliationInterval = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan CompletedOutputProbeTimeout = TimeSpan.FromSeconds(3);
 
@@ -141,6 +143,7 @@ internal static class RecordingRecoveryService
         {
             return false;
         }
+
         if (string.IsNullOrWhiteSpace(targetFormat))
         {
             if (!item.FinalizeOnly && !item.MergeSessionParts && !IsSessionPattern(item.SourcePattern))
@@ -797,6 +800,7 @@ internal static class RecordingRecoveryService
     private static async Task<bool> ProcessCoreAsync(string path, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
+        GlobalMonitor.CheckStorageNow("post_processing_start");
         PendingRecording? item = Load(path, out string? invalidReason);
         if (item == null)
         {
@@ -804,6 +808,18 @@ internal static class RecordingRecoveryService
             {
                 QuarantineInvalidMarker(path, invalidReason);
             }
+            return false;
+        }
+
+        if (RecordingStorageGuard.IsExhausted(item.SourcePattern, out long availableStorageBytes))
+        {
+            AppSessionLogger.Event("warn", "recovery", "recovery_storage_deferred", "pending recording processing was deferred because the source disk has insufficient free space", new
+            {
+                path,
+                item.SourcePattern,
+                availableStorageBytes,
+                requiredStorageBytes = RecordingStorageGuard.MinimumFreeBytes,
+            });
             return false;
         }
 
@@ -978,11 +994,20 @@ internal static class RecordingRecoveryService
         if (IsTransientRecoveryFailure(failureReason))
         {
             ResetFailureState(item);
-            AppSessionLogger.Event("info", "recovery", "recovery_source_busy_deferred", "recording source is still in use and will be retried after recording releases it", new
+            string action = string.Equals(failureReason, "storage_low", StringComparison.Ordinal)
+                ? "recovery_storage_deferred"
+                : "recovery_source_busy_deferred";
+            string message = string.Equals(failureReason, "storage_low", StringComparison.Ordinal)
+                ? "pending recording processing was deferred because the source disk is low on space"
+                : "recording source is still in use and will be retried after recording releases it";
+            AppSessionLogger.Event("info", "recovery", action, message, new
             {
                 item.SourcePattern,
             });
-            _ = Save(path, item);
+            if (!string.Equals(failureReason, "storage_low", StringComparison.Ordinal))
+            {
+                _ = Save(path, item);
+            }
             return false;
         }
 
@@ -1227,6 +1252,10 @@ internal static class RecordingRecoveryService
                     onFailed: onFailure);
                 if (!merged || !IsUsableSource(createdIntermediate))
                 {
+                    if (IsStorageLowForRecovery(sourcePattern, onFailure))
+                    {
+                        return false;
+                    }
                     return await ProcessSourcesIndividuallyAsync(
                         sources,
                         targetFormat,
@@ -1263,6 +1292,10 @@ internal static class RecordingRecoveryService
             if (completed)
             {
                 return true;
+            }
+            if (IsStorageLowForRecovery(mergedSource, onFailure))
+            {
+                return false;
             }
             bool fallbackCompleted = await ProcessSourcesIndividuallyAsync(
                 sources,
@@ -1354,6 +1387,10 @@ internal static class RecordingRecoveryService
                 .Value;
             if (!IsUsableSource(completedTarget))
             {
+                if (IsStorageLowForRecovery(source, onFailure))
+                {
+                    return false;
+                }
                 string? createdTarget = null;
                 bool converted = await new Converter().ExecuteWithCompletionAsync(
                     source,
@@ -1369,6 +1406,15 @@ internal static class RecordingRecoveryService
                     requestedTargetPath: singleSourceTargetPath);
                 if (!converted || !IsUsableSource(createdTarget))
                 {
+                    if (IsStorageLowForRecovery(source, onFailure))
+                    {
+                        return false;
+                    }
+                    if (!AllowsUnoptimizedRepairFallback(targetFormat))
+                    {
+                        onFailure?.Invoke("mkv_original_or_media_invalid");
+                        return false;
+                    }
                     createdTarget = await TryRepairSourceAsync(source, targetFormat, token, onFailure);
                     if (!IsUsableSource(createdTarget))
                     {
@@ -1404,6 +1450,10 @@ internal static class RecordingRecoveryService
 
         VideoRepairResult result = await new VideoRepairService().RepairAsync(source, targetFormat, token);
         token.ThrowIfCancellationRequested();
+        if (IsStorageLowForRecovery(source, onFailure))
+        {
+            return null;
+        }
         if (result.Status is VideoRepairStatus.Repaired
             && IsUsableSource(result.OutputPath))
         {
@@ -2441,7 +2491,8 @@ internal static class RecordingRecoveryService
 
     internal static bool IsTransientRecoveryFailure(string? failureReason)
     {
-        return string.Equals(failureReason, "source_busy", StringComparison.Ordinal);
+        return string.Equals(failureReason, "source_busy", StringComparison.Ordinal)
+            || string.Equals(failureReason, "storage_low", StringComparison.Ordinal);
     }
 
     private static bool ReconcileReservedOutputs(PendingRecording item)
@@ -2499,7 +2550,8 @@ internal static class RecordingRecoveryService
 
     internal static string SelectFailureReason(string? current, string reason)
     {
-        if (string.IsNullOrWhiteSpace(current)
+        if (string.Equals(reason, "storage_low", StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(current)
             || IsTerminalRecoveryFailure(reason) && !IsTerminalRecoveryFailure(current))
         {
             return reason;
@@ -2534,6 +2586,11 @@ internal static class RecordingRecoveryService
         {
             PendingRecording? item = Load(path, out _, validateAllowedDirectory: false);
             if (item == null)
+            {
+                return;
+            }
+
+            if (RecordingStorageGuard.IsExhausted(item.SourcePattern, out _))
             {
                 return;
             }
@@ -2585,29 +2642,60 @@ internal static class RecordingRecoveryService
         lock (PendingMarkerMutationLock)
         {
             string directory = Path.GetDirectoryName(path) ?? AppPaths.PendingRecordingsDirectory;
-            string temporaryPath = Path.Combine(directory, $".emerde-pending-{Guid.NewGuid():N}.tmp");
-            try
+            for (int attempt = 0; attempt < PendingMarkerSaveAttempts; attempt++)
             {
-                using (FileStream stream = new(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-                using (StreamWriter writer = new(stream, new System.Text.UTF8Encoding(false)))
+                string temporaryPath = Path.Combine(directory, $".emerde-pending-{Guid.NewGuid():N}.tmp");
+                try
                 {
-                    writer.Write(JsonSerializer.Serialize(item, JsonOptions));
-                    writer.Flush();
-                    stream.Flush(flushToDisk: true);
+                    using (FileStream stream = new(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    using (StreamWriter writer = new(stream, new System.Text.UTF8Encoding(false)))
+                    {
+                        writer.Write(JsonSerializer.Serialize(item, JsonOptions));
+                        writer.Flush();
+                        stream.Flush(flushToDisk: true);
+                    }
+                    File.Move(temporaryPath, path, overwrite: true);
+                    return true;
                 }
-                File.Move(temporaryPath, path, overwrite: true);
-                return true;
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    if (attempt + 1 >= PendingMarkerSaveAttempts)
+                    {
+                        AppSessionLogger.WriteException(e);
+                        return false;
+                    }
+                    Thread.Sleep(PendingMarkerSaveRetryMilliseconds);
+                }
+                finally
+                {
+                    DeleteMarker(temporaryPath);
+                }
             }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-            {
-                AppSessionLogger.WriteException(e);
-                return false;
-            }
-            finally
-            {
-                DeleteMarker(temporaryPath);
-            }
+
+            return false;
         }
+    }
+
+    private static bool IsStorageLowForRecovery(string path, Action<string>? onFailure)
+    {
+        if (!RecordingStorageGuard.IsExhausted(path, out long availableStorageBytes))
+        {
+            return false;
+        }
+
+        onFailure?.Invoke("storage_low");
+        AppSessionLogger.Event("warn", "recovery", "recovery_storage_deferred", "pending recording processing was deferred because the source disk became low on space", new
+        {
+            path,
+            availableStorageBytes,
+            requiredStorageBytes = RecordingStorageGuard.MinimumFreeBytes,
+        });
+        return true;
+    }
+
+    internal static bool AllowsUnoptimizedRepairFallback(string targetFormat)
+    {
+        return !targetFormat.Equals(".mkv", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void QuarantineInvalidMarker(string path, string reason)

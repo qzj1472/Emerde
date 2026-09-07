@@ -17,6 +17,24 @@ public sealed class RecordingRecoveryServiceTests
         Assert.Contains("CancellationTokenSource.CreateLinkedTokenSource(token)", code, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("source_busy", true)]
+    [InlineData("storage_low", true)]
+    [InlineData("native_exit_code:-28", false)]
+    [InlineData(null, false)]
+    public void RecoveryFailureClassification_DefersTransientStorageFailures(string? reason, bool expected)
+    {
+        Assert.Equal(expected, RecordingRecoveryService.IsTransientRecoveryFailure(reason));
+    }
+
+    [Fact]
+    public void RecoveryFailureSelection_PrioritizesStorageDeferral()
+    {
+        Assert.Equal(
+            "storage_low",
+            RecordingRecoveryService.SelectFailureReason("native_exit_code:-28", "storage_low"));
+    }
+
     [Fact]
     public void IncompatibleSameFormatPartsFallBackToIndependentOutputs()
     {
@@ -708,6 +726,16 @@ public sealed class RecordingRecoveryServiceTests
             File.Delete(markerPath);
             File.Delete(markerPath + ".tmp");
         }
+    }
+
+    [Theory]
+    [InlineData(".mkv", false)]
+    [InlineData(".MKV", false)]
+    [InlineData(".mp4", true)]
+    [InlineData(".ts", true)]
+    public void AllowsUnoptimizedRepairFallback_ProtectsMkvAudioPolicy(string targetFormat, bool expected)
+    {
+        Assert.Equal(expected, RecordingRecoveryService.AllowsUnoptimizedRepairFallback(targetFormat));
     }
 
     [Fact]
