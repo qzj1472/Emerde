@@ -615,7 +615,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         AutoShutdownDispatcherTimer = new(TimeSpan.FromMinutes(1), OnAutoShutdownTimerTick);
         RecordingDurationDispatcherTimer = new(TimeSpan.FromSeconds(1), UpdateRecordingDurations);
         Room[] configuredRooms = NormalizeStoredRooms(Configurations.Rooms.Get());
-        AvatarCache.Prune(configuredRooms.Select(room => room.RoomUrl));
+        string[] retainedAvatarRoomUrls = configuredRooms.Select(room => room.RoomUrl).ToArray();
+        _ = Task.Run(() => AvatarCache.Prune(retainedAvatarRoomUrls));
 
         RoomStatuses.Reset(configuredRooms.Select(CreateRoomStatusReactive));
         RoomStatusesView = CollectionViewSource.GetDefaultView(RoomStatuses);
