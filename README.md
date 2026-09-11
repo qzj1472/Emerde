@@ -1,163 +1,52 @@
-[English](README.md) | [简体中文](README.zh-Hans.md)
+[简体中文](README.md) | [English](README.en.md)
 
-<img src="branding/logo.png" style="height: 128px; width: auto;" />
+<img src="branding/logo.png" alt="Emerde" width="128" />
 
 # Emerde
 
-[![GitHub license](https://img.shields.io/github/license/qzj1472/Emerde)](https://github.com/qzj1472/Emerde/blob/main/LICENSE) [![Actions](https://github.com/qzj1472/Emerde/actions/workflows/build.yml/badge.svg)](https://github.com/qzj1472/Emerde/actions/workflows/build.yml) [![Platform](https://img.shields.io/badge/platform-Windows-blue?logo=windowsxp&color=1E9BFA)](https://dotnet.microsoft.com/en-us/download/dotnet/latest/runtime) [![GitHub downloads](https://img.shields.io/github/downloads/qzj1472/Emerde/total)](https://github.com/qzj1472/Emerde/releases)
-[![GitHub downloads](https://img.shields.io/github/downloads/qzj1472/Emerde/latest/total)](https://github.com/qzj1472/Emerde/releases)
+[![许可证](https://img.shields.io/github/license/qzj1472/Emerde)](LICENSE) [![最新版本](https://img.shields.io/github/v/release/qzj1472/Emerde)](https://github.com/qzj1472/Emerde/releases/latest) [![Windows](https://img.shields.io/badge/Windows-桌面应用-1E9BFA?logo=windows)](https://github.com/qzj1472/Emerde/releases/latest) [![下载](https://img.shields.io/github/downloads/qzj1472/Emerde/total)](https://github.com/qzj1472/Emerde/releases)
 
-Emerde is a Windows desktop tool for multi-platform live stream monitoring, recording, notifications, and preview playback.
+Emerde 是 Windows 上的多平台直播监控与录制工具。把直播间加进来，开播后自动录到本地，也可以预览画面、接收开播通知。
 
-Recording is powered by FFmpeg. Live preview is powered by LibVLCSharp.
+## 下载
 
-## Features
+到 [Releases](https://github.com/qzj1472/Emerde/releases/latest) 获取最新版：
 
-| Feature | Description |
-| ------- | ----------- |
-| Live monitoring | Periodically checks whether saved live rooms are streaming |
-| Recording | Records supported live streams to local files through FFmpeg |
-| Live preview | Opens an embedded preview window before or during recording |
-| Notifications | Sends Windows notifications and optional reminder sounds |
-| Platform detection | Detects the platform while adding a room URL |
-| Platform filter | Filters the room list by platform |
-| Segmented output | Supports time-based recording segments |
-| Cookie and proxy settings | Supports platform cookies and optional HTTP proxy |
+- **安装包** `Emerde-x.x.x.exe`：安装后从开始菜单打开
+- **便携版** `Emerde-x.x.x-win-Portable.zip`：解压即用，不写系统安装项
 
-## Runtime
+安装包和便携版都是完整可用版本，不需要再装运行库。调试包只给排查问题用，日常请用上面两个。
 
-- [.NET Desktop Runtime 9.0 for Windows](https://dotnet.microsoft.com/en-us/download/dotnet/9.0)
-- FFmpeg is required for recording.
-- LibVLC is bundled through the Windows package for live preview.
+## 能做什么
 
-## Supported Sources
+| 能力 | 说明 |
+| ---- | ---- |
+| 监控开播 | 定时检查已添加的直播间，开播、下播状态一目了然 |
+| 自动录制 | 开播后自动开始录制，也可手动开始；长直播可按时间分段 |
+| 内嵌预览 | 录制前或录制中打开预览窗口，确认是不是你要的那场 |
+| 开播通知 | Windows 通知，可选提示音 |
+| 异常恢复 | 遇到卡顿或音频异常时尽量保住已录内容，而不是整场作废 |
+| 本机保存 | 配置、Cookie、录像都只在你的电脑上 |
 
-| Source | Status |
-| ------ | ------ |
-| Douyin | Supported |
-| TikTok | Supported |
-| Bilibili | Supported |
-| Kuaishou | Supported |
-| Huya | Supported |
-| Douyu | Supported |
-| Baidu Live | Supported |
-| Bigo | Supported |
-| 17Live | Supported |
-| CHZZK | Supported |
-| MaoerFM | Supported |
-| Picarto | Supported |
-| Lianjie | Supported |
-| LangLive | Supported |
-| 6Rooms | Supported |
-| VVXqiu | Supported |
-| Blued | Supported |
-| Liuxing | Supported |
-| Changliao | Supported |
-| Yinbo | Supported |
-| Zhihu | Supported |
-| PPLive | Supported |
-| CatShow | Supported |
-| Laixiu | Supported |
-| JD | Supported |
-| PandaTV | Supported |
-| WinkTV | Supported |
-| Twitch | Supported |
-| YouTube | Supported |
-| Shopee | Supported |
-| TwitCasting | Supported |
-| Faceit | Supported |
-| Weibo | Supported |
-| Huajiao | Supported |
-| SOOP | Supported |
-| FlexTV | Supported |
-| PopkonTV | Supported |
-| Look | Supported |
-| Taobao | Supported |
-| LiveMe | Supported |
-| Xiaohongshu | Supported |
-| Kugou | Supported |
-| Yingke | Supported |
-| ShowRoom | Supported |
-| AcFun | Supported |
-| YY | Supported |
-| Netease CC | Supported |
-| Qiandu Rebo | Supported |
-| Direct `.m3u8` / `.flv` streams | Supported |
+适合同时盯多个平台、不想守着开播、需要把直播留成文件的场景。
 
-## Room URLs
+## 怎么用
 
-Add the live room URL from a supported platform, or paste a direct `.m3u8` / `.flv` stream URL.
+1. 下载安装包或便携版并打开 Emerde。
+2. 粘贴直播间链接，添加房间。软件会自动识别平台。
+3. 开播后自动开始录制；也可以先预览再决定是否录。
+4. 在视频列表里查看、打开已经录好的文件。
 
-```text
-https://live.douyin.com/123456
-https://live.bilibili.com/123456
-https://live.kuaishou.com/u/example
-https://www.huya.com/52333
-https://live.baidu.com/m/media/pclive/pchome/live.html?room_id=9175031377
-https://17.live/en/live/6302408
-https://chzzk.naver.com/live/458f6ec20b034f49e0fc6d03921646d2
-https://fm.missevan.com/live/868895007
-https://www.picarto.tv/cuteavalanche
-https://show.lailianjie.com/10000258
-https://www.lang.live/en-US/room/3349463
-https://v.6.cn/634435
-https://h5webcdn-pro.vvxqiu.com/activity/videoShare/videoShare.html?roomId=LP115924473
-https://app.blued.cn/live?id=Mp6G2R
-https://www.7u66.com/100960
-https://live.tlclw.com/106188
-https://live.ybw1666.com/800002949
-https://www.zhihu.com/people/ac3a467005c5d20381a82230101308e9
-https://m.pp.weimipopo.com/live/preview.html?anchorUid=91625862
-https://h.catshow168.com/live/preview.html?anchorUid=18895331
-https://www.imkktv.com/h5/share/video.html?roomId=1710496
-https://3.cn/28MLBy-E
-https://www.pandalive.co.kr/live/play/bara0109
-https://www.winktv.co.kr/live/play/anjer1004
-https://www.twitch.tv/example
-https://www.youtube.com/watch?v=example
-https://live.shopee.sg/share?from=live&session=802458
-https://twitcasting.tv/example
-https://www.faceit.com/zh/players/qpjzz/stream
-https://weibo.com/l/wblive/p/show/1022:2321325026370190442592
-https://www.huajiao.com/l/345096174
-https://play.sooplive.co.kr/sw7love
-https://www.flextv.co.kr/channels/593127/live
-https://www.popkontv.com/live/view?castId=wjfal007&partnerCode=P-00117
-https://look.163.com/live?id=65108820
-https://tbzb.taobao.com/live?liveId=532359023188
-https://www.liveme.com/zh/v/17141543493018047815/index.html
-https://www.tiktok.com/@example/live
-https://example.com/live/index.m3u8
-```
+部分平台需要 Cookie 或代理才能稳定检测和录制，说明见 [Wiki](https://github.com/qzj1472/Emerde/wiki)。
 
-Some platforms may require cookies, a proxy, or a specific regional network route. Platform APIs can change over time, so resolver behavior may need updates when a site changes its web interface.
+## 支持平台
 
-## Windows Only
+支持 **40+** 平台，包括抖音、哔哩哔哩、Twitch、YouTube、快手、虎牙、斗鱼、小红书等，也可以直接录制 `.m3u8` / `.flv` 直链。
 
-Emerde is a Windows-only WPF application.
+完整名单和链接示例见 [Wiki · 支持平台](https://github.com/qzj1472/Emerde/wiki/支持平台)。
 
-| OS | Framework | Status |
-| -- | --------- | ------ |
-| Windows | WPF | Supported |
+## 隐私 · 许可 · 致谢
 
-## Project Structure
-
-| Path | Purpose |
-| ---- | ------- |
-| `src/Emerde` | Windows WPF application |
-| `build` | Windows packaging assets and scripts |
-| `doc` | Extension development and project documentation |
-| `branding` | Product icons and branding assets |
-| `tests/Emerde.Tests` | Automated tests |
-
-## Privacy Policy
-
-See the [Privacy Policy](PrivacyPolicy.md).
-
-## License
-
-Emerde is distributed as a whole under the [GNU General Public License v3.0 only](LICENSE) (`GPL-3.0-only`). Portions derived from the original MIT-licensed project remain available under their original MIT terms. The original copyright and license notice is preserved in [licenses/MIT.txt](licenses/MIT.txt). See [Third Party Notices](THIRD_PARTY_NOTICES.md) for attribution and dependency licensing details.
-
-## Thanks
-
-Emerde's multi-platform live stream resolver design references ideas and platform behavior from [DouyinLiveRecorder](https://github.com/ihmily/DouyinLiveRecorder). See [Third Party Notices](THIRD_PARTY_NOTICES.md).
+- **隐私：** 数据只保存在本机，不会上传账号或录像。详见 [隐私政策](PrivacyPolicy.zh-Hans.md)。
+- **许可：** 以 [GPL-3.0-only](LICENSE) 发布。
+- **致谢：** 多平台直播解析参考了 [DouyinLiveRecorder](https://github.com/ihmily/DouyinLiveRecorder)。
