@@ -407,7 +407,7 @@ public sealed class FocusVisualTests
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AddRoomContentDialog.xaml"));
         XElement textBox = document.Descendants()
-            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomUrlTextBox");
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "UiXRoomUrlTextBox");
 
         Assert.Equal("{Binding Url, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}", (string?)textBox.Attribute("Text"));
     }
@@ -416,32 +416,19 @@ public sealed class FocusVisualTests
     public void AddRoomDialog_UsesOneUniformInputBorderWithoutTextBoxElevation()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AddRoomContentDialog.xaml"));
-        XElement border = document.Descendants()
-            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomUrlInputBorder");
         XElement textBox = document.Descendants()
-            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomUrlTextBox");
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "UiXRoomUrlTextBox");
 
-        Assert.Equal("1", (string?)border.Attribute("BorderThickness"));
-        Assert.Equal("{DynamicResource ControlStrokeColorDefaultBrush}", (string?)border.Attribute("BorderBrush"));
-        Assert.Equal("False", (string?)border.Attribute("IsHitTestVisible"));
-        Assert.Same(border.Parent, textBox.Parent);
-        Assert.Equal("0", (string?)textBox.Attribute("BorderThickness"));
-        Assert.Equal("Transparent", (string?)textBox.Attribute("BorderBrush"));
-        Assert.Equal("{x:Null}", (string?)textBox.Attribute("FocusVisualStyle"));
+        Assert.DoesNotContain(document.Descendants(), element =>
+            (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomUrlInputBorder");
         Assert.Equal("RoomUrlTextBoxFocusWithinChanged", (string?)textBox.Attribute("IsKeyboardFocusWithinChanged"));
-        Assert.Contains(textBox.Descendants(), element =>
-            element.Name.LocalName == "SolidColorBrush"
-            && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "ControlStrokeColorDefaultBrush"
-            && (string?)element.Attribute("Color") == "Transparent");
-        Assert.Contains(textBox.Descendants(), element =>
-            element.Name.LocalName == "SolidColorBrush"
-            && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "TextControlFocusedBorderBrush"
-            && (string?)element.Attribute("Color") == "Transparent");
 
         string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "AddRoomContentDialog.xaml.cs"));
-        Assert.Contains("(IsUiXEnabled ? UiXRoomUrlTextBox : RoomUrlTextBox).IsKeyboardFocusWithin", source);
-        Assert.Contains("SystemAccentColorPrimaryBrush", source);
-        Assert.Contains("ControlStrokeColorDefaultBrush", source);
+        Assert.Contains("UiXRoomUrlTextBox.IsKeyboardFocusWithin", source);
+        Assert.Contains("UiXSelectionStrokeBrush", source);
+        Assert.Contains("UiXStrongStrokeBrush", source);
+        Assert.DoesNotContain("SystemAccentColorPrimaryBrush", source);
+        Assert.DoesNotContain("ControlStrokeColorDefaultBrush", source);
     }
 
     [Theory]
@@ -908,7 +895,7 @@ public sealed class FocusVisualTests
     }
 
     [Theory]
-    [InlineData("RoomCardSelectionLayer", "MainWindow.xaml")]
+    [InlineData("RoomCardUiXSelectionLayer", "MainWindow.xaml")]
     public void SelectionLayers_DoNotSetFinalOpacityBeforeAnimation(string elementName, string fileName)
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", fileName));
@@ -977,7 +964,7 @@ public sealed class FocusVisualTests
         XElement card = document.Descendants()
             .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomCardShell");
         XElement selectionLayer = document.Descendants()
-            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomCardSelectionLayer");
+            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomCardUiXSelectionLayer");
         XElement content = document.Descendants()
             .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomCardContent");
         XElement surface = card.Elements().Single(element => element.Name.LocalName == "Grid");
@@ -985,9 +972,8 @@ public sealed class FocusVisualTests
         Assert.Equal("0", (string?)card.Attribute("Padding"));
         Assert.Equal("0", (string?)card.Attribute("BorderThickness"));
         Assert.Equal("Transparent", (string?)card.Attribute("BorderBrush"));
-        Assert.Equal("0", (string?)selectionLayer.Attribute("Margin"));
-        Assert.Equal("#2A4DA7B0", (string?)selectionLayer.Attribute("Background"));
-        Assert.Equal("#884DA7B0", (string?)selectionLayer.Attribute("BorderBrush"));
+        Assert.Equal("{DynamicResource UiXSelectionFillBrush}", (string?)selectionLayer.Attribute("Background"));
+        Assert.Equal("{DynamicResource UiXSelectionStrokeBrush}", (string?)selectionLayer.Attribute("BorderBrush"));
         Assert.Equal("1", (string?)selectionLayer.Attribute("BorderThickness"));
         Assert.Same(surface, selectionLayer.Parent);
         Assert.Same(surface, content.Parent);
@@ -1004,16 +990,12 @@ public sealed class FocusVisualTests
             element.Name.LocalName == "Setter"
             && (string?)element.Attribute("TargetName") == "RoomCardShell"
             && (string?)element.Attribute("Property") is "BorderBrush" or "BorderThickness");
+        Assert.DoesNotContain(document.Descendants(), element =>
+            (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomCardSelectionLayer");
         Assert.Contains(document.Descendants(), element =>
-            element.Name.LocalName == "Setter"
-            && (string?)element.Attribute("TargetName") == "RoomCardSelectionLayer"
-            && (string?)element.Attribute("Background") == null
-            && (string?)element.Attribute("Value") == "#2A4DA7B0");
-        Assert.Contains(document.Descendants(), element =>
-            element.Name.LocalName == "Setter"
-            && (string?)element.Attribute("TargetName") == "RoomCardSelectionLayer"
-            && (string?)element.Attribute("Property") == "BorderBrush"
-            && (string?)element.Attribute("Value") == "#884DA7B0");
+            element.Name.LocalName == "DoubleAnimation"
+            && (string?)element.Attribute("Storyboard.TargetName") == "RoomCardUiXSelectionLayer"
+            && (string?)element.Attribute("Storyboard.TargetProperty") == "Opacity");
     }
 
     [Fact]
@@ -1291,19 +1273,15 @@ public sealed class FocusVisualTests
     }
 
     [Fact]
-    public void HomeRoomCards_KeepLegacyAndUiXLayoutsBehindTheUiXSwitch()
+    public void HomeRoomCards_UseUiXLayoutWithoutLegacyLayout()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
         string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
-        XElement legacy = document.Descendants()
-            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomCardLegacyLayout");
         XElement uiX = document.Descendants()
             .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomCardUiXLayout");
 
-        Assert.Contains(legacy.Descendants(), element =>
-            element.Name.LocalName == "Setter"
-            && (string?)element.Attribute("Property") == "Visibility"
-            && (string?)element.Attribute("Value") == "Collapsed");
+        Assert.DoesNotContain(document.Descendants(), element =>
+            (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomCardLegacyLayout");
         Assert.Contains(uiX.Descendants(), element =>
             element.Name.LocalName == "Setter"
             && (string?)element.Attribute("Property") == "Visibility"
@@ -1509,34 +1487,24 @@ public sealed class FocusVisualTests
     }
 
     [Fact]
-    public void VideoList_KeepsLegacyListAndUiXCardLayoutsBehindTheUiXSwitch()
+    public void VideoList_UsesUiXCardLayoutsAndVirtualization()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
         XElement listStyle = document.Descendants()
             .First(element => element.Name.LocalName == "Style"
                 && (string?)element.Attribute("BasedOn") == "{StaticResource VideoListBoxStyle}");
-        XElement legacy = document.Descendants()
-            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "VideoCardLegacyLayout");
         XElement uiX = document.Descendants()
             .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "VideoCardUiXLayout");
         XElement groupPanel = document.Descendants()
             .Single(element => element.Name.LocalName == "ItemsPanelTemplate"
                 && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "UiXVideoGroupPanelTemplate");
-        XElement legacyListPanel = listStyle.Elements()
-            .Single(element => element.Name.LocalName == "Setter"
-                && (string?)element.Attribute("Property") == "ItemsPanel")
-            .Descendants()
-            .Single(element => element.Name.LocalName == "ItemsPanelTemplate");
-        XElement uiXListPanel = listStyle.Descendants()
+        XElement uiXListPanel = listStyle.Elements()
             .Where(element => element.Name.LocalName == "Setter"
                 && (string?)element.Attribute("Property") == "ItemsPanel")
-            .Skip(1)
             .Single()
             .Descendants()
             .Single(element => element.Name.LocalName == "ItemsPanelTemplate");
 
-        Assert.Contains(legacyListPanel.Descendants(), element => element.Name.LocalName == "VirtualizingStackPanel"
-            && (string?)element.Attribute("IsItemsHost") == "True");
         Assert.Contains(uiXListPanel.Descendants(), element => element.Name.LocalName == "VirtualizingWrapPanel"
             && (string?)element.Attribute("IsItemsHost") == "True"
             && ((string?)element.Attribute("ItemSize"))?.StartsWith("{Binding VideoCardItemSize", StringComparison.Ordinal) == true
@@ -1546,13 +1514,12 @@ public sealed class FocusVisualTests
         Assert.Contains(document.Descendants(), element =>
             element.Name.LocalName == "ControlTemplate"
             && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "UiXVideoGroupTemplate");
+        Assert.DoesNotContain(listStyle.Descendants(), element => element.Name.LocalName == "DataTrigger");
         XElement videoList = document.Descendants()
             .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "VideoListBox");
         Assert.Equal("True", (string?)videoList.Attribute("VirtualizingPanel.IsVirtualizingWhenGrouping"));
-        Assert.Contains(legacy.Descendants(), element =>
-            element.Name.LocalName == "Setter"
-            && (string?)element.Attribute("Property") == "Visibility"
-            && (string?)element.Attribute("Value") == "Collapsed");
+        Assert.DoesNotContain(document.Descendants(), element =>
+            (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "VideoCardLegacyLayout");
         Assert.Contains(uiX.Descendants(), element =>
             element.Name.LocalName == "Setter"
             && (string?)element.Attribute("Property") == "Visibility"
@@ -1673,10 +1640,10 @@ public sealed class FocusVisualTests
     public void AddRoomDetectionSummary_DoesNotDrawAnInputAdjacentBorder()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "AddRoomContentDialog.xaml"));
-        XElement summary = document.Descendants()
-            .Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomDetectionSummary");
-
-        Assert.Equal("0", (string?)summary.Attribute("BorderThickness"));
+        Assert.DoesNotContain(document.Descendants(), element =>
+            (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "RoomDetectionSummary");
+        Assert.DoesNotContain(document.Descendants(), element =>
+            (string?)element.Attribute("Style") == "{StaticResource EmerdeDialogSectionStyle}");
     }
 
     [Fact]

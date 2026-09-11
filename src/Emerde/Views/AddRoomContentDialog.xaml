@@ -30,110 +30,11 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
-        <ui:StackPanel Grid.Row="0" Spacing="10">
-            <ui:StackPanel.Style>
-                <Style TargetType="{x:Type ui:StackPanel}">
-                    <Setter Property="Visibility" Value="Visible" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsUiXEnabled}" Value="True">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </ui:StackPanel.Style>
-            <TextBlock Style="{StaticResource EmerdeDialogSectionTitleTextStyle}" Text="{I18N EnterRoomUrl}" />
-            <Grid>
-                <ui:TextBox x:Name="RoomUrlTextBox"
-                            BorderBrush="Transparent"
-                            BorderThickness="0"
-                            FocusVisualStyle="{x:Null}"
-                            IsKeyboardFocusWithinChanged="RoomUrlTextBoxFocusWithinChanged"
-                            PlaceholderText="https://live.douyin.com/xxx / https://live.bilibili.com/xxx"
-                            Text="{Binding Url, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
-                    <ui:TextBox.Resources>
-                        <SolidColorBrush x:Key="ControlStrokeColorDefaultBrush" Color="Transparent" />
-                        <SolidColorBrush x:Key="TextControlFocusedBorderBrush" Color="Transparent" />
-                    </ui:TextBox.Resources>
-                </ui:TextBox>
-                <Border x:Name="RoomUrlInputBorder"
-                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="{DynamicResource ControlCornerRadius}"
-                        IsHitTestVisible="False" />
-            </Grid>
-            <Border x:Name="RoomDetectionSummary"
-                    Padding="14,10"
-                    BorderThickness="0"
-                    Style="{StaticResource EmerdeDialogSectionStyle}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0"
-                               Grid.Column="0"
-                               Margin="0,0,12,4"
-                               Style="{StaticResource EmerdeDialogSecondaryTextStyle}"
-                               Text="{I18N Platform}" />
-                    <TextBlock Grid.Row="0"
-                               Grid.Column="1"
-                               Margin="0,0,0,4"
-                               Text="{Binding DetectedPlatformName}">
-                        <TextBlock.Style>
-                            <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource EmerdeDialogSectionTitleTextStyle}">
-                                <Setter Property="Foreground" Value="{DynamicResource UiXTextSecondaryBrush}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsDetectedPlatformSupported}" Value="True">
-                                        <Setter Property="Foreground" Value="{DynamicResource UiXTextPrimaryBrush}" />
-                                    </DataTrigger>
-                                    <MultiDataTrigger>
-                                        <MultiDataTrigger.Conditions>
-                                            <Condition Binding="{Binding HasRoomUrl}" Value="True" />
-                                            <Condition Binding="{Binding IsDetectedPlatformSupported}" Value="False" />
-                                        </MultiDataTrigger.Conditions>
-                                        <Setter Property="Foreground" Value="{DynamicResource UiXDangerForegroundBrush}" />
-                                    </MultiDataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    <TextBlock Grid.Row="1"
-                               Grid.Column="0"
-                               Margin="0,0,12,0"
-                               Style="{StaticResource EmerdeDialogSecondaryTextStyle}"
-                               Text="{I18N Supported}" />
-                    <TextBlock Grid.Row="1"
-                               Grid.Column="1"
-                               Style="{StaticResource EmerdeDialogBodyTextStyle}"
-                               Text="{Binding SupportedPlatformsText}" />
-                </Grid>
-            </Border>
-            <ui:StackPanel Margin="0,2,0,0" Spacing="6">
-                <CheckBox Content="{Binding SkipValidationText}"
-                          IsChecked="{Binding IsForcedAdd, Mode=TwoWay}" />
-                <CheckBox Content="{Binding FollowGlobalSettingsText}"
-                          IsChecked="{Binding IsFollowGlobalSettings, Mode=TwoWay}" />
-            </ui:StackPanel>
-        </ui:StackPanel>
         <StackPanel Grid.Row="0">
             <StackPanel.Resources>
                 <StaticResource x:Key="EmerdeTextInputBorderBrush" ResourceKey="UiXStrongStrokeBrush" />
                 <StaticResource x:Key="EmerdeTextInputFocusedBorderBrush" ResourceKey="UiXSelectionStrokeBrush" />
             </StackPanel.Resources>
-            <StackPanel.Style>
-                <Style TargetType="{x:Type StackPanel}">
-                    <Setter Property="Visibility" Value="Collapsed" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsUiXEnabled}" Value="True">
-                            <Setter Property="Visibility" Value="Visible" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </StackPanel.Style>
             <Border Padding="20"
                     Background="{DynamicResource UiXDialogSectionBrush}"
                     CornerRadius="{StaticResource UiXSurfaceCornerRadius}">

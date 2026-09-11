@@ -407,10 +407,15 @@ public partial class SettingsViewModel : ReactiveObject
     }
 
     [ObservableProperty]
-    private bool isUiXEnabled = Configurations.IsUiXEnabled.Get();
+    private bool isUiXEnabled = true;
 
     partial void OnIsUiXEnabledChanged(bool value)
     {
+        if (!value)
+        {
+            IsUiXEnabled = true;
+            return;
+        }
         Configurations.IsUiXEnabled.Set(value);
         ConfigurationSaveScheduler.Request();
         NotifyRuntimeConfigurationChanged();

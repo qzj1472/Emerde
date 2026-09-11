@@ -14,7 +14,6 @@ namespace Emerde.Views;
 [ObservableObject]
 public sealed partial class AddRoomContentDialog : ContentDialog
 {
-    private const double ExpandedDialogHeightRatio = 0.95d;
     private readonly CancellationTokenSource lifetimeCancellation = new();
     private readonly Stopwatch loadingAnimationClock = new();
     private BitmapSource[]? loadingFrames;
@@ -116,14 +115,13 @@ public sealed partial class AddRoomContentDialog : ContentDialog
 
     private void AddRoomContentDialogLoaded(object sender, System.Windows.RoutedEventArgs e)
     {
-        IsUiXEnabled = Application.Current?.MainWindow?.DataContext is MainViewModel { StatusOfIsUiXEnabled: true };
+        IsUiXEnabled = true;
         _ = Dispatcher.BeginInvoke(
             DispatcherPriority.ContextIdle,
             new Action(() =>
             {
-                FrameworkElement input = IsUiXEnabled ? UiXRoomUrlTextBox : RoomUrlTextBox;
-                input.Focus();
-                Keyboard.Focus(input);
+                UiXRoomUrlTextBox.Focus();
+                Keyboard.Focus(UiXRoomUrlTextBox);
                 UpdateRoomUrlInputBorder();
                 UpdateDialogSize();
             }));
@@ -136,30 +134,8 @@ public sealed partial class AddRoomContentDialog : ContentDialog
             return;
         }
 
-        if (!IsUiXEnabled && IsFollowGlobalSettings)
-        {
-            LocalSettingsContentDialog.ClearWideDialogVisualSize(this);
-            Width = double.NaN;
-            Height = double.NaN;
-            MinWidth = 0d;
-            MinHeight = 0d;
-            MaxWidth = double.PositiveInfinity;
-            MaxHeight = double.PositiveInfinity;
-            AddRoomSurface.Width = double.NaN;
-            AddRoomSurface.Height = double.NaN;
-            AddRoomSurface.MinWidth = 0d;
-            AddRoomSurface.MinHeight = 0d;
-            AddRoomSurface.MaxWidth = double.PositiveInfinity;
-            AddRoomSurface.MaxHeight = double.PositiveInfinity;
-            return;
-        }
-
-        double widthRatio = IsUiXEnabled
-            ? IsFollowGlobalSettings ? 0.62d : 0.78d
-            : LocalSettingsContentDialog.DialogWidthRatioValue;
-        double heightRatio = IsUiXEnabled
-            ? IsFollowGlobalSettings ? 0.58d : 0.84d
-            : ExpandedDialogHeightRatio;
+        double widthRatio = IsFollowGlobalSettings ? 0.62d : 0.78d;
+        double heightRatio = IsFollowGlobalSettings ? 0.58d : 0.84d;
         if (!LocalSettingsContentDialog.TryGetDialogVisualSize(
                 Application.Current?.MainWindow,
                 widthRatio,
@@ -170,11 +146,8 @@ public sealed partial class AddRoomContentDialog : ContentDialog
             return;
         }
 
-        if (IsUiXEnabled)
-        {
-            targetWidth = Math.Min(targetWidth, IsFollowGlobalSettings ? 900d : 1120d);
-            targetHeight = Math.Min(targetHeight, IsFollowGlobalSettings ? 620d : 880d);
-        }
+        targetWidth = Math.Min(targetWidth, IsFollowGlobalSettings ? 900d : 1120d);
+        targetHeight = Math.Min(targetHeight, IsFollowGlobalSettings ? 620d : 880d);
 
         LocalSettingsContentDialog.ApplyWideDialogVisualSize(this, targetWidth, targetHeight);
         AddRoomSurface.Width = double.NaN;
@@ -192,17 +165,10 @@ public sealed partial class AddRoomContentDialog : ContentDialog
 
     private void UpdateRoomUrlInputBorder()
     {
-        string brushKey = (IsUiXEnabled ? UiXRoomUrlTextBox : RoomUrlTextBox).IsKeyboardFocusWithin
-            ? IsUiXEnabled ? "UiXSelectionStrokeBrush" : "SystemAccentColorPrimaryBrush"
-            : IsUiXEnabled ? "UiXStrongStrokeBrush" : "ControlStrokeColorDefaultBrush";
-        if (IsUiXEnabled)
-        {
-            UiXRoomUrlTextBox.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, brushKey);
-        }
-        else
-        {
-            RoomUrlInputBorder.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, brushKey);
-        }
+        string brushKey = UiXRoomUrlTextBox.IsKeyboardFocusWithin
+            ? "UiXSelectionStrokeBrush"
+            : "UiXStrongStrokeBrush";
+        UiXRoomUrlTextBox.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, brushKey);
     }
 
     private async void OnPrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs e)

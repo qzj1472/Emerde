@@ -602,6 +602,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     public MainViewModel()
     {
+        Configurations.IsUiXEnabled.Set(true);
+        ConfigurationSaveScheduler.Request();
+        StatusOfIsUiXEnabled = true;
         previewVolumeBeforeMute = Math.Clamp(Configurations.PreviewVolume.Get(), 1, 100);
         isPreviewMuted = Configurations.IsPreviewMuted.Get();
         previewVolume = isPreviewMuted ? 0 : previewVolumeBeforeMute;
@@ -781,7 +784,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         StatusOfIsToMonitor = isToMonitor;
         StatusOfIsToRecord = isToRecord;
         StatusOfIsUseProxy = Configurations.IsUseProxy.Get();
-        StatusOfIsUiXEnabled = Configurations.IsUiXEnabled.Get();
+        StatusOfIsUiXEnabled = true;
         StatusOfIsUseKeepAwake = Configurations.IsUseKeepAwake.Get();
         StatusOfIsUseAutoShutdown = Configurations.IsUseAutoShutdown.Get();
         StatusOfAutoShutdownTime = Configurations.AutoShutdownTime.Get();

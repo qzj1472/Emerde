@@ -305,7 +305,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         ShowIdentityHeader = showIdentityHeader;
         ShowSettingsHeader = showSettingsHeader;
         useGlobalQualityOptionsWhenPlatformUnknown = useGlobalQualityOptions;
-        IsUiXEnabled = Configurations.IsUiXEnabled.Get();
+        IsUiXEnabled = true;
         QualityOptions = useGlobalQualityOptions
             ? StreamQualityCatalog.GlobalOptions
             : StreamQualityCatalog.GetOptions(room.PlatformName);
@@ -329,7 +329,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
     {
         Locale.CultureChanged -= LocaleCultureChanged;
         Locale.CultureChanged += LocaleCultureChanged;
-        IsUiXEnabled = Application.Current?.MainWindow?.DataContext is MainViewModel { StatusOfIsUiXEnabled: true };
+        IsUiXEnabled = true;
     }
 
     private void LocalSettingsContentDialogUnloaded(object sender, RoutedEventArgs e)
@@ -456,20 +456,16 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
     {
         void ApplySize()
         {
-            bool uiXEnabled = Application.Current?.MainWindow?.DataContext is MainViewModel { StatusOfIsUiXEnabled: true };
-            if (!TryGetDialogVisualSize(owner, uiXEnabled ? 0.78d : DialogWidthRatio, uiXEnabled ? 0.82d : DialogHeightRatio, out double targetWidth, out double targetHeight))
+            if (!TryGetDialogVisualSize(owner, 0.78d, 0.82d, out double targetWidth, out double targetHeight))
             {
                 return;
             }
 
-            if (uiXEnabled)
-            {
-                Window? reference = owner ?? Application.Current?.MainWindow;
-                double availableWidth = reference?.ActualWidth > 1d ? reference.ActualWidth - 32d : 1120d;
-                double availableHeight = reference?.ActualHeight > 1d ? reference.ActualHeight - 32d : 860d;
-                targetWidth = Math.Min(Math.Clamp(targetWidth, 760d, 1120d), Math.Max(1d, availableWidth));
-                targetHeight = Math.Min(Math.Clamp(targetHeight, 560d, 860d), Math.Max(1d, availableHeight));
-            }
+            Window? reference = owner ?? Application.Current?.MainWindow;
+            double availableWidth = reference?.ActualWidth > 1d ? reference.ActualWidth - 32d : 1120d;
+            double availableHeight = reference?.ActualHeight > 1d ? reference.ActualHeight - 32d : 860d;
+            targetWidth = Math.Min(Math.Clamp(targetWidth, 760d, 1120d), Math.Max(1d, availableWidth));
+            targetHeight = Math.Min(Math.Clamp(targetHeight, 560d, 860d), Math.Max(1d, availableHeight));
 
             ApplyWideDialogVisualSize(dialog, targetWidth, targetHeight);
 

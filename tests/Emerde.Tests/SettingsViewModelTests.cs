@@ -591,7 +591,7 @@ public sealed class SettingsViewModelTests
         Assert.Contains("RoutineScheduleStartDate = settings.RoutineScheduleStartDate", editorCode, StringComparison.Ordinal);
         Assert.Contains("RoutineScheduleUseDays = settings.RoutineScheduleUseDays", editorCode, StringComparison.Ordinal);
         Assert.Contains("RoutineScheduleUseTimeRange = settings.RoutineScheduleUseTimeRange", editorCode, StringComparison.Ordinal);
-        Assert.Contains("IsUiXEnabled = Configurations.IsUiXEnabled.Get()", editorCode, StringComparison.Ordinal);
+        Assert.Contains("IsUiXEnabled = true", editorCode, StringComparison.Ordinal);
         Assert.Contains("HasRoutineScheduleDayRestriction", editorCode, StringComparison.Ordinal);
         Assert.Contains("HasRoutineScheduleTimeRestriction", editorCode, StringComparison.Ordinal);
         Assert.Contains("SaveFileNameCustomRule = settings.SaveFileNameCustomRule", editorCode, StringComparison.Ordinal);

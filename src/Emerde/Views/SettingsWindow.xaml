@@ -378,7 +378,8 @@
                     </Grid.Style>
                 <ui:StackPanel x:Name="SettingsStackPanel"
                                HorizontalAlignment="Stretch"
-                               Spacing="8">
+                               Spacing="8"
+                               Visibility="Collapsed">
                     <TextBlock Margin="4,0,0,4"
                                FontSize="14"
                                Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
@@ -462,29 +463,6 @@
                             <ui:ToggleSwitch Grid.Column="2"
                                              Margin="0,0,28,0"
                                              IsChecked="{Binding IsUseStatusTray, Mode=TwoWay}" />
-                        </ui:Grid>
-                    </ui:Card>
-                    <ui:Card x:Name="UiXSettingsCard">
-                        <ui:Grid MinHeight="35" ColumnDefinitions="Auto,*,Auto">
-                            <Grid Grid.Column="0" Margin="0,0,12,0">
-                                <TextBlock MinWidth="26"
-                                           Margin="4,0,0,0"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           FontFamily="{DynamicResource SymbolThemeFontFamily}"
-                                           FontSize="18"
-                                           Text="{x:Static ui:FontSymbols.Settings}" />
-                            </Grid>
-                            <ui:Grid Grid.Column="1" RowDefinitions="Auto,Auto">
-                                <TextBlock Grid.Row="0" Text="{I18N UIX}" />
-                                <TextBlock Grid.Row="1"
-                                           FontSize="11"
-                                           Foreground="{DynamicResource SystemFillColorSolidNeutralBrush}"
-                                           Text="{I18N UIXHint}" />
-                            </ui:Grid>
-                            <ui:ToggleSwitch Grid.Column="2"
-                                             Margin="0,0,28,0"
-                                             IsChecked="{Binding IsUiXEnabled, Mode=TwoWay}" />
                         </ui:Grid>
                     </ui:Card>
                     <ui:Card x:Name="ShortcutSettingsCard">
@@ -1491,8 +1469,7 @@
                     </ui:CardExpander>
                     <FrameworkElement Height="10" />
                 </ui:StackPanel>
-                <Grid x:Name="SettingsUiXPanel"
-                      Visibility="Collapsed">
+                <Grid x:Name="SettingsUiXPanel">
                     <Grid.Resources>
                         <StaticResource x:Key="EmerdeTextInputBorderBrush" ResourceKey="UiXStrongStrokeBrush" />
                         <StaticResource x:Key="EmerdeTextInputFocusedBorderBrush" ResourceKey="UiXSelectionStrokeBrush" />

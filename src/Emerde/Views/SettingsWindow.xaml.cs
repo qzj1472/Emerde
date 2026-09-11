@@ -89,7 +89,7 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
         ApplySettingsLayoutMode();
         long initializeElapsed = stopwatch.ElapsedMilliseconds;
         int deferredCount = DeferCollapsedCardExpanderContent(SettingsContentRoot);
-        int deferredSectionCount = ViewModel.IsUiXEnabled ? 0 : DeferStartupSections();
+        int deferredSectionCount = 0;
         Loaded += SettingsDialogLoaded;
         IsVisibleChanged += SettingsDialogIsVisibleChanged;
         Unloaded += SettingsDialogUnloaded;
@@ -419,8 +419,8 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
             AddSettingsSection(section);
         }
 
-        SettingsStackPanel.Visibility = ViewModel.IsUiXEnabled ? Visibility.Collapsed : Visibility.Visible;
-        SettingsUiXPanel.Visibility = ViewModel.IsUiXEnabled ? Visibility.Visible : Visibility.Collapsed;
+        SettingsStackPanel.Visibility = Visibility.Collapsed;
+        SettingsUiXPanel.Visibility = Visibility.Visible;
         ApplyCardExpanderLayoutMode();
         ApplySettingsDependentVisibilityMode();
         UpdateSettingsUiXItemWidths(preserveScrollOffset: false);
@@ -428,11 +428,6 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
 
     private IReadOnlyList<UIElement> GetSettingsLayoutOrder()
     {
-        if (!ViewModel.IsUiXEnabled)
-        {
-            return settingsSectionOrder;
-        }
-
         IEnumerable<UIElement> sections = (selectedSettingsFocus == 0
             ? settingsSectionOrder
             : settingsSectionOrder.Where(IsSettingsSectionInSelectedFocus))
@@ -642,13 +637,6 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
     {
         RemoveSettingsSectionFromParent(section);
 
-        if (!ViewModel.IsUiXEnabled)
-        {
-            SettingsStackPanel.Children.Add(section);
-            ApplySettingsSectionChrome(section);
-            return;
-        }
-
         AddSettingsSectionToUiX(section);
         ApplySettingsSectionChrome(section);
     }
@@ -838,7 +826,6 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
             _ when ReferenceEquals(section, LanguageSettingsCard)
                 || ReferenceEquals(section, ThemeSettingsCard)
                 || ReferenceEquals(section, TraySettingsCard)
-                || ReferenceEquals(section, UiXSettingsCard)
                 || ReferenceEquals(section, ShortcutSettingsCard) => 0,
             _ when ReferenceEquals(section, LogsSettingsCard)
                 || ReferenceEquals(section, ConfigSettingsCard) => 1,
