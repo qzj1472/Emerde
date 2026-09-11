@@ -1274,6 +1274,7 @@
   <data name="UndoVideoSelection" xml:space="preserve"><value>動画の選択を元に戻す</value></data>
   <data name="RedoVideoSelection" xml:space="preserve"><value>動画の選択をやり直す</value></data>
   <data name="ImportantNotes" xml:space="preserve"><value>重要な注意事項</value></data>
+  <data name="AboutAutomaticSegmentation" xml:space="preserve"><value>• 自動分割は録画異常、再接続、復旧のためのフォールバックです。設定で分割をカスタマイズできます。既定の自動分割は最後に 1 つの成果物へ結合され、設定で有効にしたカスタム分割は結合されず複数の独立した成果物として残ります</value></data>
   <data name="AboutDoNotForceStopRecording" xml:space="preserve"><value>• 録画ファイルの書き込み中は、Emerde の強制終了、電源切断、関連ファイルの削除をしないでください</value></data>
   <data name="AboutKeepDependencies" xml:space="preserve"><value>• ffmpeg や libvlc などの依存フォルダーを削除したり、個別に移動したりしないでください</value></data>
   <data name="AboutEnsureDiskSpace" xml:space="preserve"><value>• 録画の中断やファイル破損を防ぐため、保存先ディスクに十分な空き容量を確保してください</value></data>

@@ -1008,6 +1008,7 @@
                         <ui:StackPanel Spacing="8">
                             <TextBlock Style="{StaticResource AboutWarningTitleStyle}"
                                        Text="{I18N ImportantNotes}" />
+                            <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutAutomaticSegmentation}" />
                             <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutDoNotForceStopRecording}" />
                             <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutKeepDependencies}" />
                             <TextBlock Style="{StaticResource AboutBulletTextStyle}" Text="{I18N AboutEnsureDiskSpace}" />

@@ -117,7 +117,13 @@ namespace Emerde.Properties {
         /// <summary>
         ///   Looks up a localized string similar to • Do not force Emerde to exit, power off, or delete related files while a recording is being written.
         /// </summary>
-        public static string AboutDoNotForceStopRecording {
+                public static string AboutAutomaticSegmentation {
+            get {
+                return ResourceManager.GetString("AboutAutomaticSegmentation", resourceCulture);
+            }
+        }
+
+public static string AboutDoNotForceStopRecording {
             get {
                 return ResourceManager.GetString("AboutDoNotForceStopRecording", resourceCulture);
             }

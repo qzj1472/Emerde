@@ -1271,6 +1271,7 @@
   <data name="UndoVideoSelection" xml:space="preserve"><value>撤销视频选择</value></data>
   <data name="RedoVideoSelection" xml:space="preserve"><value>恢复视频选择</value></data>
   <data name="ImportantNotes" xml:space="preserve"><value>重要注意事项</value></data>
+  <data name="AboutAutomaticSegmentation" xml:space="preserve"><value>• 自动分段是录制异常、重连和恢复场景的兜底机制；仍可在设置中自定义分段。默认自动分段最后会合并为一个成品，设置中主动启用的自定义分段不会自动合并，会保留为多个独立成品</value></data>
   <data name="AboutDoNotForceStopRecording" xml:space="preserve"><value>• 录制文件仍在写入时，请勿强制结束软件、断电或删除相关文件</value></data>
   <data name="AboutKeepDependencies" xml:space="preserve"><value>• 不要删除或单独移动 ffmpeg、libvlc 等程序依赖文件夹</value></data>
   <data name="AboutEnsureDiskSpace" xml:space="preserve"><value>• 请确保保存磁盘有足够空间，避免录制中断或文件损坏</value></data>

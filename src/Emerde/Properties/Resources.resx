@@ -1271,6 +1271,7 @@
   <data name="UndoVideoSelection" xml:space="preserve"><value>Undo video selection</value></data>
   <data name="RedoVideoSelection" xml:space="preserve"><value>Redo video selection</value></data>
   <data name="ImportantNotes" xml:space="preserve"><value>Important notes</value></data>
+  <data name="AboutAutomaticSegmentation" xml:space="preserve"><value>• Automatic segmentation is a fallback for recording anomalies, reconnects, and recovery. You can still configure segmentation in Settings. Default fallback segments are merged into one final product; user-configured segments remain separate products.</value></data>
   <data name="AboutDoNotForceStopRecording" xml:space="preserve"><value>• Do not force Emerde to exit, power off, or delete related files while a recording is being written</value></data>
   <data name="AboutKeepDependencies" xml:space="preserve"><value>• Do not delete or move dependency folders such as ffmpeg or libvlc separately</value></data>
   <data name="AboutEnsureDiskSpace" xml:space="preserve"><value>• Keep enough free disk space to avoid interrupted recordings or damaged files</value></data>
