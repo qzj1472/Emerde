@@ -416,7 +416,7 @@ internal sealed class TrayIconManager : IDisposable
     {
         RoomStatus[] rooms = GlobalMonitor.RoomStatus.Values.ToArray();
         return new TrayMenuState(
-            $"v{Assembly.GetExecutingAssembly().GetName().Version!.ToString(3)}",
+            $"v{Assembly.GetExecutingAssembly().GetName().Version!.ToString(4)}",
             rooms.Count(room => room.StreamStatus == StreamStatus.Streaming),
             rooms.Count(room => room.RecordStatus == RecordStatus.Recording && room.Recorder.HasMediaProgress),
             Configurations.IsMonitorRunning.Get(),

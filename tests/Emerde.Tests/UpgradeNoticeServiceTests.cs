@@ -150,11 +150,47 @@ public sealed class UpgradeNoticeServiceTests
     [Fact]
     public void ReleaseNotesCatalog_UsesFourPartVersions()
     {
-        Assert.Equal("1.6.7.2", ReleaseNotesCatalog.Entries[0].Version);
+        Assert.Equal("1.6.8.2", ReleaseNotesCatalog.Entries[0].Version);
+        Assert.Contains(ReleaseNotesCatalog.Entries, entry => entry.Version == "1.6.8.2");
+        Assert.Contains(ReleaseNotesCatalog.Entries, entry => entry.Version == "1.6.8.1");
         Assert.Contains(ReleaseNotesCatalog.Entries, entry => entry.Version == "1.6.7.2");
         Assert.Contains(ReleaseNotesCatalog.Entries, entry => entry.Version == "1.6.7.1");
         Assert.Contains(ReleaseNotesCatalog.Entries, entry => entry.Version == "1.6.7.0");
         Assert.Equal("1.6.7.2", ReleaseNotesCatalog.GetEntry("1.6.7.2").Version);
+    }
+
+    [Fact]
+    public void ReleaseNotes1682_ContainsAuditRecordsForEveryDisplayedItem()
+    {
+        ReleaseNoteEntry entry = ReleaseNotesCatalog.GetEntry("1.6.8.2");
+        string[] items = entry.Sections.SelectMany(section => section.Items).ToArray();
+
+        Assert.Equal(items.Length, entry.AuditTrail.Count);
+        Assert.All(entry.AuditTrail, audit =>
+        {
+            Assert.Equal("1.6.8.2", audit.Version);
+            Assert.Equal("2026-09-12", audit.WrittenAt);
+            Assert.Contains(audit.Text, items);
+        });
+        Assert.Equal(items.Length, ReleaseNotesCatalog.AuditRecords.Count(audit => audit.Version == "1.6.8.2"));
+        Assert.Equal(7, items.Length);
+        Assert.Equal(items.Length, items.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
+    public void ReleaseNotes1681_ContainsAuditRecordsForEveryDisplayedItem()
+    {
+        ReleaseNoteEntry entry = ReleaseNotesCatalog.GetEntry("1.6.8.1");
+        string[] items = entry.Sections.SelectMany(section => section.Items).ToArray();
+
+        Assert.Equal(items.Length, entry.AuditTrail.Count);
+        Assert.All(entry.AuditTrail, audit =>
+        {
+            Assert.Equal("1.6.8.1", audit.Version);
+            Assert.Contains(audit.WrittenAt, new[] { "2026-09-07", "2026-09-10" });
+            Assert.Contains(audit.Text, items);
+        });
+        Assert.Equal(items.Length, ReleaseNotesCatalog.AuditRecords.Count(audit => audit.Version == "1.6.8.1"));
     }
 
     [Fact]
@@ -163,8 +199,8 @@ public sealed class UpgradeNoticeServiceTests
         ReleaseNoteEntry entry = ReleaseNotesCatalog.GetEntry("1.6.7.2");
         string[] items = entry.Sections.SelectMany(section => section.Items).ToArray();
 
-        Assert.Equal([6, 11, 7, 6], entry.Sections.Select(section => section.Items.Count));
-        Assert.Equal(30, items.Length);
+        Assert.Equal([6, 11, 4, 6], entry.Sections.Select(section => section.Items.Count));
+        Assert.Equal(27, items.Length);
         Assert.Equal(items.Length, items.Distinct(StringComparer.Ordinal).Count());
     }
 }

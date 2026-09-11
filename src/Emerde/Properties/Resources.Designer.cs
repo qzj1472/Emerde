@@ -114,16 +114,16 @@ namespace Emerde.Properties {
             }
         }
 
-        /// <summary>
-        ///   Looks up a localized string similar to • Do not force Emerde to exit, power off, or delete related files while a recording is being written.
-        /// </summary>
-                public static string AboutAutomaticSegmentation {
+        public static string AboutAutomaticSegmentation {
             get {
                 return ResourceManager.GetString("AboutAutomaticSegmentation", resourceCulture);
             }
         }
 
-public static string AboutDoNotForceStopRecording {
+        /// <summary>
+        ///   Looks up a localized string similar to • Do not force Emerde to exit, power off, or delete related files while a recording is being written.
+        /// </summary>
+        public static string AboutDoNotForceStopRecording {
             get {
                 return ResourceManager.GetString("AboutDoNotForceStopRecording", resourceCulture);
             }
@@ -4599,6 +4599,54 @@ public static string AboutDoNotForceStopRecording {
         public static string ReleaseNotes1671Date {
             get {
                 return ResourceManager.GetString("ReleaseNotes1671Date", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotes1681AdditionalItems {
+            get {
+                return ResourceManager.GetString("ReleaseNotes1681AdditionalItems", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotes1681Date {
+            get {
+                return ResourceManager.GetString("ReleaseNotes1681Date", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotes1681Items {
+            get {
+                return ResourceManager.GetString("ReleaseNotes1681Items", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotes1681Title {
+            get {
+                return ResourceManager.GetString("ReleaseNotes1681Title", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotes1682AdditionalItems {
+            get {
+                return ResourceManager.GetString("ReleaseNotes1682AdditionalItems", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotes1682Date {
+            get {
+                return ResourceManager.GetString("ReleaseNotes1682Date", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotes1682Items {
+            get {
+                return ResourceManager.GetString("ReleaseNotes1682Items", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotes1682Title {
+            get {
+                return ResourceManager.GetString("ReleaseNotes1682Title", resourceCulture);
             }
         }
 
