@@ -273,6 +273,22 @@ internal static class VideoRecordingMetadataStore
                 || metadata.DurationSeconds > 0);
     }
 
+    internal static string AddMediaIssue(string current, string issue)
+    {
+        if (string.IsNullOrWhiteSpace(issue))
+        {
+            return current ?? string.Empty;
+        }
+
+        return (current ?? string.Empty)
+            .Split([';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Append(issue)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray() is { Length: > 0 } issues
+                ? string.Join(';', issues)
+                : issue;
+    }
+
     public static VideoRecordingMetadata Merge(VideoRecordingMetadata preferred, VideoRecordingMetadata? fallback)
     {
         if (!HasAnyMetadata(fallback))
@@ -288,7 +304,7 @@ internal static class VideoRecordingMetadataStore
             SegmentIndex = preferred.SegmentIndex >= 0 ? preferred.SegmentIndex : fallback.SegmentIndex,
             SegmentCount = preferred.SegmentCount > 0 ? preferred.SegmentCount : fallback.SegmentCount,
             SegmentKind = First(preferred.SegmentKind, fallback.SegmentKind),
-            MediaIssue = First(preferred.MediaIssue, fallback.MediaIssue),
+            MediaIssue = AddMediaIssue(preferred.MediaIssue, fallback.MediaIssue),
             WasRepaired = preferred.WasRepaired || fallback.WasRepaired,
             FileName = First(preferred.FileName, fallback!.FileName),
             NickName = First(preferred.NickName, fallback.NickName),
