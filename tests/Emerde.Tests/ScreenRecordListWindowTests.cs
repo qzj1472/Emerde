@@ -475,13 +475,8 @@ public sealed class ScreenRecordListWindowTests
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         XElement list = document.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "VideoListBox");
         XElement listStyle = list.Elements().Single(element => element.Name.LocalName == "ListBox.Style").Elements().Single();
-        XElement legacyPanel = listStyle.Elements()
-            .Single(element => element.Name.LocalName == "Setter" && (string?)element.Attribute("Property") == "ItemsPanel")
-            .Descendants()
-            .Single(element => element.Name.LocalName == "ItemsPanelTemplate");
-        XElement uiXPanel = listStyle.Descendants()
+        XElement uiXPanel = listStyle.Elements()
             .Where(element => element.Name.LocalName == "Setter" && (string?)element.Attribute("Property") == "ItemsPanel")
-            .Skip(1)
             .Single()
             .Descendants()
             .Single(element => element.Name.LocalName == "ItemsPanelTemplate");
@@ -492,7 +487,6 @@ public sealed class ScreenRecordListWindowTests
         Assert.Contains("VideoDateGroupHeaderTemplate", xaml, StringComparison.Ordinal);
         Assert.Contains("UiXVideoGroupPanelTemplate", xaml, StringComparison.Ordinal);
         Assert.Contains("UiXVideoGroupTemplate", xaml, StringComparison.Ordinal);
-        Assert.Contains(legacyPanel.Descendants(), element => element.Name.LocalName == "VirtualizingStackPanel");
         Assert.Contains(uiXPanel.Descendants(), element => element.Name.LocalName == "VirtualizingWrapPanel"
             && ((string?)element.Attribute("Width"))?.StartsWith("{Binding VideoCardGridWidth", StringComparison.Ordinal) == true
             && ((string?)element.Attribute("ItemSize"))?.StartsWith("{Binding VideoCardItemSize", StringComparison.Ordinal) == true
@@ -551,14 +545,13 @@ public sealed class ScreenRecordListWindowTests
         Assert.Contains("Text=\"{Binding UiXStreamerText}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding RecordingTimeText}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding FileSizeText}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("ImageSource=\"{Binding ThumbnailSource}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Source=\"{Binding ThumbnailSource}\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("ImageSource=\"{Binding ThumbnailPath, Converter=", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"{Binding UiXSummaryText}\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"{Binding ResolutionChipText}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("TextWrapping=\"Wrap\"", xaml, StringComparison.Ordinal);
         Assert.Contains("MaxHeight=\"32\"", xaml, StringComparison.Ordinal);
         Assert.Contains("ClipToBounds=\"True\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Text=\"{Binding DisplayFileName}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding UiXWrappedFileName}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("UiXWrappedFileName => AddFileNameBreakOpportunities(DisplayFileName)", code, StringComparison.Ordinal);
         Assert.Contains("result.Append('\\u200B')", code, StringComparison.Ordinal);
@@ -625,8 +618,12 @@ public sealed class ScreenRecordListWindowTests
         Assert.Contains("Interlocked.CompareExchange(ref videoEnrichmentWorkerCount", code, StringComparison.Ordinal);
         Assert.Contains("ThumbnailImageConverter.TryLoadImage(thumbnailPath)", code, StringComparison.Ordinal);
         Assert.Contains("item.ThumbnailSource = thumbnailSource", code, StringComparison.Ordinal);
-        Assert.Contains("MaximumCachedImages = 256", code, StringComparison.Ordinal);
-        Assert.Contains("ImageSource=\"{Binding ThumbnailSource}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("MaximumCachedImages = 128", code, StringComparison.Ordinal);
+        Assert.Contains("image.DecodePixelWidth = 192", code, StringComparison.Ordinal);
+        Assert.Contains("PruneVideoEnrichmentQueueLocked", code, StringComparison.Ordinal);
+        Assert.Contains("visibleVideoEnrichmentPaths", code, StringComparison.Ordinal);
+        Assert.Contains("activeVideoEnrichmentPaths.Contains(item.FullPath)", code, StringComparison.Ordinal);
+        Assert.Contains("Source=\"{Binding ThumbnailSource}\"", xaml, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -1007,7 +1004,7 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
-    public void VideoListUiXToolbar_UsesResponsiveRowsWithoutChangingLegacyDefaults()
+    public void VideoListUiXToolbar_UsesResponsiveRows()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
         XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
@@ -1018,16 +1015,18 @@ public sealed class ScreenRecordListWindowTests
         XElement toolbarGrid = document.Descendants()
             .Single(element => (string?)element.Attribute(xaml + "Name") == "VideoListToolbarGrid");
 
-        Assert.Equal("92", (string?)headerRow.Attribute("Height"));
-        Assert.Equal("44", (string?)toolbarRow.Attribute("Height"));
+        Assert.Equal("Auto", (string?)headerRow.Attribute("Height"));
+        Assert.Equal("Auto", (string?)toolbarRow.Attribute("Height"));
         Assert.Equal("VideoListToolbarGridSizeChanged", (string?)toolbarGrid.Attribute("SizeChanged"));
         Assert.Contains(toolbarGrid.Descendants(), element => (string?)element.Attribute(xaml + "Name") == "VideoListStreamerFilterGroup");
         Assert.Contains(toolbarGrid.Descendants(), element => (string?)element.Attribute(xaml + "Name") == "VideoListTimeFilterGroup");
         Assert.Contains(toolbarGrid.Descendants(), element => (string?)element.Attribute(xaml + "Name") == "VideoListMultiSelectToolbar");
 
         string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
-        Assert.Contains("VideoListHeaderRow.Height = isUiXEnabled ? GridLength.Auto : new GridLength(92d)", code, StringComparison.Ordinal);
-        Assert.Contains("VideoListToolbarRow.Height = isUiXEnabled ? GridLength.Auto : new GridLength(44d)", code, StringComparison.Ordinal);
+        Assert.Contains("VideoListHeaderRow.Height = GridLength.Auto", code, StringComparison.Ordinal);
+        Assert.Contains("VideoListToolbarRow.Height = GridLength.Auto", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("new GridLength(92d)", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("new GridLength(44d)", code, StringComparison.Ordinal);
         Assert.Contains("Grid.SetRow(VideoListMultiSelectToolbar, isWide ? 0 : 1)", code, StringComparison.Ordinal);
         Assert.Contains("Grid.SetRow(VideoListTimeFilterGroup, isCompact ? 1 : 0)", code, StringComparison.Ordinal);
         Assert.DoesNotContain("HorizontalScrollBarVisibility=\"Auto\"", toolbarGrid.ToString(), StringComparison.Ordinal);
@@ -1071,6 +1070,141 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
+    public void ActiveSessionParts_AreCollapsedToOneRecordingCard()
+    {
+        RecordedVideoItem first = new()
+        {
+            FullPath = @"C:\videos\record_000.ts",
+            IsRecordingFile = true,
+            RecordingSessionId = "session",
+            SegmentIndex = 0,
+        };
+        RecordedVideoItem second = new()
+        {
+            FullPath = @"C:\videos\record_001.ts",
+            IsRecordingFile = true,
+            RecordingSessionId = "session",
+            SegmentIndex = 1,
+        };
+        RecordedVideoItem completed = new()
+        {
+            FullPath = @"C:\videos\completed.mkv",
+            RecordingSessionId = "session",
+        };
+
+        RecordedVideoItem[] result = ScreenRecordListViewModel.CollapseActiveSessionParts([first, second, completed]);
+
+        Assert.Equal(2, result.Length);
+        Assert.Contains(first, result);
+        Assert.Contains(completed, result);
+        Assert.DoesNotContain(second, result);
+    }
+
+    [Fact]
+    public void ProcessingSessionArtifacts_AreCollapsedToOneOrganizingCard()
+    {
+        RecordedVideoItem first = new()
+        {
+            FullPath = @"C:\videos\record_000.ts",
+            IsInProgress = true,
+            RecordingSessionId = "session",
+            SegmentIndex = 0,
+        };
+        RecordedVideoItem second = new()
+        {
+            FullPath = @"C:\videos\record_001.ts",
+            IsInProgress = true,
+            RecordingSessionId = "session",
+            SegmentIndex = 1,
+        };
+        RecordedVideoItem intermediate = new()
+        {
+            FullPath = @"C:\videos\record.mkv",
+            IsInProgress = true,
+            RecordingSessionId = "session",
+        };
+
+        RecordedVideoItem[] result = ScreenRecordListViewModel.CollapseActiveSessionParts([first, second, intermediate]);
+
+        Assert.Single(result);
+        Assert.Contains(first, result);
+    }
+
+    [Fact]
+    public void RecoverySessionArtifacts_WithoutRecordingSessionId_AreCollapsedToOneCard()
+    {
+        RecordedVideoItem first = new()
+        {
+            FullPath = @"C:\videos\record_000.ts",
+            IsInProgress = true,
+            ProcessingSessionKey = @"C:\app\pending\one.json",
+            SegmentIndex = 0,
+        };
+        RecordedVideoItem second = new()
+        {
+            FullPath = @"C:\videos\record_001.ts",
+            ProcessingSessionKey = @"C:\app\pending\one.json",
+            SegmentIndex = 1,
+        };
+        RecordedVideoItem intermediate = new()
+        {
+            FullPath = @"C:\videos\record.mkv",
+            ProcessingSessionKey = @"C:\app\pending\one.json",
+        };
+
+        RecordedVideoItem[] result = ScreenRecordListViewModel.CollapseActiveSessionParts([first, second, intermediate]);
+
+        Assert.Single(result);
+        Assert.Contains(first, result);
+    }
+
+    [Fact]
+    public void RecoverySessionArtifacts_FromDifferentMarkers_AreNotCollapsedTogether()
+    {
+        RecordedVideoItem first = new()
+        {
+            FullPath = @"C:\videos\room-a_000.ts",
+            ProcessingSessionKey = @"C:\app\pending\one.json",
+            SegmentIndex = 0,
+        };
+        RecordedVideoItem second = new()
+        {
+            FullPath = @"C:\videos\room-b_000.ts",
+            ProcessingSessionKey = @"C:\app\pending\two.json",
+            SegmentIndex = 0,
+        };
+
+        RecordedVideoItem[] result = ScreenRecordListViewModel.CollapseActiveSessionParts([first, second]);
+
+        Assert.Equal(2, result.Length);
+    }
+
+    [Fact]
+    public void VideoCardStatusText_PreservesMultipleIndependentStates()
+    {
+        RecordedVideoItem item = new()
+        {
+            MediaIssue = "timeline_mismatch;optimized_audio_failed",
+            IsStallSegment = true,
+        };
+
+        string[] statuses = item.AttributeStatusText.Split(" · ", StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.Equal(3, statuses.Length);
+    }
+
+    [Fact]
+    public void VideoCardStatusRow_ConstrainsLongTextAndKeepsFullTooltip()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+
+        Assert.Contains("LastChildFill=\"True\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("TextTrimming=\"CharacterEllipsis\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("TextWrapping=\"NoWrap\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ToolTip=\"{Binding AttributeStatusText}\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void VideoListXaml_DisablesHorizontalScrollingAndFocusOutline()
     {
         string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
@@ -1092,11 +1226,8 @@ public sealed class ScreenRecordListWindowTests
     {
         string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
 
-        Assert.Contains("Binding=\"{Binding IsRecordingFile}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Background=\"#24D13438\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("BorderBrush=\"#80D13438\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("CornerRadius=\"{StaticResource Win11ControlCornerRadius}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Text=\"{I18N RecordStatusOfRecording}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Binding=\"{Binding HasAttributeStatus}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding AttributeStatusText}\"", xaml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1104,8 +1235,8 @@ public sealed class ScreenRecordListWindowTests
     {
         string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
 
-        Assert.Contains("Binding=\"{Binding IsStallSegment}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Text=\"{I18N StallSegmentChip}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Binding=\"{Binding HasAttributeStatus}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding AttributeStatusText}\"", xaml, StringComparison.Ordinal);
     }
 
     [Fact]
