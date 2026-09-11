@@ -227,7 +227,7 @@ public sealed class Converter
             double sourceVideoEndSeconds = sourceProbes.Sum(probe => Math.Max(0d, probe.VideoEndSeconds));
             if (!IsTrackTimelineWithinTolerance(sourceAudioEndSeconds, sourceVideoEndSeconds))
             {
-                metadata.MediaIssue = "timeline_mismatch";
+                metadata.MediaIssue = VideoRecordingMetadataStore.AddMediaIssue(metadata.MediaIssue, "timeline_mismatch");
             }
             double recordingExpectedDuration = NormalizeRecordingExpectedDuration(
                 GetRecordingExpectedDuration(metadata, sourceFileInfos),
@@ -315,7 +315,7 @@ public sealed class Converter
                 (succeeded, validationError) = await ValidateConversionAsync(result, temporaryTargetFileName, sourceProbes, optimizedAudioExpected: false, recordingExpectedDuration, token);
                 if (optimizedAudioRequired && succeeded)
                 {
-                    metadata.MediaIssue = "optimized_audio_failed";
+                    metadata.MediaIssue = VideoRecordingMetadataStore.AddMediaIssue(metadata.MediaIssue, "optimized_audio_failed");
                     AppSessionLogger.Event("warn", "converter", "optimized_audio_failed_original_preserved", "MKV kept the original audio because optimized audio failed", new
                     {
                         sourceFileNames = sourcePaths,

@@ -103,7 +103,9 @@ internal sealed class VideoRepairService
                 ? VideoRepairStatus.Repaired
                 : VideoRepairStatus.PartiallyRepaired;
             metadata.SchemaVersion = 4;
-            metadata.MediaIssue = timelineAligned ? string.Empty : "timeline_mismatch";
+            metadata.MediaIssue = timelineAligned
+                ? metadata.MediaIssue
+                : VideoRecordingMetadataStore.AddMediaIssue(metadata.MediaIssue, "timeline_mismatch");
             metadata.WasRepaired = timelineAligned;
             File.Move(temporaryPath, targetPath, false);
             _ = RecordingCoverStore.TryCopyOrCreateFinalizedCover(
