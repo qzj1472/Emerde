@@ -13,6 +13,17 @@ internal sealed record FfmpegAudioContentDiagnostic(
     int DecodeErrorCount,
     string Error);
 
+internal readonly record struct FfmpegAudioContentSample(
+    double StartSeconds,
+    double EndSeconds,
+    double Rms,
+    double Peak,
+    double LongestNearSilenceSeconds,
+    double ClippingRatio,
+    int DecodeErrorCount,
+    bool IsConclusive,
+    string State);
+
 internal static unsafe partial class FfmpegMediaEngine
 {
     private const double NearSilenceRmsThreshold = 0.0005d;
@@ -305,6 +316,262 @@ internal static unsafe partial class FfmpegMediaEngine
                     : "audio_decode_errors"
                 : error;
             return new(conclusive, SampledSeconds, rms, Peak, LongestNearSilenceSeconds, PeakFrameCount, DecodeErrorCount, resultError);
+        }
+    }
+
+    private sealed unsafe class LiveAudioContentAnalyzer : IDisposable
+    {
+        private readonly AVCodecContext* decoderContext;
+        private readonly AVFrame* frame;
+        private readonly Action<FfmpegAudioContentSample> onSample;
+        private readonly AudioContentWindowAccumulator accumulator = new();
+
+        private LiveAudioContentAnalyzer(
+            AVCodecContext* decoderContext,
+            AVFrame* frame,
+            Action<FfmpegAudioContentSample> onSample)
+        {
+            this.decoderContext = decoderContext;
+            this.frame = frame;
+            this.onSample = onSample;
+        }
+
+        public static LiveAudioContentAnalyzer? TryCreate(
+            AVFormatContext* inputContext,
+            Action<FfmpegAudioContentSample>? onSample)
+        {
+            if (onSample == null)
+            {
+                return null;
+            }
+
+            for (int index = 0; index < inputContext->nb_streams; index++)
+            {
+                AVStream* stream = inputContext->streams[index];
+                if (stream->codecpar->codec_type != AVMediaType.AVMEDIA_TYPE_AUDIO)
+                {
+                    continue;
+                }
+
+                AVCodec* decoder = ffmpeg.avcodec_find_decoder(stream->codecpar->codec_id);
+                if (decoder == null)
+                {
+                    return null;
+                }
+
+                AVCodecContext* decoderContext = ffmpeg.avcodec_alloc_context3(decoder);
+                if (decoderContext == null)
+                {
+                    return null;
+                }
+
+                if (ffmpeg.avcodec_parameters_to_context(decoderContext, stream->codecpar) < 0
+                    || ffmpeg.avcodec_open2(decoderContext, decoder, null) < 0)
+                {
+                    ffmpeg.avcodec_free_context(&decoderContext);
+                    return null;
+                }
+
+                AVFrame* frame = ffmpeg.av_frame_alloc();
+                if (frame == null)
+                {
+                    ffmpeg.avcodec_free_context(&decoderContext);
+                    return null;
+                }
+
+                return new LiveAudioContentAnalyzer(decoderContext, frame, onSample);
+            }
+
+            return null;
+        }
+
+        public void Observe(AVPacket* packet)
+        {
+            int sendResult = ffmpeg.avcodec_send_packet(decoderContext, packet);
+            if (sendResult < 0)
+            {
+                accumulator.DecodeErrorCount++;
+                return;
+            }
+
+            ReceiveFrames();
+        }
+
+        public void Dispose()
+        {
+            int flushResult = ffmpeg.avcodec_send_packet(decoderContext, null);
+            if (flushResult >= 0)
+            {
+                ReceiveFrames();
+            }
+            else
+            {
+                accumulator.DecodeErrorCount++;
+            }
+
+            accumulator.Flush(onSample);
+            AVFrame* framePointer = frame;
+            ffmpeg.av_frame_free(&framePointer);
+            AVCodecContext* context = decoderContext;
+            ffmpeg.avcodec_free_context(&context);
+        }
+
+        private void ReceiveFrames()
+        {
+            while (true)
+            {
+                int receiveResult = ffmpeg.avcodec_receive_frame(decoderContext, frame);
+                if (receiveResult < 0)
+                {
+                    return;
+                }
+
+                accumulator.Observe(frame, onSample);
+                ffmpeg.av_frame_unref(frame);
+            }
+        }
+    }
+
+    private sealed class AudioContentWindowAccumulator
+    {
+        private const double WindowSeconds = 30d;
+        private const double NearSilenceSeconds = 3d;
+        private double windowStartSeconds;
+        private double windowSeconds;
+        private double squaredSum;
+        private long sampledCount;
+        private double peak;
+        private double currentNearSilenceSeconds;
+        private double longestNearSilenceSeconds;
+        private long clippedSampleCount;
+        private long totalSampleCount;
+        private int decodeErrorCount;
+        private bool clippingObserved;
+        private double totalSeconds;
+
+        public int DecodeErrorCount
+        {
+            get => decodeErrorCount;
+            set => decodeErrorCount = Math.Max(0, value);
+        }
+
+        public void Observe(AVFrame* frame, Action<FfmpegAudioContentSample> onSample)
+        {
+            int sampleRate = Math.Max(1, frame->sample_rate);
+            int channelCount = Math.Max(1, frame->ch_layout.nb_channels);
+            int sampleCount = Math.Max(0, frame->nb_samples);
+            if (sampleCount == 0 || frame->extended_data == null)
+            {
+                return;
+            }
+
+            AVSampleFormat format = (AVSampleFormat)frame->format;
+            bool planar = IsPlanarSampleFormat(format);
+            int stride = Math.Max(1, sampleCount / 4096);
+            double frameSquaredSum = 0d;
+            double framePeak = 0d;
+            long frameSampleCount = 0;
+            long frameClippedSampleCount = 0;
+            for (int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += stride)
+            {
+                for (int channel = 0; channel < channelCount; channel++)
+                {
+                    byte* data = planar ? frame->extended_data[channel] : frame->extended_data[0];
+                    if (data == null)
+                    {
+                        continue;
+                    }
+
+                    int dataIndex = planar ? sampleIndex : sampleIndex * channelCount + channel;
+                    double value = Math.Clamp(ReadAudioSample(data, format, dataIndex), -1d, 1d);
+                    double absolute = Math.Abs(value);
+                    frameSquaredSum += value * value;
+                    framePeak = Math.Max(framePeak, absolute);
+                    frameSampleCount++;
+                    if (absolute >= PeakSampleThreshold)
+                    {
+                        frameClippedSampleCount++;
+                    }
+                }
+            }
+
+            if (frameSampleCount == 0)
+            {
+                return;
+            }
+
+            double frameSeconds = sampleCount / (double)sampleRate;
+            double frameRms = Math.Sqrt(frameSquaredSum / frameSampleCount);
+            totalSeconds += frameSeconds;
+            windowSeconds += frameSeconds;
+            squaredSum += frameSquaredSum;
+            sampledCount += frameSampleCount;
+            peak = Math.Max(peak, framePeak);
+            clippedSampleCount += frameClippedSampleCount;
+            totalSampleCount += frameSampleCount;
+            if (frameClippedSampleCount > 0)
+            {
+                clippingObserved = true;
+            }
+
+            if (frameRms <= NearSilenceRmsThreshold)
+            {
+                currentNearSilenceSeconds += frameSeconds;
+                longestNearSilenceSeconds = Math.Max(longestNearSilenceSeconds, currentNearSilenceSeconds);
+            }
+            else
+            {
+                currentNearSilenceSeconds = 0d;
+            }
+
+            if (windowSeconds >= WindowSeconds)
+            {
+                Emit(onSample, force: false);
+            }
+        }
+
+        public void Flush(Action<FfmpegAudioContentSample> onSample)
+        {
+            if (windowSeconds >= 2d)
+            {
+                Emit(onSample, force: true);
+            }
+        }
+
+        private void Emit(Action<FfmpegAudioContentSample> onSample, bool force)
+        {
+            double endSeconds = totalSeconds;
+            double rms = sampledCount == 0 ? 0d : Math.Sqrt(squaredSum / sampledCount);
+            double clippingRatio = totalSampleCount == 0 ? 0d : clippedSampleCount / (double)totalSampleCount;
+            string state = decodeErrorCount > 0
+                ? "decode_error"
+                : clippingObserved && longestNearSilenceSeconds >= NearSilenceSeconds
+                    ? "clipping_then_silence"
+                    : longestNearSilenceSeconds >= NearSilenceSeconds
+                        ? "near_silence"
+                        : clippingRatio > 0d
+                            ? "clipping"
+                            : "normal";
+            onSample(new FfmpegAudioContentSample(
+                windowStartSeconds,
+                endSeconds,
+                rms,
+                peak,
+                longestNearSilenceSeconds,
+                clippingRatio,
+                decodeErrorCount,
+                sampledCount > 0,
+                state));
+            windowStartSeconds = force ? endSeconds : windowStartSeconds + windowSeconds;
+            windowSeconds = 0d;
+            squaredSum = 0d;
+            sampledCount = 0;
+            peak = 0d;
+            longestNearSilenceSeconds = 0d;
+            clippedSampleCount = 0;
+            totalSampleCount = 0;
+            decodeErrorCount = 0;
+            clippingObserved = false;
         }
     }
 }

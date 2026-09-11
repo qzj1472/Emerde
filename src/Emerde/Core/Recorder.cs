@@ -20,6 +20,7 @@ public sealed class Recorder
     internal static readonly TimeSpan ProgressStallTimeout = TimeSpan.FromSeconds(90);
     internal static readonly TimeSpan VideoProgressStallTimeout = TimeSpan.FromSeconds(5);
     internal static readonly TimeSpan MediaSpeedSummaryInterval = TimeSpan.FromSeconds(30);
+    internal const int InternalSessionSegmentSeconds = 20 * 60;
     private const string OptimizedAudioFilter = "[0:a:0]volume=30dB,acompressor=threshold=-10dB:ratio=3,alimiter=limit=0.316227766:level=false[aopt]";
 
     internal static readonly TimeSpan ProcessStopGracePeriod = TimeSpan.FromSeconds(3);
@@ -54,6 +55,8 @@ public sealed class Recorder
 
     private bool lastAttemptWasStalled;
 
+    private bool lastAttemptWasAudioContentAnomaly;
+
     private double lastAttemptDurationSeconds;
 
     private string lastProcessErrorOutput = string.Empty;
@@ -61,6 +64,8 @@ public sealed class Recorder
     private bool lastStreamRefreshHadUrl;
 
     private DateTime lastLiveWithoutStreamLogAt = DateTime.MinValue;
+
+    private bool audioContentRestartRequested;
 
     private readonly List<string> pendingRecordingPaths = [];
 
@@ -200,7 +205,6 @@ public sealed class Recorder
         string? sessionMetadataPath = null;
         VideoRecordingMetadata? sessionMetadata = null;
         string? sessionPendingRecordingPath = null;
-        bool sessionSplitByStall = false;
         bool storageExhausted = false;
         try
         {
@@ -356,7 +360,7 @@ public sealed class Recorder
                     FileName = sessionOutputPattern!;
                     MetadataPath = sessionMetadataPath;
                     metadata = sessionMetadata!;
-                    outputFileName = BuildSessionPartOutputFileName(sessionOutputPattern!, sessionPartIndex);
+                    outputFileName = sessionOutputPattern!;
                 }
                 else
                 {
@@ -424,10 +428,20 @@ public sealed class Recorder
                     headers,
                     userAgent,
                     metadata,
-                    segmentOptions,
+                    useSessionPartFiles
+                        ? new FfmpegSegmentOptions(InternalSessionSegmentSeconds, SegmentTimeUnitHelper.Seconds, sessionPartIndex)
+                        : segmentOptions,
                     startInfo,
                     token);
                 DeleteEmptyOutputFiles(outputFileName);
+                if (lastAttemptWasAudioContentAnomaly && sessionMetadata != null && sessionOutputPattern != null)
+                {
+                    sessionMetadata.MediaIssue = VideoRecordingMetadataStore.AddMediaIssue(sessionMetadata.MediaIssue, "audio_content_anomaly");
+                    sessionMetadataPath = VideoRecordingMetadataStore.WriteSidecar(
+                        Path.GetDirectoryName(sessionOutputPattern)!,
+                        sessionBaseFileName!,
+                        sessionMetadata) ?? sessionMetadataPath;
+                }
                 LogRecordedSourceDiagnostics(startInfo, outputFileName, metadata);
                 bool hasSessionOutput = useSessionPartFiles && HasUsableOutput(outputFileName);
                 bool storageFailure = IsInsufficientStorageFailure(exitCode, lastProcessErrorOutput);
@@ -491,7 +505,7 @@ public sealed class Recorder
 
                 if (hasSessionOutput)
                 {
-                    sessionPartIndex++;
+                    sessionPartIndex = GetRecordedSourceFilesForPattern(sessionOutputPattern!).Length;
                 }
 
                 if (!useSessionPartFiles
@@ -550,14 +564,14 @@ public sealed class Recorder
                     && lastAttemptWasStalled
                     && (hasSessionOutput || sessionPartIndex > 0))
                 {
-                    sessionSplitByStall = true;
-                    sessionMetadata!.SegmentReason = VideoRecordingMetadataStore.TimelineStallSegmentReason;
-                    if (!string.IsNullOrWhiteSpace(sessionPendingRecordingPath))
+                    AppSessionLogger.Event("info", "recorder", "record_session_stall_boundary_observed", "recording stall was observed without exposing internal session parts as final segments", new
                     {
-                        _ = RecordingRecoveryService.MarkSessionPartsAsStallSegments(sessionPendingRecordingPath);
-                    }
-                    sessionMetadataPath = VideoRecordingMetadataStore.WriteSidecar(saveFolder, sessionBaseFileName!, sessionMetadata)
-                        ?? sessionMetadataPath;
+                        startInfo.RoomUrl,
+                        startInfo.NickName,
+                        recordingSessionId = sessionMetadata!.RecordingSessionId,
+                        sourcePattern = sessionOutputPattern,
+                        sourcePartCount = GetRecordedSourceFilesForPattern(sessionOutputPattern!).Length,
+                    });
                 }
 
                 if (isLiveAfterRefresh == true)
@@ -704,18 +718,6 @@ public sealed class Recorder
                     });
                     startInfo.StorageExhausted?.Invoke(finalizationFolder);
                 }
-                if (!storageExhausted && sessionSplitByStall && sessionMetadata != null && sessionBaseFileName != null)
-                {
-                    sessionMetadata.SegmentReason = VideoRecordingMetadataStore.TimelineStallSegmentReason;
-                    if (!string.IsNullOrWhiteSpace(sessionPendingRecordingPath))
-                    {
-                        _ = RecordingRecoveryService.MarkSessionPartsAsStallSegments(sessionPendingRecordingPath);
-                    }
-                    sessionMetadataPath = VideoRecordingMetadataStore.WriteSidecar(
-                        Path.GetDirectoryName(sessionOutputPattern!)!,
-                        sessionBaseFileName,
-                        sessionMetadata) ?? sessionMetadataPath;
-                }
                 if (!storageExhausted)
                 {
                     FinalizeMetadataForOutput(FileName ?? string.Empty, MetadataPath);
@@ -780,8 +782,8 @@ public sealed class Recorder
                         postProcessingOptions.IsRemoveTs,
                         startInfo.RoomUrl,
                         postProcessingOptions.IsOptimizeAudio,
-                        mergeSessionParts: !(sessionSplitByStall || isStallSegment),
-                        segmentReason: sessionSplitByStall || isStallSegment
+                        mergeSessionParts: !isStallSegment,
+                        segmentReason: isStallSegment
                             ? VideoRecordingMetadataStore.TimelineStallSegmentReason
                             : string.Empty,
                         fileNameRule: postProcessingOptions.SaveFileNameCustomRule,
@@ -1003,6 +1005,8 @@ public sealed class Recorder
         lastAttemptHadMediaProgress = false;
         lastAttemptWasCanceled = false;
         lastAttemptWasStalled = false;
+        lastAttemptWasAudioContentAnomaly = false;
+        audioContentRestartRequested = false;
         lastAttemptDurationSeconds = 0;
         await CancelCrossStreamVerificationAsync();
         Stopwatch processLifetime = Stopwatch.StartNew();
@@ -1057,7 +1061,8 @@ public sealed class Recorder
                 outputFileName,
                 metadata,
                 processCancellation.Token,
-                processCancellation.Token);
+                processCancellation.Token,
+                process);
             Task errorTask = ReadMediaWorkerErrorAsync(process.StandardError, errorOutput, processCancellation.Token);
             Task exitTask = process.WaitForExitAsync(CancellationToken.None);
             Task<bool> stallTask = WaitForProgressStallAsync(progressTracker, processCancellation.Token);
@@ -1152,6 +1157,7 @@ public sealed class Recorder
             await CancelCrossStreamVerificationAsync();
             await Task.WhenAll(outputTask, errorTask);
             wasStalled |= process.ExitCode == MediaWorker.TimelineRestartExitCode;
+            lastAttemptWasAudioContentAnomaly = audioContentRestartRequested;
             exitCode = wasStalled ? 1 : process.ExitCode;
         }
         catch (OperationCanceledException)
@@ -1545,10 +1551,13 @@ public sealed class Recorder
         string outputFileName,
         VideoRecordingMetadata metadata,
         CancellationToken readToken,
-        CancellationToken verificationToken)
+        CancellationToken verificationToken,
+        Process workerProcess)
     {
         try
         {
+            int consecutiveAudioAnomalyWindows = 0;
+            DateTime lastAudioContentLogAt = DateTime.MinValue;
             while (!readToken.IsCancellationRequested && await reader.ReadLineAsync(readToken) is { } line)
             {
                 if (TryParseMediaWorkerTimelineEvent(
@@ -1638,6 +1647,60 @@ public sealed class Recorder
                             sample.SampleCount,
                             bufferedSampleCount = timelineDiagnostics.Count,
                         });
+                    continue;
+                }
+                if (TryParseMediaWorkerAudioSample(line, out FfmpegAudioContentSample audioSample))
+                {
+                    bool isAnomaly = audioSample.State is "clipping_then_silence" or "decode_error";
+                    consecutiveAudioAnomalyWindows = isAnomaly ? consecutiveAudioAnomalyWindows + 1 : 0;
+                    bool shouldLog = isAnomaly
+                        || lastAudioContentLogAt == DateTime.MinValue
+                        || DateTime.UtcNow - lastAudioContentLogAt >= TimeSpan.FromMinutes(5);
+                    if (shouldLog)
+                    {
+                        lastAudioContentLogAt = DateTime.UtcNow;
+                        AppSessionLogger.Event(
+                            isAnomaly ? "warn" : "info",
+                            "recorder",
+                            "record_audio_content_sample",
+                            "recording audio content window sampled",
+                            new
+                            {
+                                stage = "live_source",
+                                startInfo.RoomUrl,
+                                startInfo.NickName,
+                                FileName,
+                                outputFileName,
+                                recordingSessionId = metadata.RecordingSessionId,
+                                startSeconds = Math.Round(audioSample.StartSeconds, 3),
+                                endSeconds = Math.Round(audioSample.EndSeconds, 3),
+                                audioSample.Rms,
+                                audioSample.Peak,
+                                audioSample.LongestNearSilenceSeconds,
+                                audioSample.ClippingRatio,
+                                audioSample.DecodeErrorCount,
+                                audioSample.IsConclusive,
+                                audioState = audioSample.State,
+                            });
+                    }
+
+                    if (consecutiveAudioAnomalyWindows >= 2 && !audioContentRestartRequested && !readToken.IsCancellationRequested)
+                    {
+                        audioContentRestartRequested = true;
+                        AppSessionLogger.Event("warn", "recorder", "record_audio_content_restart", "recording restarted after persistent audio content anomaly", new
+                        {
+                            stage = "live_source",
+                            startInfo.RoomUrl,
+                            startInfo.NickName,
+                            FileName,
+                            outputFileName,
+                            recordingSessionId = metadata.RecordingSessionId,
+                            audioState = audioSample.State,
+                            startSeconds = audioSample.StartSeconds,
+                            endSeconds = audioSample.EndSeconds,
+                        });
+                        RequestProcessExit(workerProcess);
+                    }
                     continue;
                 }
                 if (TryParseMediaWorkerStreamPresence(line, out bool liveHasVideoStream, out bool liveHasAudioStream))
@@ -1798,6 +1861,38 @@ public sealed class Recorder
 
         hasVideoStream = parts[1] == "1";
         hasAudioStream = parts[2] == "1";
+        return true;
+    }
+
+    internal static bool TryParseMediaWorkerAudioSample(string line, out FfmpegAudioContentSample sample)
+    {
+        sample = default;
+        string[] parts = line.Split('|');
+        if (parts.Length != 10
+            || !string.Equals(parts[0], "audio", StringComparison.Ordinal)
+            || !double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double startSeconds)
+            || !double.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out double endSeconds)
+            || !double.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out double rms)
+            || !double.TryParse(parts[4], NumberStyles.Float, CultureInfo.InvariantCulture, out double peak)
+            || !double.TryParse(parts[5], NumberStyles.Float, CultureInfo.InvariantCulture, out double silenceSeconds)
+            || !double.TryParse(parts[6], NumberStyles.Float, CultureInfo.InvariantCulture, out double clippingRatio)
+            || !int.TryParse(parts[7], NumberStyles.Integer, CultureInfo.InvariantCulture, out int decodeErrorCount)
+            || parts[8] is not ("0" or "1")
+            || string.IsNullOrWhiteSpace(parts[9]))
+        {
+            return false;
+        }
+
+        sample = new FfmpegAudioContentSample(
+            startSeconds,
+            endSeconds,
+            rms,
+            peak,
+            silenceSeconds,
+            clippingRatio,
+            decodeErrorCount,
+            parts[8] == "1",
+            parts[9]);
         return true;
     }
 

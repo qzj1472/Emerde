@@ -114,6 +114,7 @@ internal static partial class RecordingFinalizationService
         string? rule,
         bool preserveSegmentSuffix,
         ISet<string> reservedTargetPaths,
+        string? segmentSuffix = null,
         CancellationToken token = default)
     {
         token.ThrowIfCancellationRequested();
@@ -133,7 +134,7 @@ internal static partial class RecordingFinalizationService
         string targetPath;
         lock (RenameLock)
         {
-            targetPath = GetAvailableFinalPath(source, metadata, rule, preserveSegmentSuffix, reservedTargetPaths);
+            targetPath = GetAvailableFinalPath(source, metadata, rule, preserveSegmentSuffix, reservedTargetPaths, segmentSuffix);
             reservedTargetPaths.Add(targetPath);
         }
         return new RecordingFinalizationPlan(true, mediaPath, targetPath);
@@ -224,13 +225,16 @@ internal static partial class RecordingFinalizationService
         VideoRecordingMetadata metadata,
         string? rule,
         bool preserveSegmentSuffix,
-        ISet<string>? reservedTargetPaths = null)
+        ISet<string>? reservedTargetPaths = null,
+        string? segmentSuffixOverride = null)
     {
         string effectiveRule = string.IsNullOrWhiteSpace(rule)
             ? string.IsNullOrWhiteSpace(metadata.FileNameRule) ? DefaultRule : metadata.FileNameRule
             : rule;
         metadata.FileNameRule = effectiveRule;
-        string segmentSuffix = preserveSegmentSuffix ? GetSegmentSuffix(source.Name) : string.Empty;
+        string segmentSuffix = preserveSegmentSuffix
+            ? segmentSuffixOverride ?? GetSegmentSuffix(source.Name)
+            : string.Empty;
         string stem = BuildFinalStem(effectiveRule, metadata).SanitizeFileName();
         string requestedPath = Path.Combine(source.DirectoryName ?? Environment.CurrentDirectory, stem + segmentSuffix + source.Extension);
         return PathsEqual(source.FullName, requestedPath)

@@ -152,6 +152,12 @@ internal static class MediaWorker
                     hasAudioStream = hasAudio;
                     Console.Out.WriteLine($"streams|{(hasVideo ? "1" : "0")}|{(hasAudio ? "1" : "0")}");
                     Console.Out.Flush();
+                },
+                audioSample =>
+                {
+                    Console.Out.WriteLine(
+                        $"audio|{audioSample.StartSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{audioSample.EndSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{audioSample.Rms.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{audioSample.Peak.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{audioSample.LongestNearSilenceSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{audioSample.ClippingRatio.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{audioSample.DecodeErrorCount.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{(audioSample.IsConclusive ? "1" : "0")}|{audioSample.State}");
+                    Console.Out.Flush();
                 });
 
             if (!string.IsNullOrWhiteSpace(result.ErrorOutput))

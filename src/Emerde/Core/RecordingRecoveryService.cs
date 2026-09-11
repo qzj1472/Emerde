@@ -1545,7 +1545,8 @@ internal static class RecordingRecoveryService
                 IsFinalizationPending(item),
                 item.MergeSessionParts,
                 item.RetryBlocked,
-                item.FailureCount);
+                item.FailureCount,
+                markerPath);
             foreach (string path in GetProtectedPaths(item))
             {
                 if (path.Contains('%') || path.Contains('*') || path.Contains('?'))
@@ -1734,7 +1735,10 @@ internal static class RecordingRecoveryService
                     item.FileNameRule,
                     preserveSegmentSuffix,
                     reservedTargets,
-                    token);
+                    segmentSuffix: preserveSegmentSuffix && outputPaths.Length > 1
+                        ? $"_{outputIndex:000}"
+                        : null,
+                    token: token);
                 if (!plan.Success)
                 {
                     AppSessionLogger.Event("warn", "recovery", "recording_finalization_plan_failed", plan.Error, new { markerPath, output });
@@ -1885,7 +1889,10 @@ internal static class RecordingRecoveryService
             item.FileNameRule,
             preserveSegmentSuffix,
             reservedTargets,
-            token);
+            segmentSuffix: preserveSegmentSuffix && item.FinalizationOutputs.Count > 1
+                ? $"_{output.Order:000}"
+                : null,
+            token: token);
         if (!plan.Success)
         {
             return false;
@@ -2790,4 +2797,5 @@ internal sealed record RecordingRecoveryStatus(
     bool IsFinalizing,
     bool IsMerging,
     bool RetryBlocked,
-    int FailureCount);
+    int FailureCount,
+    string SessionKey);

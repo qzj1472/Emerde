@@ -11,7 +11,7 @@ internal sealed record FfmpegInputOptions(
     string HttpProxy,
     bool IsLive);
 
-internal sealed record FfmpegSegmentOptions(long Value, int Unit)
+internal sealed record FfmpegSegmentOptions(long Value, int Unit, int StartIndex = 0)
 {
     public bool IsSizeBased => SegmentTimeUnitHelper.IsSizeUnit(Unit);
 }
@@ -197,11 +197,12 @@ internal static unsafe partial class FfmpegMediaEngine
         CancellationToken token,
         Action<long>? onProgress = null,
         Action<FfmpegPacketProgress>? onPacketProgress = null,
-        Action<bool, bool>? onStreamsDiscovered = null)
+        Action<bool, bool>? onStreamsDiscovered = null,
+        Action<FfmpegAudioContentSample>? onAudioContentSample = null)
     {
         return segmentOptions == null
-            ? Remux([inputUrl], targetFileName, metadata, options, token, onProgress, onPacketProgress, onStreamsDiscovered)
-            : SegmentStream(inputUrl, targetFileName, metadata, options, segmentOptions, token, onProgress, onPacketProgress, onStreamsDiscovered);
+            ? Remux([inputUrl], targetFileName, metadata, options, token, onProgress, onPacketProgress, onStreamsDiscovered, onAudioContentSample)
+            : SegmentStream(inputUrl, targetFileName, metadata, options, segmentOptions, token, onProgress, onPacketProgress, onStreamsDiscovered, onAudioContentSample);
     }
 
     public static FfmpegMediaRunResult SplitFile(
@@ -221,6 +222,7 @@ internal static unsafe partial class FfmpegMediaEngine
             token,
             onProgress,
             null,
+            null,
             null);
     }
 
@@ -233,7 +235,8 @@ internal static unsafe partial class FfmpegMediaEngine
         CancellationToken token,
         Action<long>? onProgress,
         Action<FfmpegPacketProgress>? onPacketProgress,
-        Action<bool, bool>? onStreamsDiscovered)
+        Action<bool, bool>? onStreamsDiscovered,
+        Action<FfmpegAudioContentSample>? onAudioContentSample)
     {
         if (string.IsNullOrWhiteSpace(sourceFileName)
             || string.IsNullOrWhiteSpace(targetPattern)
@@ -255,6 +258,7 @@ internal static unsafe partial class FfmpegMediaEngine
         long lastVideoTimelineTimestamp = ffmpeg.AV_NOPTS_VALUE;
         long baselineTimelineDifference = ffmpeg.AV_NOPTS_VALUE;
         long lastTimelineSampleTimestamp = 0;
+        LiveAudioContentAnalyzer? audioContentAnalyzer = null;
 
         try
         {
@@ -280,8 +284,9 @@ internal static unsafe partial class FfmpegMediaEngine
                 return new FfmpegMediaRunResult(1, false, false, "input contains no supported audio or video streams");
             }
             NotifyStreamPresence(inputContext, onStreamsDiscovered);
+            audioContentAnalyzer = LiveAudioContentAnalyzer.TryCreate(inputContext, inputOptions.IsLive ? onAudioContentSample : null);
 
-            int segmentIndex = 0;
+            int segmentIndex = Math.Max(0, segmentOptions.StartIndex);
             int[] streamMap = OpenSegmentOutput(
                 inputContext,
                 BuildSegmentPath(targetPattern, segmentIndex),
@@ -562,6 +567,10 @@ internal static unsafe partial class FfmpegMediaEngine
                 int packetSize = Math.Max(0, packet->size);
                 bool isVideoPacket = mediaType == AVMediaType.AVMEDIA_TYPE_VIDEO;
                 bool isAudioPacket = mediaType == AVMediaType.AVMEDIA_TYPE_AUDIO;
+                if (isAudioPacket)
+                {
+                    audioContentAnalyzer?.Observe(packet);
+                }
                 long packetTimelineTimestamp = GetPacketTimelineTimestampMicroseconds(
                     packet,
                     inputStream,
@@ -646,6 +655,7 @@ internal static unsafe partial class FfmpegMediaEngine
         }
         finally
         {
+            audioContentAnalyzer?.Dispose();
             if (packet != null)
             {
                 AVPacket* packetPointer = packet;
@@ -1807,6 +1817,7 @@ internal static unsafe partial class FfmpegMediaEngine
         Action<long>? onProgress,
         Action<FfmpegPacketProgress>? onPacketProgress = null,
         Action<bool, bool>? onStreamsDiscovered = null,
+        Action<FfmpegAudioContentSample>? onAudioContentSample = null,
         bool salvageDamagedFile = false,
         double maximumTimelineEndSeconds = 0d,
         IReadOnlyList<double>? sourceTimelineEndSeconds = null,
@@ -1831,6 +1842,7 @@ internal static unsafe partial class FfmpegMediaEngine
         long lastVideoTimelineTimestamp = ffmpeg.AV_NOPTS_VALUE;
         long baselineTimelineDifference = ffmpeg.AV_NOPTS_VALUE;
         long lastTimelineSampleTimestamp = 0;
+        LiveAudioContentAnalyzer? audioContentAnalyzer = null;
 
         try
         {
@@ -1882,6 +1894,7 @@ internal static unsafe partial class FfmpegMediaEngine
                             return new FfmpegMediaRunResult(1, false, false, "input contains no supported audio or video streams");
                         }
                         NotifyStreamPresence(inputContext, onStreamsDiscovered);
+                        audioContentAnalyzer = LiveAudioContentAnalyzer.TryCreate(inputContext, inputOptions?.IsLive == true ? onAudioContentSample : null);
                         streamCompatibilities = CreateStreamCompatibilities(inputContext, streamMap, (int)outputContext->nb_streams);
                         lastPacketEnds = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)outputContext->nb_streams).ToArray();
 
@@ -2175,6 +2188,10 @@ internal static unsafe partial class FfmpegMediaEngine
                         }
                         bool isVideoPacket = mediaType == AVMediaType.AVMEDIA_TYPE_VIDEO;
                         bool isAudioPacket = mediaType == AVMediaType.AVMEDIA_TYPE_AUDIO;
+                        if (isAudioPacket)
+                        {
+                            audioContentAnalyzer?.Observe(packet);
+                        }
                         long packetTimelineTimestamp = GetPacketTimelineTimestampMicroseconds(
                             packet,
                             inputStream,
@@ -2315,6 +2332,7 @@ internal static unsafe partial class FfmpegMediaEngine
         }
         finally
         {
+            audioContentAnalyzer?.Dispose();
             if (outputContext != null)
             {
                 if (headerWritten)

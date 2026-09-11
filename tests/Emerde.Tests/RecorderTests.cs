@@ -40,6 +40,41 @@ public sealed class RecorderTests
     }
 
     [Fact]
+    public void AudioContentSampleParser_ReadsWindowMetrics()
+    {
+        Assert.True(Recorder.TryParseMediaWorkerAudioSample(
+            "audio|1320|1350|0.0125|0.998|4.5|0.02|0|1|clipping_then_silence",
+            out FfmpegAudioContentSample sample));
+
+        Assert.Equal(1320d, sample.StartSeconds);
+        Assert.Equal(1350d, sample.EndSeconds);
+        Assert.Equal(0.0125d, sample.Rms);
+        Assert.Equal(0.998d, sample.Peak);
+        Assert.Equal(4.5d, sample.LongestNearSilenceSeconds);
+        Assert.Equal(0.02d, sample.ClippingRatio);
+        Assert.Equal("clipping_then_silence", sample.State);
+    }
+
+    [Fact]
+    public void MediaIssueAccumulator_PreservesIndependentIssues()
+    {
+        string issues = VideoRecordingMetadataStore.AddMediaIssue("timeline_mismatch", "optimized_audio_failed");
+
+        Assert.Equal("timeline_mismatch;optimized_audio_failed", issues);
+        Assert.Equal(issues, VideoRecordingMetadataStore.AddMediaIssue(issues, "optimized_audio_failed"));
+    }
+
+    [Fact]
+    public void MetadataMerge_PreservesIndependentMediaIssues()
+    {
+        VideoRecordingMetadata merged = VideoRecordingMetadataStore.Merge(
+            new VideoRecordingMetadata { MediaIssue = "optimized_audio_failed" },
+            new VideoRecordingMetadata { MediaIssue = "timeline_mismatch" });
+
+        Assert.Equal("optimized_audio_failed;timeline_mismatch", merged.MediaIssue);
+    }
+
+    [Fact]
     public void ProcessStopGracePeriod_KeepsExplicitStopResponsive()
     {
         Assert.InRange(Recorder.ProcessStopGracePeriod, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5));
@@ -333,7 +368,7 @@ public sealed class RecorderTests
         int fallbackStart = source.IndexOf("string? fallbackUrl = SelectInputFallback(", StringComparison.Ordinal);
         int failedOutputDelete = source.IndexOf("DeleteFailedOutputFiles(outputFileName", fallbackStart, StringComparison.Ordinal);
         int fallbackContinue = source.IndexOf("continue;", failedOutputDelete, StringComparison.Ordinal);
-        int sessionPartAdvance = source.IndexOf("sessionPartIndex++;", fallbackContinue, StringComparison.Ordinal);
+        int sessionPartAdvance = source.IndexOf("sessionPartIndex = GetRecordedSourceFilesForPattern(sessionOutputPattern!).Length;", fallbackContinue, StringComparison.Ordinal);
 
         Assert.True(fallbackStart >= 0);
         Assert.True(failedOutputDelete > fallbackStart);
@@ -369,7 +404,7 @@ public sealed class RecorderTests
         int processCancellation = source.IndexOf("using CancellationTokenSource processCancellation = new();", StringComparison.Ordinal);
         int readerCall = source.IndexOf("Task outputTask = ReadMediaWorkerOutputAsync(", StringComparison.Ordinal);
         int readTokenArgument = source.IndexOf("processCancellation.Token,", readerCall, StringComparison.Ordinal);
-        int verificationTokenArgument = source.IndexOf("processCancellation.Token);", readTokenArgument, StringComparison.Ordinal);
+        int verificationTokenArgument = source.IndexOf("process);", readTokenArgument, StringComparison.Ordinal);
         int errorReaderCall = source.IndexOf("Task errorTask = ReadMediaWorkerErrorAsync(", readerCall, StringComparison.Ordinal);
         int cancellationWait = source.IndexOf("Task cancellationTask = WaitForCancellationAsync(token);", errorReaderCall, StringComparison.Ordinal);
         int verificationSignalWait = source.IndexOf("crossStreamVerificationStarted.WaitAsync(processCancellation.Token)", cancellationWait, StringComparison.Ordinal);
