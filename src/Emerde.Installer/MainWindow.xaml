@@ -220,7 +220,7 @@
             </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="1">
+        <Grid x:Name="InstallerPageRoot" Grid.Row="1">
             <Grid x:Name="WelcomePage">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="304" />
@@ -343,7 +343,7 @@
                                Margin="0,2,0,0"
                                HorizontalAlignment="Center"
                                Style="{StaticResource SubtitleStyle}"
-                               Text="已安装版本 1.6.7.2" />
+                               Text="已安装版本 1.6.8.2" />
                 </StackPanel>
 
                 <Grid Grid.Row="1" Margin="31,30,31,10">
@@ -533,65 +533,66 @@
                 </StackPanel>
             </Grid>
 
-            <Grid x:Name="RunningDialogLayer"
-                  Panel.ZIndex="100"
-                  Background="{DynamicResource DialogMaskBrush}"
-                  Visibility="Collapsed">
-                <Border Width="410"
-                        Padding="24,22"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Background="{DynamicResource EmerdeDialogSurfaceBrush}"
-                        BorderBrush="{DynamicResource EmerdeDialogBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="42" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Border Width="30"
-                                Height="30"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Top"
-                                Background="{DynamicResource EmerdeDialogWarningBrush}"
-                                CornerRadius="15">
-                            <TextBlock HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"
-                                       FontSize="18"
-                                       FontWeight="Bold"
-                                       Foreground="#9D5D00"
-                                       Text="!" />
-                        </Border>
-                        <StackPanel Grid.Column="1">
-                            <TextBlock FontSize="17"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource EmerdeDialogTextPrimaryBrush}"
-                                       Text="Emerde 正在运行" />
-                            <TextBlock Margin="0,7,0,0"
-                                       FontSize="13"
-                                       Foreground="{DynamicResource EmerdeDialogTextSecondaryBrush}"
-                                       LineHeight="20"
-                                       Text="继续前需要关闭 Emerde。是否立即停止并继续？"
-                                       TextWrapping="Wrap" />
-                            <StackPanel Margin="0,20,0,0"
-                                        HorizontalAlignment="Right"
-                                        Orientation="Horizontal">
-                                <ui:Button Width="82"
-                                           Margin="0,0,9,0"
-                                           Click="CancelStopButtonClick"
-                                           Content="取消"
-                                           Style="{StaticResource SecondaryButtonStyle}" />
-                                <ui:Button x:Name="StopAndContinueButton"
-                                           Width="120"
-                                           Click="StopAndContinueButtonClick"
-                                           Content="停止并继续"
-                                           Style="{StaticResource EmerdePrimaryButtonStyle}" />
-                            </StackPanel>
+        </Grid>
+        <Grid x:Name="RunningDialogLayer"
+              Grid.Row="1"
+              Panel.ZIndex="100"
+              Background="{DynamicResource DialogMaskBrush}"
+              Visibility="Collapsed">
+            <Border Width="410"
+                    Padding="24,22"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{DynamicResource EmerdeDialogSurfaceBrush}"
+                    BorderBrush="{DynamicResource EmerdeDialogBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="42" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="30"
+                            Height="30"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Top"
+                            Background="{DynamicResource EmerdeDialogWarningBrush}"
+                            CornerRadius="15">
+                        <TextBlock HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   FontSize="18"
+                                   FontWeight="Bold"
+                                   Foreground="#9D5D00"
+                                   Text="!" />
+                    </Border>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock FontSize="17"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource EmerdeDialogTextPrimaryBrush}"
+                                   Text="Emerde 正在运行" />
+                        <TextBlock Margin="0,7,0,0"
+                                   FontSize="13"
+                                   Foreground="{DynamicResource EmerdeDialogTextSecondaryBrush}"
+                                   LineHeight="20"
+                                   Text="继续前需要关闭 Emerde。是否立即停止并继续？"
+                                   TextWrapping="Wrap" />
+                        <StackPanel Margin="0,20,0,0"
+                                    HorizontalAlignment="Right"
+                                    Orientation="Horizontal">
+                            <ui:Button Width="82"
+                                       Margin="0,0,9,0"
+                                       Click="CancelStopButtonClick"
+                                       Content="取消"
+                                       Style="{StaticResource SecondaryButtonStyle}" />
+                            <ui:Button x:Name="StopAndContinueButton"
+                                       Width="120"
+                                       Click="StopAndContinueButtonClick"
+                                       Content="停止并继续"
+                                       Style="{StaticResource EmerdePrimaryButtonStyle}" />
                         </StackPanel>
-                    </Grid>
-                </Border>
-            </Grid>
+                    </StackPanel>
+                </Grid>
+            </Border>
         </Grid>
     </Grid>
 </ui:FluentWindow>

@@ -6,6 +6,22 @@ namespace Emerde.Tests;
 public sealed class InstallerPayloadTests
 {
     [Fact]
+    public void RunningDialog_UsesASeparateBlurredPageRoot()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde.Installer", "MainWindow.xaml"));
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde.Installer", "MainWindow.xaml.cs"));
+
+        Assert.Contains("x:Name=\"InstallerPageRoot\" Grid.Row=\"1\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"RunningDialogLayer\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Background=\"{DynamicResource DialogMaskBrush}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("InstallerPageRoot.Effect", code, StringComparison.Ordinal);
+        Assert.Contains("Radius = 8d", code, StringComparison.Ordinal);
+        Assert.Contains("RenderingBias = RenderingBias.Performance", code, StringComparison.Ordinal);
+        Assert.Contains("SetRunningDialogVisibility(Visibility.Visible)", code, StringComparison.Ordinal);
+        Assert.Contains("SetRunningDialogVisibility(Visibility.Collapsed)", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ExtractAsyncPreservesAppDirectoryTree()
     {
         byte[] archive = CreateArchive(new Dictionary<string, string>
@@ -140,6 +156,22 @@ public sealed class InstallerPayloadTests
         }
 
         return output.ToArray();
+    }
+
+    private static string FindRepositoryFile(params string[] parts)
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory != null)
+        {
+            string path = Path.Combine([directory.FullName, .. parts]);
+            if (File.Exists(path))
+            {
+                return path;
+            }
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException(string.Join(Path.DirectorySeparatorChar, parts));
     }
 
     private static string CreateTemporaryDirectory()

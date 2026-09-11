@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Media.Effects;
 using Microsoft.Win32;
 using FluentWindow = Wpf.Ui.Controls.FluentWindow;
 
@@ -237,7 +238,7 @@ public partial class MainWindow : FluentWindow
         if (!appStopAcknowledged && (forceRunningPreview || IsEmerdeRunning()))
         {
             pendingOperation = operation;
-            RunningDialogLayer.Visibility = Visibility.Visible;
+            SetRunningDialogVisibility(Visibility.Visible);
             return;
         }
 
@@ -247,7 +248,7 @@ public partial class MainWindow : FluentWindow
     private void CancelStopButtonClick(object sender, RoutedEventArgs e)
     {
         pendingOperation = null;
-        RunningDialogLayer.Visibility = Visibility.Collapsed;
+        SetRunningDialogVisibility(Visibility.Collapsed);
     }
 
     private async void StopAndContinueButtonClick(object sender, RoutedEventArgs e)
@@ -305,8 +306,26 @@ public partial class MainWindow : FluentWindow
         pendingOperation = null;
         StopAndContinueButton.Content = "停止并继续";
         StopAndContinueButton.IsEnabled = true;
-        RunningDialogLayer.Visibility = Visibility.Collapsed;
+        SetRunningDialogVisibility(Visibility.Collapsed);
         await ExecuteOperationAsync(operation);
+    }
+
+    private static BlurEffect CreateRunningDialogBlurEffect()
+    {
+        return new BlurEffect
+        {
+            Radius = 8d,
+            KernelType = KernelType.Gaussian,
+            RenderingBias = RenderingBias.Performance,
+        };
+    }
+
+    private void SetRunningDialogVisibility(Visibility visibility)
+    {
+        RunningDialogLayer.Visibility = visibility;
+        InstallerPageRoot.Effect = visibility == Visibility.Visible
+            ? CreateRunningDialogBlurEffect()
+            : null;
     }
 
     private static bool RequestEmerdeShutdown()
@@ -515,7 +534,7 @@ public partial class MainWindow : FluentWindow
         MaintenancePage.Visibility = Visibility.Collapsed;
         ProgressPage.Visibility = Visibility.Collapsed;
         FinishPage.Visibility = Visibility.Collapsed;
-        RunningDialogLayer.Visibility = Visibility.Collapsed;
+        SetRunningDialogVisibility(Visibility.Collapsed);
         page.Visibility = Visibility.Visible;
     }
 

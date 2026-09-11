@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = "Stop"
 $sourceRoot = [System.IO.Path]::GetFullPath((Split-Path $PSScriptRoot -Parent))
 $workspaceRoot = [System.IO.Path]::GetFullPath((Split-Path $sourceRoot -Parent))
-$releaseDirectoryName = -join ([char[]](0x7F16, 0x8BD1, 0x53D1, 0x5E03, 0x7248, 0x672C))
+$releaseDirectoryName = "BYFBBB"
 $releaseRoot = Join-Path $workspaceRoot $releaseDirectoryName
 $applicationProject = Join-Path $sourceRoot "src\Emerde\Emerde.csproj"
 $applicationVersion = (Select-Xml -LiteralPath $applicationProject -XPath "/Project/PropertyGroup/AssemblyVersion" | Select-Object -First 1).Node.InnerText.Trim()
