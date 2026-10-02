@@ -20,7 +20,7 @@
   "execution_mode": "in_process",
   "entry_point": "Example.Extension.dll",
   "entry_type": "Example.Extension.Entry",
-  "minimum_host_version": "1.6.7.0",
+  "minimum_host_version": "1.6.7",
   "capabilities": ["monitor", "recording", "ui"],
   "permissions": ["monitor.override", "recorder.override", "ui.modify"],
   "timeout_seconds": 30,

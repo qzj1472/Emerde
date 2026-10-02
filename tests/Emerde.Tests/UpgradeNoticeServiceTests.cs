@@ -25,7 +25,7 @@ public sealed class UpgradeNoticeServiceTests
     }
 
     [Fact]
-    public void TryReadPendingNotice_RequiresPendingCurrentFourPartVersion()
+    public void TryReadPendingNotice_RequiresPendingCurrentVersion()
     {
         string root = Path.Combine(Path.GetTempPath(), "EmerdeUpgradeNoticeTests", Guid.NewGuid().ToString("N"));
         string bin = Path.Combine(root, "bin");
@@ -36,22 +36,22 @@ public sealed class UpgradeNoticeServiceTests
         File.WriteAllText(noticePath, JsonSerializer.Serialize(new
         {
             NoticeId = "upgrade-1",
-            Version = "1.6.7.1",
-            PreviousVersion = "1.6.7.0",
+            Version = "1.6.8",
+            PreviousVersion = "1.6.7",
             InstalledAtUtc = DateTime.UtcNow,
             Pending = true,
         }));
 
         try
         {
-            UpgradeNoticeState? notice = UpgradeNoticeService.TryReadPendingNotice(bin, "1.6.7.1", string.Empty);
+            UpgradeNoticeState? notice = UpgradeNoticeService.TryReadPendingNotice(bin, "1.6.8", string.Empty);
 
             Assert.NotNull(notice);
             Assert.Equal("upgrade-1", notice.NoticeId);
-            Assert.Equal("1.6.7.1", notice.Version);
-            Assert.Equal("1.6.7.0", notice.PreviousVersion);
-            Assert.Null(UpgradeNoticeService.TryReadPendingNotice(bin, "1.6.7.0", string.Empty));
-            Assert.Null(UpgradeNoticeService.TryReadPendingNotice(bin, "1.6.7.1", "upgrade-1"));
+            Assert.Equal("1.6.8", notice.Version);
+            Assert.Equal("1.6.7", notice.PreviousVersion);
+            Assert.Null(UpgradeNoticeService.TryReadPendingNotice(bin, "1.6.7", string.Empty));
+            Assert.Null(UpgradeNoticeService.TryReadPendingNotice(bin, "1.6.8", "upgrade-1"));
         }
         finally
         {
@@ -71,19 +71,19 @@ public sealed class UpgradeNoticeServiceTests
         File.WriteAllText(noticePath, JsonSerializer.Serialize(new
         {
             NoticeId = "upgrade-2",
-            Version = "1.6.7.1",
-            PreviousVersion = "1.6.7.1",
+            Version = "1.6.8",
+            PreviousVersion = "1.6.8",
             InstalledAtUtc = DateTime.UtcNow,
             Pending = true,
         }));
 
         try
         {
-            UpgradeNoticeState? notice = UpgradeNoticeService.TryReadPendingNotice(bin, "1.6.7.1", "upgrade-1");
+            UpgradeNoticeState? notice = UpgradeNoticeService.TryReadPendingNotice(bin, "1.6.8", "upgrade-1");
 
             Assert.NotNull(notice);
             Assert.Equal("upgrade-2", notice.NoticeId);
-            Assert.Equal("1.6.7.1", notice.PreviousVersion);
+            Assert.Equal("1.6.8", notice.PreviousVersion);
         }
         finally
         {
@@ -103,19 +103,19 @@ public sealed class UpgradeNoticeServiceTests
         DateTime installedAtUtc = new(2026, 8, 13, 14, 18, 46, DateTimeKind.Utc);
         File.WriteAllText(noticePath, JsonSerializer.Serialize(new
         {
-            Version = "1.6.7.1",
-            PreviousVersion = "1.6.7.1",
+            Version = "1.6.8",
+            PreviousVersion = "1.6.8",
             InstalledAtUtc = installedAtUtc,
             Pending = true,
         }));
 
         try
         {
-            UpgradeNoticeState? firstRead = UpgradeNoticeService.TryReadPendingNotice(bin, "1.6.7.1", string.Empty);
+            UpgradeNoticeState? firstRead = UpgradeNoticeService.TryReadPendingNotice(bin, "1.6.8", string.Empty);
 
             Assert.NotNull(firstRead);
-            Assert.StartsWith("legacy:1.6.7.1:", firstRead.NoticeId);
-            Assert.Null(UpgradeNoticeService.TryReadPendingNotice(bin, "1.6.7.1", firstRead.NoticeId));
+            Assert.StartsWith("legacy:1.6.8:", firstRead.NoticeId);
+            Assert.Null(UpgradeNoticeService.TryReadPendingNotice(bin, "1.6.8", firstRead.NoticeId));
         }
         finally
         {
@@ -126,14 +126,14 @@ public sealed class UpgradeNoticeServiceTests
     [Fact]
     public void TryReadDevelopmentNotice_UsesBuildIdentityAndDoesNotDependOnInstalledNoticeFile()
     {
-        UpgradeNoticeState? notice = UpgradeNoticeService.TryReadDevelopmentNotice("1.6.7.1", "debug-build-2", string.Empty);
+        UpgradeNoticeState? notice = UpgradeNoticeService.TryReadDevelopmentNotice("1.6.8", "debug-build-2", string.Empty);
 
         Assert.NotNull(notice);
-        Assert.Equal("debug:1.6.7.1:debug-build-2", notice.NoticeId);
+        Assert.Equal("debug:1.6.8:debug-build-2", notice.NoticeId);
         Assert.Equal(string.Empty, notice.PreviousVersion);
         Assert.Empty(notice.NoticePath);
-        Assert.Null(UpgradeNoticeService.TryReadDevelopmentNotice("1.6.7.1", "debug-build-2", notice.NoticeId));
-        Assert.NotNull(UpgradeNoticeService.TryReadDevelopmentNotice("1.6.7.1", "debug-build-3", notice.NoticeId));
+        Assert.Null(UpgradeNoticeService.TryReadDevelopmentNotice("1.6.8", "debug-build-2", notice.NoticeId));
+        Assert.NotNull(UpgradeNoticeService.TryReadDevelopmentNotice("1.6.8", "debug-build-3", notice.NoticeId));
     }
 
     [Theory]
@@ -148,55 +148,55 @@ public sealed class UpgradeNoticeServiceTests
     }
 
     [Fact]
-    public void ReleaseNotesCatalog_UsesFourPartVersions()
+    public void ReleaseNotesCatalog_UsesNormalizedVersions()
     {
-        Assert.Equal("1.6.8.2", ReleaseNotesCatalog.Entries[0].Version);
-        Assert.Contains(ReleaseNotesCatalog.Entries, entry => entry.Version == "1.6.8.2");
-        Assert.Contains(ReleaseNotesCatalog.Entries, entry => entry.Version == "1.6.8.1");
-        Assert.Contains(ReleaseNotesCatalog.Entries, entry => entry.Version == "1.6.7.2");
-        Assert.Contains(ReleaseNotesCatalog.Entries, entry => entry.Version == "1.6.7.1");
-        Assert.Contains(ReleaseNotesCatalog.Entries, entry => entry.Version == "1.6.7.0");
-        Assert.Equal("1.6.7.2", ReleaseNotesCatalog.GetEntry("1.6.7.2").Version);
+        Assert.Equal("1.7.1", ReleaseNotesCatalog.Entries[0].Version);
+        Assert.Contains(ReleaseNotesCatalog.Entries, entry => entry.Version == "1.6.11");
+        Assert.Contains(ReleaseNotesCatalog.Entries, entry => entry.Version == "1.6.10");
+        Assert.Contains(ReleaseNotesCatalog.Entries, entry => entry.Version == "1.6.9");
+        Assert.Contains(ReleaseNotesCatalog.Entries, entry => entry.Version == "1.6.8");
+        Assert.Contains(ReleaseNotesCatalog.Entries, entry => entry.Version == "1.6.7");
+        Assert.Equal("1.6.9", ReleaseNotesCatalog.GetEntry("1.6.9").Version);
     }
 
     [Fact]
-    public void ReleaseNotes1682_ContainsAuditRecordsForEveryDisplayedItem()
+    public void ReleaseNotes1611_ContainsAuditRecordsForEveryDisplayedItem()
     {
-        ReleaseNoteEntry entry = ReleaseNotesCatalog.GetEntry("1.6.8.2");
+        ReleaseNoteEntry entry = ReleaseNotesCatalog.GetEntry("1.6.11");
         string[] items = entry.Sections.SelectMany(section => section.Items).ToArray();
 
         Assert.Equal(items.Length, entry.AuditTrail.Count);
         Assert.All(entry.AuditTrail, audit =>
         {
-            Assert.Equal("1.6.8.2", audit.Version);
-            Assert.Equal("2026-09-12", audit.WrittenAt);
+            Assert.Equal("1.6.11", audit.Version);
+            Assert.Contains(audit.WrittenAt, new[] { "2026-09-12", "2026-09-13" });
             Assert.Contains(audit.Text, items);
         });
-        Assert.Equal(items.Length, ReleaseNotesCatalog.AuditRecords.Count(audit => audit.Version == "1.6.8.2"));
-        Assert.Equal(7, items.Length);
+        Assert.Equal(items.Length, ReleaseNotesCatalog.AuditRecords.Count(audit => audit.Version == "1.6.11"));
+        Assert.Equal(13, items.Length);
         Assert.Equal(items.Length, items.Distinct(StringComparer.Ordinal).Count());
     }
 
     [Fact]
-    public void ReleaseNotes1681_ContainsAuditRecordsForEveryDisplayedItem()
+    public void ReleaseNotes1610_ContainsAuditRecordsForEveryDisplayedItem()
     {
-        ReleaseNoteEntry entry = ReleaseNotesCatalog.GetEntry("1.6.8.1");
+        ReleaseNoteEntry entry = ReleaseNotesCatalog.GetEntry("1.6.10");
         string[] items = entry.Sections.SelectMany(section => section.Items).ToArray();
 
         Assert.Equal(items.Length, entry.AuditTrail.Count);
         Assert.All(entry.AuditTrail, audit =>
         {
-            Assert.Equal("1.6.8.1", audit.Version);
+            Assert.Equal("1.6.10", audit.Version);
             Assert.Contains(audit.WrittenAt, new[] { "2026-09-07", "2026-09-10" });
             Assert.Contains(audit.Text, items);
         });
-        Assert.Equal(items.Length, ReleaseNotesCatalog.AuditRecords.Count(audit => audit.Version == "1.6.8.1"));
+        Assert.Equal(items.Length, ReleaseNotesCatalog.AuditRecords.Count(audit => audit.Version == "1.6.10"));
     }
 
     [Fact]
-    public void ReleaseNotes1672_MapsEveryLocalizedItemExactlyOnce()
+    public void ReleaseNotes169_MapsEveryLocalizedItemExactlyOnce()
     {
-        ReleaseNoteEntry entry = ReleaseNotesCatalog.GetEntry("1.6.7.2");
+        ReleaseNoteEntry entry = ReleaseNotesCatalog.GetEntry("1.6.9");
         string[] items = entry.Sections.SelectMany(section => section.Items).ToArray();
 
         Assert.Equal([6, 11, 4, 6], entry.Sections.Select(section => section.Items.Count));

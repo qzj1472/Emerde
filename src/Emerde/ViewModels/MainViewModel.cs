@@ -3897,7 +3897,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                 request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 99_999_999);
             }
             string userAgent = Configurations.UserAgent.Get();
-            request.Headers.TryAddWithoutValidation("User-Agent", string.IsNullOrWhiteSpace(userAgent) ? "Emerde/1.6.8.2" : userAgent);
+            request.Headers.TryAddWithoutValidation("User-Agent", string.IsNullOrWhiteSpace(userAgent) ? "Emerde/1.7.1" : userAgent);
 
             response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             response.EnsureSuccessStatusCode();

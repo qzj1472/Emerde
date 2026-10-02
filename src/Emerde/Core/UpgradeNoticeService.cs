@@ -153,7 +153,7 @@ internal static class UpgradeNoticeService
 
     internal static string GetCurrentVersion()
     {
-        return Assembly.GetExecutingAssembly().GetName().Version?.ToString(4) ?? "0.0.0.0";
+        return Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0";
     }
 
     private static UpgradeNoticeFileState? ReadState(string noticePath)
