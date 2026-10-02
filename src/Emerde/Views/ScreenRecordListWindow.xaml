@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="Emerde.Views.ScreenRecordListWindow"
+<UserControl x:Class="Emerde.Views.ScreenRecordListWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:controls="clr-namespace:Emerde.Controls"
@@ -60,7 +60,7 @@
             <Setter Property="MinWidth" Value="84" />
             <Setter Property="Height" Value="36" />
             <Setter Property="Padding" Value="13,0" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
         </Style>
         <Style x:Key="VideoListIconButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Width" Value="36" />
@@ -69,7 +69,21 @@
             <Setter Property="Padding" Value="0" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
+        </Style>
+        <Style x:Key="EmerdeVideoCardFocusVisualStyle" TargetType="{x:Type Control}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Control}">
+                        <Border Margin="6"
+                                BorderBrush="{DynamicResource EmerdeBrandFillBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{StaticResource UiXSurfaceCornerRadius}"
+                                IsHitTestVisible="False"
+                                SnapsToDevicePixels="True" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style x:Key="VideoListHeaderButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource VideoListToolbarButtonStyle}">
             <Style.Triggers>
@@ -100,7 +114,7 @@
             <Setter Property="Height" Value="32" />
             <Setter Property="MinWidth" Value="58" />
             <Setter Property="Padding" Value="10,0" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
         </Style>
         <Style x:Key="VideoListScrollPageButtonStyle" TargetType="{x:Type RepeatButton}">
             <Setter Property="Focusable" Value="False" />
@@ -198,7 +212,7 @@
         </Style>
         <Style x:Key="VideoListBoxStyle" TargetType="{x:Type ListBox}" BasedOn="{StaticResource {x:Type ListBox}}">
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type ListBox}">
@@ -466,7 +480,6 @@
                   Grid.Row="1"
                   ClipToBounds="True"
                   SizeChanged="VideoSelectionHostSizeChanged"
-                  PreviewMouseLeftButtonDown="VideoSelectionHostPreviewMouseLeftButtonDown"
                   PreviewMouseLeftButtonUp="VideoSelectionHostPreviewMouseLeftButtonUp"
                   PreviewMouseMove="VideoSelectionHostPreviewMouseMove"
                   PreviewMouseRightButtonDown="VideoSelectionHostPreviewMouseRightButtonDown"
@@ -487,6 +500,8 @@
                           VirtualizingPanel.IsVirtualizing="True"
                           VirtualizingPanel.IsVirtualizingWhenGrouping="True"
                           VirtualizingPanel.ScrollUnit="Pixel"
+                          VirtualizingPanel.CacheLength="2"
+                          VirtualizingPanel.CacheLengthUnit="Page"
                           VirtualizingPanel.VirtualizationMode="Recycling">
                 <ListBox.Style>
                     <Style TargetType="{x:Type ListBox}" BasedOn="{StaticResource VideoListBoxStyle}">
@@ -526,7 +541,7 @@
                         <Setter Property="Padding" Value="0" />
                         <Setter Property="Margin" Value="0" />
                         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                        <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
                         <Setter Property="Template">
                             <Setter.Value>
                                 <ControlTemplate TargetType="{x:Type ListBoxItem}">
@@ -539,6 +554,7 @@
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type local:MainWindow}}}" Value="True">
                                 <Setter Property="controls:MotionAssist.IsEntranceEnabled" Value="False" />
+                                <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeVideoCardFocusVisualStyle}" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -561,7 +577,7 @@
                                     <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type local:MainWindow}}}" Value="True">
-                                            <Setter Property="controls:MotionAssist.IsEntranceEnabled" Value="True" />
+                                            <Setter Property="controls:MotionAssist.IsEntranceEnabled" Value="False" />
                                             <Setter Property="controls:MotionAssist.IsDataContextEntranceEnabled" Value="False" />
                                             <Setter Property="Width" Value="{Binding VideoCardWidth, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}" />
                                             <Setter Property="Height" Value="{Binding VideoCardHeight, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}" />
@@ -609,7 +625,7 @@
                             <Grid>
                                 <Border x:Name="VideoCardSurfaceStroke"
                                         BorderThickness="1"
-                                        CornerRadius="{StaticResource UiXNestedCornerRadius}"
+                                        CornerRadius="{StaticResource UiXSurfaceCornerRadius}"
                                         IsHitTestVisible="False">
                                     <Border.Style>
                                         <Style TargetType="{x:Type Border}">
@@ -624,16 +640,16 @@
                                         IsHitTestVisible="False"
                                         Opacity="0" />
                                 <Border x:Name="VideoCardSelectionLayer"
-                                        Background="#18337DFF"
-                                        BorderBrush="#78337DFF"
-                                        BorderThickness="1"
+                                         Background="{DynamicResource UiXSelectionFillBrush}"
+                                         BorderBrush="{DynamicResource UiXSelectionStrokeBrush}"
+                                         BorderThickness="1"
                                         CornerRadius="{StaticResource UiXSurfaceCornerRadius}"
                                         IsHitTestVisible="False"
                                         Opacity="0" />
                                 <Border x:Name="VideoCardMultiSelectionLayer"
-                                        Background="#1D4DA7B0"
-                                        BorderBrush="#944DA7B0"
-                                        BorderThickness="1"
+                                         Background="{DynamicResource UiXSelectionFillBrush}"
+                                         BorderBrush="{DynamicResource UiXSelectionStrokeBrush}"
+                                         BorderThickness="1"
                                         CornerRadius="{StaticResource UiXSurfaceCornerRadius}"
                                         IsHitTestVisible="False"
                                         Opacity="0" />
@@ -677,9 +693,14 @@
                                                 CornerRadius="{StaticResource UiXNestedCornerRadius}"
                                                 ClipToBounds="True">
                                              <Grid>
-                                                 <Border CornerRadius="{StaticResource UiXNestedCornerRadius}">
-                                                     <Image Source="{Binding ThumbnailSource}"
-                                                            Stretch="UniformToFill" />
+                                                 <Border CornerRadius="{StaticResource UiXNestedCornerRadius}"
+                                                         RenderOptions.BitmapScalingMode="LowQuality">
+                                                     <Border.Background>
+                                                         <ImageBrush ImageSource="{Binding ThumbnailSource}"
+                                                                     AlignmentX="Center"
+                                                                     AlignmentY="Center"
+                                                                     Stretch="UniformToFill" />
+                                                     </Border.Background>
                                                  </Border>
                                                 <ui:FontIcon HorizontalAlignment="Center"
                                                              VerticalAlignment="Center"
@@ -716,15 +737,14 @@
                                                   <RowDefinition Height="Auto" />
                                                   <RowDefinition Height="*" />
                                               </Grid.RowDefinitions>
-                                             <TextBlock MaxHeight="32"
-                                                        ClipToBounds="True"
+                                              <TextBlock Height="16"
                                                         FontSize="13"
                                                         FontWeight="SemiBold"
                                                         LineHeight="16"
                                                         LineStackingStrategy="BlockLineHeight"
                                                         Text="{Binding UiXWrappedFileName}"
-                                                        TextTrimming="CharacterEllipsis"
-                                                        TextWrapping="Wrap"
+                                                         TextTrimming="CharacterEllipsis"
+                                                         TextWrapping="NoWrap"
                                                         ToolTip="{Binding FileName}" />
                                                <TextBlock Grid.Row="1"
                                                          Margin="0"
@@ -812,23 +832,31 @@
                                                             </TextBlock.Style>
                                                         </TextBlock>
                                                     </Border>
-                                                     <Border Height="17"
+                                                     <Grid MinWidth="0">
+                                                     <Border x:Name="VideoAttributeStatusChip"
+                                                             Height="17"
                                                              HorizontalAlignment="Left"
+                                                             MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Grid}}"
                                                              Background="{DynamicResource UiXStallFillBrush}"
                                                              CornerRadius="{StaticResource UiXNestedCornerRadius}"
                                                              ClipToBounds="True"
                                                              MinWidth="0"
-                                                             Padding="7,0">
+                                                             Padding="7,0"
+                                                             MouseLeftButtonUp="VideoAttributeStatusChipMouseLeftButtonUp">
                                                         <Border.Style>
                                                             <Style TargetType="{x:Type Border}">
                                                                 <Setter Property="Margin" Value="4,0,0,0" />
                                                                 <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Setter Property="Cursor" Value="Arrow" />
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding HasAttributeStatus}" Value="True">
                                                                         <Setter Property="Visibility" Value="Visible" />
                                                                     </DataTrigger>
                                                                     <DataTrigger Binding="{Binding HasLifecycleStatus}" Value="False">
                                                                         <Setter Property="Margin" Value="0" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding CanOpenAttributeStatusPopup}" Value="True">
+                                                                        <Setter Property="Cursor" Value="Hand" />
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
@@ -844,6 +872,80 @@
                                                                     TextWrapping="NoWrap"
                                                                     ToolTip="{Binding AttributeStatusText}" />
                                                      </Border>
+                                                     <Popup x:Name="VideoAttributeStatusPopup"
+                                                            AllowsTransparency="True"
+                                                            Focusable="False"
+                                                            HorizontalOffset="0"
+                                                            Placement="Bottom"
+                                                            PlacementTarget="{Binding ElementName=VideoAttributeStatusChip}"
+                                                            PopupAnimation="None"
+                                                            StaysOpen="True"
+                                                            VerticalOffset="4">
+                                                        <Border Width="320"
+                                                                MaxHeight="360"
+                                                                Padding="12,10"
+                                                                Background="{DynamicResource UiXDialogElevatedBrush}"
+                                                                BorderBrush="{DynamicResource UiXStrongStrokeBrush}"
+                                                                BorderThickness="1"
+                                                                CornerRadius="{StaticResource PopupCornerRadius}"
+                                                                SnapsToDevicePixels="True">
+                                                            <Grid>
+                                                                <Grid.RowDefinitions>
+                                                                    <RowDefinition Height="Auto" />
+                                                                    <RowDefinition Height="*" />
+                                                                </Grid.RowDefinitions>
+                                                                <TextBlock Margin="0,0,0,8"
+                                                                           FontSize="14"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{DynamicResource UiXTextPrimaryBrush}"
+                                                                           Text="{Binding AttributeStatusPopupTitle}" />
+                                                                <ScrollViewer Grid.Row="1"
+                                                                              MaxHeight="312"
+                                                                              HorizontalScrollBarVisibility="Disabled"
+                                                                              VerticalScrollBarVisibility="Auto">
+                                                                    <ItemsControl ItemsSource="{Binding AttributeStatusSections}">
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate>
+                                                                                <StackPanel Margin="0,0,0,8">
+                                                                                    <TextBlock FontSize="13"
+                                                                                               FontWeight="SemiBold"
+                                                                                               Foreground="{DynamicResource UiXTextPrimaryBrush}"
+                                                                                               Text="{Binding Title}" />
+                                                                                    <ItemsControl ItemsSource="{Binding Details}">
+                                                                                        <ItemsControl.ItemTemplate>
+                                                                                            <DataTemplate>
+                                                                                                <StackPanel Margin="0,8,0,0">
+                                                                                                    <TextBlock FontSize="12"
+                                                                                                               Foreground="{DynamicResource UiXTextSecondaryBrush}"
+                                                                                                               Text="{Binding TimeText}">
+                                                                                                        <TextBlock.Style>
+                                                                                                            <Style TargetType="{x:Type TextBlock}">
+                                                                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                                                                <Style.Triggers>
+                                                                                                                    <DataTrigger Binding="{Binding TimeText}" Value="">
+                                                                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                                                                    </DataTrigger>
+                                                                                                                </Style.Triggers>
+                                                                                                            </Style>
+                                                                                                        </TextBlock.Style>
+                                                                                                    </TextBlock>
+                                                                                                    <TextBlock FontSize="12"
+                                                                                                               Foreground="{DynamicResource UiXTextPrimaryBrush}"
+                                                                                                               Text="{Binding Description}"
+                                                                                                               TextWrapping="Wrap" />
+                                                                                                </StackPanel>
+                                                                                            </DataTemplate>
+                                                                                        </ItemsControl.ItemTemplate>
+                                                                                    </ItemsControl>
+                                                                                </StackPanel>
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </ScrollViewer>
+                                                            </Grid>
+                                                        </Border>
+                                                     </Popup>
+                                                     </Grid>
                                                  </DockPanel>
                                                 <TextBlock Grid.Column="1"
                                                            Margin="8,0,0,0"
@@ -982,7 +1084,7 @@
                                     </BeginStoryboard>
                                 </MultiDataTrigger.EnterActions>
                             </MultiDataTrigger>
-                            <MultiDataTrigger>
+                             <MultiDataTrigger>
                                 <MultiDataTrigger.Conditions>
                                     <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="True" />
                                     <Condition Binding="{Binding DataContext.IsMultiSelectMode, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}" Value="False" />
@@ -1013,7 +1115,7 @@
                                     </BeginStoryboard>
                                 </MultiDataTrigger.ExitActions>
                             </MultiDataTrigger>
-                            <MultiDataTrigger>
+                             <MultiDataTrigger>
                                 <MultiDataTrigger.Conditions>
                                     <Condition Binding="{Binding IsSelected}" Value="True" />
                                     <Condition Binding="{Binding DataContext.IsMultiSelectMode, RelativeSource={RelativeSource AncestorType={x:Type local:ScreenRecordListWindow}}}" Value="True" />

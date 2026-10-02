@@ -189,6 +189,18 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
+    public void VideoListBlankDoubleClick_ReceivesHandledPreviewMouseEvents()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
+
+        Assert.DoesNotContain("PreviewMouseLeftButtonDown=\"VideoSelectionHostPreviewMouseLeftButtonDown\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("UIElement.PreviewMouseLeftButtonDownEvent", source, StringComparison.Ordinal);
+        Assert.Contains("new MouseButtonEventHandler(VideoSelectionHostPreviewMouseLeftButtonDown)", source, StringComparison.Ordinal);
+        Assert.Contains("            true);", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void VideoListBlankRefreshSurface_ExcludesTextAndInteractiveControls()
     {
         RunOnStaThread(() =>
@@ -316,6 +328,20 @@ public sealed class ScreenRecordListWindowTests
         RecordedVideoItem[] result = ScreenRecordListViewModel.ReuseExistingVideoItems([existing], [changed]);
 
         Assert.Same(changed, result[0]);
+    }
+
+    [Fact]
+    public void UpdateSourceSnapshot_RefreshesFileSizeText()
+    {
+        RecordedVideoItem item = new() { SourceLength = 100 };
+        DateTime writeTime = new(2026, 9, 13, 12, 0, 0, DateTimeKind.Utc);
+
+        item.UpdateSourceSnapshot(250, writeTime, writeTime);
+
+        Assert.Equal(250, item.SourceLength);
+        Assert.Equal(writeTime, item.SourceLastWriteTimeUtc);
+        Assert.Equal(writeTime, item.MetadataLastWriteTimeUtc);
+        Assert.Equal(ScreenRecordListViewModel.FormatFileSize(250), item.FileSizeText);
     }
 
     [Theory]
@@ -545,13 +571,12 @@ public sealed class ScreenRecordListWindowTests
         Assert.Contains("Text=\"{Binding UiXStreamerText}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding RecordingTimeText}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding FileSizeText}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Source=\"{Binding ThumbnailSource}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ImageSource=\"{Binding ThumbnailSource}\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("ImageSource=\"{Binding ThumbnailPath, Converter=", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"{Binding UiXSummaryText}\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"{Binding ResolutionChipText}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("TextWrapping=\"Wrap\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("MaxHeight=\"32\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("ClipToBounds=\"True\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("TextWrapping=\"NoWrap\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Height=\"16\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding UiXWrappedFileName}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("UiXWrappedFileName => AddFileNameBreakOpportunities(DisplayFileName)", code, StringComparison.Ordinal);
         Assert.Contains("result.Append('\\u200B')", code, StringComparison.Ordinal);
@@ -568,6 +593,7 @@ public sealed class ScreenRecordListWindowTests
         Assert.Contains("Height=\"17\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("VideoCardStatusMargin", xaml, StringComparison.Ordinal);
         Assert.Contains("ToolTip=\"{Binding FileName}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("KeyboardFocusBorder", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("HoverMarquee", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"VideoCardStatusRow\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Grid.Column=\"1\"", xaml, StringComparison.Ordinal);
@@ -618,12 +644,19 @@ public sealed class ScreenRecordListWindowTests
         Assert.Contains("Interlocked.CompareExchange(ref videoEnrichmentWorkerCount", code, StringComparison.Ordinal);
         Assert.Contains("ThumbnailImageConverter.TryLoadImage(thumbnailPath)", code, StringComparison.Ordinal);
         Assert.Contains("item.ThumbnailSource = thumbnailSource", code, StringComparison.Ordinal);
-        Assert.Contains("MaximumCachedImages = 128", code, StringComparison.Ordinal);
-        Assert.Contains("image.DecodePixelWidth = 192", code, StringComparison.Ordinal);
+        Assert.Contains("MaximumCachedImages = 512", code, StringComparison.Ordinal);
+        Assert.Contains("image.DecodePixelWidth = 160", code, StringComparison.Ordinal);
         Assert.Contains("PruneVideoEnrichmentQueueLocked", code, StringComparison.Ordinal);
         Assert.Contains("visibleVideoEnrichmentPaths", code, StringComparison.Ordinal);
         Assert.Contains("activeVideoEnrichmentPaths.Contains(item.FullPath)", code, StringComparison.Ordinal);
-        Assert.Contains("Source=\"{Binding ThumbnailSource}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("item.ThumbnailSource = null;", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("item.IsThumbnailLoadAttempted = false;", code, StringComparison.Ordinal);
+        Assert.Contains("ImageSource=\"{Binding ThumbnailSource}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ApplyProtectedVideoThumbnailAsync", code, StringComparison.Ordinal);
+        Assert.Contains("PreserveLoadedThumbnail", code, StringComparison.Ordinal);
+        Assert.Contains("UpdateSourceSnapshot", code, StringComparison.Ordinal);
+        Assert.Contains("isRecordingFile || isInProgress", code, StringComparison.Ordinal);
+        Assert.Contains("RenderOptions.BitmapScalingMode=\"LowQuality\"", xaml, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -999,8 +1032,8 @@ public sealed class ScreenRecordListWindowTests
         Assert.Contains("x:Name=\"VideoListBottomFade\"", xaml, StringComparison.Ordinal);
 
         string codeBehind = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
-        Assert.Contains("scrollViewer.VerticalOffset > 0.5d", codeBehind, StringComparison.Ordinal);
-        Assert.Contains("scrollViewer.VerticalOffset < scrollViewer.ScrollableHeight - 0.5d", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("scrollViewer.VerticalOffset > VideoListEdgeFadeThreshold", codeBehind, StringComparison.Ordinal);
+        Assert.Contains("scrollViewer.VerticalOffset < scrollViewer.ScrollableHeight - VideoListEdgeFadeThreshold", codeBehind, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1101,6 +1134,57 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
+    public void ActiveSessionParts_DisplayCumulativeSourceLengthOnRepresentative()
+    {
+        RecordedVideoItem first = new()
+        {
+            FullPath = @"C:\videos\record_000.ts",
+            SourceLength = 100,
+            IsRecordingFile = true,
+            RecordingSessionId = "session",
+            SegmentIndex = 0,
+        };
+        RecordedVideoItem second = new()
+        {
+            FullPath = @"C:\videos\record_001.ts",
+            SourceLength = 250,
+            IsRecordingFile = true,
+            RecordingSessionId = "session",
+            SegmentIndex = 1,
+        };
+        RecordedVideoItem intermediate = new()
+        {
+            FullPath = @"C:\videos\record.mkv",
+            SourceLength = 900,
+            IsInProgress = true,
+            RecordingSessionId = "session",
+        };
+
+        RecordedVideoItem[] result = ScreenRecordListViewModel.CollapseActiveSessionParts([first, second, intermediate]);
+
+        Assert.Single(result);
+        Assert.Same(first, result[0]);
+        Assert.Equal(350, first.DisplayLength);
+        Assert.Equal(ScreenRecordListViewModel.FormatFileSize(350), first.FileSizeText);
+    }
+
+    [Fact]
+    public void CompletedVideoKeepsItsOwnSourceLength()
+    {
+        RecordedVideoItem item = new()
+        {
+            FullPath = @"C:\videos\completed.mkv",
+            SourceLength = 725,
+        };
+
+        RecordedVideoItem[] result = ScreenRecordListViewModel.CollapseActiveSessionParts([item]);
+
+        Assert.Same(item, Assert.Single(result));
+        Assert.Equal(725, item.DisplayLength);
+        Assert.Equal(ScreenRecordListViewModel.FormatFileSize(725), item.FileSizeText);
+    }
+
+    [Fact]
     public void ProcessingSessionArtifacts_AreCollapsedToOneOrganizingCard()
     {
         RecordedVideoItem first = new()
@@ -1186,11 +1270,107 @@ public sealed class ScreenRecordListWindowTests
         {
             MediaIssue = "timeline_mismatch;optimized_audio_failed",
             IsStallSegment = true,
+            SegmentIndex = 1,
+            SegmentCount = 3,
+            WasRepaired = true,
         };
 
         string[] statuses = item.AttributeStatusText.Split(" · ", StringSplitOptions.RemoveEmptyEntries);
 
-        Assert.Equal(3, statuses.Length);
+        Assert.Equal(
+            [
+                ScreenRecordListViewModel.FormatResourceText("SegmentPositionChip", "Part {0}/{1}", 2, 3),
+                ScreenRecordListViewModel.GetResourceText("MediaIssueChip", "A/V issue"),
+                ScreenRecordListViewModel.GetResourceText("OptimizedAudioFailedChip", "Optimized audio failed"),
+                ScreenRecordListViewModel.GetResourceText("StallSegmentChip", "Stall split"),
+            ],
+            statuses);
+        Assert.DoesNotContain(ScreenRecordListViewModel.GetResourceText("RepairedChip", "Repaired"), statuses);
+    }
+
+    [Fact]
+    public void VideoCardStatusPopup_UsesChipOrderAndUnknownTimes()
+    {
+        RecordedVideoItem item = new()
+        {
+            MediaIssue = "timeline_mismatch;optimized_audio_failed",
+            IsStallSegment = true,
+            SegmentIndex = 1,
+            SegmentCount = 3,
+            IssueIntervals =
+            [
+                new VideoRecordingIssueInterval
+                {
+                    Kind = "timeline_mismatch",
+                    StartSeconds = 492,
+                    EndSeconds = 499,
+                    Detail = "audio_stalled",
+                },
+                new VideoRecordingIssueInterval
+                {
+                    Kind = "optimized_audio_failed",
+                    StartSeconds = -1,
+                    EndSeconds = -1,
+                    Detail = "original_audio_preserved",
+                },
+            ],
+        };
+
+        IReadOnlyList<VideoAttributeStatusSection> sections = item.BuildAttributeStatusSections();
+
+        Assert.Equal(4, sections.Count);
+        Assert.Equal(ScreenRecordListViewModel.FormatResourceText("SegmentPositionChip", "Part {0}/{1}", 2, 3), sections[0].Title);
+        Assert.Equal(ScreenRecordListViewModel.GetResourceText("MediaIssueChip", "A/V issue"), sections[1].Title);
+        Assert.Equal(ScreenRecordListViewModel.GetResourceText("OptimizedAudioFailedChip", "Optimized audio failed"), sections[2].Title);
+        Assert.Equal(ScreenRecordListViewModel.GetResourceText("StallSegmentChip", "Stall split"), sections[3].Title);
+        Assert.Contains("00:08:12", sections[1].Details[0].TimeText, StringComparison.Ordinal);
+        Assert.Equal(ScreenRecordListViewModel.GetResourceText("MediaIssueAudioStalledDescription", "The audio stopped while the picture kept going."), sections[1].Details[0].Description);
+        Assert.Equal(ScreenRecordListViewModel.GetResourceText("AttributeStatusEntireFile", "Entire file"), sections[2].Details[0].TimeText);
+        Assert.Equal(ScreenRecordListViewModel.GetResourceText("OptimizedAudioFailedDescription", "Optimization failed, original audio was kept."), sections[2].Details[0].Description);
+        Assert.True(item.CanOpenAttributeStatusPopup);
+        item.LifecycleStatus = VideoLifecycleStatus.Converting;
+        Assert.False(item.CanOpenAttributeStatusPopup);
+        item.LifecycleStatus = VideoLifecycleStatus.None;
+        item.IsRecordingFile = true;
+        Assert.False(item.CanOpenAttributeStatusPopup);
+    }
+
+    [Fact]
+    public void VideoCardStatusPopup_UnknownIntervalTimesUseUnknownLabelExceptOptimizedAudio()
+    {
+        string unknown = ScreenRecordListViewModel.GetResourceText("AttributeStatusTimeUnknown", "Time not recorded");
+        string entire = ScreenRecordListViewModel.GetResourceText("AttributeStatusEntireFile", "Entire file");
+        VideoRecordingIssueInterval unknownInterval = new()
+        {
+            Kind = "timeline_mismatch",
+            StartSeconds = -1,
+            EndSeconds = -1,
+            Detail = "audio_stalled",
+        };
+        VideoRecordingIssueInterval optimizedInterval = new()
+        {
+            Kind = "optimized_audio_failed",
+            StartSeconds = -1,
+            EndSeconds = -1,
+            Detail = "original_audio_preserved",
+        };
+
+        Assert.Equal(unknown, RecordedVideoItem.FormatIssueTime(unknownInterval));
+        Assert.Equal(entire, RecordedVideoItem.FormatIssueTime(optimizedInterval, entireFileWhenUnknown: true));
+    }
+
+    [Fact]
+    public void VideoCardStatusPopup_UsesUnknownTimeWhenIntervalsAreMissing()
+    {
+        RecordedVideoItem item = new()
+        {
+            MediaIssue = "timeline_mismatch",
+        };
+
+        IReadOnlyList<VideoAttributeStatusSection> sections = item.BuildAttributeStatusSections();
+
+        Assert.Equal(ScreenRecordListViewModel.GetResourceText("AttributeStatusTimeUnknown", "Time not recorded"), sections[0].Details[0].TimeText);
+        Assert.True(item.CanOpenAttributeStatusPopup);
     }
 
     [Fact]
@@ -1202,7 +1382,41 @@ public sealed class ScreenRecordListWindowTests
         Assert.Contains("TextTrimming=\"CharacterEllipsis\"", xaml, StringComparison.Ordinal);
         Assert.Contains("TextWrapping=\"NoWrap\"", xaml, StringComparison.Ordinal);
         Assert.Contains("ToolTip=\"{Binding AttributeStatusText}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"VideoAttributeStatusChip\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Binding=\"{Binding CanOpenAttributeStatusPopup}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding AttributeStatusSections}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Placement=\"Bottom\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("MaxWidth=\"{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Grid}}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"VideoAttributeStatusPopup\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("StaysOpen=\"True\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("CornerRadius=\"{StaticResource PopupCornerRadius}\"", xaml, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void VideoCardStatusPopup_ClosesOnOutsideClickAndKeepsChipToggle()
+    {
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
+
+        Assert.True(ScreenRecordListWindow.ShouldCloseAttributeStatusPopupOnOutsideClick(true, false));
+        Assert.False(ScreenRecordListWindow.ShouldCloseAttributeStatusPopupOnOutsideClick(true, true));
+        Assert.False(ScreenRecordListWindow.ShouldCloseAttributeStatusPopupOnOutsideClick(false, false));
+        Assert.Contains("PreviewMouseLeftButtonDown += ScreenRecordListWindowPreviewMouseLeftButtonDown", code, StringComparison.Ordinal);
+        Assert.Contains("CloseAttributeStatusPopup()", code, StringComparison.Ordinal);
+        Assert.Contains("FindAttributeStatusPopup(chip)", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VideoCards_DisableEntranceMotionForUiXVirtualization()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
+
+        Assert.Contains("Property=\"controls:MotionAssist.IsEntranceEnabled\" Value=\"False\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("IsEntranceEnabled\" Value=\"True\" />\r\n                                            <Setter Property=\"controls:MotionAssist.IsDataContextEntranceEnabled\" Value=\"False\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("VirtualizingPanel.CacheLength=\"2\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("VideoListEdgeFadeThreshold", code, StringComparison.Ordinal);
+    }
+
 
     [Fact]
     public void VideoListXaml_DisablesHorizontalScrollingAndFocusOutline()

@@ -779,6 +779,23 @@
   <data name="MediaIssueChip" xml:space="preserve"><value>音画异常</value></data>
   <data name="OptimizedAudioFailedChip" xml:space="preserve"><value>优化音频失败</value></data>
   <data name="SegmentPositionChip" xml:space="preserve"><value>分段 {0}/{1}</value></data>
+  <data name="VideoAttributeStatusTitle" xml:space="preserve"><value>视频提示</value></data>
+  <data name="SegmentPositionDescription" xml:space="preserve"><value>同一场直播的第 {0} 段，共 {1} 段。</value></data>
+  <data name="AttributeStatusEntireFile" xml:space="preserve"><value>整段</value></data>
+  <data name="AttributeStatusTimeUnknown" xml:space="preserve"><value>时间未记录</value></data>
+  <data name="AttributeStatusTimeRange" xml:space="preserve"><value>{0}-{1}（{2}）</value></data>
+  <data name="AttributeStatusDurationSeconds" xml:space="preserve"><value>{0}秒</value></data>
+  <data name="AttributeStatusDurationMinutes" xml:space="preserve"><value>{0}分{1}秒</value></data>
+  <data name="AttributeStatusStallTime" xml:space="preserve"><value>{0} 附近，卡顿约 {1}</value></data>
+  <data name="AttributeStatusStallTimeShort" xml:space="preserve"><value>{0} 附近</value></data>
+  <data name="MediaIssueVideoStalledDescription" xml:space="preserve"><value>画面停住，声音还在走。</value></data>
+  <data name="MediaIssueAudioStalledDescription" xml:space="preserve"><value>声音停住，画面还在走。</value></data>
+  <data name="MediaIssueClippingSilenceDescription" xml:space="preserve"><value>音频爆音后静音。</value></data>
+  <data name="MediaIssueDecodeErrorDescription" xml:space="preserve"><value>音频解码异常。</value></data>
+  <data name="MediaIssueTimelineMismatchDescription" xml:space="preserve"><value>音画结束时间不一致。</value></data>
+  <data name="MediaIssueGenericDescription" xml:space="preserve"><value>这段录像出现音画异常。</value></data>
+  <data name="OptimizedAudioFailedDescription" xml:space="preserve"><value>优化失败，已保留原音频。</value></data>
+  <data name="StallSegmentDescription" xml:space="preserve"><value>直播卡住后从这里截成下一段。本段到此结束。</value></data>
   <data name="TranscodeComplete" xml:space="preserve"><value>转码完成</value></data>
   <data name="TranscodeFailed" xml:space="preserve"><value>转码失败</value></data>
   <data name="SplitDurationInvalid" xml:space="preserve"><value>分割时间无效</value></data>
@@ -815,31 +832,35 @@
   <data name="AboutReleaseNotesDescription" xml:space="preserve"><value>查看各版本的功能变化与体验改进。</value></data>
   <data name="ReleaseNotesUserFacingLabel" xml:space="preserve"><value>用户可感知的更新</value></data>
   <data name="ReleaseNotesAdditionalLabel" xml:space="preserve"><value>其他改进</value></data>
-  <data name="ReleaseNotes1681Title" xml:space="preserve"><value>Emerde 1.6.8.1</value></data>
-  <data name="ReleaseNotes1681Date" xml:space="preserve"><value>2026-09-10</value></data>
-  <data name="ReleaseNotes1681Items" xml:space="preserve"><value>新增音频、视频、容器、编码、分辨率、帧率、时间轴、流数量、解码错误、RMS、峰值和近静音区间等媒体诊断记录。|MKV 录制始终生成优化音频；优化音频无法生成但原音频有效时保留原音频，并明确标记优化音频问题。|增加录制时间轴和音频内容采样，用于判断异常发生在直播源、TS 输入、中间分段还是最终成品。|增加录制恢复用的自动兜底分段；兜底分段最后会合并为一个成品，设置中主动配置的分段仍保持独立。|录制中和整理中的同一直播间分段折叠为一个视频卡片，分段编号稳定，多个状态可以同时显示。|保留已有视频封面，新的封面生成流程只用于新生成的封面。|增加磁盘空间保护，空间不足时暂停录制相关处理，空间恢复前保持提示。|完善恢复流程和录像元数据写入，处理中断后可以继续恢复而不丢失录像状态。|磁盘空间不足导致的转码失败不再进行无意义的恢复重试。|空元数据流不再持续产生异常日志。</value></data>
-  <data name="ReleaseNotes1681AdditionalItems" xml:space="preserve"><value>优化安装器版本显示、输出命名和弹窗背景蒙版一致性。|优化恢复配置对齐、过长状态文本换行、头像缓存清理和解析器取消处理。|记录处理速度用于后续对比，本版本没有修改转换性能逻辑。</value></data>
-  <data name="ReleaseNotes1682Title" xml:space="preserve"><value>Emerde 1.6.8.2</value></data>
-  <data name="ReleaseNotes1682Date" xml:space="preserve"><value>2026-09-12</value></data>
-  <data name="ReleaseNotes1682Items" xml:space="preserve"><value>去掉添加房间、首页选中层、设置页、视频列表和通知里残留的旧界面，统一使用 UI-X。|关于页面补充自动分段说明：自动分段用于录制异常、重连和恢复兜底；默认自动分段最后会合并为一个成品，设置中的自定义分段仍保持独立。|音频内容持续异常时会重启当前录制，避免继续写入异常音轨。|卡顿恢复产生的内部临时分段不再作为额外成品出现在视频列表。|视频列表去掉旧表头占位，录制中和整理中的卡片不再留下大块空白。</value></data>
-  <data name="ReleaseNotes1682AdditionalItems" xml:space="preserve"><value>安装器文案和弹窗与当前版本对齐。|完善成品转换时的时间轴与音频内容诊断。</value></data>
-  <data name="ReleaseNotes1672Title" xml:space="preserve"><value>Emerde 1.6.7.2</value></data>
-  <data name="ReleaseNotes1672Date" xml:space="preserve"><value>2026-08-24</value></data>
-  <data name="ReleaseNotes1672Item18" xml:space="preserve"><value>视频卡片名称不再显示文件格式后缀。</value></data>
-  <data name="ReleaseNotes1672Item19" xml:space="preserve"><value>遗留录像处理完成后会执行最终命名，不再保留“录制中”中转名称。</value></data>
-  <data name="ReleaseNotes1672Item20" xml:space="preserve"><value>正在录制的视频卡片使用录制开始时保存的完整主播头像作为封面。</value></data>
-  <data name="ReleaseNotes1672RecoveryItem" xml:space="preserve"><value>关闭软件或重启时未完成的录像处理会保存为待处理任务，并在下次启动时继续处理；没有任务记录的 TS、FLV 文件不再自动扫描。</value></data>
-  <data name="ReleaseNotes1672Item21" xml:space="preserve"><value>手动转码新增是否删除源文件的选择，默认跟随录制设置；只有转码或完整修复成功后才会删除源文件。</value></data>
-  <data name="ReleaseNotes1672Items" xml:space="preserve"><value>软件运行期间会自动重新发现并排队处理已有的未转码 TS、FLV 录像，无需重启。|待处理录像较多时会分批执行，常规转码失败后会自动恢复可读取内容，不再提供单独修复入口或添加“修复”文件后缀。|自动清理现在会同时删除录像对应的元数据和空文件夹，并保留配置的录像根目录。|首页卡片大小、排序方式和预览卡片偏好会在重启后继续保留。|修复 UI-X 右键菜单选中状态、平台筛选和多选操作。|统一 UI-X 设置、关于页面和更新弹窗中输入框与版本选择框的描边颜色。|新增录像完成后命名，可使用标题、房间号、画质、帧率、编码、录制时间和视频时长等真实信息。|录像元数据新增结束时间、时长、帧率、画质、编码和优化音轨状态，并在转码、修复和恢复后继续保留。|UI-X 视频列表支持空白处双击刷新，卡片只显示开始时间，方向键可按整行和相邻卡片移动选中项。|自定义巡检支持在全局或单独设置中任意组合日期范围、星期和时间段。|旧的自定义命名规则会将“录制时间”占位符自动迁移为更准确的“录制开始时间”。|重新整理命名规则按钮、输出设置间距和更新弹窗内容。|录像结束后会从视频帧生成独立封面，并保存独立的头像与封面资源，主播更换头像不会影响已有视频封面。|视频卡片增加录制中、转码中、分段、处理失败等状态提示，处理进度更容易辨认。|通知改为更完整的通知卡片，并支持通知历史。|设置保存失败和重启后录制状态不一致的问题得到修复。|页面、导航、预览和卡片状态变化增加更连贯的过渡动画，减少突兀切换。|设置、关于、首页和视频列表的布局与窗口调整进行了适配，减少窗口变化时的卡顿和内容截断。</value></data>
-  <data name="ReleaseNotes1672AdditionalItems" xml:space="preserve"><value>减少 UI-X 首页不必要的逐秒刷新，仅在打开直播间信息时计算并更新录制时长。|完善录像恢复策略迁移，使此前被阻止处理的录像可以重新尝试。|视频列表刷新增加进行中、成功、失败和冷却提示，并在完成刷新时提供卡片反馈；同时减少窗口调整时的重复处理。|加强共享 UI 资源隔离，避免 UI-X 设置样式影响无关页面或旧 UI。|视频列表刷新和托盘隐藏场景的异常处理更加稳定。</value></data>
-  <data name="ReleaseNotes1671Title" xml:space="preserve"><value>Emerde 1.6.7.1</value></data>
-  <data name="ReleaseNotes1671Date" xml:space="preserve"><value>2026-08-13</value></data>
-  <data name="ReleaseNotes1671Items" xml:space="preserve"><value>提升长时间录制稳定性，改善直播卡顿、数据不连续、音画不同步和录制结束后转码失败。|新增录像修复，异常 TS、MP4 等视频可尝试恢复可播放的音视频内容。|优化直播间链接、短链接识别和重复检测，避免同一直播间被重复添加。|优化主播头像、开播状态和直播间信息同步，状态变化后能更及时地反映。|重做 UI-X 的新建直播间与单独设置工作台，优化设置继承、信息层级、操作区域和窗口适配。|优化首页卡片、预览卡片栏和窗口缩放，减少留白、截断、闪烁、卡死和调整窗口时的粘滞。|优化视频列表封面、文件名、主播信息、时间大小、格式提示、卡片排列和多选操作。|统一 UI-X 的设置、直播间信息、日志导出、恢复配置、转码、录像修复和确认弹窗，改善间距、底色、描边、模糊和交互。|完善首页与托盘右键菜单、快捷键、选中状态、设置、扩展和关于页面。</value></data>
-  <data name="ReleaseNotes1671AdditionalItems" xml:space="preserve"><value>优化安装器升级后的首次启动提示，更新日志会按版本显示。|优化通知、托盘图标、加载状态和头像刷新，状态变化时反馈更及时。|优化录制文件保存、清理和配置恢复，减少误操作对已有数据的影响。|优化异常文件处理、转码失败提示和录像修复结果展示。</value></data>
-  <data name="ReleaseNotes1670Title" xml:space="preserve"><value>Emerde 1.6.7.0</value></data>
-  <data name="ReleaseNotes1670Date" xml:space="preserve"><value>2026-08-10</value></data>
-  <data name="ReleaseNotes1670Items" xml:space="preserve"><value>优化安装、升级、卸载、修复和配置恢复流程，更好地保留用户配置与数据。|加强抖音、B 站等手机客户端分享文本和短链接识别。|改进直播间 URL 导入、规范化和重复检测。|优化首页直播间卡片、右键菜单、信息弹窗和框选操作。|加入可切换的 UI-X 首页布局。</value></data>
-  <data name="ReleaseNotes1670AdditionalItems" xml:space="preserve"><value>优化录制清理、文件保存、头像刷新和托盘状态提示。|增加安装器升级后的首次启动更新日志提示。|优化多平台直播间识别和常用操作反馈。</value></data>
+  <data name="ReleaseNotes1610Title" xml:space="preserve"><value>Emerde 1.6.10</value></data>
+  <data name="ReleaseNotes1610Date" xml:space="preserve"><value>2026-09-10</value></data>
+  <data name="ReleaseNotes1610Items" xml:space="preserve"><value>新增音频、视频、容器、编码、分辨率、帧率、时间轴、流数量、解码错误、RMS、峰值和近静音区间等媒体诊断记录。|MKV 录制始终生成优化音频；优化音频无法生成但原音频有效时保留原音频，并明确标记优化音频问题。|增加录制时间轴和音频内容采样，用于判断异常发生在直播源、TS 输入、中间分段还是最终成品。|增加录制恢复用的自动兜底分段；兜底分段最后会合并为一个成品，设置中主动配置的分段仍保持独立。|录制中和整理中的同一直播间分段折叠为一个视频卡片，分段编号稳定，多个状态可以同时显示。|保留已有视频封面，新的封面生成流程只用于新生成的封面。|增加磁盘空间保护，空间不足时暂停录制相关处理，空间恢复前保持提示。|完善恢复流程和录像元数据写入，处理中断后可以继续恢复而不丢失录像状态。|磁盘空间不足导致的转码失败不再进行无意义的恢复重试。|空元数据流不再持续产生异常日志。</value></data>
+  <data name="ReleaseNotes1610AdditionalItems" xml:space="preserve"><value>优化安装器版本显示、输出命名和弹窗背景蒙版一致性。|优化恢复配置对齐、过长状态文本换行、头像缓存清理和解析器取消处理。|记录处理速度用于后续对比，本版本没有修改转换性能逻辑。</value></data>
+  <data name="ReleaseNotes171Title" xml:space="preserve"><value>Emerde 1.7.1</value></data>
+  <data name="ReleaseNotes171Date" xml:space="preserve"><value>2026-09-30</value></data>
+  <data name="ReleaseNotes171Items" xml:space="preserve"><value>退出或重启确认期间会屏蔽托盘激活和菜单竞态，避免误触导致软件终止。|YouTube 直播地址支持更多形式，并选择可用的最高 HLS 画质。</value></data>
+  <data name="ReleaseNotes171AdditionalItems" xml:space="preserve"><value>应用、安装器和升级提示的版本统一使用三段式 1.7.1。|更新更新日志和安装器当前版本显示。</value></data>
+  <data name="ReleaseNotes1611Title" xml:space="preserve"><value>Emerde 1.6.11</value></data>
+  <data name="ReleaseNotes1611Date" xml:space="preserve"><value>2026-09-13</value></data>
+  <data name="ReleaseNotes1611Items" xml:space="preserve"><value>去掉添加房间、首页选中层、设置页、视频列表和通知里残留的旧界面，统一使用 UI-X。|关于页面补充自动分段说明：自动分段用于录制异常、重连和恢复兜底；默认自动分段最后会合并为一个成品，设置中的自定义分段仍保持独立。|音频内容持续异常时会重启当前录制，避免继续写入异常音轨。|卡顿恢复产生的内部临时分段不再作为额外成品出现在视频列表。|视频列表去掉旧表头占位，录制中和整理中的卡片不再留下大块空白。|连续且参数一致的自动分段会合并成一条；后面不兼容的单独保存，不再标成同一组分段。|优化音频失败时保留原音频并继续合并，优先保证整场完整。|成品卡片用一颗提示汇总异常；点击后可查看音画异常、优化音频失败、卡顿分段的发生时间。|B 站卡顿回退后会再尝试原画，不再钉在备用流。|视频列表滚动时保留已加载封面，滑回去不再先显示占位</value></data>
+  <data name="ReleaseNotes1611AdditionalItems" xml:space="preserve"><value>安装器文案和弹窗与当前版本对齐。|完善成品转换时的时间轴与音频内容诊断。|已有封面缓存会直接复用，并在内存中保留更多封面，减少反复读盘和解码</value></data>
+  <data name="ReleaseNotes169Title" xml:space="preserve"><value>Emerde 1.6.9</value></data>
+  <data name="ReleaseNotes169Date" xml:space="preserve"><value>2026-08-24</value></data>
+  <data name="ReleaseNotes169Item18" xml:space="preserve"><value>视频卡片名称不再显示文件格式后缀。</value></data>
+  <data name="ReleaseNotes169Item19" xml:space="preserve"><value>遗留录像处理完成后会执行最终命名，不再保留“录制中”中转名称。</value></data>
+  <data name="ReleaseNotes169Item20" xml:space="preserve"><value>正在录制的视频卡片使用录制开始时保存的完整主播头像作为封面。</value></data>
+  <data name="ReleaseNotes169RecoveryItem" xml:space="preserve"><value>关闭软件或重启时未完成的录像处理会保存为待处理任务，并在下次启动时继续处理；没有任务记录的 TS、FLV 文件不再自动扫描。</value></data>
+  <data name="ReleaseNotes169Item21" xml:space="preserve"><value>手动转码新增是否删除源文件的选择，默认跟随录制设置；只有转码或完整修复成功后才会删除源文件。</value></data>
+  <data name="ReleaseNotes169Items" xml:space="preserve"><value>软件运行期间会自动重新发现并排队处理已有的未转码 TS、FLV 录像，无需重启。|待处理录像较多时会分批执行，常规转码失败后会自动恢复可读取内容，不再提供单独修复入口或添加“修复”文件后缀。|自动清理现在会同时删除录像对应的元数据和空文件夹，并保留配置的录像根目录。|首页卡片大小、排序方式和预览卡片偏好会在重启后继续保留。|修复 UI-X 右键菜单选中状态、平台筛选和多选操作。|统一 UI-X 设置、关于页面和更新弹窗中输入框与版本选择框的描边颜色。|新增录像完成后命名，可使用标题、房间号、画质、帧率、编码、录制时间和视频时长等真实信息。|录像元数据新增结束时间、时长、帧率、画质、编码和优化音轨状态，并在转码、修复和恢复后继续保留。|UI-X 视频列表支持空白处双击刷新，卡片只显示开始时间，方向键可按整行和相邻卡片移动选中项。|自定义巡检支持在全局或单独设置中任意组合日期范围、星期和时间段。|旧的自定义命名规则会将“录制时间”占位符自动迁移为更准确的“录制开始时间”。|重新整理命名规则按钮、输出设置间距和更新弹窗内容。|录像结束后会从视频帧生成独立封面，并保存独立的头像与封面资源，主播更换头像不会影响已有视频封面。|视频卡片增加录制中、转码中、分段、处理失败等状态提示，处理进度更容易辨认。|通知改为更完整的通知卡片，并支持通知历史。|设置保存失败和重启后录制状态不一致的问题得到修复。|页面、导航、预览和卡片状态变化增加更连贯的过渡动画，减少突兀切换。|设置、关于、首页和视频列表的布局与窗口调整进行了适配，减少窗口变化时的卡顿和内容截断。</value></data>
+  <data name="ReleaseNotes169AdditionalItems" xml:space="preserve"><value>减少 UI-X 首页不必要的逐秒刷新，仅在打开直播间信息时计算并更新录制时长。|完善录像恢复策略迁移，使此前被阻止处理的录像可以重新尝试。|视频列表刷新增加进行中、成功、失败和冷却提示，并在完成刷新时提供卡片反馈；同时减少窗口调整时的重复处理。|加强共享 UI 资源隔离，避免 UI-X 设置样式影响无关页面或旧 UI。|视频列表刷新和托盘隐藏场景的异常处理更加稳定。</value></data>
+  <data name="ReleaseNotes168Title" xml:space="preserve"><value>Emerde 1.6.8</value></data>
+  <data name="ReleaseNotes168Date" xml:space="preserve"><value>2026-08-13</value></data>
+  <data name="ReleaseNotes168Items" xml:space="preserve"><value>提升长时间录制稳定性，改善直播卡顿、数据不连续、音画不同步和录制结束后转码失败。|新增录像修复，异常 TS、MP4 等视频可尝试恢复可播放的音视频内容。|优化直播间链接、短链接识别和重复检测，避免同一直播间被重复添加。|优化主播头像、开播状态和直播间信息同步，状态变化后能更及时地反映。|重做 UI-X 的新建直播间与单独设置工作台，优化设置继承、信息层级、操作区域和窗口适配。|优化首页卡片、预览卡片栏和窗口缩放，减少留白、截断、闪烁、卡死和调整窗口时的粘滞。|优化视频列表封面、文件名、主播信息、时间大小、格式提示、卡片排列和多选操作。|统一 UI-X 的设置、直播间信息、日志导出、恢复配置、转码、录像修复和确认弹窗，改善间距、底色、描边、模糊和交互。|完善首页与托盘右键菜单、快捷键、选中状态、设置、扩展和关于页面。</value></data>
+  <data name="ReleaseNotes168AdditionalItems" xml:space="preserve"><value>优化安装器升级后的首次启动提示，更新日志会按版本显示。|优化通知、托盘图标、加载状态和头像刷新，状态变化时反馈更及时。|优化录制文件保存、清理和配置恢复，减少误操作对已有数据的影响。|优化异常文件处理、转码失败提示和录像修复结果展示。</value></data>
+  <data name="ReleaseNotes167Title" xml:space="preserve"><value>Emerde 1.6.7</value></data>
+  <data name="ReleaseNotes167Date" xml:space="preserve"><value>2026-08-10</value></data>
+  <data name="ReleaseNotes167Items" xml:space="preserve"><value>优化安装、升级、卸载、修复和配置恢复流程，更好地保留用户配置与数据。|加强抖音、B 站等手机客户端分享文本和短链接识别。|改进直播间 URL 导入、规范化和重复检测。|优化首页直播间卡片、右键菜单、信息弹窗和框选操作。|加入可切换的 UI-X 首页布局。</value></data>
+  <data name="ReleaseNotes167AdditionalItems" xml:space="preserve"><value>优化录制清理、文件保存、头像刷新和托盘状态提示。|增加安装器升级后的首次启动更新日志提示。|优化多平台直播间识别和常用操作反馈。</value></data>
   <data name="ReleaseNotesUnknownTitle" xml:space="preserve"><value>Emerde 更新</value></data>
   <data name="ReleaseNotesUnknownItem" xml:space="preserve"><value>这个版本包含稳定性与使用体验优化。</value></data>
   <data name="ConfigurationRecovered" xml:space="preserve"><value>配置文件无效，已保留到：{0}。Emerde 已使用默认配置启动。</value></data>

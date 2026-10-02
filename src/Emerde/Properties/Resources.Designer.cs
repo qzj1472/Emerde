@@ -4596,57 +4596,81 @@ namespace Emerde.Properties {
             }
         }
 
-        public static string ReleaseNotes1671Date {
+        public static string ReleaseNotes168Date {
             get {
-                return ResourceManager.GetString("ReleaseNotes1671Date", resourceCulture);
+                return ResourceManager.GetString("ReleaseNotes168Date", resourceCulture);
             }
         }
 
-        public static string ReleaseNotes1681AdditionalItems {
+        public static string ReleaseNotes1610AdditionalItems {
             get {
-                return ResourceManager.GetString("ReleaseNotes1681AdditionalItems", resourceCulture);
+                return ResourceManager.GetString("ReleaseNotes1610AdditionalItems", resourceCulture);
             }
         }
 
-        public static string ReleaseNotes1681Date {
+        public static string ReleaseNotes1610Date {
             get {
-                return ResourceManager.GetString("ReleaseNotes1681Date", resourceCulture);
+                return ResourceManager.GetString("ReleaseNotes1610Date", resourceCulture);
             }
         }
 
-        public static string ReleaseNotes1681Items {
+        public static string ReleaseNotes1610Items {
             get {
-                return ResourceManager.GetString("ReleaseNotes1681Items", resourceCulture);
+                return ResourceManager.GetString("ReleaseNotes1610Items", resourceCulture);
             }
         }
 
-        public static string ReleaseNotes1681Title {
+        public static string ReleaseNotes1610Title {
             get {
-                return ResourceManager.GetString("ReleaseNotes1681Title", resourceCulture);
+                return ResourceManager.GetString("ReleaseNotes1610Title", resourceCulture);
             }
         }
 
-        public static string ReleaseNotes1682AdditionalItems {
+        public static string ReleaseNotes171AdditionalItems {
             get {
-                return ResourceManager.GetString("ReleaseNotes1682AdditionalItems", resourceCulture);
+                return ResourceManager.GetString("ReleaseNotes171AdditionalItems", resourceCulture);
             }
         }
 
-        public static string ReleaseNotes1682Date {
+        public static string ReleaseNotes171Date {
             get {
-                return ResourceManager.GetString("ReleaseNotes1682Date", resourceCulture);
+                return ResourceManager.GetString("ReleaseNotes171Date", resourceCulture);
             }
         }
 
-        public static string ReleaseNotes1682Items {
+        public static string ReleaseNotes171Items {
             get {
-                return ResourceManager.GetString("ReleaseNotes1682Items", resourceCulture);
+                return ResourceManager.GetString("ReleaseNotes171Items", resourceCulture);
             }
         }
 
-        public static string ReleaseNotes1682Title {
+        public static string ReleaseNotes171Title {
             get {
-                return ResourceManager.GetString("ReleaseNotes1682Title", resourceCulture);
+                return ResourceManager.GetString("ReleaseNotes171Title", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotes1611AdditionalItems {
+            get {
+                return ResourceManager.GetString("ReleaseNotes1611AdditionalItems", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotes1611Date {
+            get {
+                return ResourceManager.GetString("ReleaseNotes1611Date", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotes1611Items {
+            get {
+                return ResourceManager.GetString("ReleaseNotes1611Items", resourceCulture);
+            }
+        }
+
+        public static string ReleaseNotes1611Title {
+            get {
+                return ResourceManager.GetString("ReleaseNotes1611Title", resourceCulture);
             }
         }
 
@@ -4692,39 +4716,39 @@ namespace Emerde.Properties {
             }
         }
 
-        public static string ReleaseNotes1671Items {
+        public static string ReleaseNotes168Items {
             get {
-                return ResourceManager.GetString("ReleaseNotes1671Items", resourceCulture);
+                return ResourceManager.GetString("ReleaseNotes168Items", resourceCulture);
             }
         }
 
-        public static string ReleaseNotes1671Title {
+        public static string ReleaseNotes168Title {
             get {
-                return ResourceManager.GetString("ReleaseNotes1671Title", resourceCulture);
+                return ResourceManager.GetString("ReleaseNotes168Title", resourceCulture);
             }
         }
 
-        public static string ReleaseNotes1672AdditionalItems {
+        public static string ReleaseNotes169AdditionalItems {
             get {
-                return ResourceManager.GetString("ReleaseNotes1672AdditionalItems", resourceCulture);
+                return ResourceManager.GetString("ReleaseNotes169AdditionalItems", resourceCulture);
             }
         }
 
-        public static string ReleaseNotes1672Date {
+        public static string ReleaseNotes169Date {
             get {
-                return ResourceManager.GetString("ReleaseNotes1672Date", resourceCulture);
+                return ResourceManager.GetString("ReleaseNotes169Date", resourceCulture);
             }
         }
 
-        public static string ReleaseNotes1672Items {
+        public static string ReleaseNotes169Items {
             get {
-                return ResourceManager.GetString("ReleaseNotes1672Items", resourceCulture);
+                return ResourceManager.GetString("ReleaseNotes169Items", resourceCulture);
             }
         }
 
-        public static string ReleaseNotes1672Title {
+        public static string ReleaseNotes169Title {
             get {
-                return ResourceManager.GetString("ReleaseNotes1672Title", resourceCulture);
+                return ResourceManager.GetString("ReleaseNotes169Title", resourceCulture);
             }
         }
 

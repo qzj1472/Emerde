@@ -782,6 +782,23 @@
   <data name="MediaIssueChip" xml:space="preserve"><value>音声・映像異常</value></data>
   <data name="OptimizedAudioFailedChip" xml:space="preserve"><value>最適化音声失敗</value></data>
   <data name="SegmentPositionChip" xml:space="preserve"><value>分割 {0}/{1}</value></data>
+  <data name="VideoAttributeStatusTitle" xml:space="preserve"><value>動画の通知</value></data>
+  <data name="SegmentPositionDescription" xml:space="preserve"><value>同じ配信の {0} 本目、全 {1} 本です。</value></data>
+  <data name="AttributeStatusEntireFile" xml:space="preserve"><value>全体</value></data>
+  <data name="AttributeStatusTimeUnknown" xml:space="preserve"><value>時刻未記録</value></data>
+  <data name="AttributeStatusTimeRange" xml:space="preserve"><value>{0}-{1}（{2}）</value></data>
+  <data name="AttributeStatusDurationSeconds" xml:space="preserve"><value>{0}秒</value></data>
+  <data name="AttributeStatusDurationMinutes" xml:space="preserve"><value>{0}分{1}秒</value></data>
+  <data name="AttributeStatusStallTime" xml:space="preserve"><value>{0} 付近、停止約 {1}</value></data>
+  <data name="AttributeStatusStallTimeShort" xml:space="preserve"><value>{0} 付近</value></data>
+  <data name="MediaIssueVideoStalledDescription" xml:space="preserve"><value>映像が止まり、音声は続いています。</value></data>
+  <data name="MediaIssueAudioStalledDescription" xml:space="preserve"><value>音声が止まり、映像は続いています。</value></data>
+  <data name="MediaIssueClippingSilenceDescription" xml:space="preserve"><value>音声が割れた後、無音になりました。</value></data>
+  <data name="MediaIssueDecodeErrorDescription" xml:space="preserve"><value>この区間で音声のデコードに失敗しました。</value></data>
+  <data name="MediaIssueTimelineMismatchDescription" xml:space="preserve"><value>音声と映像の終了時刻が一致しません。</value></data>
+  <data name="MediaIssueGenericDescription" xml:space="preserve"><value>このファイルで音声と映像のずれが発生しました。</value></data>
+  <data name="OptimizedAudioFailedDescription" xml:space="preserve"><value>最適化に失敗したため、元の音声を保持しました。</value></data>
+  <data name="StallSegmentDescription" xml:space="preserve"><value>配信が止まったため、次のファイルに分かれました。このファイルはここで終了します。</value></data>
   <data name="TranscodeComplete" xml:space="preserve"><value>変換が完了しました</value></data>
   <data name="TranscodeFailed" xml:space="preserve"><value>変換に失敗しました</value></data>
   <data name="SplitDurationInvalid" xml:space="preserve"><value>分割間隔が無効です</value></data>
@@ -818,31 +835,35 @@
   <data name="AboutReleaseNotesDescription" xml:space="preserve"><value>各バージョンの変更点と改善内容を確認できます。</value></data>
   <data name="ReleaseNotesUserFacingLabel" xml:space="preserve"><value>ユーザー向けの変更</value></data>
   <data name="ReleaseNotesAdditionalLabel" xml:space="preserve"><value>その他の改善</value></data>
-  <data name="ReleaseNotes1681Title" xml:space="preserve"><value>Emerde 1.6.8.1</value></data>
-  <data name="ReleaseNotes1681Date" xml:space="preserve"><value>2026-09-10</value></data>
-  <data name="ReleaseNotes1681Items" xml:space="preserve"><value>音声、映像、コンテナ、コーデック、解像度、フレームレート、タイムライン、ストリーム数、デコードエラー、RMS、ピーク、無音に近い区間を記録するメディア診断を追加しました。|MKV 録画では常に最適化音声を生成します。最適化音声を生成できなくても元音声が正常なら元音声を保持し、最適化音声の問題を明確に表示します。|録画タイムラインと音声内容のサンプリングを追加し、異常が配信元、TS 入力、中間分割、最終成果物のどこで発生したか確認できるようにしました。|録画復旧用の自動フォールバック分割を追加しました。フォールバック分割は最後に 1 つの成果物へ結合し、設定で指定した分割は独立したままです。|同じ配信ルームの録画中・処理中の分割を 1 枚の動画カードにまとめ、番号を安定させ、複数の状態を同時に表示します。|既存動画のカバーを保持し、新しいカバー生成方式は新しく生成するカバーだけに適用します。|ディスク容量保護を追加し、空き容量が不足すると録画処理を停止して、容量が戻るまで警告を保持します。|復旧処理と録画メタデータの保存を改善し、処理中断後も録画状態を失わずに再開できるようにしました。|ディスク容量不足による変換失敗で無意味な復旧リトライを行わないようにしました。|空のメタデータストリームが繰り返しエラーログを出力しないようにしました。</value></data>
-  <data name="ReleaseNotes1681AdditionalItems" xml:space="preserve"><value>インストーラーのバージョン表示、出力名、ダイアログ背景マスクの一貫性を改善しました。|設定復元の配置、長い状態テキストの折り返し、アバターキャッシュの整理、リゾルバーのキャンセル処理を改善しました。|処理速度を今後の比較用に記録しました。このリリースでは変換性能のロジックを変更していません。</value></data>
-  <data name="ReleaseNotes1682Title" xml:space="preserve"><value>Emerde 1.6.8.2</value></data>
-  <data name="ReleaseNotes1682Date" xml:space="preserve"><value>2026-09-12</value></data>
-  <data name="ReleaseNotes1682Items" xml:space="preserve"><value>部屋追加、ホームの選択レイヤー、設定、動画リスト、通知に残っていた旧 UI を削除し、UI-X に統一しました。|バージョン情報に自動分割の説明を追加しました。自動分割は録画異常、再接続、復旧のフォールバックです。既定の自動分割は最後に 1 つの成果物へ結合され、設定のカスタム分割は独立したままです。|音声内容の異常が続くと現在の録画を再起動し、異常な音声トラックの書き込みを続けないようにしました。|ストール復旧の内部一時分割を、追加の完成動画として表示しないようにしました。|動画リストの旧ヘッダー余白を削除し、録画中・処理中カードの大きな空白をなくしました。</value></data>
-  <data name="ReleaseNotes1682AdditionalItems" xml:space="preserve"><value>インストーラーの文言とダイアログを現在のバージョンに合わせました。|完成処理時のタイムラインと音声内容の診断を強化しました。</value></data>
-  <data name="ReleaseNotes1672Title" xml:space="preserve"><value>Emerde 1.6.7.2</value></data>
-  <data name="ReleaseNotes1672Date" xml:space="preserve"><value>2026-08-24</value></data>
-  <data name="ReleaseNotes1672Item18" xml:space="preserve"><value>動画カードのタイトルにファイル形式の拡張子を表示しなくなりました。</value></data>
-  <data name="ReleaseNotes1672Item19" xml:space="preserve"><value>既存録画の処理完了後に最終的な名前へ変更し、「録画中」の一時名を残さなくなりました。</value></data>
-  <data name="ReleaseNotes1672Item20" xml:space="preserve"><value>録画中の動画カードでは、録画開始時に保存した配信者のアバター全体をカバーとして表示します。</value></data>
-  <data name="ReleaseNotes1672RecoveryItem" xml:space="preserve"><value>終了または再起動時に未処理の録画を保留タスクとして保存し、次回起動時に処理を続行します。タスク記録のない TS・FLV ファイルは自動スキャンしなくなりました。</value></data>
-  <data name="ReleaseNotes1672Item21" xml:space="preserve"><value>手動変換で、成功時に元ファイルを削除するか選択できるようになりました。初期値は録画設定に従います。</value></data>
-  <data name="ReleaseNotes1672Items" xml:space="preserve"><value>アプリの実行中に、未変換の既存 TS・FLV 録画を自動的に再検出して処理待ちに追加するため、再起動が不要になりました。|処理対象の録画が多い場合は分割して実行し、通常の変換に失敗した場合は読み取り可能な内容を自動復旧します。個別の修復操作や「修復」ファイル名接尾辞は使用しません。|自動クリーンアップで録画に対応するメタデータと空のフォルダーも削除し、設定済みの録画ルートは保持するようになりました。|ホームカードのサイズ、並び順、プレビューカードの設定が再起動後も保持されるようになりました。|UI-X のコンテキストメニューの選択状態、プラットフォーム絞り込み、複数選択操作を修正しました。|UI-X の設定、バージョン情報、更新ダイアログで、入力欄とバージョン選択欄の枠線色を統一しました。|配信タイトル、ルーム ID、画質、フレームレート、コーデック、録画時刻、動画時間を使った録画完了後の命名を追加しました。|録画メタデータに終了時刻、時間、フレームレート、画質、コーデック、最適化音声の状態を保存し、変換、修復、復旧後も維持します。|UI-X の動画一覧で空白部分のダブルクリック更新、開始時刻のみの表示、行単位または隣接カードへのキーボード選択に対応しました。|カスタム監視スケジュールで、全体設定または個別設定の日付範囲、曜日、時間帯を任意に組み合わせられるようになりました。|既存のカスタム命名規則では、「録画時刻」プレースホルダーがより正確な「録画開始時刻」へ自動移行されます。|命名規則ボタン、出力設定の間隔、更新ダイアログの内容を整理しました。|録画終了後の動画フレームから独立したカバーを生成し、独立したアバターとカバーのリソースを保存するため、配信者がアバターを変更しても既存の動画カバーに影響しません。|動画カードに録画中、変換中、分割、処理失敗などの状態を表示し、進行状況を確認しやすくしました。|通知をより見やすいカードに変更し、通知履歴にも対応しました。|設定保存の失敗通知と再起動後の録画状態の不一致を修正しました。|ページ、ナビゲーション、プレビュー、カード状態の切り替えをより滑らかなアニメーションにしました。|設定、概要、ホーム、動画一覧のレスポンシブレイアウトを改善し、ウィンドウサイズ変更時の引っかかりと内容の切り詰めを減らしました。</value></data>
-  <data name="ReleaseNotes1672AdditionalItems" xml:space="preserve"><value>UI-X ホーム画面の不要な毎秒更新を減らし、配信ルーム情報を開いたときに録画時間を計算して更新するようにしました。|録画復旧ポリシーの移行を改善し、以前処理できなかった録画を再試行できるようにしました。|動画一覧の更新で進行中、成功、失敗、クールダウンを表示し、完了時にカードのフィードバックを表示します。ウィンドウサイズ変更時の重複処理も減らしました。|共有 UI リソースの分離を改善し、UI-X の設定スタイルが無関係な画面や旧 UI に影響しないようにしました。|動画一覧の更新とトレイ非表示時の例外処理を安定させました。</value></data>
-  <data name="ReleaseNotes1671Title" xml:space="preserve"><value>Emerde 1.6.7.1</value></data>
-  <data name="ReleaseNotes1671Date" xml:space="preserve"><value>2026-08-13</value></data>
-  <data name="ReleaseNotes1671Items" xml:space="preserve"><value>長時間録画の安定性、配信停止、データの不連続、音声と映像の同期、録画後の変換失敗への対応を改善しました。|異常な TS、MP4 などから再生可能な音声と映像を可能な範囲で復元する録画修復機能を追加しました。|配信ルームリンクと短縮リンクの認識、重複検出を改善し、同じルームの重複追加を防ぎます。|配信者のアバター、配信状態、ルーム情報の同期を改善し、状態の変化をより早く反映します。|UI-X のルーム追加と個別設定ワークスペースを再設計し、設定の継承、情報階層、操作領域、ウィンドウ対応を改善しました。|ホームカード、プレビューカード、ウィンドウサイズ変更を改善し、余白、切れ、ちらつき、停止、サイズ変更時の遅延を減らしました。|動画一覧のサムネイル、ファイル名、配信者情報、時間とサイズ、形式表示、カード配置、複数選択を改善しました。|UI-X の設定、ルーム情報、ログ出力、設定復元、変換、録画修復、確認ダイアログを統一し、間隔、背景、枠線、ぼかし、操作性を改善しました。|ホームとトレイのコンテキストメニュー、ショートカット、選択状態、設定、拡張機能、バージョン情報画面を改善しました。</value></data>
-  <data name="ReleaseNotes1671AdditionalItems" xml:space="preserve"><value>インストーラー更新後の初回起動通知を改善し、更新履歴をバージョンごとに表示します。|通知、トレイアイコン、読み込み状態、アバター更新を改善し、変化をより早く伝えます。|録画ファイルの保存、クリーンアップ、設定復元を改善し、既存データへの誤操作の影響を減らしました。|異常ファイルの処理、変換失敗の通知、録画修復結果の表示を改善しました。</value></data>
-  <data name="ReleaseNotes1670Title" xml:space="preserve"><value>Emerde 1.6.7.0</value></data>
-  <data name="ReleaseNotes1670Date" xml:space="preserve"><value>2026-08-10</value></data>
-  <data name="ReleaseNotes1670Items" xml:space="preserve"><value>インストール、アップグレード、アンインストール、修復、設定復元を改善し、ユーザー設定とデータをより確実に保持します。|Douyin や Bilibili など、モバイル共有文と短縮リンクの認識を強化しました。|配信ルーム URL の取り込み、正規化、重複検出を改善しました。|ホームの配信ルームカード、コンテキストメニュー、情報ダイアログ、範囲選択を改善しました。|切り替え可能な UI-X ホームレイアウトを追加しました。</value></data>
-  <data name="ReleaseNotes1670AdditionalItems" xml:space="preserve"><value>録画のクリーンアップ、ファイル保存、アバター更新、トレイ状態の表示を改善しました。|インストーラー更新後の初回起動時に更新履歴を表示するようにしました。|複数プラットフォームの配信ルーム認識と一般的な操作フィードバックを改善しました。</value></data>
+  <data name="ReleaseNotes1610Title" xml:space="preserve"><value>Emerde 1.6.10</value></data>
+  <data name="ReleaseNotes1610Date" xml:space="preserve"><value>2026-09-10</value></data>
+  <data name="ReleaseNotes1610Items" xml:space="preserve"><value>音声、映像、コンテナ、コーデック、解像度、フレームレート、タイムライン、ストリーム数、デコードエラー、RMS、ピーク、無音に近い区間を記録するメディア診断を追加しました。|MKV 録画では常に最適化音声を生成します。最適化音声を生成できなくても元音声が正常なら元音声を保持し、最適化音声の問題を明確に表示します。|録画タイムラインと音声内容のサンプリングを追加し、異常が配信元、TS 入力、中間分割、最終成果物のどこで発生したか確認できるようにしました。|録画復旧用の自動フォールバック分割を追加しました。フォールバック分割は最後に 1 つの成果物へ結合し、設定で指定した分割は独立したままです。|同じ配信ルームの録画中・処理中の分割を 1 枚の動画カードにまとめ、番号を安定させ、複数の状態を同時に表示します。|既存動画のカバーを保持し、新しいカバー生成方式は新しく生成するカバーだけに適用します。|ディスク容量保護を追加し、空き容量が不足すると録画処理を停止して、容量が戻るまで警告を保持します。|復旧処理と録画メタデータの保存を改善し、処理中断後も録画状態を失わずに再開できるようにしました。|ディスク容量不足による変換失敗で無意味な復旧リトライを行わないようにしました。|空のメタデータストリームが繰り返しエラーログを出力しないようにしました。</value></data>
+  <data name="ReleaseNotes1610AdditionalItems" xml:space="preserve"><value>インストーラーのバージョン表示、出力名、ダイアログ背景マスクの一貫性を改善しました。|設定復元の配置、長い状態テキストの折り返し、アバターキャッシュの整理、リゾルバーのキャンセル処理を改善しました。|処理速度を今後の比較用に記録しました。このリリースでは変換性能のロジックを変更していません。</value></data>
+  <data name="ReleaseNotes171Title" xml:space="preserve"><value>Emerde 1.7.1</value></data>
+  <data name="ReleaseNotes171Date" xml:space="preserve"><value>2026-09-30</value></data>
+  <data name="ReleaseNotes171Items" xml:space="preserve"><value>終了・再起動の確認中はトレイからの表示やメニュー操作を遮断し、誤操作によるアプリ終了の競合を防ぎます。|YouTube のライブ URL はより多くの形式に対応し、利用可能な HLS の最高画質を選択します。</value></data>
+  <data name="ReleaseNotes171AdditionalItems" xml:space="preserve"><value>アプリ、インストーラー、アップグレード通知のバージョンを 3 桁形式の 1.7.1 に統一しました。|現在のビルドに合わせて更新履歴とインストーラーのバージョン表示を更新しました。</value></data>
+  <data name="ReleaseNotes1611Title" xml:space="preserve"><value>Emerde 1.6.11</value></data>
+  <data name="ReleaseNotes1611Date" xml:space="preserve"><value>2026-09-13</value></data>
+  <data name="ReleaseNotes1611Items" xml:space="preserve"><value>部屋追加、ホームの選択レイヤー、設定、動画リスト、通知に残っていた旧 UI を削除し、UI-X に統一しました。|バージョン情報に自動分割の説明を追加しました。自動分割は録画異常、再接続、復旧のフォールバックです。既定の自動分割は最後に 1 つの成果物へ結合され、設定のカスタム分割は独立したままです。|音声内容の異常が続くと現在の録画を再起動し、異常な音声トラックの書き込みを続けないようにしました。|ストール復旧の内部一時分割を、追加の完成動画として表示しないようにしました。|動画リストの旧ヘッダー余白を削除し、録画中・処理中カードの大きな空白をなくしました。|連続して互換性のある自動分割は 1 本に結合し、後続の非互換ファイルは独立した成果物として保存します。同一グループの分割としては扱いません。|音声最適化に失敗しても元の音声を保持して結合を続け、配信全体の完整性を優先します。|完成動画の異常は 1 つのチップにまとめ、クリックすると音声・映像異常、最適化失敗、停止分割の発生時刻を表示します。|Bilibili で停止してフォールバックした後、元の画質への再試行を行い、予備ストリームに固定しません。|動画リストはスクロール中も読み込み済みのカバーを保持し、戻ったときにプレースホルダーが一瞬出ないようにしました。</value></data>
+  <data name="ReleaseNotes1611AdditionalItems" xml:space="preserve"><value>インストーラーの文言とダイアログを現在のバージョンに合わせました。|完成処理時のタイムラインと音声内容の診断を強化しました。|既存のカバーキャッシュを再利用し、メモリ上により多くのカバーを残して、再読み込みと再デコードを減らしました。</value></data>
+  <data name="ReleaseNotes169Title" xml:space="preserve"><value>Emerde 1.6.9</value></data>
+  <data name="ReleaseNotes169Date" xml:space="preserve"><value>2026-08-24</value></data>
+  <data name="ReleaseNotes169Item18" xml:space="preserve"><value>動画カードのタイトルにファイル形式の拡張子を表示しなくなりました。</value></data>
+  <data name="ReleaseNotes169Item19" xml:space="preserve"><value>既存録画の処理完了後に最終的な名前へ変更し、「録画中」の一時名を残さなくなりました。</value></data>
+  <data name="ReleaseNotes169Item20" xml:space="preserve"><value>録画中の動画カードでは、録画開始時に保存した配信者のアバター全体をカバーとして表示します。</value></data>
+  <data name="ReleaseNotes169RecoveryItem" xml:space="preserve"><value>終了または再起動時に未処理の録画を保留タスクとして保存し、次回起動時に処理を続行します。タスク記録のない TS・FLV ファイルは自動スキャンしなくなりました。</value></data>
+  <data name="ReleaseNotes169Item21" xml:space="preserve"><value>手動変換で、成功時に元ファイルを削除するか選択できるようになりました。初期値は録画設定に従います。</value></data>
+  <data name="ReleaseNotes169Items" xml:space="preserve"><value>アプリの実行中に、未変換の既存 TS・FLV 録画を自動的に再検出して処理待ちに追加するため、再起動が不要になりました。|処理対象の録画が多い場合は分割して実行し、通常の変換に失敗した場合は読み取り可能な内容を自動復旧します。個別の修復操作や「修復」ファイル名接尾辞は使用しません。|自動クリーンアップで録画に対応するメタデータと空のフォルダーも削除し、設定済みの録画ルートは保持するようになりました。|ホームカードのサイズ、並び順、プレビューカードの設定が再起動後も保持されるようになりました。|UI-X のコンテキストメニューの選択状態、プラットフォーム絞り込み、複数選択操作を修正しました。|UI-X の設定、バージョン情報、更新ダイアログで、入力欄とバージョン選択欄の枠線色を統一しました。|配信タイトル、ルーム ID、画質、フレームレート、コーデック、録画時刻、動画時間を使った録画完了後の命名を追加しました。|録画メタデータに終了時刻、時間、フレームレート、画質、コーデック、最適化音声の状態を保存し、変換、修復、復旧後も維持します。|UI-X の動画一覧で空白部分のダブルクリック更新、開始時刻のみの表示、行単位または隣接カードへのキーボード選択に対応しました。|カスタム監視スケジュールで、全体設定または個別設定の日付範囲、曜日、時間帯を任意に組み合わせられるようになりました。|既存のカスタム命名規則では、「録画時刻」プレースホルダーがより正確な「録画開始時刻」へ自動移行されます。|命名規則ボタン、出力設定の間隔、更新ダイアログの内容を整理しました。|録画終了後の動画フレームから独立したカバーを生成し、独立したアバターとカバーのリソースを保存するため、配信者がアバターを変更しても既存の動画カバーに影響しません。|動画カードに録画中、変換中、分割、処理失敗などの状態を表示し、進行状況を確認しやすくしました。|通知をより見やすいカードに変更し、通知履歴にも対応しました。|設定保存の失敗通知と再起動後の録画状態の不一致を修正しました。|ページ、ナビゲーション、プレビュー、カード状態の切り替えをより滑らかなアニメーションにしました。|設定、概要、ホーム、動画一覧のレスポンシブレイアウトを改善し、ウィンドウサイズ変更時の引っかかりと内容の切り詰めを減らしました。</value></data>
+  <data name="ReleaseNotes169AdditionalItems" xml:space="preserve"><value>UI-X ホーム画面の不要な毎秒更新を減らし、配信ルーム情報を開いたときに録画時間を計算して更新するようにしました。|録画復旧ポリシーの移行を改善し、以前処理できなかった録画を再試行できるようにしました。|動画一覧の更新で進行中、成功、失敗、クールダウンを表示し、完了時にカードのフィードバックを表示します。ウィンドウサイズ変更時の重複処理も減らしました。|共有 UI リソースの分離を改善し、UI-X の設定スタイルが無関係な画面や旧 UI に影響しないようにしました。|動画一覧の更新とトレイ非表示時の例外処理を安定させました。</value></data>
+  <data name="ReleaseNotes168Title" xml:space="preserve"><value>Emerde 1.6.8</value></data>
+  <data name="ReleaseNotes168Date" xml:space="preserve"><value>2026-08-13</value></data>
+  <data name="ReleaseNotes168Items" xml:space="preserve"><value>長時間録画の安定性、配信停止、データの不連続、音声と映像の同期、録画後の変換失敗への対応を改善しました。|異常な TS、MP4 などから再生可能な音声と映像を可能な範囲で復元する録画修復機能を追加しました。|配信ルームリンクと短縮リンクの認識、重複検出を改善し、同じルームの重複追加を防ぎます。|配信者のアバター、配信状態、ルーム情報の同期を改善し、状態の変化をより早く反映します。|UI-X のルーム追加と個別設定ワークスペースを再設計し、設定の継承、情報階層、操作領域、ウィンドウ対応を改善しました。|ホームカード、プレビューカード、ウィンドウサイズ変更を改善し、余白、切れ、ちらつき、停止、サイズ変更時の遅延を減らしました。|動画一覧のサムネイル、ファイル名、配信者情報、時間とサイズ、形式表示、カード配置、複数選択を改善しました。|UI-X の設定、ルーム情報、ログ出力、設定復元、変換、録画修復、確認ダイアログを統一し、間隔、背景、枠線、ぼかし、操作性を改善しました。|ホームとトレイのコンテキストメニュー、ショートカット、選択状態、設定、拡張機能、バージョン情報画面を改善しました。</value></data>
+  <data name="ReleaseNotes168AdditionalItems" xml:space="preserve"><value>インストーラー更新後の初回起動通知を改善し、更新履歴をバージョンごとに表示します。|通知、トレイアイコン、読み込み状態、アバター更新を改善し、変化をより早く伝えます。|録画ファイルの保存、クリーンアップ、設定復元を改善し、既存データへの誤操作の影響を減らしました。|異常ファイルの処理、変換失敗の通知、録画修復結果の表示を改善しました。</value></data>
+  <data name="ReleaseNotes167Title" xml:space="preserve"><value>Emerde 1.6.7</value></data>
+  <data name="ReleaseNotes167Date" xml:space="preserve"><value>2026-08-10</value></data>
+  <data name="ReleaseNotes167Items" xml:space="preserve"><value>インストール、アップグレード、アンインストール、修復、設定復元を改善し、ユーザー設定とデータをより確実に保持します。|Douyin や Bilibili など、モバイル共有文と短縮リンクの認識を強化しました。|配信ルーム URL の取り込み、正規化、重複検出を改善しました。|ホームの配信ルームカード、コンテキストメニュー、情報ダイアログ、範囲選択を改善しました。|切り替え可能な UI-X ホームレイアウトを追加しました。</value></data>
+  <data name="ReleaseNotes167AdditionalItems" xml:space="preserve"><value>録画のクリーンアップ、ファイル保存、アバター更新、トレイ状態の表示を改善しました。|インストーラー更新後の初回起動時に更新履歴を表示するようにしました。|複数プラットフォームの配信ルーム認識と一般的な操作フィードバックを改善しました。</value></data>
   <data name="ReleaseNotesUnknownTitle" xml:space="preserve"><value>Emerde 更新</value></data>
   <data name="ReleaseNotesUnknownItem" xml:space="preserve"><value>このバージョンには安定性と操作性の改善が含まれています。</value></data>
   <data name="ConfigurationRecovered" xml:space="preserve"><value>設定ファイルが無効なため、{0} に保存しました。Emerde は既定の設定で起動しました。</value></data>
