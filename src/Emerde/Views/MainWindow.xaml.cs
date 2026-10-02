@@ -367,6 +367,7 @@ public partial class MainWindow : FluentWindow
     private bool isStartupAboutNoticeShowing;
     private bool isUpgradeReleaseNotesQueued;
     private bool isUpgradeReleaseNotesShowing;
+    private bool isClosing;
     private int homePreviewLayoutAnimationGeneration;
     private int homePreviewLayoutUpdateGeneration;
     private int mainPageEntranceGeneration;
@@ -555,7 +556,17 @@ public partial class MainWindow : FluentWindow
 
     private void ApplyUiXWindowMaterial()
     {
-        bool isUiXEnabled = ViewModel.StatusOfIsUiXEnabled;
+        if (isClosing || Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished)
+        {
+            return;
+        }
+
+        if (DataContext is not MainViewModel viewModel)
+        {
+            return;
+        }
+
+        bool isUiXEnabled = viewModel.StatusOfIsUiXEnabled;
         bool useSystemBackdrop = OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
         bool isDarkMode = !AppThemeBrushes.IsLightTheme();
         UiXWindowMaterial.IsDarkMode = isDarkMode;
@@ -4406,6 +4417,7 @@ public partial class MainWindow : FluentWindow
         }
         else
         {
+            isClosing = true;
             storageAlertWindow?.CloseForShutdown();
             if (Configurations.IsUseKeepAwake.Get())
             {
