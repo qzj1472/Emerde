@@ -156,15 +156,22 @@ internal static class RecordingCoverStore
         string cachePath,
         bool allowAvatarFallback = true)
     {
-        byte[] bytes;
-        DateTime sourceWriteTimeUtc;
-        if (TryReadCover(mediaPath, out bytes, out sourceWriteTimeUtc))
+        if (TryGetCoverWriteTimeUtc(mediaPath, out DateTime coverWriteTimeUtc)
+            && IsDisplayCacheCurrent(cachePath, coverWriteTimeUtc))
+        {
+            return cachePath;
+        }
+        if (TryReadCover(mediaPath, out byte[] bytes, out DateTime sourceWriteTimeUtc))
         {
             return WriteDisplayCache(cachePath, bytes, sourceWriteTimeUtc);
         }
         if (allowAvatarFallback && metadata.RecordingAvatar.Length > 0)
         {
             sourceWriteTimeUtc = GetMetadataWriteTimeUtc(mediaPath);
+            if (IsDisplayCacheCurrent(cachePath, sourceWriteTimeUtc))
+            {
+                return cachePath;
+            }
             return WriteDisplayCache(cachePath, metadata.RecordingAvatar, sourceWriteTimeUtc);
         }
         return string.Empty;
@@ -196,7 +203,7 @@ internal static class RecordingCoverStore
 
     internal static bool HasFinalizedCover(string mediaPath)
     {
-        return TryReadCover(mediaPath, out _);
+        return TryGetCoverWriteTimeUtc(mediaPath, out _);
     }
 
     internal static bool HasCurrentFinalizedCover(string mediaPath, VideoRecordingMetadata metadata)
@@ -397,9 +404,44 @@ internal static class RecordingCoverStore
         return TryReadCover(mediaPath, out bytes, out _);
     }
 
+    private static bool TryGetCoverWriteTimeUtc(string mediaPath, out DateTime lastWriteTimeUtc)
+    {
+        foreach (string path in GetCoverCandidatePaths(mediaPath))
+        {
+            try
+            {
+                FileInfo file = new(path);
+                if (!file.Exists || file.Length <= 0 || file.Length > 16 * 1024 * 1024)
+                {
+                    continue;
+                }
+                lastWriteTimeUtc = file.LastWriteTimeUtc;
+                return true;
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
+            {
+            }
+        }
+        lastWriteTimeUtc = DateTime.MinValue;
+        return false;
+    }
+
+    private static bool IsDisplayCacheCurrent(string cachePath, DateTime sourceWriteTimeUtc)
+    {
+        try
+        {
+            FileInfo cache = new(cachePath);
+            return cache.Exists && cache.Length > 0 && cache.LastWriteTimeUtc >= sourceWriteTimeUtc;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
     private static bool TryReadCover(string mediaPath, out byte[] bytes, out DateTime lastWriteTimeUtc)
     {
-        foreach (string path in new[] { mediaPath + CoverStreamSuffix, GetCoverSidecarPath(mediaPath) })
+        foreach (string path in GetCoverCandidatePaths(mediaPath))
         {
             try
             {
@@ -420,6 +462,12 @@ internal static class RecordingCoverStore
         bytes = [];
         lastWriteTimeUtc = DateTime.MinValue;
         return false;
+    }
+
+    private static IEnumerable<string> GetCoverCandidatePaths(string mediaPath)
+    {
+        yield return mediaPath + CoverStreamSuffix;
+        yield return GetCoverSidecarPath(mediaPath);
     }
 
     private static string WriteDisplayCache(string cachePath, byte[] bytes, DateTime sourceWriteTimeUtc, bool force = false)

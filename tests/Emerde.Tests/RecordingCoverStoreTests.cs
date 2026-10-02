@@ -84,6 +84,35 @@ public sealed class RecordingCoverStoreTests
         }
     }
 
+    [Fact]
+    public void MaterializeDisplayImage_ReusesCurrentDisplayCache()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"emerde-cover-cache-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        string mediaPath = Path.Combine(root, "record.mp4");
+        string cachePath = Path.Combine(root, "cache", "cover.jpg");
+        try
+        {
+            File.WriteAllText(mediaPath, "media");
+            File.WriteAllBytes(RecordingCoverStore.GetCoverSidecarPath(mediaPath), Png);
+
+            string first = RecordingCoverStore.MaterializeDisplayImage(mediaPath, new VideoRecordingMetadata(), cachePath);
+            DateTime firstWrite = File.GetLastWriteTimeUtc(cachePath);
+            byte[] firstBytes = File.ReadAllBytes(cachePath);
+
+            string second = RecordingCoverStore.MaterializeDisplayImage(mediaPath, new VideoRecordingMetadata(), cachePath);
+
+            Assert.Equal(cachePath, first);
+            Assert.Equal(cachePath, second);
+            Assert.Equal(firstWrite, File.GetLastWriteTimeUtc(cachePath));
+            Assert.Equal(firstBytes, File.ReadAllBytes(cachePath));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData("", false, false)]
     [InlineData("session", false, false)]
