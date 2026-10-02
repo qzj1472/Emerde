@@ -269,12 +269,13 @@ internal static class ExternalStreamResolver
         if (ShouldResolveHlsVariant(result.PlatformName, result.HlsUrl))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            bool isYouTube = result.PlatformName?.Equals("YouTube", StringComparison.OrdinalIgnoreCase) == true;
             StreamResolver.EnrichHighestHlsVariant(
                 result,
                 StreamQualityCatalog.Original,
                 normalizedUrl,
-                PlatformCookieStore.GetCookie("Twitch", SecretProtector.GetOverseaCookie()),
-                TwitchSpider.WebUserAgent);
+                PlatformCookieStore.GetCookie(isYouTube ? "YouTube" : "Twitch", SecretProtector.GetOverseaCookie()),
+                isYouTube ? YouTubeSpider.WebUserAgent : TwitchSpider.WebUserAgent);
         }
 
         if (!HasRoomData(result))
@@ -299,7 +300,8 @@ internal static class ExternalStreamResolver
 
     internal static bool ShouldResolveHlsVariant(string? platformName, string? hlsUrl)
     {
-        return platformName?.Equals("Twitch", StringComparison.OrdinalIgnoreCase) == true
+        return (platformName?.Equals("Twitch", StringComparison.OrdinalIgnoreCase) == true
+                || platformName?.Equals("YouTube", StringComparison.OrdinalIgnoreCase) == true)
             && !string.IsNullOrWhiteSpace(hlsUrl);
     }
 

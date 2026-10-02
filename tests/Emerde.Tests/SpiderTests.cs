@@ -1,4 +1,5 @@
 using Emerde.Core;
+using Newtonsoft.Json.Linq;
 
 namespace Emerde.Tests;
 
@@ -26,6 +27,7 @@ public sealed class SpiderTests
     [Theory]
     [InlineData("Twitch", "https://usher.ttvnw.net/channel/master.m3u8", true)]
     [InlineData("twitch", "https://usher.ttvnw.net/channel/master.m3u8", true)]
+    [InlineData("YouTube", "https://example.test/live.m3u8", true)]
     [InlineData("Twitch", "", false)]
     [InlineData("Douyin", "https://example.test/master.m3u8", false)]
     public void LegacyHlsVariantResolution_TargetsTwitchMasterPlaylists(string platformName, string hlsUrl, bool expected)
@@ -478,6 +480,8 @@ public sealed class SpiderTests
     [InlineData("https://www.youtube.com/watch?v=abc123&feature=share", "https://www.youtube.com/watch?v=abc123")]
     [InlineData("https://youtu.be/abc123?si=test", "https://youtu.be/abc123")]
     [InlineData("https://www.youtube.com/live/abc123?feature=share", "https://www.youtube.com/live/abc123")]
+    [InlineData("https://m.youtube.com/@example/live?feature=share", "https://www.youtube.com/@example/live")]
+    [InlineData("https://music.youtube.com/channel/abc123/live?feature=share", "https://www.youtube.com/channel/abc123/live")]
     public void ParseUrl_WithYouTubeLiveUrl_NormalizesRoomUrl(string input, string expected)
     {
         string? result = Spider.ParseUrl(input);
@@ -2262,7 +2266,7 @@ public sealed class SpiderTests
     }
 
     [Fact]
-    public void YouTubeExtractInitialPlayerResponse_MapsHlsData()
+    public void YouTubeExtractInitialPlayerResponse_MapsLiveMetadataAndAvatar()
     {
         YouTubeSpiderResult result = new()
         {
@@ -2276,19 +2280,214 @@ public sealed class SpiderTests
             var ytInitialPlayerResponse = {
               "videoDetails": {
                 "author": "anchor",
-                "isLive": true
+                "title": "Live title",
+                "isLive": true,
+                "isLiveContent": true
               },
               "streamingData": {
                 "hlsManifestUrl": "https://example.test/live.m3u8"
               }
             };var meta = document.createElement
+            var ytInitialData = {
+              "contents": {
+                "videoSecondaryInfoRenderer": {
+                  "owner": {
+                    "videoOwnerRenderer": {
+                      "title": { "runs": [{ "text": "anchor" }] },
+                      "thumbnail": { "thumbnails": [{ "url": "https://example.test/avatar-small.png" }, { "url": "https://example.test/avatar.png" }] }
+                    }
+                  }
+                }
+              }
+            };var ytcfg = {}
             </script>
             """,
             result);
 
         Assert.True(result.IsLiveStreaming);
         Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("Live title", result.Title);
         Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
+        Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
+    }
+
+    [Fact]
+    public void YouTubeExtractInitialPlayerResponse_DoesNotExposeServerAbrAsPlayableUrl()
+    {
+        YouTubeSpiderResult result = new()
+        {
+            RoomUrl = "https://www.youtube.com/live/abc123",
+            PlatformName = "YouTube",
+        };
+
+        YouTubeSpider.ExtractInitialPlayerResponse(
+            """
+            <script>
+            var ytInitialPlayerResponse = {
+              "videoDetails": {
+                "author": "anchor",
+                "isLive": true
+              },
+              "streamingData": {
+                "serverAbrStreamingUrl": "https://example.test/live-stream"
+              }
+            };</script>
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Null(result.RecordUrl);
+        Assert.Null(result.HlsUrl);
+    }
+
+    [Fact]
+    public void YouTubeApplyPlayerResponse_DoesNotExposeServerAbrAsPlayableUrl()
+    {
+        YouTubeSpiderResult result = new()
+        {
+            RoomUrl = "https://www.youtube.com/live/abc123",
+            PlatformName = "YouTube",
+        };
+
+        YouTubeSpider.ExtractInitialPlayerResponse(
+            """
+            <script>
+            var ytInitialPlayerResponse = {
+              "videoDetails": { "author": "anchor", "isLiveContent": true },
+              "streamingData": {
+                "serverAbrStreamingUrl": "https://example.test/live-stream"
+              }
+            };</script>
+            """,
+            result);
+
+        Assert.True(result.IsLiveStreaming);
+        Assert.Null(result.RecordUrl);
+    }
+
+    [Fact]
+    public void YouTubeApplyPlayerResponse_DoesNotTreatOrdinaryVideoAsLive()
+    {
+        YouTubeSpiderResult result = new()
+        {
+            RoomUrl = "https://www.youtube.com/watch?v=abc123",
+            PlatformName = "YouTube",
+        };
+
+        YouTubeSpider.ApplyPlayerResponse(
+            JObject.Parse(
+                """
+                {
+                  "videoDetails": { "isLive": false, "isLiveContent": false },
+                  "streamingData": {
+                    "serverAbrStreamingUrl": "https://example.test/video-stream"
+                  }
+                }
+                """),
+            result);
+
+        Assert.False(result.IsLiveStreaming);
+        Assert.Null(result.RecordUrl);
+        Assert.Null(result.HlsUrl);
+    }
+
+    [Fact]
+    public void YouTubeApplyPlayerResponse_UsesMuxedFormatWhenHlsIsMissing()
+    {
+        YouTubeSpiderResult result = new()
+        {
+            RoomUrl = "https://www.youtube.com/live/abc123",
+            PlatformName = "YouTube",
+        };
+
+        YouTubeSpider.ApplyPlayerResponse(
+            JObject.Parse(
+                """
+                {
+                  "videoDetails": { "isLive": true, "isLiveContent": true },
+                  "streamingData": {
+                    "serverAbrStreamingUrl": "https://example.test/server-abr",
+                    "formats": [
+                      {
+                        "url": "https://example.test/muxed-360.mp4",
+                        "mimeType": "video/mp4; codecs=\"avc1.42001E, mp4a.40.2\"",
+                        "width": 640,
+                        "height": 360,
+                        "fps": 30,
+                        "bitrate": 800000,
+                        "audioQuality": "AUDIO_QUALITY_LOW"
+                      },
+                      {
+                        "url": "https://example.test/video-only-1080.mp4",
+                        "mimeType": "video/mp4; codecs=\"avc1.64002a\"",
+                        "width": 1920,
+                        "height": 1080,
+                        "fps": 60,
+                        "bitrate": 6000000
+                      }
+                    ]
+                  }
+                }
+                """),
+            result);
+
+        Assert.Equal("https://example.test/muxed-360.mp4", result.RecordUrl);
+        Assert.Null(result.HlsUrl);
+    }
+
+    [Fact]
+    public void YouTubeApplyPlayerResponse_UsesHlsForPreviewAndRecording()
+    {
+        YouTubeSpiderResult result = new()
+        {
+            IsLiveStreaming = true,
+            RecordUrl = "https://example.test/server-abr",
+        };
+
+        YouTubeSpider.ApplyPlayerResponse(
+            JObject.Parse(
+                """
+                {
+                  "videoDetails": { "isLive": true },
+                  "streamingData": {
+                    "hlsManifestUrl": "https://example.test/live.m3u8",
+                    "serverAbrStreamingUrl": "https://example.test/server-abr"
+                  }
+                }
+                """),
+            result);
+
+        Assert.Equal("https://example.test/live.m3u8", result.HlsUrl);
+        Assert.Equal("https://example.test/live.m3u8", result.RecordUrl);
+    }
+
+    [Fact]
+    public void YouTubeExtractInitialPlayerResponse_ExtractsAvatarWhenPlayerResponseIsMissing()
+    {
+        YouTubeSpiderResult result = new()
+        {
+            RoomUrl = "https://www.youtube.com/live/abc123",
+            PlatformName = "YouTube",
+        };
+
+        YouTubeSpider.ExtractInitialPlayerResponse(
+            """
+            <script>
+            var ytInitialData = {
+              "videoSecondaryInfoRenderer": {
+                "owner": {
+                  "videoOwnerRenderer": {
+                    "title": { "runs": [{ "text": "anchor" }] },
+                    "thumbnail": { "thumbnails": [{ "url": "https://example.test/avatar.png" }] }
+                  }
+                }
+              }
+            };</script>
+            """,
+            result);
+
+        Assert.Equal("anchor", result.Nickname);
+        Assert.Equal("https://example.test/avatar.png", result.AvatarThumbUrl);
     }
 
     [Fact]

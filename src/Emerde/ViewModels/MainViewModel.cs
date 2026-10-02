@@ -1204,11 +1204,16 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             {
                 stalePreviewStream = stalePreviewStreamRooms.Contains(targetRoom.RoomUrl);
             }
-            streamRefreshRequired = ShouldRefreshPreviewStreamBeforePlayback(targetRoom, stalePreviewStream);
+            bool forceYouTubePreviewRefresh = IsYouTubeRoom(targetRoom);
+            streamRefreshRequired = forceYouTubePreviewRefresh
+                || ShouldRefreshPreviewStreamBeforePlayback(targetRoom, stalePreviewStream);
             if (streamRefreshRequired)
             {
                 stageStartedAt = Stopwatch.GetTimestamp();
-                bool refreshed = await RefreshPreviewStreamQualityAsync(targetRoom, cancellation.Token, stalePreviewStream);
+                bool refreshed = await RefreshPreviewStreamQualityAsync(
+                    targetRoom,
+                    cancellation.Token,
+                    force: forceYouTubePreviewRefresh || stalePreviewStream);
                 streamRefreshMilliseconds = GetPreviewElapsedMilliseconds(stageStartedAt);
                 if (stalePreviewStream && !refreshed)
                 {
@@ -1265,15 +1270,38 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             stageStartedAt = Stopwatch.GetTimestamp();
             string previewSessionKey = CreatePreviewSessionKey(targetRoom, previewUrl, proxyUrl);
             playbackAttempted = true;
-            playerSessionReused = await livePreviewPlayer.PlayAsync(
-                previewSessionKey,
-                previewUrl,
-                Configurations.UserAgent.Get(),
-                proxyUrl,
-                targetRoom.Headers,
-                cancellation.Token,
-                restartCurrentPlayback: reason is PreviewTransitionReason.ManualRefresh or PreviewTransitionReason.UserResume,
-                allowStandbyReuse: true);
+            try
+            {
+                playerSessionReused = await livePreviewPlayer.PlayAsync(
+                    previewSessionKey,
+                    previewUrl,
+                    Configurations.UserAgent.Get(),
+                    proxyUrl,
+                    targetRoom.Headers,
+                    cancellation.Token,
+                    restartCurrentPlayback: reason is PreviewTransitionReason.ManualRefresh or PreviewTransitionReason.UserResume,
+                    allowStandbyReuse: true);
+            }
+            catch (Exception) when (IsYouTubeRoom(targetRoom) && !cancellation.Token.IsCancellationRequested)
+            {
+                bool refreshed = await RefreshPreviewStreamQualityAsync(targetRoom, cancellation.Token, force: true);
+                if (!refreshed || !targetRoom.CanPreview)
+                {
+                    throw;
+                }
+
+                previewUrl = GetPreviewPlaybackUrl(targetRoom);
+                previewSessionKey = CreatePreviewSessionKey(targetRoom, previewUrl, proxyUrl);
+                playerSessionReused = await livePreviewPlayer.PlayAsync(
+                    previewSessionKey,
+                    previewUrl,
+                    Configurations.UserAgent.Get(),
+                    proxyUrl,
+                    targetRoom.Headers,
+                    cancellation.Token,
+                    restartCurrentPlayback: true,
+                    allowStandbyReuse: false);
+            }
             playerAcceptMilliseconds = GetPreviewElapsedMilliseconds(stageStartedAt);
             cancellation.Token.ThrowIfCancellationRequested();
             lock (previewTransitionSync)
@@ -1879,6 +1907,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
     internal static bool ShouldRefreshPreviewStreamBeforePlayback(RoomStatusReactive room, bool streamInvalidated)
     {
         return streamInvalidated || string.IsNullOrWhiteSpace(GetPreviewPlaybackUrl(room));
+    }
+
+    private static bool IsYouTubeRoom(RoomStatusReactive room)
+    {
+        return room.PlatformName.Equals("YouTube", StringComparison.OrdinalIgnoreCase);
     }
 
     private bool IsPreviewQualityRefreshCoolingDown(string roomUrl)
@@ -2641,7 +2674,6 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             Content = content,
             CloseButtonText = "ButtonOfClose".Tr(),
             DefaultButton = ContentDialogButton.Close,
-            FocusVisualStyle = null,
             Style = Application.Current?.TryFindResource("EmerdeContentDialogStyle") as Style,
         };
 
