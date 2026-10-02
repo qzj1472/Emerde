@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Windows.Threading;
 
 namespace Emerde.Core;
@@ -60,9 +59,6 @@ internal sealed class AppFeedbackService : IDisposable
 {
     private const int MaximumVisibleCount = 2;
     private const int MaximumHistoryCount = 20;
-    private static readonly Regex WindowsPathPattern = new(
-        "(?<![a-zA-Z0-9])(?:[a-zA-Z]:\\\\|\\\\\\\\)[^\\r\\n]+",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Lazy<AppFeedbackService> Shared = new(() => new AppFeedbackService());
     private readonly object syncRoot = new();
     private readonly Dictionary<Guid, HostRegistration> hosts = [];
@@ -95,7 +91,7 @@ internal sealed class AppFeedbackService : IDisposable
             };
             hosts.Add(registration.Id, registration);
             ClaimPendingFeedbackLocked(registration);
-            ApplyHostPauseStateLocked(registration);
+            ApplyHostExpirationStateLocked(registration);
             ScheduleExpirationLocked();
             deliveries = CreateDeliveriesLocked([registration.Id]);
         }
@@ -121,7 +117,7 @@ internal sealed class AppFeedbackService : IDisposable
 
     public Guid Error(string title, string? body = null, string? key = null, object? owner = null, AppFeedbackAction? action = null)
     {
-        return Show(new AppFeedbackRequest(AppFeedbackKind.Error, title, body, key, owner, action, IsPersistent: true));
+        return Show(new AppFeedbackRequest(AppFeedbackKind.Error, title, body, key, owner, action));
     }
 
     public Guid TaskFeedback(
@@ -274,34 +270,12 @@ internal sealed class AppFeedbackService : IDisposable
             }
 
             state.IsVisible = false;
-            state.IsHovered = false;
             state.Deadline = null;
             ScheduleExpirationLocked();
             deliveries = CreateDeliveriesLocked(GetAffectedHostIdsLocked(state.HostId));
         }
 
         Dispatch(deliveries);
-    }
-
-    public void SetHovered(Guid id, bool isHovered)
-    {
-        lock (syncRoot)
-        {
-            if (disposed)
-            {
-                return;
-            }
-
-            FeedbackState? state = feedback.FirstOrDefault(item => item.Id == id);
-            if (state == null || state.IsHovered == isHovered)
-            {
-                return;
-            }
-
-            state.IsHovered = isHovered;
-            UpdatePauseStateLocked(state);
-            ScheduleExpirationLocked();
-        }
     }
 
     public void SetHostActive(object owner, bool isActive)
@@ -325,8 +299,6 @@ internal sealed class AppFeedbackService : IDisposable
             {
                 registration.ActivationOrder = ++activationSequence;
             }
-            ApplyHostPauseStateLocked(registration);
-            ScheduleExpirationLocked();
         }
     }
 
@@ -369,10 +341,12 @@ internal sealed class AppFeedbackService : IDisposable
 
                 state.Kind = AppFeedbackKind.Error;
                 state.Body = exception.Message;
-                state.IsPersistent = true;
+                state.IsPersistent = false;
                 state.IsVisible = true;
-                state.UpdatedAt = DateTimeOffset.UtcNow;
-                state.Deadline = null;
+                DateTimeOffset now = DateTimeOffset.UtcNow;
+                state.UpdatedAt = now;
+                ResetExpirationLocked(state, now);
+                ScheduleExpirationLocked();
                 failureDeliveries = CreateDeliveriesLocked(GetAffectedHostIdsLocked(state.HostId));
             }
             Dispatch(failureDeliveries);
@@ -431,11 +405,6 @@ internal sealed class AppFeedbackService : IDisposable
     internal static TimeSpan? CalculateDisplayDuration(AppFeedbackKind kind, string title, string? body = null, bool isTaskCompleted = false)
     {
         string combined = string.Join(' ', new[] { title, body }.Where(value => !string.IsNullOrWhiteSpace(value)));
-        if (kind == AppFeedbackKind.Error || kind != AppFeedbackKind.Success && ContainsPath(combined))
-        {
-            return null;
-        }
-
         if (kind == AppFeedbackKind.Task && !isTaskCompleted)
         {
             return null;
@@ -470,11 +439,6 @@ internal sealed class AppFeedbackService : IDisposable
             length += fullWidth ? 1d : 0.5d;
         }
         return length;
-    }
-
-    private static bool ContainsPath(string text)
-    {
-        return WindowsPathPattern.IsMatch(text);
     }
 
     private static bool RequiresPersistentDisplay(AppFeedbackKind kind, string title, string body, bool requested)
@@ -558,7 +522,6 @@ internal sealed class AppFeedbackService : IDisposable
         foreach (FeedbackState overflow in visible.Skip(MaximumVisibleCount))
         {
             overflow.IsVisible = false;
-            overflow.IsHovered = false;
             overflow.Deadline = null;
         }
 
@@ -570,35 +533,27 @@ internal sealed class AppFeedbackService : IDisposable
 
     private bool CanRunExpirationLocked(FeedbackState state)
     {
-        if (!state.IsVisible || state.IsPersistent || state.Remaining == null || state.IsHovered)
+        if (!state.IsVisible || state.IsPersistent || state.Remaining == null)
         {
             return false;
         }
 
-        return state.HostId is Guid hostId && hosts.TryGetValue(hostId, out HostRegistration? host) && host.IsActive;
+        return state.HostId is Guid hostId && hosts.ContainsKey(hostId);
     }
 
-    private void UpdatePauseStateLocked(FeedbackState state)
+    private void EnsureExpirationScheduledLocked(FeedbackState state)
     {
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        if (CanRunExpirationLocked(state))
+        if (CanRunExpirationLocked(state) && state.Deadline == null)
         {
-            state.Deadline ??= now + state.Remaining.GetValueOrDefault();
-            return;
-        }
-
-        if (state.Deadline is DateTimeOffset deadline)
-        {
-            state.Remaining = deadline > now ? deadline - now : TimeSpan.Zero;
-            state.Deadline = null;
+            state.Deadline = DateTimeOffset.UtcNow + state.Remaining.GetValueOrDefault();
         }
     }
 
-    private void ApplyHostPauseStateLocked(HostRegistration host)
+    private void ApplyHostExpirationStateLocked(HostRegistration host)
     {
         foreach (FeedbackState state in feedback.Where(item => item.HostId == host.Id))
         {
-            UpdatePauseStateLocked(state);
+            EnsureExpirationScheduledLocked(state);
         }
     }
 
@@ -864,7 +819,6 @@ internal sealed class AppFeedbackService : IDisposable
         public bool IsPersistent { get; set; }
         public bool IsActionRunning { get; set; }
         public bool IsVisible { get; set; }
-        public bool IsHovered { get; set; }
         public Guid? HostId { get; set; }
         public WeakReference<object>? RequestedOwner { get; set; }
         public required DateTimeOffset CreatedAt { get; init; }

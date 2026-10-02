@@ -84,8 +84,8 @@
     </UserControl.Resources>
     <Grid Background="{x:Null}" IsHitTestVisible="True">
         <ItemsControl x:Name="NotificationItems"
-                      Width="480"
-                      MaxWidth="520"
+                      Width="420"
+                      MaxWidth="460"
                       Margin="16,12"
                       HorizontalAlignment="Right"
                       VerticalAlignment="Top"
@@ -104,8 +104,6 @@
                             BorderBrush="{DynamicResource UiXStrongStrokeBrush}"
                             BorderThickness="1"
                             CornerRadius="8"
-                            MouseEnter="NotificationCardMouseEnter"
-                            MouseLeave="NotificationCardMouseLeave"
                             PreviewMouseLeftButtonDown="NotificationCardMouseLeftButtonDown"
                             PreviewMouseMove="NotificationCardMouseMove"
                             PreviewMouseLeftButtonUp="NotificationCardMouseLeftButtonUp"
@@ -144,11 +142,13 @@
                                                FontWeight="SemiBold"
                                                Foreground="{DynamicResource UiXTextPrimaryBrush}"
                                                Text="{Binding Title}"
-                                               TextWrapping="Wrap" />
+                                               MaxHeight="22"
+                                               TextTrimming="CharacterEllipsis"
+                                               TextWrapping="NoWrap" />
                                 </Grid>
                                 <ScrollViewer Grid.Row="1"
                                               Margin="17,5,0,0"
-                                              MaxHeight="220"
+                                              MaxHeight="42"
                                               HorizontalScrollBarVisibility="Disabled"
                                               VerticalScrollBarVisibility="Auto">
                                     <ScrollViewer.Style>
@@ -163,8 +163,10 @@
                                     </ScrollViewer.Style>
                                     <TextBlock FontSize="13"
                                                Foreground="{DynamicResource UiXTextSecondaryBrush}"
+                                               MaxHeight="42"
                                                LineHeight="21"
                                                Text="{Binding Body}"
+                                               TextTrimming="CharacterEllipsis"
                                                TextWrapping="Wrap" />
                                 </ScrollViewer>
                                 <ProgressBar Grid.Row="2"
@@ -174,7 +176,7 @@
                                               Maximum="100"
                                               Value="{Binding ProgressValue, Mode=OneWay}">
                                     <ProgressBar.Style>
-                                        <Style TargetType="{x:Type ProgressBar}">
+                                        <Style TargetType="{x:Type ProgressBar}" BasedOn="{StaticResource {x:Type ProgressBar}}">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsTask}" Value="True">

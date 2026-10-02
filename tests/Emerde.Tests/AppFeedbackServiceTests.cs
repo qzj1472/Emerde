@@ -21,15 +21,28 @@ public sealed class AppFeedbackServiceTests
     }
 
     [Fact]
-    public void CalculateDisplayDuration_AutoArchivesSuccessfulPathsAndKeepsOtherCriticalFeedbackPersistent()
+    public void CalculateDisplayDuration_AutoArchivesFeedbackIncludingErrorsAndPaths()
     {
         Assert.NotNull(AppFeedbackService.CalculateDisplayDuration(AppFeedbackKind.Success, "导出完成", @"C:\Users\User\Desktop\Emerde logs.zip"));
-        Assert.Null(AppFeedbackService.CalculateDisplayDuration(AppFeedbackKind.Information, "导出完成", @"C:\Users\User\Desktop\Emerde logs.zip"));
-        Assert.Null(AppFeedbackService.CalculateDisplayDuration(AppFeedbackKind.Information, @"日志已导出：E:\logs.zip"));
-        Assert.Null(AppFeedbackService.CalculateDisplayDuration(AppFeedbackKind.Error, "保存失败", "无法写入配置"));
+        Assert.NotNull(AppFeedbackService.CalculateDisplayDuration(AppFeedbackKind.Information, "导出完成", @"C:\Users\User\Desktop\Emerde logs.zip"));
+        Assert.NotNull(AppFeedbackService.CalculateDisplayDuration(AppFeedbackKind.Information, @"日志已导出：E:\logs.zip"));
+        Assert.NotNull(AppFeedbackService.CalculateDisplayDuration(AppFeedbackKind.Error, "保存失败", "无法写入配置"));
         Assert.Null(AppFeedbackService.CalculateDisplayDuration(AppFeedbackKind.Task, "正在转码"));
         Assert.Equal(TimeSpan.FromSeconds(9), AppFeedbackService.CalculateDisplayDuration(AppFeedbackKind.Information, new string('长', 61)));
         Assert.Equal(TimeSpan.FromSeconds(3), AppFeedbackService.CalculateDisplayDuration(AppFeedbackKind.Task, "转码完成", isTaskCompleted: true));
+    }
+
+    [Fact]
+    public void Error_CreatesAnExpiringNotification()
+    {
+        using AppFeedbackService service = new();
+
+        Guid id = service.Error("保存失败", "无法写入配置");
+
+        AppFeedbackNotification notification = Assert.Single(service.GetSnapshot().History);
+        Assert.Equal(id, notification.Id);
+        Assert.Equal(AppFeedbackKind.Error, notification.Kind);
+        Assert.False(notification.IsPersistent);
     }
 
     [Fact]
@@ -207,7 +220,7 @@ public sealed class AppFeedbackServiceTests
         XElement items = document.Descendants().Single(element => (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "NotificationItems");
 
         Assert.Equal("{x:Null}", (string?)rootGrid.Attribute("Background"));
-        Assert.Equal("520", (string?)items.Attribute("MaxWidth"));
+        Assert.Equal("460", (string?)items.Attribute("MaxWidth"));
         Assert.Equal("{DynamicResource UiXDialogElevatedBrush}", (string?)card.Attribute("Background"));
         Assert.Equal("1", (string?)card.Attribute("BorderThickness"));
         Assert.DoesNotContain(document.Descendants(), element => element.Name.LocalName.Contains("Shadow", StringComparison.OrdinalIgnoreCase));

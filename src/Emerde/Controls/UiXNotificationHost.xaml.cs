@@ -266,29 +266,6 @@ public partial class UiXNotificationHost : System.Windows.Controls.UserControl
         transform.BeginAnimation(TranslateTransform.YProperty, translationAnimation);
     }
 
-    private void NotificationCardMouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
-    {
-        if (sender is FrameworkElement { DataContext: AppFeedbackNotification notification })
-        {
-            AppFeedbackService.Current.SetHovered(notification.Id, true);
-        }
-    }
-
-    private void NotificationCardMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
-    {
-        if (sender is Border card
-            && notificationDrags.TryGetValue(card, out NotificationDragState? drag)
-            && (card.IsMouseCaptured || drag.IsCompleting))
-        {
-            return;
-        }
-
-        if (sender is FrameworkElement { DataContext: AppFeedbackNotification notification })
-        {
-            AppFeedbackService.Current.SetHovered(notification.Id, false);
-        }
-    }
-
     private void NotificationCardMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is not Border card
@@ -467,7 +444,6 @@ public partial class UiXNotificationHost : System.Windows.Controls.UserControl
             return;
         }
 
-        AppFeedbackService.Current.SetHovered(drag.NotificationId, card.IsMouseOver);
     }
 
     private void FinalizeNotificationGesture(Border card, NotificationDragState drag, bool archive)
