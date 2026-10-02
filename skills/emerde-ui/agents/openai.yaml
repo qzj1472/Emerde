@@ -1,0 +1,8 @@
+interface:
+  display_name: "Emerde UI"
+  short_description: "Emerde WPF-UI restyle plus UI-X layout"
+  brand_color: "#14B86B"
+  default_prompt: "Use $emerde-ui to implement this Emerde UI in the Emerde.UI visual language."
+
+policy:
+  allow_implicit_invocation: true

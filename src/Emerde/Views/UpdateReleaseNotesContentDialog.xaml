@@ -159,6 +159,7 @@
                       Margin="0,16,0,0"
                       BorderThickness="0"
                       Focusable="True"
+                      FocusVisualStyle="{x:Null}"
                       IsTabStop="True"
                       HorizontalAlignment="Stretch"
                       HorizontalContentAlignment="Stretch"

@@ -498,6 +498,18 @@ public partial class SettingsWindow : System.Windows.Controls.UserControl
         }
     }
 
+    private void SettingsFocusButtonPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != System.Windows.Input.Key.Enter || sender is not System.Windows.Controls.RadioButton button)
+        {
+            return;
+        }
+
+        button.IsChecked = true;
+        SettingsFocusButtonClick(button, e);
+        e.Handled = true;
+    }
+
     private void QueueSettingsFocusIndicatorUpdate(bool animate)
     {
         pendingSettingsFocusIndicatorAnimation |= animate;

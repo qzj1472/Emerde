@@ -21,7 +21,7 @@ internal static class InstallationPaths
     public const string RuntimeDirectoryName = "runtime";
 
     public static string ProductVersion =>
-        Assembly.GetExecutingAssembly().GetName().Version?.ToString(4) ?? "1.0.0.0";
+        Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
 
     public static string DefaultInstallRoot => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),

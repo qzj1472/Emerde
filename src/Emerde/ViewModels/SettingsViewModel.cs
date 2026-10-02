@@ -1543,7 +1543,6 @@ public partial class SettingsViewModel : ReactiveObject
             PrimaryButtonText = GetConfigRestorePrimaryButtonText(content.SelectedOption),
             CloseButtonText = "ButtonOfCancel".Tr(),
             DefaultButton = ContentDialogButton.Primary,
-            FocusVisualStyle = null,
             Style = Application.Current?.TryFindResource("EmerdeContentDialogStyle") as System.Windows.Style,
         };
 

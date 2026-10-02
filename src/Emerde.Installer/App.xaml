@@ -1,19 +1,15 @@
 <Application x:Class="Emerde.Installer.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:eu="http://schemas.emerde.app/ui/2026/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ui:ThemesDictionary />
                 <ui:ControlsDictionary />
+                <eu:ThemesDictionary />
             </ResourceDictionary.MergedDictionaries>
-            <SolidColorBrush x:Key="DialogMaskBrush" Color="#33FFFFFF" />
-            <SolidColorBrush x:Key="EmerdeDialogSurfaceBrush" Color="#FFF1F4F5" />
-            <SolidColorBrush x:Key="EmerdeDialogBorderBrush" Color="#24000000" />
-            <SolidColorBrush x:Key="EmerdeDialogWarningBrush" Color="#FFF3E2CE" />
-            <SolidColorBrush x:Key="EmerdeDialogTextPrimaryBrush" Color="#E8171B20" />
-            <SolidColorBrush x:Key="EmerdeDialogTextSecondaryBrush" Color="#A8171B20" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

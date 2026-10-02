@@ -117,7 +117,7 @@ public sealed class UiXDialogTests
         string main = File.ReadAllText(FindRepositoryFile("src", "Emerde", "ViewModels", "MainViewModel.cs"));
         string videos = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
 
-        Assert.Contains("DefaultButton = ContentDialogButton.Close", dialog, StringComparison.Ordinal);
+        Assert.Contains("DefaultButton = ContentDialogButton.Primary", dialog, StringComparison.Ordinal);
         Assert.Contains("UiXDialogContent.ConfirmAsync", settings, StringComparison.Ordinal);
         Assert.Contains("MessageBox.Question", settings, StringComparison.Ordinal);
         Assert.Contains("UiXDialogContent.ConfirmAsync", main, StringComparison.Ordinal);

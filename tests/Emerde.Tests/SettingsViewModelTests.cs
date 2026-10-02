@@ -294,9 +294,11 @@ public sealed class SettingsViewModelTests
         Assert.Null(workspaceSurface.Attribute("MaxHeight"));
         AssertStyleSetter(notificationStyle, "Width", "34");
         AssertStyleSetter(notificationStyle, "Height", "34");
-        AssertStyleSetter(notificationStyle, "FocusVisualStyle", "{x:Null}");
-        AssertStyleSetter(stageStyle, "FocusVisualStyle", "{x:Null}");
-        AssertStyleSetter(settingsFocusStyle, "FocusVisualStyle", "{x:Null}");
+        AssertStyleSetter(notificationStyle, "FocusVisualStyle", "{StaticResource EmerdeFocusVisualStyle}");
+        AssertStyleSetter(stageStyle, "FocusVisualStyle", "{StaticResource EmerdeFocusVisualStyle}");
+        AssertStyleSetter(settingsFocusStyle, "FocusVisualStyle", "{StaticResource EmerdeSettingsFocusVisualStyle}");
+        Assert.DoesNotContain(settingsFocusStyle.Descendants(), element =>
+            (string?)element.Attribute(xaml + "Name") == "KeyboardFocusChrome");
         Assert.True(workspace.Descendants().Count(element => element.Name.LocalName == "ColumnDefinition"
             && (string?)element.Attribute("Width") == "220") >= 7);
     }
@@ -442,9 +444,9 @@ public sealed class SettingsViewModelTests
         Assert.Contains(comboStyle.Elements(), element => element.Name.LocalName == "Setter"
             && (string?)element.Attribute("Property") == "BorderBrush"
             && (string?)element.Attribute("Value") == "{DynamicResource ControlStrokeColorDefaultBrush}");
-        Assert.Contains(comboStyle.Descendants(), element => element.Name.LocalName == "Setter"
-            && (string?)element.Attribute("Property") == "BorderBrush"
-            && (string?)element.Attribute("Value") == "{DynamicResource EmerdeTextInputFocusedBorderBrush}");
+        Assert.Contains(comboStyle.Elements(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "FocusVisualStyle"
+            && (string?)element.Attribute("Value") == "{StaticResource EmerdeFocusVisualStyle}");
 
         XElement uiXComboStyle = panelResources.Elements()
             .Single(element => element.Name.LocalName == "Style"
@@ -492,6 +494,23 @@ public sealed class SettingsViewModelTests
             .OfType<string>()
             .ToArray();
         Assert.Equal(expectedFocusValues, actualFocusValues);
+        Assert.Equal(7, document.Descendants()
+            .Count(element => element.Name.LocalName == "RadioButton"
+                && (string?)element.Attribute("GroupName") == "SettingsFocus"
+                && (string?)element.Attribute("PreviewKeyDown") == "SettingsFocusButtonPreviewKeyDown"));
+        XElement focusStyle = document.Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute(xaml + "Key") == "SettingsFocusButtonStyle");
+        AssertStyleSetter(focusStyle, "Width", "100");
+        AssertStyleSetter(focusStyle, "MinWidth", "100");
+        AssertStyleSetter(focusStyle, "MaxWidth", "100");
+        Assert.Contains(focusStyle.Elements(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "FocusVisualStyle"
+            && (string?)element.Attribute("Value") == "{StaticResource EmerdeSettingsFocusVisualStyle}");
+        Assert.DoesNotContain(focusStyle.Descendants(), element =>
+            (string?)element.Attribute(xaml + "Name") == "KeyboardFocusChrome");
+        Assert.Contains("SettingsFocusButtonPreviewKeyDown", code, StringComparison.Ordinal);
+        Assert.Contains("Key.Enter", code, StringComparison.Ordinal);
         Assert.Contains("selectedSettingsFocus = Math.Clamp(focus, 0, 6)", code, StringComparison.Ordinal);
         Assert.Contains("GetSettingsUiXGroupIndex(section) is 1 or 5", code, StringComparison.Ordinal);
         Assert.Contains("ReferenceEquals(section, CookieSettingsExpander)", code, StringComparison.Ordinal);

@@ -28,10 +28,10 @@
             <Setter Property="IsTabStop" Value="False" />
         </Style>
         <Style BasedOn="{StaticResource {x:Type controls:CompactNumberBox}}" TargetType="{x:Type controls:CompactNumberBox}">
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
         </Style>
         <Style BasedOn="{StaticResource {x:Type ui:ToggleSwitch}}" TargetType="{x:Type ui:ToggleSwitch}">
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
         </Style>
         <Style x:Key="WorkspaceStageButtonStyle" TargetType="{x:Type RadioButton}">
             <Setter Property="MinWidth" Value="116" />
@@ -41,14 +41,14 @@
             <Setter Property="FontSize" Value="13" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                    <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type RadioButton}">
                         <Border x:Name="Chrome"
                                 Padding="16,0"
                                 Background="Transparent"
-                                CornerRadius="8">
+                                CornerRadius="{StaticResource UiXSurfaceCornerRadius}">
                             <Grid>
                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 <Border x:Name="Indicator"
@@ -114,13 +114,13 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                    <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type ToggleButton}">
                         <Border x:Name="Chrome"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="8">
+                                CornerRadius="{StaticResource UiXSurfaceCornerRadius}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -201,7 +201,7 @@
                     <Border Width="52"
                             Height="52"
                             Margin="0,0,14,0"
-                            CornerRadius="8">
+                            CornerRadius="{StaticResource UiXSurfaceCornerRadius}">
                         <Border.Background>
                             <ImageBrush ImageSource="{Binding AvatarSource}"
                                         RenderOptions.BitmapScalingMode="HighQuality"

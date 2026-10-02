@@ -36,7 +36,6 @@ internal sealed class ExtensionDialogService(Window owner) : IExtensionDialogSer
             SecondaryButtonText = request.SecondaryButtonText,
             DefaultButton = ContentDialogButton.Primary,
             Style = Application.Current.TryFindResource("EmerdeContentDialogStyle") as Style,
-            FocusVisualStyle = null,
             BorderBrush = System.Windows.Media.Brushes.Transparent,
             BorderThickness = new Thickness(0),
         };

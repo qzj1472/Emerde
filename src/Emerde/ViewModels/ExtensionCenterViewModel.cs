@@ -257,7 +257,6 @@ public partial class ExtensionCenterViewModel : ObservableObject, IDisposable
             PrimaryButtonText = "Yes".Tr(),
             CloseButtonText = "No".Tr(),
             DefaultButton = ContentDialogButton.Close,
-            FocusVisualStyle = null,
             Style = System.Windows.Application.Current?.TryFindResource("EmerdeContentDialogStyle") as System.Windows.Style,
         };
         using DialogBlurScope blurScope = UiXDialogContent.IsEnabled

@@ -766,7 +766,6 @@ public partial class MainWindow : FluentWindow
             {
                 Header = action.Label,
                 IsEnabled = isEnabled,
-                FocusVisualStyle = null,
                 Tag = new ExtensionRoomActionTag(action.Id),
             };
             menuItem.Click += async (_, _) =>
@@ -911,7 +910,9 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
-        if (key == Key.Tab && modifiers == ModifierKeys.Control && TryHandlePageShortcut(key, modifiers))
+        if (key == Key.Tab
+            && modifiers is ModifierKeys.Control or (ModifierKeys.Control | ModifierKeys.Shift)
+            && TryHandlePageShortcut(key, modifiers))
         {
             e.Handled = true;
             return;
@@ -1019,13 +1020,13 @@ public partial class MainWindow : FluentWindow
             return true;
         }
 
-        if (key != Key.Tab || modifiers is not ModifierKeys.None and not ModifierKeys.Control)
+        if (key != Key.Tab || modifiers is not ModifierKeys.Control and not (ModifierKeys.Control | ModifierKeys.Shift))
         {
             return false;
         }
 
         int pageCount = 5 + ExtensionHostRuntime.GetPagesSnapshot().Length;
-        int direction = modifiers == ModifierKeys.Control ? -1 : 1;
+        int direction = modifiers == (ModifierKeys.Control | ModifierKeys.Shift) ? -1 : 1;
         ViewModel.SelectedMainPageIndex = GetCycledPageIndex(ViewModel.SelectedMainPageIndex, pageCount, direction);
         FocusActivePage();
         return true;
@@ -1234,10 +1235,6 @@ public partial class MainWindow : FluentWindow
 
     private void FocusActivePage()
     {
-        if (ViewModel.IsHomePageSelected)
-        {
-            FocusRoomCardList();
-        }
     }
 
     private void FocusRoomCardList()
@@ -1306,7 +1303,7 @@ public partial class MainWindow : FluentWindow
 
         if (!isPreviewFullScreen
             && key == Key.Tab
-            && modifiers == ModifierKeys.Control
+            && modifiers is ModifierKeys.Control or (ModifierKeys.Control | ModifierKeys.Shift)
             && TryHandlePageShortcut(key, modifiers))
         {
             handled = true;

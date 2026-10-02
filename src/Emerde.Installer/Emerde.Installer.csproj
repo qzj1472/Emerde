@@ -21,9 +21,9 @@
         <AssemblyName>Emerde.Installer</AssemblyName>
         <RootNamespace>Emerde.Installer</RootNamespace>
         <Product>Emerde Installer</Product>
-        <AssemblyVersion>1.6.8.2</AssemblyVersion>
-        <FileVersion>1.6.8.2</FileVersion>
-        <Version>1.6.8.2</Version>
+        <AssemblyVersion>1.7.1</AssemblyVersion>
+        <FileVersion>1.7.1</FileVersion>
+        <Version>1.7.1</Version>
     </PropertyGroup>
 
     <ItemGroup>
@@ -35,5 +35,8 @@
     <ItemGroup>
         <PackageReference Include="SharpCompress" Version="0.50.0" />
         <PackageReference Include="WPF-UI" Version="4.0.3" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\Emerde.UI\Emerde.UI.csproj" />
     </ItemGroup>
 </Project>

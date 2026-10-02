@@ -56,6 +56,7 @@ internal static class WindowSizing
 
         openContentDialogCount++;
         RemoveContentDialogSizeLimits(dialog);
+        ContentDialogFocusService.Attach(dialog);
         if (fixedWidth is > 0d && double.IsFinite(fixedWidth.Value))
         {
             ApplyFixedContentDialogWidth(dialog, fixedWidth.Value);

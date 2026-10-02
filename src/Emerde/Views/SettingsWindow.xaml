@@ -49,7 +49,7 @@
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="Margin" Value="0" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
             <Setter Property="Background" Value="{DynamicResource EmerdePanelBrush}" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
@@ -89,7 +89,7 @@
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="Margin" Value="0" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
             <Setter Property="Background" Value="{DynamicResource EmerdePanelBrush}" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
@@ -273,35 +273,50 @@
                 </Grid>
             </Border>
         </ControlTemplate>
+        <Style x:Key="EmerdeSettingsFocusVisualStyle" TargetType="{x:Type Control}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Control}">
+                        <Border BorderBrush="{DynamicResource EmerdeBrandFillBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{StaticResource UiXSurfaceCornerRadius}"
+                                IsHitTestVisible="False"
+                                SnapsToDevicePixels="True" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="SettingsFocusButtonStyle" TargetType="{x:Type RadioButton}">
-            <Setter Property="MinWidth" Value="84" />
+            <Setter Property="Width" Value="100" />
+            <Setter Property="MinWidth" Value="100" />
+            <Setter Property="MaxWidth" Value="100" />
             <Setter Property="Height" Value="36" />
             <Setter Property="Margin" Value="0,0,8,0" />
             <Setter Property="Foreground" Value="{DynamicResource UiXTextSecondaryBrush}" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeSettingsFocusVisualStyle}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type RadioButton}">
-                        <Border x:Name="Chrome"
-                                Padding="14,0"
-                                Background="Transparent"
-                                CornerRadius="8">
-                            <Grid>
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                <Border x:Name="Indicator"
-                                        Width="0"
-                                        Height="2"
-                                        Margin="0,0,0,3"
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Bottom"
-                                        Background="{DynamicResource SystemAccentColorPrimaryBrush}"
-                                        CornerRadius="1"
-                                        Opacity="0" />
-                            </Grid>
-                        </Border>
+                        <Grid>
+                            <Border x:Name="Chrome"
+                                    Background="Transparent"
+                                    CornerRadius="{StaticResource Win11ControlCornerRadius}" />
+                            <ContentPresenter Margin="0"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                            <Border x:Name="Indicator"
+                                    Width="0"
+                                    Height="2"
+                                    Margin="0,0,0,3"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Bottom"
+                                    Background="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                    CornerRadius="1"
+                                    Opacity="0" />
+                        </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource UiXSubtleFillBrush}" />
@@ -1388,7 +1403,7 @@
                                                     Command="{Binding DataContext.AcquirePlatformCookieCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                                                     CommandParameter="{Binding}"
                                                     Content="{I18N AcquireCookie}"
-                                                    FocusVisualStyle="{x:Null}" />
+                                                    FocusVisualStyle="{StaticResource EmerdeFocusVisualStyle}" />
                                         </ui:Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -1428,7 +1443,7 @@
                                                     Command="{Binding DataContext.AcquirePlatformCookieCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                                                     CommandParameter="{Binding}"
                                                     Content="{I18N AcquireCookie}"
-                                                    FocusVisualStyle="{x:Null}" />
+                                                    FocusVisualStyle="{StaticResource EmerdeFocusVisualStyle}" />
                                         </ui:Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -1482,10 +1497,10 @@
                         </Style>
                         <Style BasedOn="{StaticResource {x:Type controls:CompactNumberBox}}" TargetType="{x:Type controls:CompactNumberBox}">
                             <Setter Property="BorderBrush" Value="{DynamicResource EmerdeTextInputBorderBrush}" />
-                            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                            <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
                         </Style>
                         <Style BasedOn="{StaticResource {x:Type ui:ToggleSwitch}}" TargetType="{x:Type ui:ToggleSwitch}">
-                            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                            <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
                         </Style>
                     </Grid.Resources>
                     <Grid.RowDefinitions>
@@ -1496,37 +1511,44 @@
                     <Grid x:Name="SettingsFocusNavigationRoot" Grid.Row="0" Margin="0,0,0,14">
                         <WrapPanel x:Name="SettingsFocusNavigationPanel">
                         <RadioButton Click="SettingsFocusButtonClick"
+                                     PreviewKeyDown="SettingsFocusButtonPreviewKeyDown"
                                      CommandParameter="0"
                                      Content="{I18N UiXWorkspaceAll}"
                                      GroupName="SettingsFocus"
                                      IsChecked="True"
                                      Style="{StaticResource SettingsFocusButtonStyle}" />
                         <RadioButton Click="SettingsFocusButtonClick"
+                                     PreviewKeyDown="SettingsFocusButtonPreviewKeyDown"
                                      CommandParameter="1"
                                      Content="{I18N AppearanceSettings}"
                                      GroupName="SettingsFocus"
                                      Style="{StaticResource SettingsFocusButtonStyle}" />
                         <RadioButton Click="SettingsFocusButtonClick"
+                                     PreviewKeyDown="SettingsFocusButtonPreviewKeyDown"
                                      CommandParameter="2"
                                      Content="{I18N UiXWorkspaceRun}"
                                      GroupName="SettingsFocus"
                                      Style="{StaticResource SettingsFocusButtonStyle}" />
                         <RadioButton Click="SettingsFocusButtonClick"
+                                     PreviewKeyDown="SettingsFocusButtonPreviewKeyDown"
                                      CommandParameter="3"
                                      Content="{I18N UiXWorkspaceRecording}"
                                      GroupName="SettingsFocus"
                                      Style="{StaticResource SettingsFocusButtonStyle}" />
                         <RadioButton Click="SettingsFocusButtonClick"
+                                     PreviewKeyDown="SettingsFocusButtonPreviewKeyDown"
                                      CommandParameter="4"
                                      Content="{I18N UiXWorkspaceOutput}"
                                      GroupName="SettingsFocus"
                                      Style="{StaticResource SettingsFocusButtonStyle}" />
                         <RadioButton Click="SettingsFocusButtonClick"
+                                     PreviewKeyDown="SettingsFocusButtonPreviewKeyDown"
                                      CommandParameter="5"
                                      Content="{I18N LongRunningSettings}"
                                      GroupName="SettingsFocus"
                                      Style="{StaticResource SettingsFocusButtonStyle}" />
                         <RadioButton Click="SettingsFocusButtonClick"
+                                     PreviewKeyDown="SettingsFocusButtonPreviewKeyDown"
                                      CommandParameter="6"
                                      Content="{I18N NetworkSettings}"
                                      GroupName="SettingsFocus"

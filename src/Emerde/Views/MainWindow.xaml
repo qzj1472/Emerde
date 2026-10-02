@@ -52,6 +52,19 @@
             </Style>
         </Grid.Style>
         <Grid.Resources>
+            <Style x:Key="EmerdeNavigationFocusVisualStyle" TargetType="{x:Type Control}">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type Control}">
+                            <Border BorderBrush="{DynamicResource EmerdeBrandFillBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="{StaticResource UiXNavigationItemCornerRadius}"
+                                    IsHitTestVisible="False"
+                                    SnapsToDevicePixels="True" />
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
             <c:ValueConverterGroup x:Key="NotZeroIntToToVisibilityConverter">
                 <c:IntToBoolConverter TrueValue="0" />
                 <c:BoolToVisibilityConverter />
@@ -103,6 +116,7 @@
                 <Setter Property="MinWidth" Value="22" />
                 <Setter Property="Padding" Value="0" />
                 <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSolidNeutralBrush}" />
                 <Setter Property="Cursor" Value="Hand" />
@@ -112,17 +126,18 @@
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="{x:Type Button}">
-                            <Border x:Name="ButtonChrome"
-                                    Width="{TemplateBinding Width}"
-                                    Height="{TemplateBinding Height}"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                            <Grid>
+                                <Border x:Name="ButtonChrome"
+                                        Width="{TemplateBinding Width}"
+                                        Height="{TemplateBinding Height}"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="{StaticResource Win11ControlCornerRadius}" />
                                 <ContentPresenter HorizontalAlignment="Center"
                                                   VerticalAlignment="Center"
                                                   RecognizesAccessKey="True" />
-                            </Border>
+                            </Grid>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="ButtonChrome" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
@@ -160,7 +175,7 @@
                 <Setter Property="Height" Value="28" />
                 <Setter Property="Padding" Value="6,0" />
                 <Setter Property="BorderThickness" Value="0" />
-                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
                 <Setter Property="Cursor" Value="Hand" />
@@ -171,15 +186,16 @@
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="{x:Type Button}">
-                            <Border x:Name="ButtonChrome"
-                                    Height="{TemplateBinding Height}"
-                                    Background="{TemplateBinding Background}"
-                                    CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                            <Grid>
+                                <Border x:Name="ButtonChrome"
+                                        Height="{TemplateBinding Height}"
+                                        Background="{TemplateBinding Background}"
+                                        CornerRadius="{StaticResource Win11ControlCornerRadius}" />
                                 <ContentPresenter Margin="{TemplateBinding Padding}"
                                                   HorizontalAlignment="Center"
                                                   VerticalAlignment="Center"
                                                   RecognizesAccessKey="True" />
-                            </Border>
+                            </Grid>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="ButtonChrome" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
@@ -201,7 +217,7 @@
                 <Setter Property="Height" Value="24" />
                 <Setter Property="Padding" Value="4,0" />
                 <Setter Property="BorderThickness" Value="0" />
-                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
                 <Setter Property="Cursor" Value="Hand" />
@@ -213,16 +229,17 @@
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="{x:Type Button}">
-                            <Border x:Name="ButtonChrome"
-                                    MinWidth="{TemplateBinding MinWidth}"
-                                    Height="{TemplateBinding Height}"
-                                    Padding="{TemplateBinding Padding}"
-                                    Background="{TemplateBinding Background}"
-                                    CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                            <Grid>
+                                <Border x:Name="ButtonChrome"
+                                        MinWidth="{TemplateBinding MinWidth}"
+                                        Height="{TemplateBinding Height}"
+                                        Padding="{TemplateBinding Padding}"
+                                        Background="{TemplateBinding Background}"
+                                        CornerRadius="{StaticResource Win11ControlCornerRadius}" />
                                 <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                                   VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                                   RecognizesAccessKey="True" />
-                            </Border>
+                            </Grid>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="ButtonChrome" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
@@ -244,7 +261,7 @@
                 <Setter Property="MinWidth" Value="22" />
                 <Setter Property="Padding" Value="0" />
                 <Setter Property="BorderThickness" Value="0" />
-                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
                 <Setter Property="Cursor" Value="Hand" />
@@ -254,15 +271,16 @@
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="{x:Type Button}">
-                            <Border x:Name="ButtonChrome"
-                                    Width="{TemplateBinding Width}"
-                                    Height="{TemplateBinding Height}"
-                                    Background="{TemplateBinding Background}"
-                                    CornerRadius="{StaticResource Win11ControlCornerRadius}">
+                            <Grid>
+                                <Border x:Name="ButtonChrome"
+                                        Width="{TemplateBinding Width}"
+                                        Height="{TemplateBinding Height}"
+                                        Background="{TemplateBinding Background}"
+                                        CornerRadius="{StaticResource Win11ControlCornerRadius}" />
                                 <ContentPresenter HorizontalAlignment="Center"
                                                   VerticalAlignment="Center"
                                                   RecognizesAccessKey="True" />
-                            </Border>
+                            </Grid>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="ButtonChrome" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
@@ -287,7 +305,7 @@
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
                 <Setter Property="Cursor" Value="Hand" />
                 <Setter Property="Template">
                     <Setter.Value>
@@ -425,6 +443,7 @@
                         <Setter Property="MaxHeight" Value="40" />
                         <Setter Property="Margin" Value="3,0,3,6" />
                         <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeNavigationFocusVisualStyle}" />
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
@@ -449,6 +468,7 @@
                 <Setter Property="Background" Value="#52FF78AE" />
                 <Setter Property="BorderBrush" Value="Transparent" />
                 <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="{x:Type Button}">
@@ -744,20 +764,21 @@
             </Style>
 
             <ControlTemplate x:Key="StableActiveActionButtonTemplate" TargetType="{x:Type Button}">
-                <Border x:Name="ButtonChrome"
-                        Padding="{TemplateBinding Padding}"
-                        Background="{TemplateBinding Background}"
-                        BorderBrush="{TemplateBinding BorderBrush}"
-                        BorderThickness="{TemplateBinding BorderThickness}"
-                        CornerRadius="{StaticResource Win11ControlCornerRadius}"
-                        SnapsToDevicePixels="True">
+                <Grid>
+                    <Border x:Name="ButtonChrome"
+                            Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource Win11ControlCornerRadius}"
+                            SnapsToDevicePixels="True" />
                     <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                       VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                       Content="{TemplateBinding Content}"
                                       ContentStringFormat="{TemplateBinding ContentStringFormat}"
                                       ContentTemplate="{TemplateBinding ContentTemplate}"
                                       RecognizesAccessKey="True" />
-                </Border>
+                </Grid>
                 <ControlTemplate.Triggers>
                     <Trigger Property="IsPressed" Value="True">
                         <Setter TargetName="ButtonChrome" Property="Opacity" Value="0.82" />
@@ -765,7 +786,34 @@
                 </ControlTemplate.Triggers>
             </ControlTemplate>
 
-            <Style x:Key="MonitorActionButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
+            <Style x:Key="HomeToolbarButtonStyle"
+                   TargetType="{x:Type Button}"
+                   BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="MinHeight" Value="34" />
+                <Setter Property="Padding" Value="8,0" />
+                <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Template" Value="{StaticResource StableActiveActionButtonTemplate}" />
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                    </Trigger>
+                    <Trigger Property="IsPressed" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="MonitorActionButtonStyle"
+                   TargetType="{x:Type Button}"
+                   BasedOn="{StaticResource HomeToolbarButtonStyle}">
+                <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
                 <Style.Triggers>
                     <MultiDataTrigger>
                         <MultiDataTrigger.Conditions>
@@ -781,7 +829,10 @@
                 </Style.Triggers>
             </Style>
 
-            <Style x:Key="RecordActionButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
+            <Style x:Key="RecordActionButtonStyle"
+                   TargetType="{x:Type Button}"
+                   BasedOn="{StaticResource HomeToolbarButtonStyle}">
+                <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
                 <Style.Triggers>
                     <MultiDataTrigger>
                         <MultiDataTrigger.Conditions>
@@ -930,6 +981,20 @@
                                     <Setter TargetName="RoomCardBottomFade" Property="Margin" Value="6,0,18,6" />
                                 </DataTrigger>
                             </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style x:Key="EmerdeRoomCardFocusVisualStyle" TargetType="{x:Type Control}">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type Control}">
+                            <Border Margin="6"
+                                    BorderBrush="{DynamicResource EmerdeBrandFillBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="{StaticResource UiXSurfaceCornerRadius}"
+                                    IsHitTestVisible="False"
+                                    SnapsToDevicePixels="True" />
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
@@ -1226,6 +1291,7 @@
                                    Spacing="8" />
                     <Button MinWidth="72"
                             Command="{Binding AddRoomCommand}"
+                            Style="{StaticResource HomeToolbarButtonStyle}"
                             ToolTip="{I18N AddRoomToolTip}">
                         <Button.Content>
                             <ui:StackPanel Orientation="Horizontal" Spacing="8">
@@ -1397,6 +1463,8 @@
                                  Loaded="RoomCardListLoaded"
                                  LostMouseCapture="RoomCardListLostMouseCapture"
                                  Padding="0"
+                                  KeyboardNavigation.IsTabStop="False"
+                                  KeyboardNavigation.TabNavigation="None"
                                   ScrollViewer.CanContentScroll="True"
                                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                   ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -1436,7 +1504,9 @@
                                     <Setter Property="BorderBrush" Value="Transparent" />
                                     <Setter Property="BorderThickness" Value="0" />
                                     <Setter Property="ClipToBounds" Value="False" />
-                                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                    <Setter Property="Focusable" Value="True" />
+                                    <Setter Property="KeyboardNavigation.IsTabStop" Value="False" />
+                                    <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="{x:Type ListBoxItem}">
@@ -1446,6 +1516,11 @@
                                             </ControlTemplate>
                                         </Setter.Value>
                                     </Setter>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DataContext.StatusOfIsUiXEnabled, RelativeSource={RelativeSource AncestorType={x:Type views:MainWindow}}}" Value="True">
+                                            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
                                 </Style>
                             </ListBox.ItemContainerStyle>
                             <ListBox.ItemTemplate>
@@ -2535,7 +2610,7 @@
                     HorizontalAlignment="Right"
                     VerticalAlignment="Center"
                     Click="NotificationHistoryButtonClick"
-                    FocusVisualStyle="{x:Null}"
+                                 FocusVisualStyle="{StaticResource EmerdeFocusVisualStyle}"
                     shell:WindowChrome.IsHitTestVisibleInChrome="True"
                     ToolTip="{I18N NotificationHistory}">
                 <Button.Style>

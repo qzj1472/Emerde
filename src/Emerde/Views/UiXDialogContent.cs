@@ -35,8 +35,7 @@ internal static class UiXDialogContent
             Content = CreateMessage(message, glyph, tone),
             PrimaryButtonText = primaryButtonText,
             CloseButtonText = closeButtonText,
-            DefaultButton = ContentDialogButton.Close,
-            FocusVisualStyle = null,
+            DefaultButton = ContentDialogButton.Primary,
             Style = Application.Current?.TryFindResource("EmerdeContentDialogStyle") as Style,
         };
         using DialogBlurScope blurScope = DialogBlurScope.ForLightDismiss(owner, dialog);

@@ -68,6 +68,18 @@ public partial class AboutContentDialog : System.Windows.Controls.UserControl
         }
     }
 
+    private void AboutNavigationButtonPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != System.Windows.Input.Key.Enter || sender is not System.Windows.Controls.RadioButton button)
+        {
+            return;
+        }
+
+        button.IsChecked = true;
+        AboutNavigationButtonClick(button, e);
+        e.Handled = true;
+    }
+
     private void QueueAboutNavigationIndicatorUpdate(bool animate)
     {
         pendingNavigationIndicatorAnimation |= animate;

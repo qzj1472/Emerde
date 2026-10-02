@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
 using WpfComboBox = System.Windows.Controls.ComboBox;
+using WpfComboBoxItem = System.Windows.Controls.ComboBoxItem;
 using WpfPasswordBox = System.Windows.Controls.PasswordBox;
 using WpfTextBox = System.Windows.Controls.TextBox;
 
@@ -24,6 +25,12 @@ public static class InputAssist
         typeof(InputAssist),
         new PropertyMetadata(null, OnEnterBehaviorChanged));
 
+    public static readonly DependencyProperty KeyboardOpenOnEnterProperty = DependencyProperty.RegisterAttached(
+        "KeyboardOpenOnEnter",
+        typeof(bool),
+        typeof(InputAssist),
+        new PropertyMetadata(false, OnEnterBehaviorChanged));
+
     public static readonly DependencyProperty SelectAllOnVisibleProperty = DependencyProperty.RegisterAttached(
         "SelectAllOnVisible",
         typeof(bool),
@@ -36,6 +43,12 @@ public static class InputAssist
         typeof(InputAssist),
         new PropertyMetadata(false, OnCommitFocusedOnPointerDownChanged));
 
+    private static readonly DependencyProperty SuppressNextEnterProperty = DependencyProperty.RegisterAttached(
+        "SuppressNextEnter",
+        typeof(bool),
+        typeof(InputAssist),
+        new PropertyMetadata(false));
+
     public static void SetCommitOnEnter(DependencyObject element, bool value) => element.SetValue(CommitOnEnterProperty, value);
 
     public static bool GetCommitOnEnter(DependencyObject element) => (bool)element.GetValue(CommitOnEnterProperty);
@@ -43,6 +56,10 @@ public static class InputAssist
     public static void SetEnterCommand(DependencyObject element, ICommand? value) => element.SetValue(EnterCommandProperty, value);
 
     public static ICommand? GetEnterCommand(DependencyObject element) => (ICommand?)element.GetValue(EnterCommandProperty);
+
+    public static void SetKeyboardOpenOnEnter(DependencyObject element, bool value) => element.SetValue(KeyboardOpenOnEnterProperty, value);
+
+    public static bool GetKeyboardOpenOnEnter(DependencyObject element) => (bool)element.GetValue(KeyboardOpenOnEnterProperty);
 
     public static void SetSelectAllOnVisible(DependencyObject element, bool value) => element.SetValue(SelectAllOnVisibleProperty, value);
 
@@ -62,17 +79,74 @@ public static class InputAssist
         element.KeyDown -= InputKeyDown;
         if (element is WpfComboBox comboBox)
         {
+            comboBox.PreviewKeyDown -= ComboBoxPreviewKeyDown;
             comboBox.DropDownClosed -= ComboBoxDropDownClosed;
         }
 
-        if (GetCommitOnEnter(element) || GetEnterCommand(element) != null)
+        if (GetCommitOnEnter(element) || GetEnterCommand(element) != null || GetKeyboardOpenOnEnter(element))
         {
             element.KeyDown += InputKeyDown;
             if (element is WpfComboBox selection)
             {
+                selection.PreviewKeyDown += ComboBoxPreviewKeyDown;
                 selection.DropDownClosed += ComboBoxDropDownClosed;
             }
         }
+    }
+
+    private static void ComboBoxPreviewKeyDown(object sender, WpfKeyEventArgs e)
+    {
+        if (sender is not WpfComboBox comboBox
+            || !GetKeyboardOpenOnEnter(comboBox)
+            || Keyboard.Modifiers != ModifierKeys.None)
+        {
+            return;
+        }
+
+        if (comboBox.IsDropDownOpen)
+        {
+            return;
+        }
+
+        if (e.Key is Key.Up or Key.Down)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key != Key.Enter)
+        {
+            return;
+        }
+
+        comboBox.IsDropDownOpen = true;
+        comboBox.SetValue(SuppressNextEnterProperty, true);
+        e.Handled = true;
+        _ = comboBox.Dispatcher.BeginInvoke(
+            DispatcherPriority.Input,
+            new Action(() =>
+            {
+                comboBox.ClearValue(SuppressNextEnterProperty);
+                FocusSelectedComboBoxItem(comboBox);
+            }));
+    }
+
+    private static void FocusSelectedComboBoxItem(WpfComboBox comboBox)
+    {
+        if (!comboBox.IsDropDownOpen)
+        {
+            return;
+        }
+
+        if (comboBox.SelectedIndex >= 0
+            && comboBox.ItemContainerGenerator.ContainerFromIndex(comboBox.SelectedIndex) is WpfComboBoxItem item
+            && item.IsVisible)
+        {
+            item.Focus();
+            return;
+        }
+
+        comboBox.Focus();
     }
 
     private static void InputKeyDown(object sender, WpfKeyEventArgs e)
@@ -82,10 +156,22 @@ public static class InputAssist
             return;
         }
 
+        if (element is WpfComboBox openedComboBox && (bool)openedComboBox.GetValue(SuppressNextEnterProperty))
+        {
+            openedComboBox.ClearValue(SuppressNextEnterProperty);
+            e.Handled = true;
+            return;
+        }
+
         ICommand? command = GetEnterCommand(element);
         if (!ShouldProcessEnter(element, command))
         {
             return;
+        }
+
+        if (element is WpfComboBox comboBox && comboBox.IsDropDownOpen)
+        {
+            comboBox.IsDropDownOpen = false;
         }
 
         UpdateBindingSources(element);
@@ -112,10 +198,6 @@ public static class InputAssist
         }
 
         UpdateBindingSources(comboBox);
-        if (comboBox.IsKeyboardFocusWithin)
-        {
-            Keyboard.ClearFocus();
-        }
     }
 
     internal static bool ShouldProcessEnter(FrameworkElement element, ICommand? command)

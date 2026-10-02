@@ -178,7 +178,7 @@
     </Style>
 
     <Style TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
         <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
         <Setter Property="MinHeight" Value="34" />
         <Setter Property="ToolTipService.InitialShowDelay" Value="320" />
@@ -190,7 +190,7 @@
     </Style>
 
     <Style TargetType="{x:Type ToggleButton}" BasedOn="{StaticResource {x:Type ToggleButton}}">
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
         <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
         <Setter Property="MinHeight" Value="34" />
         <Setter Property="ToolTipService.InitialShowDelay" Value="320" />
@@ -201,8 +201,12 @@
         <Setter Property="ToolTipService.VerticalOffset" Value="8" />
     </Style>
 
+    <Style TargetType="{x:Type MenuItem}" BasedOn="{StaticResource {x:Type MenuItem}}">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
+    </Style>
+
     <Style TargetType="{x:Type CheckBox}" BasedOn="{StaticResource {x:Type CheckBox}}">
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
         <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
         <Setter Property="MinHeight" Value="24" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -272,7 +276,7 @@
     </Style>
 
     <Style TargetType="{x:Type ui:Button}" BasedOn="{StaticResource {x:Type ui:Button}}">
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
         <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
         <Setter Property="controls:MotionAssist.IsPressEnabled" Value="True" />
     </Style>
@@ -327,7 +331,7 @@
         <Setter Property="Background" Value="{DynamicResource EmerdeCardBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource EmerdeExtensionInputBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
         <Setter Property="Effect" Value="{x:Null}" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
@@ -364,17 +368,13 @@
             <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="Transparent" />
             <SolidColorBrush x:Key="ControlElevationBorderBrush" Color="Transparent" />
         </Style.Resources>
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
         <Setter Property="Effect" Value="{x:Null}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
         <Setter Property="controls:InputAssist.CommitOnEnter" Value="True" />
-        <Style.Triggers>
-            <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource EmerdeTextInputFocusedBorderBrush}" />
-                <Setter Property="Effect" Value="{x:Null}" />
-            </Trigger>
-        </Style.Triggers>
+        <Setter Property="controls:InputAssist.KeyboardOpenOnEnter" Value="True" />
+        <Style.Triggers />
     </Style>
 
     <Style x:Key="ExtensionChoiceInputStyle" TargetType="{x:Type ComboBox}" BasedOn="{StaticResource {x:Type ComboBox}}">
@@ -385,7 +385,9 @@
         <Setter Property="Background" Value="{DynamicResource EmerdeCardBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource EmerdeExtensionInputBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
+        <Setter Property="controls:InputAssist.CommitOnEnter" Value="True" />
+        <Setter Property="controls:InputAssist.KeyboardOpenOnEnter" Value="True" />
         <Setter Property="Effect" Value="{x:Null}" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
@@ -400,7 +402,7 @@
     </Style>
 
     <Style TargetType="{x:Type RadioButton}" BasedOn="{StaticResource {x:Type RadioButton}}">
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
     </Style>
 
     <Style TargetType="{x:Type ListBoxItem}" BasedOn="{StaticResource {x:Type ListBoxItem}}">
@@ -408,20 +410,20 @@
     </Style>
 
     <Style TargetType="{x:Type ComboBoxItem}" BasedOn="{StaticResource {x:Type ComboBoxItem}}">
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
     </Style>
 
     <Style TargetType="{x:Type TreeViewItem}" BasedOn="{StaticResource {x:Type TreeViewItem}}">
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
     </Style>
 
     <Style TargetType="{x:Type ui:CardControl}" BasedOn="{StaticResource {x:Type ui:CardControl}}">
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
         <Setter Property="CornerRadius" Value="{StaticResource Win11ControlCornerRadius}" />
     </Style>
 
     <Style TargetType="{x:Type ui:CardExpander}" BasedOn="{StaticResource {x:Type ui:CardExpander}}">
-        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource EmerdeFocusVisualStyle}" />
         <Setter Property="Background" Value="{DynamicResource EmerdePanelBrush}" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
@@ -599,6 +601,7 @@
             <SolidColorBrush x:Key="TextControlFocusedBorderBrush" Color="Transparent" />
         </Style.Resources>
         <Setter Property="ClearButtonEnabled" Value="False" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Effect" Value="{x:Null}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="BorderBrush" Value="{DynamicResource EmerdeTextInputBorderBrush}" />

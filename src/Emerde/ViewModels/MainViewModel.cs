@@ -5237,7 +5237,6 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             PrimaryButtonText = "Save".Tr(),
             CloseButtonText = "ButtonOfCancel".Tr(),
             DefaultButton = ContentDialogButton.Primary,
-            FocusVisualStyle = null,
             Style = Application.Current?.TryFindResource("EmerdeContentDialogStyle") as Style,
         };
         content.ApplyDialogVisualSize(dialog, owner);

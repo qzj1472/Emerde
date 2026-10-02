@@ -146,7 +146,7 @@ public sealed class FocusVisualTests
         int methodEnd = viewModelSource.IndexOf("[RelayCommand]", methodStart, StringComparison.Ordinal);
         Assert.True(methodStart >= 0);
         Assert.True(methodEnd > methodStart);
-        Assert.Contains("FocusVisualStyle = null", viewModelSource[methodStart..methodEnd]);
+        Assert.DoesNotContain("FocusVisualStyle = null", viewModelSource[methodStart..methodEnd]);
     }
 
     [Fact]
@@ -167,7 +167,7 @@ public sealed class FocusVisualTests
     [InlineData("StatusTrayChipButtonStyle")]
     [InlineData("StatusTrayCapacityButtonStyle")]
     [InlineData("StatusTrayCapacityRefreshButtonStyle")]
-    public void HomeStatusTrayButtons_DoNotRenderWindowSwitchFocusOutline(string styleKey)
+    public void HomeStatusTrayButtons_UseKeyboardOnlyFocusStyle(string styleKey)
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
         XElement style = document.Descendants()
@@ -175,7 +175,9 @@ public sealed class FocusVisualTests
 
         Assert.Contains(style.Elements().Where(element => element.Name.LocalName == "Setter"), setter =>
             (string?)setter.Attribute("Property") == "FocusVisualStyle" &&
-            (string?)setter.Attribute("Value") == "{x:Null}");
+            (string?)setter.Attribute("Value") == "{StaticResource EmerdeFocusVisualStyle}");
+        Assert.DoesNotContain(style.Descendants(), element =>
+            (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "KeyboardFocusChrome");
     }
 
     [Fact]
@@ -199,6 +201,36 @@ public sealed class FocusVisualTests
                 && (string?)element.Attribute("Property") == "Template"
                 && (string?)element.Attribute("Value") == "{StaticResource StableActiveActionButtonTemplate}");
         }
+    }
+
+    [Fact]
+    public void HomeToolbarButtons_UseOneRoundedFocusTemplate()
+    {
+        XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml"));
+        XElement style = document.Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "HomeToolbarButtonStyle");
+        XElement template = document.Descendants()
+            .Single(element => element.Name.LocalName == "ControlTemplate"
+                && (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "StableActiveActionButtonTemplate");
+        XElement addButton = document.Descendants()
+            .Single(element => element.Name.LocalName == "Button"
+                && element.Descendants().Any(descendant => descendant.Name.LocalName == "TextBlock"
+                    && (string?)descendant.Attribute("Text") == "{I18N ButtonOfAdd}"));
+
+        Assert.Contains(style.Elements().Where(element => element.Name.LocalName == "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Template"
+            && (string?)setter.Attribute("Value") == "{StaticResource StableActiveActionButtonTemplate}");
+        Assert.Contains(style.Elements().Where(element => element.Name.LocalName == "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "FocusVisualStyle"
+            && (string?)setter.Attribute("Value") == "{StaticResource EmerdeFocusVisualStyle}");
+        Assert.Equal("{StaticResource HomeToolbarButtonStyle}", (string?)addButton.Attribute("Style"));
+        Assert.Contains(template.Descendants(), element =>
+            element.Name.LocalName == "Border"
+            && (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "ButtonChrome"
+            && (string?)element.Attribute("CornerRadius") == "{StaticResource Win11ControlCornerRadius}");
+        Assert.DoesNotContain(template.Descendants(), element =>
+            (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "KeyboardFocusChrome");
     }
 
     [Fact]
@@ -231,6 +263,18 @@ public sealed class FocusVisualTests
         Assert.Equal("False", (string?)content.Attribute("Focusable"));
         Assert.Equal("{x:Null}", (string?)content.Attribute("FocusVisualStyle"));
         Assert.Equal("{x:Null}", (string?)list.Attribute("FocusVisualStyle"));
+        Assert.Equal("False", (string?)list.Attribute("KeyboardNavigation.IsTabStop"));
+        Assert.Equal("None", (string?)list.Attribute("KeyboardNavigation.TabNavigation"));
+
+        XElement itemStyle = list.Descendants()
+            .Single(element => element.Name.LocalName == "Style"
+                && (string?)element.Attribute("TargetType") == "{x:Type ListBoxItem}");
+        Assert.Contains(itemStyle.Elements(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "KeyboardNavigation.IsTabStop"
+            && (string?)element.Attribute("Value") == "False");
+        Assert.Contains(itemStyle.Descendants(), element => element.Name.LocalName == "Setter"
+            && (string?)element.Attribute("Property") == "FocusVisualStyle"
+            && (string?)element.Attribute("Value") == "{x:Null}");
     }
 
     [Fact]
@@ -578,6 +622,7 @@ public sealed class FocusVisualTests
         string assistSource = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Controls", "InputAssist.cs"));
         Assert.Contains("if (GetCommitOnEnter(element))", assistSource, StringComparison.Ordinal);
         Assert.Contains("Keyboard.ClearFocus()", assistSource, StringComparison.Ordinal);
+        Assert.Contains("SuppressNextEnterProperty", assistSource, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -604,6 +649,9 @@ public sealed class FocusVisualTests
 
         Assert.Contains(style.Elements().Where(element => element.Name.LocalName == "Setter"), setter =>
             (string?)setter.Attribute("Property") == "controls:InputAssist.CommitOnEnter"
+            && (string?)setter.Attribute("Value") == "True");
+        Assert.Contains(style.Elements().Where(element => element.Name.LocalName == "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "controls:InputAssist.KeyboardOpenOnEnter"
             && (string?)setter.Attribute("Value") == "True");
     }
 
@@ -766,7 +814,7 @@ public sealed class FocusVisualTests
                 .Single(element => element.Name.LocalName == "Style" && (string?)element.Attribute("TargetType") == targetType);
             Assert.Contains(style.Elements().Where(element => element.Name.LocalName == "Setter"), setter =>
                 (string?)setter.Attribute("Property") == "FocusVisualStyle" &&
-                (string?)setter.Attribute("Value") == "{x:Null}");
+                (string?)setter.Attribute("Value") == "{StaticResource EmerdeFocusVisualStyle}");
         }
     }
 
@@ -1314,6 +1362,8 @@ public sealed class FocusVisualTests
             .Single(element => (string?)element.Attribute(XName.Get("Key", XamlNamespace)) == "UiXSurfaceBorderThickness");
 
         Assert.Contains("FluentWpfCore\" Version=\"1.0.5", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("ComputedBehaviors.WPF", project, StringComparison.Ordinal);
+        Assert.DoesNotContain("ComputedAnimations.WPF", project, StringComparison.Ordinal);
         Assert.Contains("Themes/UiXTheme.xaml", app, StringComparison.Ordinal);
         Assert.DoesNotContain("FluentWpfCore;component/Themes/Generic.xaml", app, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"UiXWindowMaterial\"", mainWindow, StringComparison.Ordinal);
@@ -1344,6 +1394,39 @@ public sealed class FocusVisualTests
         Assert.Contains("ShowMinimize=\"True\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("ShowMaximize=\"True\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("ShowClose=\"True\"", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AppResources_LoadWpfUiBeforeEmerdeOverlaysAndDoNotBakeDefaultControlTemplates()
+    {
+        string app = File.ReadAllText(FindRepositoryFile("src", "Emerde", "App.xaml"));
+        string installer = File.ReadAllText(FindRepositoryFile("src", "Emerde.Installer", "App.xaml"));
+        string uninstaller = File.ReadAllText(FindRepositoryFile("src", "Emerde.Uninstaller", "App.xaml"));
+        string themes = File.ReadAllText(FindRepositoryFile("src", "Emerde.UI", "Markup", "ThemesDictionary.xaml"));
+        string themesCode = File.ReadAllText(FindRepositoryFile("src", "Emerde.UI", "Markup", "ThemesDictionary.cs"));
+
+        foreach (string markup in new[] { app, installer, uninstaller })
+        {
+            Assert.Contains("<ui:ThemesDictionary />", markup, StringComparison.Ordinal);
+            Assert.Contains("<ui:ControlsDictionary />", markup, StringComparison.Ordinal);
+            Assert.Contains("<eu:ThemesDictionary />", markup, StringComparison.Ordinal);
+            Assert.True(
+                markup.IndexOf("<ui:ThemesDictionary />", StringComparison.Ordinal)
+                < markup.IndexOf("<ui:ControlsDictionary />", StringComparison.Ordinal));
+            Assert.True(
+                markup.IndexOf("<ui:ControlsDictionary />", StringComparison.Ordinal)
+                < markup.IndexOf("<eu:ThemesDictionary />", StringComparison.Ordinal));
+        }
+
+        Assert.DoesNotContain("BasedOn=\"{StaticResource {x:Type", themes, StringComparison.Ordinal);
+        Assert.Contains("EnsureApplicationWpfUiDictionaries", themesCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("FocusVisualStyleProperty", themesCode, StringComparison.Ordinal);
+        string emerDeTheme = File.ReadAllText(FindRepositoryFile("src", "Emerde.UI", "Themes", "EmerdeTheme.xaml"));
+        Assert.Contains("EmerdeFocusVisualStyle", emerDeTheme, StringComparison.Ordinal);
+        Assert.Contains("<Border Margin=\"0\"", emerDeTheme, StringComparison.Ordinal);
+        Assert.Contains("MinHeightProperty, 34d", themesCode, StringComparison.Ordinal);
+        Assert.Contains("Application.Current?.Resources[type] as Style", themesCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("TryFindResource", themesCode, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1469,6 +1552,8 @@ public sealed class FocusVisualTests
         Assert.Same(surface, content.Parent);
         Assert.Equal("1", (string?)surfaceStroke.Attribute("BorderThickness"));
         Assert.Equal("1", (string?)selectionLayer.Attribute("BorderThickness"));
+        Assert.DoesNotContain(document.Descendants(), element =>
+            (string?)element.Attribute(XName.Get("Name", XamlNamespace)) == "KeyboardFocusBorder");
         XElement paddingStyle = content.Elements()
             .Single(element => element.Name.LocalName == "Border.Style")
             .Elements()
@@ -1483,7 +1568,7 @@ public sealed class FocusVisualTests
             element.Name.LocalName == "Setter"
             && (string?)element.Attribute("TargetName") == "VideoCardShell"
             && (string?)element.Attribute("Property") is "BorderBrush" or "BorderThickness");
-        Assert.Equal("#78337DFF", (string?)selectionLayer.Attribute("BorderBrush"));
+        Assert.Equal("{DynamicResource UiXSelectionStrokeBrush}", (string?)selectionLayer.Attribute("BorderBrush"));
     }
 
     [Fact]

@@ -79,7 +79,7 @@
                     MinWidth="34"
                     Padding="0"
                     Click="BackButtonClick"
-                    FocusVisualStyle="{x:Null}"
+                    FocusVisualStyle="{StaticResource EmerdeFocusVisualStyle}"
                     ToolTip="{I18N CookieLoginBack}">
                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                              FontSize="14"
@@ -92,7 +92,7 @@
                     Margin="8,0,0,0"
                     Padding="0"
                     Click="RefreshButtonClick"
-                    FocusVisualStyle="{x:Null}"
+                    FocusVisualStyle="{StaticResource EmerdeFocusVisualStyle}"
                     ToolTip="{I18N RefreshButton}">
                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
                              FontSize="14"
@@ -135,14 +135,14 @@
                     Margin="12,0,0,0"
                     Click="CancelButtonClick"
                     Content="{I18N ButtonOfCancel}"
-                    FocusVisualStyle="{x:Null}" />
+                    FocusVisualStyle="{StaticResource EmerdeFocusVisualStyle}" />
             <Button x:Name="CompleteButton"
                     Grid.Column="2"
                     MinWidth="116"
                     Margin="8,0,0,0"
                     Click="CompleteButtonClick"
                     Content="{I18N CookieLoginFinish}"
-                    FocusVisualStyle="{x:Null}"
+                    FocusVisualStyle="{StaticResource EmerdeFocusVisualStyle}"
                     IsEnabled="False" />
         </Grid>
     </Grid>

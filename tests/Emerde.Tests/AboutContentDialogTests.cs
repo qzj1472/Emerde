@@ -16,6 +16,8 @@ public class AboutContentDialogTests
 
         Assert.Contains("CommandParameter=\"Overview\"", xaml);
         Assert.Contains("CommandParameter=\"ReleaseNotes\"", xaml);
+        Assert.Contains("PreviewKeyDown=\"AboutNavigationButtonPreviewKeyDown\"", xaml);
+        Assert.Contains("AboutNavigationButtonPreviewKeyDown", File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "AboutContentDialog.xaml.cs")), StringComparison.Ordinal);
         Assert.Contains("ItemsSource=\"{Binding ReleaseNotes}\"", xaml);
         Assert.Contains("ItemsSource=\"{Binding SelectedReleaseNote.Sections}\"", xaml);
         Assert.Contains(document.Descendants(), element => (string?)element.Attribute("DisplayMemberPath") == "VersionLabel");
