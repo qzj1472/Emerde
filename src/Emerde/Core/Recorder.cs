@@ -434,14 +434,18 @@ public sealed class Recorder
                     startInfo,
                     token);
                 DeleteEmptyOutputFiles(outputFileName);
-                if (lastAttemptWasAudioContentAnomaly && sessionMetadata != null && sessionOutputPattern != null)
+                if (lastAttemptWasAudioContentAnomaly && sessionMetadata != null)
                 {
                     sessionMetadata.MediaIssue = VideoRecordingMetadataStore.AddMediaIssue(sessionMetadata.MediaIssue, "audio_content_anomaly");
-                    sessionMetadataPath = VideoRecordingMetadataStore.WriteSidecar(
-                        Path.GetDirectoryName(sessionOutputPattern)!,
-                        sessionBaseFileName!,
-                        sessionMetadata) ?? sessionMetadataPath;
                 }
+                PersistLiveIssueMetadata(
+                    metadata,
+                    sessionMetadata,
+                    sessionOutputPattern,
+                    sessionBaseFileName,
+                    ref sessionMetadataPath,
+                    saveFolder,
+                    useSessionPartFiles);
                 LogRecordedSourceDiagnostics(startInfo, outputFileName, metadata);
                 bool hasSessionOutput = useSessionPartFiles && HasUsableOutput(outputFileName);
                 bool storageFailure = IsInsufficientStorageFailure(exitCode, lastProcessErrorOutput);
@@ -600,12 +604,19 @@ public sealed class Recorder
                             fallbackInputKind = isHls ? "hls" : "flv",
                         });
                     }
-                    if (hasTriedInputFallback
-                        && string.Equals(startInfo.PlatformName, "Bilibili", StringComparison.OrdinalIgnoreCase)
-                        && !string.IsNullOrWhiteSpace(startInfo.FlvUrl))
+                    if (ShouldRetryBilibiliOriginalAfterStall(
+                        startInfo.PlatformName,
+                        lastAttemptHadMediaProgress,
+                        lastAttemptWasStalled,
+                        hasTriedInputFallback))
                     {
-                        Url = startInfo.FlvUrl;
-                        startInfo.RecordUrl = startInfo.FlvUrl;
+                        hasTriedInputFallback = false;
+                        AppSessionLogger.Event("info", "recorder", "record_bilibili_quality_climb_back", "recording will retry the original Bilibili stream after a stalled fallback", new
+                        {
+                            startInfo.RoomUrl,
+                            startInfo.NickName,
+                            currentInputKind = IsHlsUrl(Url, startInfo) ? "hls" : "flv",
+                        });
                     }
                     headers = NormalizeHeaders(startInfo.Headers);
                     isHls = IsHlsUrl(Url!, startInfo);
@@ -1558,6 +1569,8 @@ public sealed class Recorder
         {
             int consecutiveAudioAnomalyWindows = 0;
             DateTime lastAudioContentLogAt = DateTime.MinValue;
+            double lastAudioPtsSeconds = -1d;
+            double lastVideoPtsSeconds = -1d;
             while (!readToken.IsCancellationRequested && await reader.ReadLineAsync(readToken) is { } line)
             {
                 if (TryParseMediaWorkerTimelineEvent(
@@ -1606,6 +1619,19 @@ public sealed class Recorder
                         });
                     if (videoStalled || audioStalled)
                     {
+                        double gapSeconds = gapMicroseconds / 1_000_000d;
+                        double endSeconds = videoStalled
+                            ? (lastAudioPtsSeconds >= 0d ? lastAudioPtsSeconds : lastVideoPtsSeconds)
+                            : (lastVideoPtsSeconds >= 0d ? lastVideoPtsSeconds : lastAudioPtsSeconds);
+                        double startSeconds = endSeconds >= 0d && gapSeconds > 0d
+                            ? Math.Max(0d, endSeconds - gapSeconds)
+                            : -1d;
+                        RecordIssueInterval(
+                            metadata,
+                            "timeline_mismatch",
+                            startSeconds,
+                            endSeconds >= 0d ? endSeconds : -1d,
+                            videoStalled ? "video_stalled" : "audio_stalled");
                         StartCrossStreamVerification(startInfo, verificationToken);
                     }
                     continue;
@@ -1617,6 +1643,14 @@ public sealed class Recorder
                     out long audioVideoDifferenceMicroseconds,
                     out double sampleElapsedSeconds))
                 {
+                    if (audioPresentationTimestampMicroseconds >= 0)
+                    {
+                        lastAudioPtsSeconds = audioPresentationTimestampMicroseconds / 1_000_000d;
+                    }
+                    if (videoPresentationTimestampMicroseconds >= 0)
+                    {
+                        lastVideoPtsSeconds = videoPresentationTimestampMicroseconds / 1_000_000d;
+                    }
                     RecordingTimelineSample sample = timelineDiagnostics.Add(
                         DateTime.Now,
                         audioPresentationTimestampMicroseconds,
@@ -1682,6 +1716,16 @@ public sealed class Recorder
                                 audioSample.IsConclusive,
                                 audioState = audioSample.State,
                             });
+                    }
+
+                    if (isAnomaly)
+                    {
+                        RecordIssueInterval(
+                            metadata,
+                            "audio_content_anomaly",
+                            audioSample.StartSeconds,
+                            audioSample.EndSeconds,
+                            audioSample.State);
                     }
 
                     if (consecutiveAudioAnomalyWindows >= 2 && !audioContentRestartRequested && !readToken.IsCancellationRequested)
@@ -2429,6 +2473,69 @@ public sealed class Recorder
         }
 
         return hlsUrl;
+    }
+
+    internal static bool ShouldRetryBilibiliOriginalAfterStall(
+        string? platformName,
+        bool hadMediaProgress,
+        bool wasStalled,
+        bool alreadyTriedFallback)
+    {
+        return alreadyTriedFallback
+            && hadMediaProgress
+            && wasStalled
+            && string.Equals(platformName, "Bilibili", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void RecordIssueInterval(
+        VideoRecordingMetadata metadata,
+        string kind,
+        double startSeconds,
+        double endSeconds,
+        string detail)
+    {
+        VideoRecordingMetadataStore.AddIssueInterval(metadata, kind, startSeconds, endSeconds, detail);
+    }
+
+    private void PersistLiveIssueMetadata(
+        VideoRecordingMetadata metadata,
+        VideoRecordingMetadata? liveSessionMetadata,
+        string? liveSessionOutputPattern,
+        string? liveSessionBaseFileName,
+        ref string? liveSessionMetadataPath,
+        string saveFolder,
+        bool useSessionPartFiles)
+    {
+        bool hasIssues = !string.IsNullOrWhiteSpace(metadata.MediaIssue)
+            || (metadata.IssueIntervals?.Count ?? 0) > 0
+            || (liveSessionMetadata != null
+                && (!string.IsNullOrWhiteSpace(liveSessionMetadata.MediaIssue)
+                    || (liveSessionMetadata.IssueIntervals?.Count ?? 0) > 0));
+        if (!hasIssues)
+        {
+            return;
+        }
+
+        if (liveSessionMetadata != null && liveSessionOutputPattern != null && !string.IsNullOrWhiteSpace(liveSessionBaseFileName))
+        {
+            liveSessionMetadataPath = VideoRecordingMetadataStore.WriteSidecar(
+                Path.GetDirectoryName(liveSessionOutputPattern)!,
+                liveSessionBaseFileName,
+                liveSessionMetadata) ?? liveSessionMetadataPath;
+            MetadataPath = liveSessionMetadataPath;
+            return;
+        }
+
+        if (useSessionPartFiles)
+        {
+            return;
+        }
+
+        string persistName = Path.GetFileNameWithoutExtension(metadata.FileName);
+        if (!string.IsNullOrWhiteSpace(persistName))
+        {
+            MetadataPath = VideoRecordingMetadataStore.WriteSidecar(saveFolder, persistName, metadata) ?? MetadataPath;
+        }
     }
 
     private async Task<bool?> TryRefreshInputAsync(RecorderStartInfo startInfo, CancellationToken token)
@@ -3201,6 +3308,8 @@ public sealed class VideoRecordingMetadata
 
     public string MediaIssue { get; set; } = string.Empty;
 
+    public List<VideoRecordingIssueInterval> IssueIntervals { get; set; } = [];
+
     public bool WasRepaired { get; set; }
 
     public string FileName { get; set; } = string.Empty;
@@ -3245,6 +3354,18 @@ public sealed class VideoRecordingMetadata
 
     public string FileNameRule { get; set; } = string.Empty;
 }
+
+public sealed class VideoRecordingIssueInterval
+{
+    public string Kind { get; set; } = string.Empty;
+
+    public double StartSeconds { get; set; } = -1d;
+
+    public double EndSeconds { get; set; } = -1d;
+
+    public string Detail { get; set; } = string.Empty;
+}
+
 
 internal static class FileNameSanitizer
 {

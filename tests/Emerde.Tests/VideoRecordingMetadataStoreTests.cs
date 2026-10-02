@@ -19,6 +19,7 @@ public sealed class VideoRecordingMetadataStoreTests
             ["emerde_segment_count"] = "3",
             ["emerde_segment_kind"] = "stall",
             ["emerde_media_issue"] = "timeline_mismatch",
+            ["emerde_issue_intervals"] = "[{\"Kind\":\"timeline_mismatch\",\"StartSeconds\":12.5,\"EndSeconds\":19.2,\"Detail\":\"audio_stalled\"}]",
             ["emerde_was_repaired"] = "true",
             ["emerde_cover_composition_version"] = "2",
         };
@@ -36,6 +37,11 @@ public sealed class VideoRecordingMetadataStoreTests
         Assert.Equal(3, metadata.SegmentCount);
         Assert.Equal("stall", metadata.SegmentKind);
         Assert.Equal("timeline_mismatch", metadata.MediaIssue);
+        Assert.Single(metadata.IssueIntervals);
+        Assert.Equal("timeline_mismatch", metadata.IssueIntervals[0].Kind);
+        Assert.Equal(12.5d, metadata.IssueIntervals[0].StartSeconds);
+        Assert.Equal(19.2d, metadata.IssueIntervals[0].EndSeconds);
+        Assert.Equal("audio_stalled", metadata.IssueIntervals[0].Detail);
         Assert.True(metadata.WasRepaired);
         Assert.Equal(2, metadata.CoverCompositionVersion);
     }
@@ -82,6 +88,12 @@ public sealed class VideoRecordingMetadataStoreTests
             Assert.Equal(metadata.SegmentReason, loaded.SegmentReason);
             Assert.Equal(metadata.RecordingAvatar, loaded.RecordingAvatar);
             Assert.Equal(metadata.CoverCompositionVersion, loaded.CoverCompositionVersion);
+            Assert.Equal(metadata.MediaIssue, loaded.MediaIssue);
+            Assert.Single(loaded.IssueIntervals);
+            Assert.Equal(metadata.IssueIntervals[0].Kind, loaded.IssueIntervals[0].Kind);
+            Assert.Equal(metadata.IssueIntervals[0].StartSeconds, loaded.IssueIntervals[0].StartSeconds);
+            Assert.Equal(metadata.IssueIntervals[0].EndSeconds, loaded.IssueIntervals[0].EndSeconds);
+            Assert.Equal(metadata.IssueIntervals[0].Detail, loaded.IssueIntervals[0].Detail);
         }
         finally
         {
@@ -135,6 +147,45 @@ public sealed class VideoRecordingMetadataStoreTests
             EndedAt = new DateTime(2026, 7, 23, 13, 34, 56),
             DurationSeconds = 3600,
             FileNameRule = "{主播名}_{录制开始时间}",
+            MediaIssue = "timeline_mismatch",
+            IssueIntervals =
+            [
+                new VideoRecordingIssueInterval
+                {
+                    Kind = "timeline_mismatch",
+                    StartSeconds = 8.12d,
+                    EndSeconds = 8.19d,
+                    Detail = "audio_stalled",
+                },
+            ],
         };
+    }
+
+    [Fact]
+    public void OffsetIssueIntervals_ShiftsPlaybackTimes()
+    {
+        List<VideoRecordingIssueInterval> shifted = VideoRecordingMetadataStore.OffsetIssueIntervals(
+            [
+                new VideoRecordingIssueInterval
+                {
+                    Kind = "timeline_mismatch",
+                    StartSeconds = 10d,
+                    EndSeconds = 12d,
+                    Detail = "video_stalled",
+                },
+                new VideoRecordingIssueInterval
+                {
+                    Kind = "optimized_audio_failed",
+                    StartSeconds = -1d,
+                    EndSeconds = -1d,
+                    Detail = "original_audio_preserved",
+                },
+            ],
+            60d);
+
+        Assert.Equal(70d, shifted[0].StartSeconds);
+        Assert.Equal(72d, shifted[0].EndSeconds);
+        Assert.Equal(-1d, shifted[1].StartSeconds);
+        Assert.Equal(-1d, shifted[1].EndSeconds);
     }
 }

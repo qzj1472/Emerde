@@ -361,6 +361,41 @@ public sealed class RecorderTests
         Assert.Equal(expected, fallback);
     }
 
+    [Theory]
+    [InlineData("Bilibili", true, true, true, true)]
+    [InlineData("bilibili", true, true, true, true)]
+    [InlineData("Bilibili", false, true, true, false)]
+    [InlineData("Bilibili", true, false, true, false)]
+    [InlineData("Bilibili", true, true, false, false)]
+    [InlineData("Douyin", true, true, true, false)]
+    public void ShouldRetryBilibiliOriginalAfterStall_OnlyAfterFallbackHasMedia(
+        string platformName,
+        bool hadMediaProgress,
+        bool wasStalled,
+        bool alreadyTriedFallback,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            Recorder.ShouldRetryBilibiliOriginalAfterStall(
+                platformName,
+                hadMediaProgress,
+                wasStalled,
+                alreadyTriedFallback));
+    }
+
+    [Fact]
+    public void BilibiliFallback_DoesNotPinFlvAfterOriginalRefresh()
+    {
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "Recorder.cs"));
+        string normalized = source.Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("ShouldRetryBilibiliOriginalAfterStall(", normalized, StringComparison.Ordinal);
+        Assert.Contains("record_bilibili_quality_climb_back", normalized, StringComparison.Ordinal);
+        Assert.Contains("hasTriedInputFallback = false;", normalized, StringComparison.Ordinal);
+        Assert.DoesNotContain("Url = startInfo.FlvUrl;\n                        startInfo.RecordUrl = startInfo.FlvUrl;\n                    }\n                    headers = NormalizeHeaders(startInfo.Headers);", normalized, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void InputFallback_RemovesFailedOutputBeforeAdvancingSessionPart()
     {

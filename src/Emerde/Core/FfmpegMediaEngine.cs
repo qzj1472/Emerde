@@ -1737,6 +1737,25 @@ internal static unsafe partial class FfmpegMediaEngine
         }
     }
 
+    public static bool TryGetStreamSignature(string sourceFileName, out string streamSignature, CancellationToken token = default)
+    {
+        streamSignature = string.Empty;
+        if (!TryProbe(sourceFileName, out FfmpegMediaProbeResult probe, out _, token))
+        {
+            return false;
+        }
+
+        streamSignature = probe.StreamSignature;
+        return !string.IsNullOrWhiteSpace(streamSignature);
+    }
+
+    internal static bool AreSourcesStreamCompatible(string firstPath, string secondPath, CancellationToken token = default)
+    {
+        return TryGetStreamSignature(firstPath, out string firstSignature, token)
+            && TryGetStreamSignature(secondPath, out string secondSignature, token)
+            && string.Equals(firstSignature, secondSignature, StringComparison.Ordinal);
+    }
+
     private static string BuildStreamSignature(AVStream* stream)
     {
         AVCodecParameters* parameters = stream->codecpar;
@@ -2745,6 +2764,14 @@ internal static unsafe partial class FfmpegMediaEngine
         AddMetadata(dictionary, "artist", metadata.NickName);
         AddMetadata(dictionary, "date", FormatTimestamp(metadata.RecordedAt));
         AddMetadata(dictionary, "emerde_file_name", metadata.FileName);
+        AddMetadata(dictionary, "emerde_recording_session_id", metadata.RecordingSessionId);
+        AddMetadata(dictionary, "emerde_segment_group_id", metadata.SegmentGroupId);
+        AddMetadata(dictionary, "emerde_segment_index", metadata.SegmentIndex >= 0 ? metadata.SegmentIndex.ToString(CultureInfo.InvariantCulture) : string.Empty);
+        AddMetadata(dictionary, "emerde_segment_count", metadata.SegmentCount > 0 ? metadata.SegmentCount.ToString(CultureInfo.InvariantCulture) : string.Empty);
+        AddMetadata(dictionary, "emerde_segment_kind", metadata.SegmentKind);
+        AddMetadata(dictionary, "emerde_media_issue", metadata.MediaIssue);
+        AddMetadata(dictionary, "emerde_issue_intervals", VideoRecordingMetadataStore.SerializeIssueIntervals(metadata.IssueIntervals));
+        AddMetadata(dictionary, "emerde_was_repaired", metadata.WasRepaired ? bool.TrueString : string.Empty);
         AddMetadata(dictionary, "emerde_nick_name", metadata.NickName);
         AddMetadata(dictionary, "emerde_room_url", metadata.RoomUrl);
         AddMetadata(dictionary, "emerde_platform", metadata.Platform);

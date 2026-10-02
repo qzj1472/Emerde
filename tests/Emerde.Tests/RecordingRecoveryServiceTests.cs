@@ -36,6 +36,56 @@ public sealed class RecordingRecoveryServiceTests
     }
 
     [Fact]
+    public void GroupConsecutiveCompatibleSources_KeepsCompatibleRunsAndSplitsTheRest()
+    {
+        string[] sources =
+        [
+            "room_000.ts",
+            "room_001.ts",
+            "room_002.ts",
+            "room_003.ts",
+            "room_004.ts",
+            "room_005.ts",
+            "room_006.ts",
+            "room_007.ts",
+            "room_008.ts",
+        ];
+
+        List<string[]> groups = RecordingRecoveryService.GroupConsecutiveCompatibleSources(
+            sources,
+            (first, second) => !first.EndsWith("room_008.ts", StringComparison.OrdinalIgnoreCase)
+                && !second.EndsWith("room_008.ts", StringComparison.OrdinalIgnoreCase));
+
+        Assert.Equal(2, groups.Count);
+        Assert.Equal(8, groups[0].Length);
+        Assert.Equal(["room_008.ts"], groups[1]);
+    }
+
+    [Fact]
+    public void GroupConsecutiveCompatibleSources_SplitsNonConsecutiveCompatibleFiles()
+    {
+        List<string[]> groups = RecordingRecoveryService.GroupConsecutiveCompatibleSources(
+            ["a.ts", "b.ts", "c.ts"],
+            (first, second) => first == "a.ts" && second == "c.ts" || first == "c.ts" && second == "a.ts");
+
+        Assert.Equal(3, groups.Count);
+        Assert.Equal(["a.ts"], groups[0]);
+        Assert.Equal(["b.ts"], groups[1]);
+        Assert.Equal(["c.ts"], groups[2]);
+    }
+
+    [Fact]
+    public void FinalizeOutputs_PreserveSegmentSuffixOnlyForStallSplits()
+    {
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "RecordingRecoveryService.cs"));
+
+        Assert.Contains("GroupConsecutiveCompatibleSources(", code, StringComparison.Ordinal);
+        Assert.Contains("item.SegmentReason.Equals(VideoRecordingMetadataStore.TimelineStallSegmentReason", code, StringComparison.Ordinal);
+        Assert.Contains("metadata.SegmentIndex = -1;", code, StringComparison.Ordinal);
+        Assert.Contains("metadata.SegmentCount = 0;", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void IncompatibleSameFormatPartsFallBackToIndependentOutputs()
     {
         string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "RecordingRecoveryService.cs"));

@@ -267,10 +267,105 @@ internal static class VideoRecordingMetadataStore
                 || metadata.SegmentCount > 0
                 || !string.IsNullOrWhiteSpace(metadata.SegmentKind)
                 || !string.IsNullOrWhiteSpace(metadata.MediaIssue)
+                || (metadata.IssueIntervals?.Count ?? 0) > 0
                 || metadata.WasRepaired
                 || metadata.RecordedAt > DateTime.MinValue
                 || metadata.EndedAt > DateTime.MinValue
                 || metadata.DurationSeconds > 0);
+    }
+
+    internal static VideoRecordingMetadata AddIssueInterval(VideoRecordingMetadata metadata, string kind, double startSeconds, double endSeconds, string detail = "")
+    {
+        metadata.MediaIssue = AddMediaIssue(metadata.MediaIssue, kind);
+        metadata.IssueIntervals = MergeIssueIntervals(
+            metadata.IssueIntervals,
+            [new VideoRecordingIssueInterval
+            {
+                Kind = kind,
+                StartSeconds = startSeconds,
+                EndSeconds = endSeconds,
+                Detail = detail ?? string.Empty,
+            }]);
+        return metadata;
+    }
+
+    internal static List<VideoRecordingIssueInterval> CloneIssueIntervals(IEnumerable<VideoRecordingIssueInterval>? intervals)
+    {
+        return MergeIssueIntervals(intervals, null);
+    }
+
+    internal static List<VideoRecordingIssueInterval> MergeIssueIntervals(
+        IEnumerable<VideoRecordingIssueInterval>? preferred,
+        IEnumerable<VideoRecordingIssueInterval>? fallback)
+    {
+        List<VideoRecordingIssueInterval> merged = [];
+        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+        foreach (VideoRecordingIssueInterval interval in (preferred ?? []).Concat(fallback ?? []))
+        {
+            if (string.IsNullOrWhiteSpace(interval.Kind))
+            {
+                continue;
+            }
+
+            string key = string.Join('|', interval.Kind.Trim(), interval.StartSeconds.ToString("0.###", CultureInfo.InvariantCulture), interval.EndSeconds.ToString("0.###", CultureInfo.InvariantCulture), interval.Detail ?? string.Empty);
+            if (!seen.Add(key))
+            {
+                continue;
+            }
+
+            merged.Add(new VideoRecordingIssueInterval
+            {
+                Kind = interval.Kind.Trim(),
+                StartSeconds = interval.StartSeconds,
+                EndSeconds = interval.EndSeconds,
+                Detail = interval.Detail ?? string.Empty,
+            });
+        }
+
+        return merged;
+    }
+
+    internal static List<VideoRecordingIssueInterval> OffsetIssueIntervals(
+        IEnumerable<VideoRecordingIssueInterval>? intervals,
+        double offsetSeconds)
+    {
+        if (offsetSeconds == 0d)
+        {
+            return CloneIssueIntervals(intervals);
+        }
+
+        return MergeIssueIntervals(
+            (intervals ?? []).Select(interval => new VideoRecordingIssueInterval
+            {
+                Kind = interval.Kind,
+                StartSeconds = interval.StartSeconds >= 0d ? interval.StartSeconds + offsetSeconds : interval.StartSeconds,
+                EndSeconds = interval.EndSeconds >= 0d ? interval.EndSeconds + offsetSeconds : interval.EndSeconds,
+                Detail = interval.Detail ?? string.Empty,
+            }),
+            null);
+    }
+
+    internal static string SerializeIssueIntervals(IEnumerable<VideoRecordingIssueInterval>? intervals)
+    {
+        List<VideoRecordingIssueInterval> items = CloneIssueIntervals(intervals);
+        return items.Count == 0 ? string.Empty : JsonSerializer.Serialize(items, JsonOptions);
+    }
+
+    internal static List<VideoRecordingIssueInterval> ParseIssueIntervals(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return [];
+        }
+
+        try
+        {
+            return CloneIssueIntervals(JsonSerializer.Deserialize<List<VideoRecordingIssueInterval>>(value, JsonOptions));
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
     }
 
     internal static string AddMediaIssue(string current, string issue)
@@ -305,6 +400,7 @@ internal static class VideoRecordingMetadataStore
             SegmentCount = preferred.SegmentCount > 0 ? preferred.SegmentCount : fallback.SegmentCount,
             SegmentKind = First(preferred.SegmentKind, fallback.SegmentKind),
             MediaIssue = AddMediaIssue(preferred.MediaIssue, fallback.MediaIssue),
+            IssueIntervals = MergeIssueIntervals(preferred.IssueIntervals, fallback.IssueIntervals),
             WasRepaired = preferred.WasRepaired || fallback.WasRepaired,
             FileName = First(preferred.FileName, fallback!.FileName),
             NickName = First(preferred.NickName, fallback.NickName),
@@ -341,6 +437,7 @@ internal static class VideoRecordingMetadataStore
             SegmentCount = metadata.SegmentCount,
             SegmentKind = metadata.SegmentKind,
             MediaIssue = metadata.MediaIssue,
+            IssueIntervals = CloneIssueIntervals(metadata.IssueIntervals),
             WasRepaired = metadata.WasRepaired,
             FileName = fileName,
             NickName = metadata.NickName,
@@ -380,6 +477,7 @@ internal static class VideoRecordingMetadataStore
         AddMetadata(arguments, "emerde_segment_count", metadata.SegmentCount > 0 ? metadata.SegmentCount.ToString(CultureInfo.InvariantCulture) : string.Empty);
         AddMetadata(arguments, "emerde_segment_kind", metadata.SegmentKind);
         AddMetadata(arguments, "emerde_media_issue", metadata.MediaIssue);
+        AddMetadata(arguments, "emerde_issue_intervals", SerializeIssueIntervals(metadata.IssueIntervals));
         AddMetadata(arguments, "emerde_was_repaired", metadata.WasRepaired ? bool.TrueString : string.Empty);
         AddMetadata(arguments, "emerde_nick_name", metadata.NickName);
         AddMetadata(arguments, "emerde_room_url", metadata.RoomUrl);
@@ -427,6 +525,7 @@ internal static class VideoRecordingMetadataStore
             SegmentCount = ParseInteger(GetTag(tags, "emerde_segment_count"), 0),
             SegmentKind = GetTag(tags, "emerde_segment_kind"),
             MediaIssue = GetTag(tags, "emerde_media_issue"),
+            IssueIntervals = ParseIssueIntervals(GetTag(tags, "emerde_issue_intervals")),
             WasRepaired = ParseBoolean(GetTag(tags, "emerde_was_repaired")),
             FileName = First(GetTag(tags, "emerde_file_name"), fileName),
             NickName = First(GetTag(tags, "emerde_nick_name"), GetTag(tags, "artist")),
@@ -476,6 +575,7 @@ internal static class VideoRecordingMetadataStore
             SegmentCount = ParseInteger(Get("emerde_segment_count"), 0),
             SegmentKind = Get("emerde_segment_kind"),
             MediaIssue = Get("emerde_media_issue"),
+            IssueIntervals = ParseIssueIntervals(Get("emerde_issue_intervals")),
             WasRepaired = ParseBoolean(Get("emerde_was_repaired")),
             FileName = First(Get("emerde_file_name"), fileName),
             NickName = First(Get("emerde_nick_name"), Get("artist")),

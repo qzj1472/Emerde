@@ -225,9 +225,17 @@ public sealed class Converter
             double probedSourceDuration = sourceProbes.Sum(probe => Math.Max(0d, probe.DurationSeconds));
             double sourceAudioEndSeconds = sourceProbes.Sum(probe => Math.Max(0d, probe.AudioEndSeconds));
             double sourceVideoEndSeconds = sourceProbes.Sum(probe => Math.Max(0d, probe.VideoEndSeconds));
+            MergeSourceIssueMetadata(metadata, sourceFileInfos, sourceProbes);
             if (!IsTrackTimelineWithinTolerance(sourceAudioEndSeconds, sourceVideoEndSeconds))
             {
-                metadata.MediaIssue = VideoRecordingMetadataStore.AddMediaIssue(metadata.MediaIssue, "timeline_mismatch");
+                double mismatchStart = Math.Min(sourceAudioEndSeconds, sourceVideoEndSeconds);
+                double mismatchEnd = Math.Max(sourceAudioEndSeconds, sourceVideoEndSeconds);
+                VideoRecordingMetadataStore.AddIssueInterval(
+                    metadata,
+                    "timeline_mismatch",
+                    mismatchStart,
+                    mismatchEnd,
+                    "source_track_end_mismatch");
             }
             double recordingExpectedDuration = NormalizeRecordingExpectedDuration(
                 GetRecordingExpectedDuration(metadata, sourceFileInfos),
@@ -315,7 +323,12 @@ public sealed class Converter
                 (succeeded, validationError) = await ValidateConversionAsync(result, temporaryTargetFileName, sourceProbes, optimizedAudioExpected: false, recordingExpectedDuration, token);
                 if (optimizedAudioRequired && succeeded)
                 {
-                    metadata.MediaIssue = VideoRecordingMetadataStore.AddMediaIssue(metadata.MediaIssue, "optimized_audio_failed");
+                    VideoRecordingMetadataStore.AddIssueInterval(
+                        metadata,
+                        "optimized_audio_failed",
+                        -1d,
+                        -1d,
+                        "original_audio_preserved");
                     AppSessionLogger.Event("warn", "converter", "optimized_audio_failed_original_preserved", "MKV kept the original audio because optimized audio failed", new
                     {
                         sourceFileNames = sourcePaths,
@@ -552,6 +565,27 @@ public sealed class Converter
                 maximumTimelineEndSeconds),
             token);
         return (string.IsNullOrEmpty(validationError), validationError);
+    }
+
+    private static void MergeSourceIssueMetadata(
+        VideoRecordingMetadata metadata,
+        IReadOnlyList<FileInfo> sourceFileInfos,
+        IReadOnlyList<FfmpegMediaProbeResult> sourceProbes)
+    {
+        List<VideoRecordingIssueInterval> mergedIntervals = VideoRecordingMetadataStore.CloneIssueIntervals(metadata.IssueIntervals);
+        string mergedIssues = metadata.MediaIssue ?? string.Empty;
+        double offset = sourceProbes.Count > 0 ? Math.Max(0d, sourceProbes[0].DurationSeconds) : 0d;
+        for (int sourceIndex = 1; sourceIndex < sourceFileInfos.Count; sourceIndex++)
+        {
+            VideoRecordingMetadata sourceMetadata = VideoRecordingMetadataStore.Load(sourceFileInfos[sourceIndex]);
+            mergedIssues = VideoRecordingMetadataStore.AddMediaIssue(mergedIssues, sourceMetadata.MediaIssue);
+            mergedIntervals = VideoRecordingMetadataStore.MergeIssueIntervals(
+                mergedIntervals,
+                VideoRecordingMetadataStore.OffsetIssueIntervals(sourceMetadata.IssueIntervals, offset));
+            offset += sourceIndex < sourceProbes.Count ? Math.Max(0d, sourceProbes[sourceIndex].DurationSeconds) : 0d;
+        }
+        metadata.MediaIssue = mergedIssues;
+        metadata.IssueIntervals = mergedIntervals;
     }
 
     private static SourceProbeBatch ProbeSources(IReadOnlyList<FileInfo> sourceFileInfos, CancellationToken token)
