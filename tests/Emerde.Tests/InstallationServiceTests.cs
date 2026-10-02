@@ -224,7 +224,7 @@ public sealed class InstallationServiceTests
         await File.WriteAllTextAsync(Path.Combine(installRoot, "ffmpeg", "avcodec.dll"), "legacy");
         await File.WriteAllTextAsync(Path.Combine(installRoot, "downloads", "recording.mp4"), "keep");
         await File.WriteAllTextAsync(Path.Combine(installRoot, "custom.txt"), "keep");
-        InstallationRegistry.WriteState(new InstallationState(installRoot, false, false, "1.6.6.0"));
+        InstallationRegistry.WriteState(new InstallationState(installRoot, false, false, "1.6.6"));
         TestInstallationPlatform platform = new(userDataDirectory);
         InstallationService service = new(CreatePayload(), platform);
 
@@ -244,7 +244,7 @@ public sealed class InstallationServiceTests
             Assert.NotNull(notice);
             Assert.True(notice.Pending);
             Assert.False(string.IsNullOrWhiteSpace(notice.NoticeId));
-            Assert.Equal("1.6.6.0", notice.PreviousVersion);
+            Assert.Equal("1.6.6", notice.PreviousVersion);
             Assert.Equal(InstallationPaths.ProductVersion, notice.Version);
 
             string firstNoticeId = notice.NoticeId!;
