@@ -3672,7 +3672,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             networkCapacityPresentation = presentation;
             RefreshNetworkCapacityLocalization();
             AppSessionLogger.Write($"network capacity test completed, domesticMbps={measurement.Domestic?.Mbps:0.##}, overseasMbps={measurement.Overseas?.Mbps:0.##}, samples={measurement.SuccessfulSamples}/{measurement.AttemptedSamples}, confidence={measurement.Confidence}, domesticPerRoomMbps={presentation.DomesticPerRoomMbps:0.##}, overseasPerRoomMbps={presentation.OverseasPerRoomMbps:0.##}, domesticCapacity={presentation.DomesticCapacity}, overseasCapacity={presentation.OverseasCapacity}");
-            AppFeedback.Success(NetworkCapacityToolTip, key: "network-capacity");
+            AppFeedback.Success(NetworkCapacityText, key: "network-capacity");
         }
         catch (OperationCanceledException) when (testCancellation.IsCancellationRequested)
         {
