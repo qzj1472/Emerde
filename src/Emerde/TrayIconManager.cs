@@ -42,6 +42,11 @@ internal sealed class TrayIconManager : IDisposable
 
         _icon.LeftDoubleClick += (_, _) =>
         {
+            if (IsShutdownBlocked())
+            {
+                return;
+            }
+
             if (Application.Current.MainWindow is not MainWindow mainWindow)
             {
                 return;
@@ -90,13 +95,14 @@ internal sealed class TrayIconManager : IDisposable
 
     private async Task ShutdownApplicationAsync(bool confirmRecording)
     {
-        if (confirmRecording && !await ConfirmRecordingInterruptionAsync())
+        if (Interlocked.CompareExchange(ref shutdownInProgress, 1, 0) != 0)
         {
             return;
         }
 
-        if (Interlocked.CompareExchange(ref shutdownInProgress, 1, 0) != 0)
+        if (confirmRecording && !await ConfirmRecordingInterruptionAsync())
         {
+            Interlocked.Exchange(ref shutdownInProgress, 0);
             return;
         }
 
@@ -139,13 +145,14 @@ internal sealed class TrayIconManager : IDisposable
         Action? beforeSuccessfulExit = null,
         Action? restartFailed = null)
     {
-        if (confirmRecording && !await ConfirmRecordingInterruptionAsync())
+        if (Interlocked.CompareExchange(ref shutdownInProgress, 1, 0) != 0)
         {
             return false;
         }
 
-        if (Interlocked.CompareExchange(ref shutdownInProgress, 1, 0) != 0)
+        if (confirmRecording && !await ConfirmRecordingInterruptionAsync())
         {
+            Interlocked.Exchange(ref shutdownInProgress, 0);
             return false;
         }
 
@@ -355,7 +362,7 @@ internal sealed class TrayIconManager : IDisposable
             return true;
         }
 
-        ActivateMainWindow();
+        ActivateMainWindow(allowShutdownConfirmation: true);
         Window? owner = Application.Current.MainWindow;
         ExitConfirmationContentDialog dialog = new("SureOnRecording".Tr());
         using DialogBlurScope blurScope = UiXDialogContent.IsEnabled
@@ -377,7 +384,7 @@ internal sealed class TrayIconManager : IDisposable
 
     private void ShowTrayMenu()
     {
-        if (isDisposed)
+        if (IsShutdownBlocked())
         {
             return;
         }
@@ -416,7 +423,7 @@ internal sealed class TrayIconManager : IDisposable
     {
         RoomStatus[] rooms = GlobalMonitor.RoomStatus.Values.ToArray();
         return new TrayMenuState(
-            $"v{Assembly.GetExecutingAssembly().GetName().Version!.ToString(4)}",
+            $"v{Assembly.GetExecutingAssembly().GetName().Version!.ToString(3)}",
             rooms.Count(room => room.StreamStatus == StreamStatus.Streaming),
             rooms.Count(room => room.RecordStatus == RecordStatus.Recording && room.Recorder.HasMediaProgress),
             Configurations.IsMonitorRunning.Get(),
@@ -426,6 +433,11 @@ internal sealed class TrayIconManager : IDisposable
 
     private void HandleTrayMenuAction(TrayMenuAction action)
     {
+        if (IsShutdownBlocked() && action != TrayMenuAction.Exit)
+        {
+            return;
+        }
+
         switch (action)
         {
             case TrayMenuAction.ShowMainWindow:
@@ -458,8 +470,13 @@ internal sealed class TrayIconManager : IDisposable
         }
     }
 
-    private static void ActivateMainWindow(int? pageIndex = null)
+    private static void ActivateMainWindow(int? pageIndex = null, bool allowShutdownConfirmation = false)
     {
+        if (!allowShutdownConfirmation && IsShutdownBlocked())
+        {
+            return;
+        }
+
         if (Application.Current.MainWindow is not MainWindow mainWindow)
         {
             return;
@@ -482,10 +499,20 @@ internal sealed class TrayIconManager : IDisposable
                 Interop.RestoreWindow(new WindowInteropHelper(mainWindow).Handle);
             }
         }
-        catch (Exception e) when (e is InvalidOperationException or ArgumentException)
+        catch (Exception e) when (e is InvalidOperationException or ArgumentException or NullReferenceException)
         {
             AppSessionLogger.WriteException(e);
         }
+    }
+
+    private static bool IsShutdownBlocked()
+    {
+        TrayIconManager? manager = _instance;
+        return manager?.isDisposed == true
+            || manager?.IsShutdownTriggered == true
+            || (manager != null && Volatile.Read(ref manager.shutdownInProgress) != 0)
+            || Application.Current?.Dispatcher?.HasShutdownStarted == true
+            || Application.Current?.Dispatcher?.HasShutdownFinished == true;
     }
 
     private static void ToggleAutoRun()
