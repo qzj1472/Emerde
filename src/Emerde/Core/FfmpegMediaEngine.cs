@@ -1759,6 +1759,8 @@ internal static unsafe partial class FfmpegMediaEngine
     private static string BuildStreamSignature(AVStream* stream)
     {
         AVCodecParameters* parameters = stream->codecpar;
+        _ = ReadMetadataValue(stream->metadata, "language");
+        _ = ReadMetadataValue(stream->metadata, "title");
         string channelLayout = string.Empty;
         if (parameters->codec_type == AVMediaType.AVMEDIA_TYPE_AUDIO)
         {
@@ -1769,25 +1771,19 @@ internal static unsafe partial class FfmpegMediaEngine
             }
         }
 
-        string extraDataHash = parameters->extradata_size > 0 && parameters->extradata != null
-            ? Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-                new ReadOnlySpan<byte>(parameters->extradata, parameters->extradata_size)))
-            : string.Empty;
         return string.Join(
             "|",
             (int)parameters->codec_type,
             (int)parameters->codec_id,
             parameters->format,
             parameters->profile,
+            parameters->level,
             parameters->width,
             parameters->height,
             parameters->sample_rate,
             parameters->ch_layout.nb_channels,
             channelLayout,
-            (stream->disposition & ffmpeg.AV_DISPOSITION_ATTACHED_PIC) != 0,
-            ReadMetadataValue(stream->metadata, "language"),
-            ReadMetadataValue(stream->metadata, "title"),
-            extraDataHash);
+            (stream->disposition & ffmpeg.AV_DISPOSITION_ATTACHED_PIC) != 0);
     }
 
     private static double GetStreamEndSeconds(AVStream* stream)
@@ -1980,11 +1976,13 @@ internal static unsafe partial class FfmpegMediaEngine
                         VideoTimelineStallThresholdMicroseconds,
                         inputOptions?.IsLive == true || salvageDamagedFile);
                     bool awaitingVideoKeyframe = false;
-                    bool awaitingInitialVideoKeyframe = inputOptions?.IsLive == true
-                        && inputContext->streams[referenceStreamIndex]->codecpar->codec_type == AVMediaType.AVMEDIA_TYPE_VIDEO;
+                    bool awaitingInitialVideoKeyframe = ShouldSynchronizeInitialTimeline(
+                        inputOptions?.IsLive == true,
+                        inputOptions == null,
+                        inputContext->streams[referenceStreamIndex]->codecpar->codec_type == AVMediaType.AVMEDIA_TYPE_VIDEO,
+                        HasMappedMediaType(inputContext, streamMap, AVMediaType.AVMEDIA_TYPE_AUDIO));
                     InitialMediaTimelineSynchronizer initialTimelineSynchronizer = new(
-                        awaitingInitialVideoKeyframe
-                        && HasMappedMediaType(inputContext, streamMap, AVMediaType.AVMEDIA_TYPE_AUDIO));
+                        awaitingInitialVideoKeyframe);
                     packet = ffmpeg.av_packet_alloc();
                     if (packet == null)
                     {
@@ -2460,6 +2458,17 @@ internal static unsafe partial class FfmpegMediaEngine
         return inputContext->duration > 0
             ? inputContext->duration / (double)ffmpeg.AV_TIME_BASE
             : 0d;
+    }
+
+    internal static bool ShouldSynchronizeInitialTimeline(
+        bool isLiveInput,
+        bool isFileRemux,
+        bool hasVideoReference,
+        bool hasAudio)
+    {
+        return (isLiveInput || isFileRemux)
+            && hasVideoReference
+            && hasAudio;
     }
 
     private static void ApplyPacketTimestampCorrection(

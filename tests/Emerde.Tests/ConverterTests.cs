@@ -22,6 +22,36 @@ public sealed class ConverterTests
     }
 
     [Theory]
+    [InlineData(100, 100, 100)]
+    [InlineData(102, 100, 100)]
+    [InlineData(4257.260, 4278.433, 0)]
+    public void GetTimelineIssueStartSeconds_UsesWholeFileForLargeFixedOffset(
+        double audioEndSeconds,
+        double videoEndSeconds,
+        double expected)
+    {
+        Assert.Equal(expected, Converter.GetTimelineIssueStartSeconds(audioEndSeconds, videoEndSeconds));
+    }
+
+    [Theory]
+    [InlineData(true, false, true, true, true)]
+    [InlineData(false, true, true, true, true)]
+    [InlineData(false, false, true, true, false)]
+    [InlineData(false, true, false, true, false)]
+    [InlineData(false, true, true, false, false)]
+    public void InitialTimelineSynchronization_CoversLiveAndFileRemuxInputs(
+        bool isLiveInput,
+        bool isFileRemux,
+        bool hasVideoReference,
+        bool hasAudio,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            FfmpegMediaEngine.ShouldSynchronizeInitialTimeline(isLiveInput, isFileRemux, hasVideoReference, hasAudio));
+    }
+
+    [Theory]
     [InlineData(4257.260, 4278.433, 4257.100, 4278.300, true)]
     [InlineData(22255.046, 22348.884, 22255.000, 22348.762, true)]
     [InlineData(96, 100, 96, 100, true)]
@@ -130,6 +160,20 @@ public sealed class ConverterTests
     public void OutputDuration_RejectsShortfallAndBoundsSurplus(double expected, double actual, bool accepted)
     {
         Assert.Equal(accepted, Converter.IsDurationWithinTolerance(expected, actual));
+    }
+
+    [Theory]
+    [InlineData(454.479, 460.371, 458.831, true)]
+    [InlineData(100, 111, 100, false)]
+    [InlineData(100, 97, 100, false)]
+    [InlineData(0, 10, 10, false)]
+    public void IsRecoverableDurationMismatch_PreservesCompleteOutputsOnly(
+        double expected,
+        double actual,
+        double probed,
+        bool recoverable)
+    {
+        Assert.Equal(recoverable, Converter.IsRecoverableDurationMismatch(expected, actual, probed));
     }
 
     [Theory]

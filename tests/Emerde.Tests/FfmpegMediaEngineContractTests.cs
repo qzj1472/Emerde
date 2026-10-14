@@ -826,7 +826,8 @@ public sealed class FfmpegMediaEngineContractTests
         Assert.True(remuxBase > remuxGate);
         Assert.True(remuxRecovery > remuxBase);
         Assert.Contains("bool awaitingInitialVideoKeyframe = inputOptions.IsLive", source);
-        Assert.Contains("bool awaitingInitialVideoKeyframe = inputOptions?.IsLive == true", source);
+        Assert.Contains("bool awaitingInitialVideoKeyframe = ShouldSynchronizeInitialTimeline(", source);
+        Assert.Contains("inputOptions == null", source);
     }
 
     [Fact]

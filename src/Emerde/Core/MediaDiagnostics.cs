@@ -40,6 +40,7 @@ internal static class MediaDiagnostics
                 audioCodec = probe.AudioCodec,
                 hasOptimizedAudio = probe.HasOptimizedAudio,
                 mediaIssue = metadata?.MediaIssue ?? probe.Metadata.MediaIssue,
+                issueIntervals = VideoRecordingMetadataStore.CloneIssueIntervals(metadata?.IssueIntervals ?? probe.Metadata.IssueIntervals),
                 wasRepaired = metadata?.WasRepaired ?? probe.Metadata.WasRepaired,
                 recordingSessionId = metadata?.RecordingSessionId ?? probe.Metadata.RecordingSessionId,
             });
@@ -53,8 +54,12 @@ internal static class MediaDiagnostics
         string roomUrl = "",
         string targetPath = "")
     {
+        string level = reason.Contains("recorded_source_missing", StringComparison.OrdinalIgnoreCase)
+            || reason.Contains("source_missing", StringComparison.OrdinalIgnoreCase)
+            ? "info"
+            : "warn";
         AppSessionLogger.Event(
-            "warn",
+            level,
             "media_diagnostic",
             "media_stage_diagnostic",
             "media stage diagnostic failed",

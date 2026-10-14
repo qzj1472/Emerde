@@ -11,6 +11,7 @@ public sealed record ConverterOptions(
 public sealed class Converter
 {
     private const double MaximumTrackTimelineDifferenceSeconds = 5d;
+    private const double MaximumRecoverableDurationDriftSeconds = 10d;
     private const double MinimumRecordingDurationToleranceSeconds = 15d;
     private const double RecordingDurationToleranceRatio = 0.0025d;
     private static readonly object TargetReservationLock = new();
@@ -228,7 +229,7 @@ public sealed class Converter
             MergeSourceIssueMetadata(metadata, sourceFileInfos, sourceProbes);
             if (!IsTrackTimelineWithinTolerance(sourceAudioEndSeconds, sourceVideoEndSeconds))
             {
-                double mismatchStart = Math.Min(sourceAudioEndSeconds, sourceVideoEndSeconds);
+                double mismatchStart = GetTimelineIssueStartSeconds(sourceAudioEndSeconds, sourceVideoEndSeconds);
                 double mismatchEnd = Math.Max(sourceAudioEndSeconds, sourceVideoEndSeconds);
                 VideoRecordingMetadataStore.AddIssueInterval(
                     metadata,
@@ -285,9 +286,10 @@ public sealed class Converter
                 metadata);
 
             (bool succeeded, string validationError) = await ValidateConversionAsync(result, temporaryTargetFileName, sourceProbes, optimizeAudio, recordingExpectedDuration, token);
+            ApplyValidationIssue(metadata, validationError);
             if (!succeeded && optimizeAudio)
             {
-                AppSessionLogger.Event("warn", "converter", "optimized_audio_fallback", "optimized audio conversion failed and plain remux will be attempted", new
+                    AppSessionLogger.Event("info", "converter", "optimized_audio_fallback", "optimized audio conversion failed and plain remux will be attempted", new
                 {
                     sourceFileNames = sourcePaths,
                     targetFileName,
@@ -321,6 +323,7 @@ public sealed class Converter
                     "original_audio_fallback_attempt",
                     metadata);
                 (succeeded, validationError) = await ValidateConversionAsync(result, temporaryTargetFileName, sourceProbes, optimizedAudioExpected: false, recordingExpectedDuration, token);
+                ApplyValidationIssue(metadata, validationError);
                 if (optimizedAudioRequired && succeeded)
                 {
                     VideoRecordingMetadataStore.AddIssueInterval(
@@ -329,7 +332,7 @@ public sealed class Converter
                         -1d,
                         -1d,
                         "original_audio_preserved");
-                    AppSessionLogger.Event("warn", "converter", "optimized_audio_failed_original_preserved", "MKV kept the original audio because optimized audio failed", new
+                    AppSessionLogger.Event("info", "converter", "optimized_audio_failed_original_preserved", "MKV kept the original audio because optimized audio failed", new
                     {
                         sourceFileNames = sourcePaths,
                         targetFileName,
@@ -383,6 +386,7 @@ public sealed class Converter
                     recordingExpectedDuration,
                     token,
                     maximumTimelineEndSeconds: alignedTimelineEndSeconds);
+                ApplyValidationIssue(metadata, validationError);
             }
             metadata.HasOptimizedAudio = optimizeAudio;
             await Task.Run(
@@ -406,6 +410,7 @@ public sealed class Converter
             {
                 File.Move(temporaryTargetFileName, targetFileName, false);
                 targetCreated = true;
+                completionAcknowledged = true;
                 _ = RecordingCoverStore.TryCopyOrCreateFinalizedCover(
                     sourcePaths,
                     targetFileName,
@@ -417,7 +422,6 @@ public sealed class Converter
                     AppSessionLogger.Event("warn", "converter", "conversion_metadata_fallback_failed", "converted video metadata could not be stored", new { targetFileName });
                 }
                 onCompleted?.Invoke(targetFileName);
-                completionAcknowledged = true;
                 if (converterOptions.RemoveSource)
                 {
                     _ = TryDeleteSourceFiles(sourcePaths);
@@ -564,6 +568,11 @@ public sealed class Converter
                 token,
                 maximumTimelineEndSeconds),
             token);
+        if (validationError.StartsWith("duration_mismatch_recoverable:", StringComparison.Ordinal))
+        {
+            return (true, validationError);
+        }
+
         return (string.IsNullOrEmpty(validationError), validationError);
     }
 
@@ -757,6 +766,10 @@ public sealed class Converter
             }
             if (!IsDurationWithinTolerance(expectedDuration, output.DurationSeconds))
             {
+                if (IsRecoverableDurationMismatch(expectedDuration, output.DurationSeconds, probedDuration))
+                {
+                    return $"duration_mismatch_recoverable:expected={expectedDuration:F3},actual={output.DurationSeconds:F3},probed={probedDuration:F3},processed={processedDurationSeconds:F3}";
+                }
                 return $"duration_mismatch:expected={expectedDuration:F3},actual={output.DurationSeconds:F3},probed={probedDuration:F3},processed={processedDurationSeconds:F3}";
             }
             return string.Empty;
@@ -778,6 +791,35 @@ public sealed class Converter
             return false;
         }
         return Math.Abs(actualDuration - expectedDuration) <= 2d;
+    }
+
+    internal static bool IsRecoverableDurationMismatch(double expectedDuration, double actualDuration, double probedDuration)
+    {
+        if (expectedDuration <= 0d || actualDuration <= 0d)
+        {
+            return false;
+        }
+
+        double lowerBound = expectedDuration - 2d;
+        double upperBound = Math.Max(expectedDuration, probedDuration) + MaximumRecoverableDurationDriftSeconds;
+        return actualDuration >= lowerBound && actualDuration <= upperBound;
+    }
+
+    private static void ApplyValidationIssue(VideoRecordingMetadata metadata, string validationError)
+    {
+        if (validationError.StartsWith("output_track_timeline_mismatch:", StringComparison.Ordinal))
+        {
+            VideoRecordingMetadataStore.AddIssueInterval(metadata, "timeline_mismatch", -1d, -1d, validationError);
+            return;
+        }
+
+        if (!validationError.StartsWith("duration_mismatch_recoverable:", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        VideoRecordingMetadataStore.AddIssueInterval(metadata, "timeline_mismatch", -1d, -1d, validationError);
+        AppSessionLogger.Event("info", "converter", "conversion_duration_drift_preserved", "conversion preserved a complete output with recoverable duration drift", new { validationError });
     }
 
     internal static double SelectExpectedDuration(double probedDuration, double processedDuration)
@@ -866,6 +908,13 @@ public sealed class Converter
         return audioEndSeconds <= 0d
             || videoEndSeconds <= 0d
             || Math.Abs(audioEndSeconds - videoEndSeconds) <= 2d;
+    }
+
+    internal static double GetTimelineIssueStartSeconds(double audioEndSeconds, double videoEndSeconds)
+    {
+        return Math.Abs(audioEndSeconds - videoEndSeconds) > MaximumTrackTimelineDifferenceSeconds
+            ? 0d
+            : Math.Min(Math.Max(0d, audioEndSeconds), Math.Max(0d, videoEndSeconds));
     }
 
     internal static bool IsTrackTimelineWithinTolerance(

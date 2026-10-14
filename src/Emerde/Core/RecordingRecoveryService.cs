@@ -834,6 +834,7 @@ internal static class RecordingRecoveryService
             }
         }
 
+        await WaitForSourceFilesToSettleAsync(item.SourcePattern, token);
         string[] sourceFiles = GetSourceFiles(item.SourcePattern);
         bool recoveredReservedOutput = HasUsableReservedOutput(item);
         if (ReconcileReservedOutputs(item))
@@ -987,6 +988,14 @@ internal static class RecordingRecoveryService
         string[] remainingSources = GetSourceFiles(item.SourcePattern);
         if (remainingSources.Length == 0)
         {
+            if (HasPendingSourceFile(item.SourcePattern) || MediaOperationRegistry.IsPathProtected(item.SourcePattern))
+            {
+                AppSessionLogger.Event("info", "recovery", "recorded_source_pending", "recording source is still being released and recovery will retry it", new
+                {
+                    item.SourcePattern,
+                });
+                return false;
+            }
             DeleteMarker(path);
             return true;
         }
@@ -1745,6 +1754,58 @@ internal static class RecordingRecoveryService
         }
     }
 
+    private static async Task WaitForSourceFilesToSettleAsync(string sourcePattern, CancellationToken token)
+    {
+        if (!HasPendingSourceFile(sourcePattern) || GetSourceFiles(sourcePattern).Length > 0)
+        {
+            return;
+        }
+
+        for (int attempt = 0; attempt < 4; attempt++)
+        {
+            token.ThrowIfCancellationRequested();
+            await Task.Delay(TimeSpan.FromMilliseconds(250 * (attempt + 1)), token);
+            if (GetSourceFiles(sourcePattern).Length > 0 || !HasPendingSourceFile(sourcePattern))
+            {
+                return;
+            }
+        }
+    }
+
+    private static bool HasPendingSourceFile(string sourcePattern)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePattern))
+        {
+            return false;
+        }
+
+        if (!sourcePattern.Contains("%03d", StringComparison.Ordinal))
+        {
+            return File.Exists(sourcePattern);
+        }
+
+        string? directory = Path.GetDirectoryName(sourcePattern);
+        string pattern = Path.GetFileName(sourcePattern);
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory) || string.IsNullOrWhiteSpace(pattern))
+        {
+            return false;
+        }
+
+        try
+        {
+            Regex regex = new(
+                "^" + Regex.Escape(pattern).Replace("%03d", @"\d{3,}") + "$",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking,
+                TimeSpan.FromMilliseconds(250));
+            return Directory.EnumerateFiles(directory)
+                .Any(file => regex.IsMatch(Path.GetFileName(file)));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or RegexMatchTimeoutException)
+        {
+            return false;
+        }
+    }
+
     internal static bool IsPendingSourcePath(string path)
     {
         return IsPendingSourcePath(path, GetPendingSourcePatterns());
@@ -1786,7 +1847,7 @@ internal static class RecordingRecoveryService
                 item.RetryBlocked,
                 item.FailureCount,
                 markerPath);
-            foreach (string path in GetProtectedPaths(item))
+            foreach (string path in GetStatusPaths(item))
             {
                 if (path.Contains('%') || path.Contains('*') || path.Contains('?'))
                 {
@@ -1821,6 +1882,39 @@ internal static class RecordingRecoveryService
                 && (item.FinalizationOutputs.Count > 0
                     || IsUsableSource(item.CompletedTargetPath)
                     || item.CompletedSources.Values.Any(IsUsableSource));
+    }
+
+    private static IEnumerable<string> GetStatusPaths(PendingRecording item)
+    {
+        HashSet<string> completedSources = item.CompletedSources
+            .Where(pair => IsUsableSource(pair.Value))
+            .Select(pair => pair.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (string source in GetSourceFiles(item.SourcePattern))
+        {
+            if (!completedSources.Contains(source))
+            {
+                yield return source;
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(item.IntermediateTargetPath))
+        {
+            yield return item.IntermediateTargetPath;
+        }
+        if (!string.IsNullOrWhiteSpace(item.ReservedCompletedTargetPath))
+        {
+            yield return item.ReservedCompletedTargetPath;
+        }
+        foreach ((string source, string target) in item.ReservedCompletedSources)
+        {
+            yield return source;
+            yield return target;
+        }
+        foreach (PendingOutputFinalization output in item.FinalizationOutputs.Where(output => !output.Committed))
+        {
+            yield return output.OriginalPath;
+            yield return output.TargetPath;
+        }
     }
 
     private static IEnumerable<string> GetProtectedPaths(PendingRecording item)
@@ -2738,10 +2832,33 @@ internal static class RecordingRecoveryService
     internal static bool IsTerminalRecoveryFailure(string? failureReason)
     {
         return failureReason?.Contains("output_track_timeline_mismatch", StringComparison.Ordinal) == true
-            || failureReason?.Contains("duration_mismatch", StringComparison.Ordinal) == true
+            || IsMaterialDurationFailure(failureReason)
             || failureReason?.Contains("native_exit_code:-28", StringComparison.OrdinalIgnoreCase) == true
             || failureReason?.Contains("no space left", StringComparison.OrdinalIgnoreCase) == true
             || failureReason?.Contains("not enough space", StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private static bool IsMaterialDurationFailure(string? failureReason)
+    {
+        if (string.IsNullOrWhiteSpace(failureReason)
+            || !failureReason.Contains("duration_mismatch", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        Match match = Regex.Match(
+            failureReason,
+            @"expected=(?<expected>[0-9]+(?:\.[0-9]+)?).*?actual=(?<actual>[0-9]+(?:\.[0-9]+)?)",
+            RegexOptions.CultureInvariant | RegexOptions.NonBacktracking,
+            TimeSpan.FromMilliseconds(250));
+        if (!match.Success
+            || !double.TryParse(match.Groups["expected"].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double expected)
+            || !double.TryParse(match.Groups["actual"].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double actual))
+        {
+            return true;
+        }
+
+        return !Converter.IsRecoverableDurationMismatch(expected, actual, expected);
     }
 
     internal static bool IsTransientRecoveryFailure(string? failureReason)

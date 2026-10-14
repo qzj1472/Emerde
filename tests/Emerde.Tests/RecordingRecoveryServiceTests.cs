@@ -714,6 +714,43 @@ public sealed class RecordingRecoveryServiceTests
     }
 
     [Fact]
+    public void StatusSnapshot_LeavesCompletedSourcesOutOfRecoveryState()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-recovery-status-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string sourcePattern = Path.Combine(directory, "session_%03d.ts");
+        string completedSource = Path.Combine(directory, "session_000.ts");
+        string pendingSource = Path.Combine(directory, "session_001.ts");
+        string completedTarget = Path.Combine(directory, "session_000.mkv");
+        File.WriteAllBytes(completedSource, [1]);
+        File.WriteAllBytes(pendingSource, [1]);
+        File.WriteAllBytes(completedTarget, [1]);
+        string? markerPath = RecordingRecoveryService.RegisterSessionParts(sourcePattern, ".mkv", removeSource: false);
+
+        Assert.NotNull(markerPath);
+        try
+        {
+            JsonObject marker = JsonNode.Parse(File.ReadAllText(markerPath!))!.AsObject();
+            marker["CompletedSources"] = new JsonObject { [completedSource] = completedTarget };
+            File.WriteAllText(markerPath!, marker.ToJsonString());
+
+            IReadOnlyDictionary<string, RecordingRecoveryStatus> statuses = RecordingRecoveryService.GetStatusSnapshot();
+
+            Assert.Contains(statuses.Keys, path => path.Equals(pendingSource, StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(statuses.Keys, path => path.Equals(completedSource, StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(statuses.Keys, path => path.Equals(completedTarget, StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (markerPath != null)
+            {
+                File.Delete(markerPath);
+            }
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task ProcessAsync_PreservesMarkerWhenItIsTemporarilyUnreadable()
     {
         string path = Path.Combine(Path.GetTempPath(), $"emerde-recovery-{Guid.NewGuid():N}.json");
