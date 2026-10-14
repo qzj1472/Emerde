@@ -32,28 +32,25 @@ internal static class ReleaseNotesCatalog
 
     private static ReleaseNoteEntry Create171()
     {
-        IReadOnlyList<string> items = SplitItems(GetText("ReleaseNotes171Items", "Exit and restart confirmation now blocks tray activation and menu races that could terminate the application|YouTube live URL handling now supports more address forms and selects the highest available HLS quality"));
-        IReadOnlyList<string> additional = SplitItems(GetText("ReleaseNotes171AdditionalItems", "Application, installer, and upgrade-notice versions now use the three-part 1.7.1 format consistently|Updated release notes and installer version display for the current build"));
+        IReadOnlyList<string> items = SplitItems(GetText("ReleaseNotes171Items", "Fixed overly strict transcoding validation that could mark a complete recording as failed when only a small timeline drift was present|Optimized-audio failures now preserve the original audio and prioritize a complete recording|Compatible automatic segments are merged in order; an incompatible later segment is saved independently|Recovery waits for recording files to be released before processing, reducing false failures and accidental cleanup|Cover generation no longer lets a media-resource error incorrectly fail transcoding, and uses a lower-overhead pixel composition path|Recording reconnect retries are recalculated after switching to a refreshed stream URL|Reduced false warnings from ordinary audio sampling, stream switches, and temporarily missing source files|YouTube live recording now prefers directly playable muxed formats when HLS is unavailable, improving preview and recording compatibility|Removed the finished-video issue popup; diagnostic details remain available in logs|Recording-in-progress context menus now keep only Open folder available|System Tab combinations such as Win+Tab and Alt+Tab no longer activate Emerde focus navigation; Ctrl+Tab remains available for page switching"));
+        IReadOnlyList<string> additional = SplitItems(GetText("ReleaseNotes171AdditionalItems", "Updated diagnostics and recovery state reporting around finalization and segment handling|Release notes and installer are rebuilt for the current 1.7.1 source"));
         ReleaseNoteEntry entry = new(
             "1.7.1",
             GetText("ReleaseNotes171Title", "Emerde 1.7.1"),
-            GetText("ReleaseNotes171Date", "2026-09-30"),
+            GetText("ReleaseNotes171Date", "2026-10-14"),
             RemoveEmpty(
-                Section("ReleaseNotesCategoryBugFixes", "Bug fixes", Pick(items, 0)),
-                Section("ReleaseNotesCategoryFeatures", "Feature additions", Pick(items, 1)),
-                Section("ReleaseNotesCategoryStability", "Performance and stability", Pick(additional, 0)),
+                Section("ReleaseNotesCategoryBugFixes", "Bug fixes", Pick(items, 0, 1, 3, 4, 6, 7, 8)),
+                Section("ReleaseNotesCategoryFeatures", "Feature additions", Pick(items, 2)),
+                Section("ReleaseNotesCategoryStability", "Performance and stability", Pick(items, 5).Concat(Pick(additional, 0)).ToArray()),
+                Section("ReleaseNotesCategoryUi", "Interface changes", Pick(items, 9, 10)),
                 Section("ReleaseNotesCategoryInstall", "Installation and upgrade", Pick(additional, 1))));
         return entry with
         {
             AuditTrail = CreateAuditTrail(
                 "1.7.1",
                 items.Concat(additional),
-                [
-                    ("2026-09-30", "working-tree-20260930"),
-                    ("2026-09-30", "working-tree-20260930"),
-                    ("2026-09-30", "working-tree-20260930"),
-                    ("2026-09-30", "working-tree-20260930")
-                ])
+                "2026-10-14",
+                "working-tree-20261014")
         };
     }
 

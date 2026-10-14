@@ -837,9 +837,9 @@
   <data name="ReleaseNotes1610Items" xml:space="preserve"><value>新增音频、视频、容器、编码、分辨率、帧率、时间轴、流数量、解码错误、RMS、峰值和近静音区间等媒体诊断记录。|MKV 录制始终生成优化音频；优化音频无法生成但原音频有效时保留原音频，并明确标记优化音频问题。|增加录制时间轴和音频内容采样，用于判断异常发生在直播源、TS 输入、中间分段还是最终成品。|增加录制恢复用的自动兜底分段；兜底分段最后会合并为一个成品，设置中主动配置的分段仍保持独立。|录制中和整理中的同一直播间分段折叠为一个视频卡片，分段编号稳定，多个状态可以同时显示。|保留已有视频封面，新的封面生成流程只用于新生成的封面。|增加磁盘空间保护，空间不足时暂停录制相关处理，空间恢复前保持提示。|完善恢复流程和录像元数据写入，处理中断后可以继续恢复而不丢失录像状态。|磁盘空间不足导致的转码失败不再进行无意义的恢复重试。|空元数据流不再持续产生异常日志。</value></data>
   <data name="ReleaseNotes1610AdditionalItems" xml:space="preserve"><value>优化安装器版本显示、输出命名和弹窗背景蒙版一致性。|优化恢复配置对齐、过长状态文本换行、头像缓存清理和解析器取消处理。|记录处理速度用于后续对比，本版本没有修改转换性能逻辑。</value></data>
   <data name="ReleaseNotes171Title" xml:space="preserve"><value>Emerde 1.7.1</value></data>
-  <data name="ReleaseNotes171Date" xml:space="preserve"><value>2026-09-30</value></data>
-  <data name="ReleaseNotes171Items" xml:space="preserve"><value>退出或重启确认期间会屏蔽托盘激活和菜单竞态，避免误触导致软件终止。|YouTube 直播地址支持更多形式，并选择可用的最高 HLS 画质。</value></data>
-  <data name="ReleaseNotes171AdditionalItems" xml:space="preserve"><value>应用、安装器和升级提示的版本统一使用三段式 1.7.1。|更新更新日志和安装器当前版本显示。</value></data>
+  <data name="ReleaseNotes171Date" xml:space="preserve"><value>2026-10-14</value></data>
+  <data name="ReleaseNotes171Items" xml:space="preserve"><value>修复转码校验过严导致完整录像仅因时间轴轻微漂移就被判定失败的问题。|优化音频失败时保留原音频并优先保证整场录像完整。|兼容的自动分段按顺序合并；后续不兼容的分段单独保存。|恢复任务会等待录制文件释放后再处理，减少误判失败和误清理。|修复封面生成的媒体资源异常导致转码被误判失败的问题，并降低封面生成的资源占用。|录制重连切换到刷新后的流地址后会重新计算重试次数。|减少普通音频采样、流切换和源文件暂时缺失造成的误报。|YouTube 直播在没有可用 HLS 时优先使用可直接播放的音视频格式，改善预览和录制兼容性。|移除成品视频的异常悬浮弹窗，详细诊断仍会写入日志。|录制中的右键菜单仅保留打开目录，其他操作继续禁用。|屏蔽 Win+Tab、Alt+Tab 等系统 Tab 组合键触发 Emerde 焦点导航，保留 Ctrl+Tab 切换页面。</value></data>
+  <data name="ReleaseNotes171AdditionalItems" xml:space="preserve"><value>完善收尾阶段和分段处理相关的诊断与恢复状态记录。|按当前 1.7.1 源码重新生成更新日志和安装器。</value></data>
   <data name="ReleaseNotes1611Title" xml:space="preserve"><value>Emerde 1.6.11</value></data>
   <data name="ReleaseNotes1611Date" xml:space="preserve"><value>2026-09-13</value></data>
   <data name="ReleaseNotes1611Items" xml:space="preserve"><value>去掉添加房间、首页选中层、设置页、视频列表和通知里残留的旧界面，统一使用 UI-X。|关于页面补充自动分段说明：自动分段用于录制异常、重连和恢复兜底；默认自动分段最后会合并为一个成品，设置中的自定义分段仍保持独立。|音频内容持续异常时会重启当前录制，避免继续写入异常音轨。|卡顿恢复产生的内部临时分段不再作为额外成品出现在视频列表。|视频列表去掉旧表头占位，录制中和整理中的卡片不再留下大块空白。|连续且参数一致的自动分段会合并成一条；后面不兼容的单独保存，不再标成同一组分段。|优化音频失败时保留原音频并继续合并，优先保证整场完整。|成品卡片用一颗提示汇总异常；点击后可查看音画异常、优化音频失败、卡顿分段的发生时间。|B 站卡顿回退后会再尝试原画，不再钉在备用流。|视频列表滚动时保留已加载封面，滑回去不再先显示占位</value></data>
