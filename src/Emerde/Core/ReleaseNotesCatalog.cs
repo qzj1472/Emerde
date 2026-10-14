@@ -49,8 +49,8 @@ internal static class ReleaseNotesCatalog
             AuditTrail = CreateAuditTrail(
                 "1.7.1",
                 items.Concat(additional),
-                "2026-10-14",
-                "working-tree-20261014")
+                "2026-10-15",
+                "working-tree-20261015")
         };
     }
 
