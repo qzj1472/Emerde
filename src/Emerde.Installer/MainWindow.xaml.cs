@@ -302,6 +302,17 @@ public partial class MainWindow : FluentWindow
             }
         }
 
+        if (IsEmerdeRunning())
+        {
+            appStopAcknowledged = false;
+            pendingOperation = null;
+            StopAndContinueButton.Content = "停止并继续";
+            StopAndContinueButton.IsEnabled = true;
+            SetRunningDialogVisibility(Visibility.Collapsed);
+            ShowFailurePage(new InvalidOperationException("Emerde 仍在运行，安装操作已停止。"));
+            return;
+        }
+
         appStopAcknowledged = true;
         pendingOperation = null;
         StopAndContinueButton.Content = "停止并继续";

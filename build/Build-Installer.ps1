@@ -131,10 +131,15 @@ $publishCommon = @(
     "--property:EnableCompressionInSingleFile=false",
     "--property:PublishReadyToRun=false",
     "--property:PublishTrimmed=false",
-    "--property:DebugType=None",
-    "--property:DebugSymbols=false",
     "--nologo"
 )
+
+if ($Configuration -eq "Release") {
+    $publishCommon += @(
+        "--property:DebugType=None",
+        "--property:DebugSymbols=false"
+    )
+}
 
 Invoke-Checked "dotnet" (@("publish", $applicationProject) + $publishCommon + @(
     "--property:AppHostRelativeDotNet=..\runtime",

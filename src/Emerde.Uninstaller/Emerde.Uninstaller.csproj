@@ -13,9 +13,10 @@
         <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
         <AppHostRelativeDotNet>..\runtime</AppHostRelativeDotNet>
         <AppHostDotNetSearch>AppRelative</AppHostDotNetSearch>
-        <StripSymbols>true</StripSymbols>
-        <DebugType>none</DebugType>
-        <DebugSymbols>false</DebugSymbols>
+        <StripSymbols Condition="'$(Configuration)' == 'Release'">true</StripSymbols>
+        <DebugType>portable</DebugType>
+        <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+        <DebugSymbols Condition="'$(Configuration)' == 'Release'">false</DebugSymbols>
         <SatelliteResourceLanguages>en;zh-Hans;zh-Hant;ja</SatelliteResourceLanguages>
         <AssemblyName>Emerde.Uninstaller</AssemblyName>
         <RootNamespace>Emerde.Uninstaller</RootNamespace>

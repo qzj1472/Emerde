@@ -48,9 +48,13 @@ public partial class MainWindow : FluentWindow
         {
             operationCompleted = true;
             TitleText.Text = "Emerde 已卸载";
-            DescriptionText.Text = KeepUserDataCheckBox.IsChecked == true
-                ? "程序文件已移除，用户数据已保留。"
-                : "程序文件和用户数据已移除。";
+            DescriptionText.Text = Program.DeferredCleanupScheduled
+                ? KeepUserDataCheckBox.IsChecked == true
+                    ? "占用的程序文件已安排在重启时清理，用户数据已保留。"
+                    : "占用的程序文件和用户数据已安排在重启时清理。"
+                : KeepUserDataCheckBox.IsChecked == true
+                    ? "程序文件已移除，用户数据已保留。"
+                    : "程序文件和用户数据已移除。";
             UninstallButton.Content = "完成";
             UninstallButton.IsEnabled = true;
             CancelButton.Visibility = Visibility.Collapsed;

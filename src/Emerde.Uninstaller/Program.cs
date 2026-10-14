@@ -15,9 +15,11 @@ internal static class Program
     private static readonly nint HkeyCurrentUser = unchecked((nint)0x80000001);
     private static string installRoot = string.Empty;
     private static string? deferredCleanupRoot;
+    private static bool deferredCleanupScheduled;
 
     public static string InstallRoot => installRoot;
     public static Exception? LastError { get; private set; }
+    public static bool DeferredCleanupScheduled => deferredCleanupScheduled;
 
     public static bool Initialize(string[] args)
     {
@@ -108,6 +110,7 @@ internal static class Program
     public static bool Uninstall(bool keepData)
     {
         LastError = null;
+        deferredCleanupScheduled = false;
         try
         {
             RemoveShortcuts();
@@ -313,12 +316,46 @@ internal static class Program
         }
         catch (IOException)
         {
-            MoveFileEx(path, null, MoveFileDelayUntilReboot);
+            SchedulePathDeletion(path);
         }
         catch (UnauthorizedAccessException)
         {
-            MoveFileEx(path, null, MoveFileDelayUntilReboot);
+            SchedulePathDeletion(path);
         }
+    }
+
+    private static void SchedulePathDeletion(string path)
+    {
+        if (File.Exists(path))
+        {
+            ScheduleFileDeletion(path);
+            return;
+        }
+
+        if (!Directory.Exists(path))
+        {
+            return;
+        }
+
+        foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+        {
+            ScheduleFileDeletion(file);
+        }
+        foreach (string directory in Directory.EnumerateDirectories(path, "*", SearchOption.AllDirectories)
+                     .OrderByDescending(value => value.Length))
+        {
+            ScheduleFileDeletion(directory);
+        }
+        ScheduleFileDeletion(path);
+    }
+
+    private static void ScheduleFileDeletion(string path)
+    {
+        if (!MoveFileEx(path, null, MoveFileDelayUntilReboot))
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error(), $"Unable to schedule deletion for {path}.");
+        }
+        deferredCleanupScheduled = true;
     }
 
     private static void TryDeleteEmptyDirectory(string path)

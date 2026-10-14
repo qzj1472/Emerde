@@ -149,13 +149,15 @@ internal sealed class InstallationService
             progress.Report(new InstallationProgress(100, "已完成"));
             return new InstallationInfo(installRoot, state.Version, state);
         }
-        catch
+        catch (Exception operationException)
         {
-            TryDeleteDirectory(stagingDirectory);
+            List<Exception> rollbackErrors = [];
+            TryRollback(() => TryDeleteDirectory(stagingDirectory), rollbackErrors);
 
             foreach (string directoryName in activatedDirectories)
             {
-                TryDeleteDirectory(Path.Combine(installRoot, directoryName));
+                string activatedPath = Path.Combine(installRoot, directoryName);
+                TryRollback(() => TryDeleteDirectory(activatedPath), rollbackErrors);
             }
 
             foreach (string directoryName in movedDirectories)
@@ -164,21 +166,27 @@ internal sealed class InstallationService
                 string restorePath = Path.Combine(installRoot, directoryName);
                 if (Directory.Exists(backupPath) && !Directory.Exists(restorePath))
                 {
-                    Directory.Move(backupPath, restorePath);
+                    TryRollback(() => Directory.Move(backupPath, restorePath), rollbackErrors);
                 }
             }
 
-            RestoreLegacyLayout(installRoot, backupDirectory, movedLegacyEntries);
-
-            TryDeleteDirectory(backupDirectory);
+            TryRollback(() => RestoreLegacyLayout(installRoot, backupDirectory, movedLegacyEntries), rollbackErrors);
+            if (rollbackErrors.Count == 0)
+            {
+                TryRollback(() => TryDeleteDirectory(backupDirectory), rollbackErrors);
+            }
             RestorePlatformState(
                 installRoot,
                 hadExistingInstallation,
                 previousState,
                 shortcutsAttempted,
                 autoStartAttempted,
-                installationInfoAttempted);
-
+                installationInfoAttempted,
+                rollbackErrors);
+            if (rollbackErrors.Count > 0)
+            {
+                throw new AggregateException("Installation failed and rollback was incomplete; recovery files were retained where possible.", [operationException, .. rollbackErrors]);
+            }
             throw;
         }
     }
@@ -276,18 +284,27 @@ internal sealed class InstallationService
             progress.Report(new InstallationProgress(100, "已完成"));
             return new InstallationInfo(installRoot, state.Version, state);
         }
-        catch
+        catch (Exception operationException)
         {
-            TryDeleteDirectory(stagingDirectory);
-            RestoreRepairTargets(installRoot, backupDirectory, backedUpFiles, createdFiles);
-            TryDeleteDirectory(backupDirectory);
+            List<Exception> rollbackErrors = [];
+            TryRollback(() => TryDeleteDirectory(stagingDirectory), rollbackErrors);
+            RestoreRepairTargets(installRoot, backupDirectory, backedUpFiles, createdFiles, rollbackErrors);
+            if (rollbackErrors.Count == 0)
+            {
+                TryRollback(() => TryDeleteDirectory(backupDirectory), rollbackErrors);
+            }
             RestorePlatformState(
                 installRoot,
                 true,
                 previousState,
                 shortcutsAttempted,
                 autoStartAttempted,
-                installationInfoAttempted);
+                installationInfoAttempted,
+                rollbackErrors);
+            if (rollbackErrors.Count > 0)
+            {
+                throw new AggregateException("Repair failed and rollback was incomplete; recovery files were retained where possible.", [operationException, .. rollbackErrors]);
+            }
             throw;
         }
     }
@@ -303,14 +320,12 @@ internal sealed class InstallationService
             cancellationToken.ThrowIfCancellationRequested();
             string installRoot = InstallationPaths.NormalizeInstallRoot(installation.InstallRoot);
 
-            progress.Report(new InstallationProgress(8, "正在移除快捷方式..."));
+            progress.Report(new InstallationProgress(8, "正在移除系统入口..."));
             platform.RemoveShortcuts(installRoot);
             platform.SetAutoStart(installRoot, enabled: false);
-
-            progress.Report(new InstallationProgress(22, "正在移除系统注册信息..."));
             platform.RemoveInstallationInfo();
 
-            progress.Report(new InstallationProgress(36, "正在移除程序文件..."));
+            progress.Report(new InstallationProgress(20, "正在移除程序文件..."));
             DeleteOwnedDirectory(installRoot, InstallationPaths.BinaryDirectoryName);
             DeleteOwnedDirectory(installRoot, InstallationPaths.NativeDirectoryName);
             DeleteOwnedDirectory(installRoot, InstallationPaths.ResourcesDirectoryName);
@@ -465,28 +480,34 @@ internal sealed class InstallationService
         string installRoot,
         string backupDirectory,
         IEnumerable<string> backedUpFiles,
-        IEnumerable<string> createdFiles)
+        IEnumerable<string> createdFiles,
+        List<Exception> rollbackErrors)
     {
         foreach (string relativePath in createdFiles)
         {
-            string targetPath = GetSafePath(installRoot, relativePath);
-            if (File.Exists(targetPath))
+            TryRollback(() =>
             {
-                File.Delete(targetPath);
-            }
+                string targetPath = GetSafePath(installRoot, relativePath);
+                if (File.Exists(targetPath))
+                {
+                    File.Delete(targetPath);
+                }
+            }, rollbackErrors);
         }
 
         foreach (string relativePath in backedUpFiles)
         {
             string backupPath = GetSafePath(backupDirectory, relativePath);
             string targetPath = GetSafePath(installRoot, relativePath);
-            if (!File.Exists(backupPath))
+            TryRollback(() =>
             {
-                continue;
-            }
-
-            Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-            File.Copy(backupPath, targetPath, overwrite: true);
+                if (!File.Exists(backupPath))
+                {
+                    return;
+                }
+                Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+                File.Copy(backupPath, targetPath, overwrite: true);
+            }, rollbackErrors);
         }
     }
 
@@ -496,7 +517,8 @@ internal sealed class InstallationService
         InstallationState previousState,
         bool shortcutsAttempted,
         bool autoStartAttempted,
-        bool installationInfoAttempted)
+        bool installationInfoAttempted,
+        List<Exception>? rollbackErrors = null)
     {
         if (shortcutsAttempted)
         {
@@ -510,14 +532,14 @@ internal sealed class InstallationService
                 {
                     platform.RemoveShortcuts(installRoot);
                 }
-            });
+            }, rollbackErrors);
         }
 
         if (autoStartAttempted)
         {
             TryRestorePlatformState(() => platform.SetAutoStart(
                 installRoot,
-                hadExistingInstallation && previousState.AutoStart));
+                hadExistingInstallation && previousState.AutoStart), rollbackErrors);
         }
 
         if (installationInfoAttempted)
@@ -532,18 +554,31 @@ internal sealed class InstallationService
                 {
                     platform.RemoveInstallationInfo();
                 }
-            });
+            }, rollbackErrors);
         }
     }
 
-    private static void TryRestorePlatformState(Action restore)
+    private static void TryRestorePlatformState(Action restore, List<Exception>? rollbackErrors = null)
     {
         try
         {
             restore();
         }
-        catch
+        catch (Exception exception)
         {
+            rollbackErrors?.Add(exception);
+        }
+    }
+
+    private static void TryRollback(Action rollback, List<Exception> rollbackErrors)
+    {
+        try
+        {
+            rollback();
+        }
+        catch (Exception exception)
+        {
+            rollbackErrors.Add(exception);
         }
     }
 

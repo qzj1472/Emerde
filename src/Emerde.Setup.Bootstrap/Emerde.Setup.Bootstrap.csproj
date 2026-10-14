@@ -14,7 +14,7 @@
         <PublishReadyToRun>false</PublishReadyToRun>
         <SelfContained>true</SelfContained>
         <InvariantGlobalization>true</InvariantGlobalization>
-        <StripSymbols>true</StripSymbols>
+        <StripSymbols Condition="'$(Configuration)' == 'Release'">true</StripSymbols>
         <OptimizationPreference>Size</OptimizationPreference>
         <AssemblyName>Emerde.Setup.Bootstrap</AssemblyName>
         <RootNamespace>Emerde.Setup</RootNamespace>
