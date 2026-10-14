@@ -77,7 +77,7 @@ public sealed partial class YouTubeSpider : ISpider
         string? cookie = PlatformCookieStore.GetCookie("YouTube", SecretProtector.GetOverseaCookie());
         string? html = SpiderRequest.Get(roomUrl, Headers(roomUrl), cookie);
         ExtractInitialPlayerResponse(html, result);
-        if (result.IsLiveStreaming == true
+        if (result.IsLiveStreaming != false
             && string.IsNullOrWhiteSpace(result.HlsUrl)
             && string.IsNullOrWhiteSpace(result.RecordUrl))
         {
@@ -140,7 +140,8 @@ public sealed partial class YouTubeSpider : ISpider
         JObject? streamingData = root["streamingData"] as JObject;
         string? hlsUrl = streamingData?["hlsManifestUrl"]?.ToString();
         string? serverAbrUrl = streamingData?["serverAbrStreamingUrl"]?.ToString();
-        string? muxedUrl = SelectMuxedFormatUrl(streamingData?["formats"]);
+        string? muxedUrl = SelectMuxedFormatUrl(streamingData?["formats"])
+            ?? SelectMuxedFormatUrl(streamingData?["adaptiveFormats"]);
         if (result.IsLiveStreaming != false
             && (isLive == true || isLiveContent)
             && (!string.IsNullOrWhiteSpace(hlsUrl)
@@ -163,10 +164,6 @@ public sealed partial class YouTubeSpider : ISpider
         if (!string.IsNullOrWhiteSpace(muxedUrl))
         {
             result.RecordUrl = muxedUrl;
-        }
-        else if (!string.IsNullOrWhiteSpace(serverAbrUrl))
-        {
-            result.RecordUrl = null;
         }
     }
 
