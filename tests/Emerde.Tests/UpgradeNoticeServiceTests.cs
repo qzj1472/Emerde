@@ -136,6 +136,30 @@ public sealed class UpgradeNoticeServiceTests
         Assert.NotNull(UpgradeNoticeService.TryReadDevelopmentNotice("1.6.8", "debug-build-3", notice.NoticeId));
     }
 
+    [Fact]
+    public void TryReadSameVersionBuildNotice_ShowsOnlyForANewBuildOfPreviouslyShownVersion()
+    {
+        UpgradeNoticeState? notice = UpgradeNoticeService.TryReadSameVersionBuildNotice(
+            "1.7.1",
+            "release-build-2",
+            "1.7.1",
+            "release-build-1");
+
+        Assert.NotNull(notice);
+        Assert.Equal("build:1.7.1:release-build-2", notice.NoticeId);
+        Assert.Equal("1.7.1", notice.Version);
+        Assert.Null(UpgradeNoticeService.TryReadSameVersionBuildNotice(
+            "1.7.1",
+            "release-build-1",
+            "1.7.1",
+            "release-build-1"));
+        Assert.Null(UpgradeNoticeService.TryReadSameVersionBuildNotice(
+            "1.7.1",
+            "release-build-2",
+            "1.7.0",
+            "release-build-1"));
+    }
+
     [Theory]
     [InlineData(Wpf.Ui.Violeta.Controls.ContentDialogResult.None, true)]
     [InlineData(Wpf.Ui.Violeta.Controls.ContentDialogResult.Secondary, true)]

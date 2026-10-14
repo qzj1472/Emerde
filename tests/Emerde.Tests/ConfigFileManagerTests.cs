@@ -237,6 +237,7 @@ Rooms:
     [InlineData("IsStartupAboutNoticeShown: true\nRooms: []", false)]
     [InlineData("LastShownUpgradeNoticeVersion: 1.6.7", false)]
     [InlineData("LastShownUpgradeNoticeId: upgrade-1", false)]
+    [InlineData("LastShownUpgradeNoticeBuildId: build-1", false)]
     [InlineData("LastShownUpgradeNoticeDebugBuildId: debug:1.6.8:build-1", false)]
     [InlineData("LastShownUpgradeNoticeVersion: 1.6.7\nRooms: []", false)]
     [InlineData("Rooms: []", false)]

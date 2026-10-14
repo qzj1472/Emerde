@@ -734,6 +734,7 @@ internal static class ConfigFileManager
         if (string.Equals(key, nameof(Configurations.IsStartupAboutNoticeShown), StringComparison.Ordinal)
             || string.Equals(key, nameof(Configurations.LastShownUpgradeNoticeVersion), StringComparison.Ordinal)
             || string.Equals(key, nameof(Configurations.LastShownUpgradeNoticeId), StringComparison.Ordinal)
+            || string.Equals(key, nameof(Configurations.LastShownUpgradeNoticeBuildId), StringComparison.Ordinal)
             || string.Equals(key, nameof(Configurations.LastShownUpgradeNoticeDebugBuildId), StringComparison.Ordinal))
         {
             return true;

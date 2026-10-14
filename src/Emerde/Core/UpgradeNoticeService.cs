@@ -25,10 +25,20 @@ internal static class UpgradeNoticeService
                 Configurations.LastShownUpgradeNoticeDebugBuildId.Get() ?? string.Empty);
         }
 
-        return TryReadPendingNotice(
+        UpgradeNoticeState? pendingNotice = TryReadPendingNotice(
             AppContext.BaseDirectory,
             GetCurrentVersion(),
             Configurations.LastShownUpgradeNoticeId.Get() ?? string.Empty);
+        if (pendingNotice is not null)
+        {
+            return pendingNotice;
+        }
+
+        return TryReadSameVersionBuildNotice(
+            GetCurrentVersion(),
+            AppConfig.BuildId,
+            Configurations.LastShownUpgradeNoticeVersion.Get() ?? string.Empty,
+            Configurations.LastShownUpgradeNoticeBuildId.Get() ?? string.Empty);
     }
 
     public static void MarkShown(UpgradeNoticeState notice)
@@ -40,8 +50,17 @@ internal static class UpgradeNoticeService
             return;
         }
 
+        if (IsBuildNotice(notice))
+        {
+            Configurations.LastShownUpgradeNoticeBuildId.Set(AppConfig.BuildId);
+            Configurations.LastShownUpgradeNoticeVersion.Set(notice.Version);
+            _ = ConfigurationSaveScheduler.TrySaveNow();
+            return;
+        }
+
         Configurations.LastShownUpgradeNoticeId.Set(notice.NoticeId);
         Configurations.LastShownUpgradeNoticeVersion.Set(notice.Version);
+        Configurations.LastShownUpgradeNoticeBuildId.Set(AppConfig.BuildId);
         _ = ConfigurationSaveScheduler.TrySaveNow();
         TryUpdatePendingState(
             notice.NoticePath,
@@ -109,6 +128,29 @@ internal static class UpgradeNoticeService
             true);
     }
 
+    internal static UpgradeNoticeState? TryReadSameVersionBuildNotice(
+        string currentVersion,
+        string buildId,
+        string lastShownVersion,
+        string lastShownBuildId)
+    {
+        if (string.IsNullOrWhiteSpace(currentVersion)
+            || string.IsNullOrWhiteSpace(buildId)
+            || !string.Equals(currentVersion, lastShownVersion, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(buildId, lastShownBuildId, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return new UpgradeNoticeState(
+            $"build:{currentVersion}:{buildId}",
+            currentVersion,
+            string.Empty,
+            DateTime.UtcNow,
+            string.Empty,
+            true);
+    }
+
     private static bool IsDevelopmentBuild()
     {
         return string.Equals(AppConfig.BuildConfiguration, "Debug", StringComparison.OrdinalIgnoreCase);
@@ -118,6 +160,12 @@ internal static class UpgradeNoticeService
     {
         return string.IsNullOrWhiteSpace(notice.NoticePath)
             && notice.NoticeId.StartsWith("debug:", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsBuildNotice(UpgradeNoticeState notice)
+    {
+        return string.IsNullOrWhiteSpace(notice.NoticePath)
+            && notice.NoticeId.StartsWith("build:", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string GetNoticeId(UpgradeNoticeFileState state)
