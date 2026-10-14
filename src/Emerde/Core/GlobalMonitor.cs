@@ -1215,7 +1215,7 @@ internal static class GlobalMonitor
 
             if (TryAcquireInconclusiveLog(room.RoomUrl, Environment.TickCount64))
             {
-                AppSessionLogger.Event("warn", "business", "room_check_inconclusive", "room check returned no result and the previous stream state was preserved", new
+                AppSessionLogger.Event("info", "business", "room_check_inconclusive", "room check returned no result and the previous stream state was preserved", new
                 {
                     room.RoomUrl,
                     room.NickName,
