@@ -85,8 +85,10 @@ public sealed class AppSessionLoggerTests
         Assert.Equal("2026-07-22 23:59:58.123", root.GetProperty("startedAt").GetString());
         Assert.Equal("2026-07-22", root.GetProperty("logDate").GetString());
         Assert.Equal(21460, root.GetProperty("processId").GetInt32());
-        Assert.Equal(filePath, root.GetProperty("file").GetString());
-        Assert.Equal(errorFilePath, root.GetProperty("errorFile").GetString());
+        Assert.Equal("[redacted]", root.GetProperty("file").GetString());
+        Assert.Equal("[redacted]", root.GetProperty("errorFile").GetString());
+        Assert.Equal(1, root.GetProperty("recordingConfigurationSchemaVersion").GetInt32());
+        Assert.Equal(16, root.GetProperty("recordingConfigurationFingerprint").GetString()?.Length);
     }
 
     [Theory]

@@ -48,12 +48,30 @@ internal static class ConfigurationSaveScheduler
 
     public static void SaveNow()
     {
-        ConfigurationSaveStateChangedEventArgs? stateChanged;
-        lock (SyncRoot)
+        ConfigurationSaveStateChangedEventArgs? stateChanged = null;
+        Exception? failure = null;
+        try
         {
-            stateChanged = SaveLocked(force: true);
+            lock (SyncRoot)
+            {
+                stateChanged = SaveLocked(force: true);
+            }
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            long revision;
+            lock (SyncRoot)
+            {
+                revision = requestedRevision;
+            }
+            stateChanged = new ConfigurationSaveStateChangedEventArgs(revision, false, exception);
         }
         RaiseSaveStateChanged(stateChanged);
+        if (failure != null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+        }
     }
 
     public static bool TrySaveNow()

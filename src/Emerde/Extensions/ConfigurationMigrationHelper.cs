@@ -16,7 +16,18 @@ internal static class ConfigurationMigrationHelper
 
     private static void RemoveTransientRoomFields()
     {
-        foreach (string path in AppPaths.GetConfigFiles())
+        string[] paths;
+        try
+        {
+            paths = AppPaths.GetConfigFiles();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or YamlDotNet.Core.YamlException)
+        {
+            Debug.WriteLine(e);
+            return;
+        }
+
+        foreach (string path in paths)
         {
             try
             {
@@ -72,26 +83,46 @@ internal static class ConfigurationMigrationHelper
             return;
         }
 
+        List<(string Source, string Target)> movedFiles = [];
         try
         {
-            Directory.CreateDirectory(targetDirectory);
-            foreach (string sourcePath in Directory.EnumerateFiles(rootDirectory, "config*.yml", SearchOption.TopDirectoryOnly)
+            string[] sourcePaths = Directory.EnumerateFiles(rootDirectory, "config*.yml", SearchOption.TopDirectoryOnly)
                 .Concat(Directory.EnumerateFiles(rootDirectory, "config*.yaml", SearchOption.TopDirectoryOnly))
-                .Distinct(StringComparer.OrdinalIgnoreCase))
+                .Where(sourcePath => !string.Equals(
+                    Path.GetFullPath(Path.GetDirectoryName(sourcePath) ?? string.Empty),
+                    Path.GetFullPath(targetDirectory),
+                    StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            Directory.CreateDirectory(targetDirectory);
+            foreach (string sourcePath in sourcePaths)
             {
-                string sourceDirectory = Path.GetDirectoryName(sourcePath) ?? string.Empty;
-                if (string.Equals(Path.GetFullPath(sourceDirectory), Path.GetFullPath(targetDirectory), StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
                 string targetPath = GetAvailableTargetPath(targetDirectory, Path.GetFileName(sourcePath));
                 File.Move(sourcePath, targetPath);
+                movedFiles.Add((sourcePath, targetPath));
             }
         }
-        catch (Exception e)
+        catch (Exception migrationException)
         {
-            Debug.WriteLine(e);
+            List<Exception> rollbackErrors = [];
+            foreach ((string sourcePath, string targetPath) in movedFiles.AsEnumerable().Reverse())
+            {
+                try
+                {
+                    if (File.Exists(targetPath) && !File.Exists(sourcePath))
+                    {
+                        File.Move(targetPath, sourcePath);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    rollbackErrors.Add(exception);
+                }
+            }
+
+            Debug.WriteLine(rollbackErrors.Count > 0
+                ? new AggregateException("Legacy configuration migration failed and rollback was incomplete.", [migrationException, .. rollbackErrors])
+                : migrationException);
         }
     }
 

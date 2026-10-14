@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Text.Json;
 using Emerde.Core;
 
 namespace Emerde.Tests;
@@ -50,6 +51,30 @@ public sealed class LogExporterTests
 
             Assert.Equal(Path.Combine(root, "logs_1.zip"), archivePath);
             Assert.Equal("existing", File.ReadAllText(Path.Combine(root, "logs.zip")));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void CreateArchive_RedactsPathsFromHistoricalStructuredLogs()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "EmerdeLogExporterTests", Guid.NewGuid().ToString("N"));
+        string source = Path.Combine(root, "session.log");
+        string localPath = "C:\\Users\\Alice\\Videos\\recording.ts";
+        Directory.CreateDirectory(root);
+        File.WriteAllText(source, JsonSerializer.Serialize(new { level = "error", data = new { sourcePath = localPath } }));
+
+        try
+        {
+            string archivePath = LogExporter.CreateArchive(root, "logs", [source]);
+            using ZipArchive archive = ZipFile.OpenRead(archivePath);
+            string content = ReadEntry(Assert.Single(archive.Entries));
+
+            Assert.DoesNotContain(localPath, content, StringComparison.Ordinal);
+            Assert.Contains("[redacted]", content, StringComparison.Ordinal);
         }
         finally
         {

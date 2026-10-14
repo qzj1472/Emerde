@@ -6,7 +6,7 @@ namespace Emerde.Core;
 
 internal static partial class LogSanitizer
 {
-    private static readonly string[] SensitivePropertyNames = ["authorization", "cookie", "headers", "inputurl", "password", "secret", "signature", "token"];
+    private static readonly string[] SensitivePropertyNames = ["authorization", "cookie", "headers", "inputurl", "password", "secret", "signature", "token", "path", "filename", "errorfile"];
 
     public static string SanitizeText(string? value)
     {
@@ -30,6 +30,20 @@ internal static partial class LogSanitizer
         JsonNode? node = JsonSerializer.SerializeToNode(data, options);
         SanitizeNode(node);
         return node;
+    }
+
+    public static string SanitizeLogLine(string line)
+    {
+        try
+        {
+            JsonNode? node = JsonNode.Parse(line);
+            SanitizeNode(node);
+            return node?.ToJsonString() ?? string.Empty;
+        }
+        catch (JsonException)
+        {
+            return SanitizeText(line);
+        }
     }
 
     private static void SanitizeNode(JsonNode? node)
@@ -70,7 +84,8 @@ internal static partial class LogSanitizer
     private static bool IsSensitiveProperty(string propertyName)
     {
         string normalized = propertyName.Replace("_", string.Empty, StringComparison.Ordinal).ToLowerInvariant();
-        return SensitivePropertyNames.Any(normalized.Contains);
+        return normalized.Equals("file", StringComparison.Ordinal)
+            || SensitivePropertyNames.Any(normalized.Contains);
     }
 
     private static string RedactUrl(string value)

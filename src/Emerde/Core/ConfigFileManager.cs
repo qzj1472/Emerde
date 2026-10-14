@@ -81,17 +81,94 @@ internal static class ConfigFileManager
     {
         ConfigurationSaveScheduler.ExecuteExclusive(() =>
         {
-            foreach (string path in AppPaths.GetConfigFiles())
+            string activeDirectory = AppPaths.ActiveConfigDirectory;
+            string previousActiveConfigPath = ConfigurationManager.FilePath;
+            string restoreDirectory = Path.Combine(AppPaths.CacheDirectory, "config-restore", Guid.NewGuid().ToString("N"));
+            string stagedDirectory = Path.Combine(restoreDirectory, "staged");
+            string rollbackDirectory = Path.Combine(restoreDirectory, "rollback");
+            Directory.CreateDirectory(stagedDirectory);
+            Directory.CreateDirectory(rollbackDirectory);
+            string[] currentFiles = AppPaths.GetConfigFiles();
+            HashSet<string> currentPaths = currentFiles.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, string> rollbackFiles = new(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, string> stagedFiles = new(StringComparer.OrdinalIgnoreCase);
+            try
             {
-                File.Delete(path);
+                foreach (ConfigurationSessionFile file in snapshot.Files)
+                {
+                    string stagedPath = Path.Combine(stagedDirectory, Path.GetFileName(file.OriginalPath));
+                    File.Copy(file.SnapshotPath, stagedPath, overwrite: false);
+                    Validate(stagedPath, requireYamlExtension: false);
+                    stagedFiles.Add(file.OriginalPath, stagedPath);
+                }
+                foreach (string currentPath in currentFiles)
+                {
+                    string rollbackPath = Path.Combine(rollbackDirectory, Path.GetFileName(currentPath));
+                    File.Copy(currentPath, rollbackPath, overwrite: false);
+                    rollbackFiles.Add(currentPath, rollbackPath);
+                }
+
+                try
+                {
+                    foreach ((string originalPath, string stagedPath) in stagedFiles)
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(originalPath) ?? activeDirectory);
+                        AtomicFile.Copy(stagedPath, originalPath);
+                    }
+                    foreach (string currentPath in currentFiles)
+                    {
+                        if (!stagedFiles.ContainsKey(currentPath))
+                        {
+                            File.Delete(currentPath);
+                        }
+                    }
+                    ConfigurationManager.Setup(snapshot.ActiveConfigPath);
+                    ConfigurationSaveScheduler.ResumeAfterCancelledRestart();
+                }
+                catch (Exception restoreException)
+                {
+                    List<Exception> rollbackErrors = [];
+                    foreach ((string originalPath, string rollbackPath) in rollbackFiles)
+                    {
+                        try
+                        {
+                            AtomicFile.Copy(rollbackPath, originalPath);
+                        }
+                        catch (Exception exception)
+                        {
+                            rollbackErrors.Add(exception);
+                        }
+                    }
+                    foreach (string createdPath in stagedFiles.Keys.Where(path => !currentPaths.Contains(path)))
+                    {
+                        try
+                        {
+                            File.Delete(createdPath);
+                        }
+                        catch (Exception exception)
+                        {
+                            rollbackErrors.Add(exception);
+                        }
+                    }
+                    try
+                    {
+                        ConfigurationManager.Setup(previousActiveConfigPath);
+                    }
+                    catch (Exception exception)
+                    {
+                        rollbackErrors.Add(exception);
+                    }
+                    if (rollbackErrors.Count > 0)
+                    {
+                        throw new AggregateException("Configuration restore failed and rollback was incomplete.", [restoreException, .. rollbackErrors]);
+                    }
+                    throw;
+                }
             }
-            foreach (ConfigurationSessionFile file in snapshot.Files)
+            finally
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(file.OriginalPath) ?? AppPaths.ConfigFilesDirectory);
-                File.Copy(file.SnapshotPath, file.OriginalPath, overwrite: true);
+                TryDeleteSessionSnapshotDirectory(restoreDirectory);
             }
-            ConfigurationManager.Setup(snapshot.ActiveConfigPath);
-            ConfigurationSaveScheduler.ResumeAfterCancelledRestart();
             TryDeleteSessionSnapshotDirectory(snapshot.DirectoryPath);
             return true;
         });
@@ -153,20 +230,66 @@ internal static class ConfigFileManager
     {
         return ConfigurationSaveScheduler.ExecuteExclusive<string[]>(() =>
         {
+            string[] configFiles = AppPaths.GetConfigFiles();
             List<string> backupPaths = [];
-            foreach (string configPath in AppPaths.GetConfigFiles())
+            Dictionary<string, string> rollbackCopies = new(StringComparer.OrdinalIgnoreCase);
+            string rollbackDirectory = Path.Combine(AppPaths.CacheDirectory, "config-reset", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(rollbackDirectory);
+            try
             {
-                if (IsMeaningfulConfigurationFile(configPath))
+                foreach (string configPath in configFiles)
                 {
-                    string backupPath = CreateUniqueBackupCopy(configPath, "bak");
-                    backupPaths.Add(backupPath);
+                    string rollbackCopy = Path.Combine(rollbackDirectory, Path.GetFileName(configPath));
+                    File.Copy(configPath, rollbackCopy, overwrite: false);
+                    rollbackCopies.Add(configPath, rollbackCopy);
+                    if (IsMeaningfulConfigurationFile(configPath))
+                    {
+                        backupPaths.Add(CreateUniqueBackupCopy(configPath, "bak"));
+                    }
                 }
-                File.Delete(configPath);
-                PruneBackups(configPath);
-            }
 
-            ConfigurationSaveScheduler.SuppressUntilRestart();
-            return [.. backupPaths];
+                try
+                {
+                    foreach (string configPath in configFiles)
+                    {
+                        File.Delete(configPath);
+                    }
+                }
+                catch (Exception resetException)
+                {
+                    List<Exception> rollbackErrors = [];
+                    foreach ((string configPath, string rollbackCopy) in rollbackCopies)
+                    {
+                        if (!File.Exists(configPath))
+                        {
+                            try
+                            {
+                                AtomicFile.Copy(rollbackCopy, configPath);
+                            }
+                            catch (Exception exception)
+                            {
+                                rollbackErrors.Add(exception);
+                            }
+                        }
+                    }
+                    if (rollbackErrors.Count > 0)
+                    {
+                        throw new AggregateException("Configuration reset failed and rollback was incomplete.", [resetException, .. rollbackErrors]);
+                    }
+                    throw;
+                }
+
+                foreach (string configPath in configFiles)
+                {
+                    PruneBackups(configPath);
+                }
+                ConfigurationSaveScheduler.SuppressUntilRestart();
+                return [.. backupPaths];
+            }
+            finally
+            {
+                TryDeleteSessionSnapshotDirectory(rollbackDirectory);
+            }
         });
     }
 
@@ -483,8 +606,7 @@ internal static class ConfigFileManager
             return;
         }
 
-        using StreamWriter writer = File.CreateText(path);
-        yaml.Save(writer, assignAnchors: false);
+        WriteYamlAtomically(path, yaml);
     }
 
     internal static bool RemoveTransientRoomFields(string path)
@@ -500,9 +622,42 @@ internal static class ConfigFileManager
             return false;
         }
 
-        using StreamWriter writer = File.CreateText(path);
-        yaml.Save(writer, assignAnchors: false);
+        WriteYamlAtomically(path, yaml);
         return true;
+    }
+
+    private static void WriteYamlAtomically(string path, YamlStream yaml)
+    {
+        string temporaryPath = Path.Combine(
+            Path.GetDirectoryName(Path.GetFullPath(path)) ?? AppContext.BaseDirectory,
+            $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            using (StreamWriter writer = File.CreateText(temporaryPath))
+            {
+                yaml.Save(writer, assignAnchors: false);
+            }
+            ValidateYamlDocument(temporaryPath);
+            AtomicFile.Copy(temporaryPath, path);
+        }
+        finally
+        {
+            DeleteTemporaryFile(temporaryPath);
+        }
+    }
+
+    private static void ValidateYamlDocument(string path)
+    {
+        YamlStream validation = new();
+        using (StreamReader reader = File.OpenText(path))
+        {
+            validation.Load(reader);
+        }
+
+        if (validation.Documents.Count != 1 || validation.Documents[0].RootNode is not YamlMappingNode)
+        {
+            throw new InvalidDataException("UnsupportedEmerdeConfig".Tr());
+        }
     }
 
     private static bool RemoveTransientRoomFields(YamlMappingNode root)

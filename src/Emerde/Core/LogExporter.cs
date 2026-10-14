@@ -1,6 +1,7 @@
 using System.IO;
 using System.IO.Compression;
 using System.Globalization;
+using System.Text;
 
 namespace Emerde.Core;
 
@@ -95,7 +96,30 @@ internal static class LogExporter
                     ZipArchiveEntry entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
                     using Stream destination = entry.Open();
                     using FileStream source = new(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                    source.CopyTo(destination);
+                    bool hasTrailingNewline = source.Length > 0;
+                    if (hasTrailingNewline)
+                    {
+                        source.Position = source.Length - 1;
+                        hasTrailingNewline = source.ReadByte() == '\n';
+                        source.Position = 0;
+                    }
+                    using StreamReader reader = new(source, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+                    using StreamWriter writer = new(destination, new UTF8Encoding(false), 1024, leaveOpen: true);
+                    bool wroteLine = false;
+                    while (reader.ReadLine() is { } line)
+                    {
+                        if (wroteLine)
+                        {
+                            writer.Write('\n');
+                        }
+                        writer.Write(LogSanitizer.SanitizeLogLine(line));
+                        wroteLine = true;
+                    }
+                    if (wroteLine && hasTrailingNewline)
+                    {
+                        writer.Write('\n');
+                    }
+                    writer.Flush();
                     entryCount++;
                 }
             }

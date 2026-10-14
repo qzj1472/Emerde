@@ -4,6 +4,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Security.Cryptography;
 
 namespace Emerde.Core;
 
@@ -420,6 +421,8 @@ internal static class AppSessionLogger
             version = AppConfig.Version,
             buildId = AppConfig.BuildId,
             buildConfiguration = AppConfig.BuildConfiguration,
+            recordingConfigurationSchemaVersion = 1,
+            recordingConfigurationFingerprint = BuildRecordingConfigurationFingerprint(),
             sessionId = sessionIdentifier,
             startedAt = startedAt.ToString("yyyy-MM-dd HH:mm:ss.fff"),
             logDate = logDate.ToString("yyyy-MM-dd"),
@@ -428,7 +431,19 @@ internal static class AppSessionLogger
             errorFile = errorFilePath,
         };
 
-        return JsonSerializer.Serialize(payload, JsonOptions);
+        return LogSanitizer.SanitizeData(payload, JsonOptions)?.ToJsonString() ?? "{}";
+    }
+
+    private static string BuildRecordingConfigurationFingerprint()
+    {
+        string snapshot = string.Join('|',
+            Configurations.RecordFormat.Get(),
+            Configurations.IsRemoveTs.Get(),
+            Configurations.IsOptimizeAudio.Get(),
+            Configurations.IsToSegment.Get(),
+            Configurations.SegmentTime.Get(),
+            Configurations.SegmentTimeUnit.Get());
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(snapshot)))[..16].ToLowerInvariant();
     }
 
     private static void DisableTemporarily(DateTime timestamp, Exception error)
