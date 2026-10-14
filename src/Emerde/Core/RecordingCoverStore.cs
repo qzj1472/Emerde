@@ -110,6 +110,15 @@ internal static class RecordingCoverStore
             metadata.CoverPath = string.Empty;
             return true;
         }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+        catch (Exception exception)
+        {
+            AppSessionLogger.Event("warn", "media", "recording_cover_failed", exception.Message, new { mediaPath });
+            return false;
+        }
         finally
         {
             GenerationGate.Release();
@@ -146,6 +155,11 @@ internal static class RecordingCoverStore
         }
         catch (OperationCanceledException)
         {
+            return false;
+        }
+        catch (Exception exception)
+        {
+            AppSessionLogger.Event("warn", "media", "recording_cover_failed", exception.Message, new { targetPath });
             return false;
         }
     }
@@ -292,47 +306,117 @@ internal static class RecordingCoverStore
 
     internal static byte[] ComposeCover(BitmapSource frame, BitmapSource? avatar)
     {
-        DrawingVisual visual = new();
-        using (DrawingContext drawing = visual.RenderOpen())
+        byte[] framePixels = CopyBgraPixels(frame, out int frameWidth, out int frameHeight);
+        byte[] output = new byte[CoverWidth * CoverHeight * 4];
+        for (int y = 0; y < CoverHeight; y++)
         {
-            Rect canvas = new(0, 0, CoverWidth, CoverHeight);
-            ImageBrush frameBrush = new(frame)
+            for (int x = 0; x < CoverWidth; x++)
             {
-                Stretch = Stretch.UniformToFill,
-                AlignmentX = AlignmentX.Center,
-                AlignmentY = AlignmentY.Center,
-            };
-            drawing.DrawRectangle(frameBrush, null, canvas);
-            if (avatar != null)
-            {
-                ImageBrush avatarBrush = new(avatar)
-                {
-                    Stretch = Stretch.UniformToFill,
-                    AlignmentX = AlignmentX.Center,
-                    AlignmentY = AlignmentY.Center,
-                };
-                LinearGradientBrush avatarMask = CreateHorizontalMask(
-                    new GradientStop(Colors.Transparent, 0),
-                    new GradientStop(Colors.Transparent, 0.475d),
-                    new GradientStop(Colors.White, 0.88d),
-                    new GradientStop(Colors.White, 1));
-                drawing.PushOpacityMask(avatarMask);
-                drawing.DrawRectangle(avatarBrush, null, new Rect(CoverWidth / 3d, 0, CoverWidth * 2d / 3d, CoverHeight));
-                drawing.Pop();
+                int outputIndex = (y * CoverWidth + x) * 4;
+                CopyUniformToFillPixel(framePixels, frameWidth, frameHeight, x, y, CoverWidth, CoverHeight, output, outputIndex);
             }
         }
 
-        RenderTargetBitmap target = new(CoverWidth, CoverHeight, 96, 96, PixelFormats.Pbgra32);
-        target.Render(visual);
-        target.Freeze();
-        return EncodePng(target);
+        if (avatar != null)
+        {
+            byte[] avatarPixels = CopyBgraPixels(avatar, out int avatarWidth, out int avatarHeight);
+            int avatarLeft = CoverWidth / 3;
+            int avatarWidthOnCover = CoverWidth - avatarLeft;
+            for (int y = 0; y < CoverHeight; y++)
+            {
+                for (int x = avatarLeft; x < CoverWidth; x++)
+                {
+                    double relativeX = (x - avatarLeft) / (double)(avatarWidthOnCover - 1);
+                    double mask = relativeX <= 0.475d
+                        ? 0d
+                        : relativeX >= 0.88d
+                            ? 1d
+                            : (relativeX - 0.475d) / 0.405d;
+                    if (mask <= 0d)
+                    {
+                        continue;
+                    }
+
+                    int outputIndex = (y * CoverWidth + x) * 4;
+                    int avatarIndex = GetUniformToFillPixelIndex(avatarWidth, avatarHeight, x - avatarLeft, y, avatarWidthOnCover, CoverHeight);
+                    double alpha = avatarPixels[avatarIndex + 3] / 255d * mask;
+                    if (alpha <= 0d)
+                    {
+                        continue;
+                    }
+
+                    output[outputIndex] = BlendChannel(output[outputIndex], avatarPixels[avatarIndex], alpha);
+                    output[outputIndex + 1] = BlendChannel(output[outputIndex + 1], avatarPixels[avatarIndex + 1], alpha);
+                    output[outputIndex + 2] = BlendChannel(output[outputIndex + 2], avatarPixels[avatarIndex + 2], alpha);
+                    output[outputIndex + 3] = 255;
+                }
+            }
+        }
+
+        BitmapSource result = BitmapSource.Create(
+            CoverWidth,
+            CoverHeight,
+            96,
+            96,
+            PixelFormats.Bgra32,
+            null,
+            output,
+            CoverWidth * 4);
+        result.Freeze();
+        return EncodePng(result);
     }
 
-    private static LinearGradientBrush CreateHorizontalMask(params GradientStop[] stops)
+    private static byte[] CopyBgraPixels(BitmapSource source, out int width, out int height)
     {
-        LinearGradientBrush brush = new(new GradientStopCollection(stops), new System.Windows.Point(0, 0), new System.Windows.Point(1, 0));
-        brush.Freeze();
-        return brush;
+        BitmapSource converted = source.Format == PixelFormats.Bgra32
+            ? source
+            : new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
+        converted.Freeze();
+        width = converted.PixelWidth;
+        height = converted.PixelHeight;
+        int stride = checked(width * 4);
+        byte[] pixels = new byte[checked(stride * height)];
+        converted.CopyPixels(pixels, stride, 0);
+        return pixels;
+    }
+
+    private static void CopyUniformToFillPixel(
+        byte[] source,
+        int sourceWidth,
+        int sourceHeight,
+        int targetX,
+        int targetY,
+        int targetWidth,
+        int targetHeight,
+        byte[] target,
+        int targetIndex)
+    {
+        int sourceIndex = GetUniformToFillPixelIndex(sourceWidth, sourceHeight, targetX, targetY, targetWidth, targetHeight);
+        target[targetIndex] = source[sourceIndex];
+        target[targetIndex + 1] = source[sourceIndex + 1];
+        target[targetIndex + 2] = source[sourceIndex + 2];
+        target[targetIndex + 3] = 255;
+    }
+
+    private static int GetUniformToFillPixelIndex(
+        int sourceWidth,
+        int sourceHeight,
+        int targetX,
+        int targetY,
+        int targetWidth,
+        int targetHeight)
+    {
+        double scale = Math.Max(targetWidth / (double)sourceWidth, targetHeight / (double)sourceHeight);
+        double visibleWidth = targetWidth / scale;
+        double visibleHeight = targetHeight / scale;
+        int sourceX = Math.Clamp((int)Math.Floor((targetX + 0.5d) / scale + (sourceWidth - visibleWidth) / 2d), 0, sourceWidth - 1);
+        int sourceY = Math.Clamp((int)Math.Floor((targetY + 0.5d) / scale + (sourceHeight - visibleHeight) / 2d), 0, sourceHeight - 1);
+        return (sourceY * sourceWidth + sourceX) * 4;
+    }
+
+    private static byte BlendChannel(byte background, byte foreground, double alpha)
+    {
+        return (byte)Math.Clamp(Math.Round(foreground * alpha + background * (1d - alpha)), 0d, 255d);
     }
 
     private static byte[] EncodePng(BitmapSource image)
