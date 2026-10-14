@@ -256,6 +256,51 @@ public sealed class RecorderTests
     }
 
     [Theory]
+    [InlineData(true, false, true, false)]
+    [InlineData(true, false, false, true)]
+    [InlineData(true, true, true, false)]
+    [InlineData(false, false, true, true)]
+    public void ShouldConsumeReconnectAttempt_ResetsAfterAStreamUrlRefresh(
+        bool? isLiveAfterRefresh,
+        bool hadMediaProgress,
+        bool refreshedUrlChanged,
+        bool expected)
+    {
+        Assert.Equal(expected, Recorder.ShouldConsumeReconnectAttempt(isLiveAfterRefresh, hadMediaProgress, refreshedUrlChanged));
+    }
+
+    [Theory]
+    [InlineData("normal", 0.1, 0, 0, 0, true, 0, false)]
+    [InlineData("decode_error", 0.1, 0, 0, 0, true, 1, true)]
+    [InlineData("decode_error", 0.1, 0, 0, 0, true, 0, false)]
+    [InlineData("clipping_then_silence", 0.01, 3, 0.25, 0.02, true, 0, true)]
+    [InlineData("clipping_then_silence", 0.01, 3, 0.249, 0.02, true, 0, false)]
+    [InlineData("clipping_then_silence", 0.01, 3, 0.25, 0.02, false, 0, false)]
+    public void IsSevereAudioContentAnomaly_RequiresConclusiveEvidence(
+        string state,
+        double rms,
+        double silenceSeconds,
+        double clippingRatio,
+        double peak,
+        bool conclusive,
+        int decodeErrorCount,
+        bool expected)
+    {
+        FfmpegAudioContentSample sample = new(
+            0,
+            30,
+            rms,
+            peak,
+            silenceSeconds,
+            clippingRatio,
+            decodeErrorCount,
+            conclusive,
+            state);
+
+        Assert.Equal(expected, Recorder.IsSevereAudioContentAnomaly(sample));
+    }
+
+    [Theory]
     [InlineData(0, false, false, 12, true, true)]
     [InlineData(0, false, false, 12, null, true)]
     [InlineData(0, false, false, 12, false, false)]
