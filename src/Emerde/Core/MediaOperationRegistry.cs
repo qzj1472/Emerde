@@ -12,6 +12,7 @@ internal enum MediaOperationKind
     Repair,
     Split,
     Merge,
+    Cleanup,
 }
 
 internal static class MediaOperationRegistry
