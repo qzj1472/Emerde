@@ -45,6 +45,16 @@ internal static class MediaFileCatalog
             .Select(item => item.Path);
     }
 
+    public static int GetNextSegmentIndex(IEnumerable<string> paths, string pattern)
+    {
+        long maximumIndex = paths
+            .Select(path => GetSegmentIndex(path, pattern))
+            .Where(index => index != long.MaxValue)
+            .DefaultIfEmpty(-1L)
+            .Max();
+        return checked((int)(maximumIndex + 1));
+    }
+
     private static long GetSegmentIndex(string path, string pattern)
     {
         string fileName = Path.GetFileName(path);

@@ -4,22 +4,16 @@ internal static class RecordingAssociatedAssets
 {
     internal static bool Copy(string sourcePath, string targetPath)
     {
-        if (!RecordingCoverStore.TryCopyAssociatedCover(sourcePath, targetPath))
-        {
-            return false;
-        }
-        _ = VideoRepairService.TryCopyRepairReport(sourcePath, targetPath);
-        return true;
+        bool coverCopied = RecordingCoverStore.TryCopyAssociatedCover(sourcePath, targetPath);
+        bool reportCopied = VideoRepairService.TryCopyRepairReport(sourcePath, targetPath);
+        return coverCopied && reportCopied;
     }
 
     internal static bool Move(string sourcePath, string targetPath)
     {
-        if (!RecordingCoverStore.TryMoveAssociatedCover(sourcePath, targetPath))
-        {
-            return false;
-        }
-        _ = VideoRepairService.TryMoveRepairReport(sourcePath, targetPath);
-        return true;
+        bool coverMoved = RecordingCoverStore.TryMoveAssociatedCover(sourcePath, targetPath);
+        bool reportMoved = VideoRepairService.TryMoveRepairReport(sourcePath, targetPath);
+        return coverMoved && reportMoved;
     }
 
     internal static void Delete(string mediaPath)

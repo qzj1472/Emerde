@@ -73,7 +73,7 @@ internal static class VideoRecordingMetadataStore
         return written;
     }
 
-    public static bool FinalizeSidecarForMedia(IEnumerable<string> mediaPaths, string? metadataPath)
+    public static bool FinalizeSidecarForMedia(IEnumerable<string> mediaPaths, string? metadataPath, DateTime endedAt = default)
     {
         string[] paths = mediaPaths.Where(File.Exists).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         if (paths.Length == 0 || string.IsNullOrWhiteSpace(metadataPath) || !File.Exists(metadataPath))
@@ -93,14 +93,14 @@ internal static class VideoRecordingMetadataStore
         }
 
         if (!HasAnyMetadata(metadata)
-            || paths.Any(path => !WriteAttachedMetadata(path, WithFileName(metadata!, Path.GetFileName(path)))))
+            || paths.Any(path => !WriteAttachedMetadata(path, WithFinalSessionEndTime(metadata!, endedAt, Path.GetFileName(path)))))
         {
             return false;
         }
 
         foreach (string path in paths)
         {
-            RecordingCleanupService.TrackFile(path, WithFileName(metadata!, Path.GetFileName(path)));
+            RecordingCleanupService.TrackFile(path, WithFinalSessionEndTime(metadata!, endedAt, Path.GetFileName(path)));
         }
 
         try
@@ -113,6 +113,16 @@ internal static class VideoRecordingMetadataStore
             AppSessionLogger.WriteException(e);
             return false;
         }
+    }
+
+    private static VideoRecordingMetadata WithFinalSessionEndTime(VideoRecordingMetadata metadata, DateTime endedAt, string fileName)
+    {
+        VideoRecordingMetadata copy = WithFileName(metadata, fileName);
+        if (endedAt > DateTime.MinValue)
+        {
+            copy.EndedAt = endedAt;
+        }
+        return copy;
     }
 
     internal static bool HasAttachedMetadata(string mediaPath)

@@ -113,9 +113,11 @@ public sealed class VideoRecordingMetadataStoreTests
             string? sidecar = VideoRecordingMetadataStore.WriteSidecar(root, "recording", CreateMetadata());
             Assert.NotNull(sidecar);
 
-            Assert.True(VideoRecordingMetadataStore.FinalizeSidecarForMedia([mediaPath], sidecar));
+            DateTime sessionEndedAt = new(2026, 7, 23, 14, 12, 33);
+            Assert.True(VideoRecordingMetadataStore.FinalizeSidecarForMedia([mediaPath], sidecar, sessionEndedAt));
             Assert.False(File.Exists(sidecar));
             Assert.True(VideoRecordingMetadataStore.HasAttachedMetadata(mediaPath));
+            Assert.Equal(sessionEndedAt, VideoRecordingMetadataStore.Load(new FileInfo(mediaPath)).EndedAt);
         }
         finally
         {

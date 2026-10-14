@@ -224,19 +224,52 @@ public sealed class Converter
                 .Select(GetSourceTimelineEndSeconds)
                 .ToArray();
             double probedSourceDuration = sourceProbes.Sum(probe => Math.Max(0d, probe.DurationSeconds));
+            double sourceAudioStartSeconds = sourceProbes.Sum(probe => Math.Max(0d, probe.AudioStartSeconds));
+            double sourceVideoStartSeconds = sourceProbes.Sum(probe => Math.Max(0d, probe.VideoStartSeconds));
+            double sourceStartMismatchSeconds = sourceProbes
+                .Where(probe => probe.HasAudio && probe.HasVideo)
+                .Select(probe => Math.Abs(probe.AudioStartSeconds - probe.VideoStartSeconds))
+                .DefaultIfEmpty(0d)
+                .Max();
             double sourceAudioEndSeconds = sourceProbes.Sum(probe => Math.Max(0d, probe.AudioEndSeconds));
             double sourceVideoEndSeconds = sourceProbes.Sum(probe => Math.Max(0d, probe.VideoEndSeconds));
             MergeSourceIssueMetadata(metadata, sourceFileInfos, sourceProbes);
-            if (!IsTrackTimelineWithinTolerance(sourceAudioEndSeconds, sourceVideoEndSeconds))
+            bool sourceStartMismatch = sourceStartMismatchSeconds > 2d;
+            int sourceEndMismatchIndex = FindFirstSourceTimelineMismatchIndex(sourceProbes);
+            bool sourceEndMismatch = sourceEndMismatchIndex >= 0;
+            if (sourceStartMismatch || sourceEndMismatch)
             {
-                double mismatchStart = GetTimelineIssueStartSeconds(sourceAudioEndSeconds, sourceVideoEndSeconds);
-                double mismatchEnd = Math.Max(sourceAudioEndSeconds, sourceVideoEndSeconds);
+                FfmpegMediaProbeResult? mismatchedSourceProbe = sourceEndMismatch
+                    ? sourceProbes[sourceEndMismatchIndex]
+                    : null;
+                double mismatchStart = sourceStartMismatch
+                    ? 0d
+                    : GetTimelineIssueStartSeconds(mismatchedSourceProbe!.AudioEndSeconds, mismatchedSourceProbe.VideoEndSeconds);
+                double mismatchEnd = sourceStartMismatch
+                    ? sourceStartMismatchSeconds
+                    : Math.Max(mismatchedSourceProbe!.AudioEndSeconds, mismatchedSourceProbe.VideoEndSeconds);
+                string mismatchKind = sourceStartMismatch ? "source_track_start_mismatch" : "source_track_end_mismatch";
                 VideoRecordingMetadataStore.AddIssueInterval(
                     metadata,
                     "timeline_mismatch",
                     mismatchStart,
                     mismatchEnd,
-                    "source_track_end_mismatch");
+                    mismatchKind);
+                AppSessionLogger.Event("error", "converter", "conversion_source_timeline_mismatch", "source audio and video timelines differ by more than the accepted tolerance; original recording segments were preserved", new
+                {
+                    sourceFileNames,
+                    targetFileName,
+                    sourceAudioStartSeconds,
+                    sourceVideoStartSeconds,
+                    sourceStartMismatchSeconds,
+                    sourceAudioEndSeconds,
+                    sourceVideoEndSeconds,
+                    sourceSegmentIndex = sourceEndMismatchIndex,
+                    mismatchKind,
+                    recordingSessionId = metadata.RecordingSessionId,
+                });
+                onFailed?.Invoke($"source_track_timeline_mismatch:{mismatchKind}");
+                return false;
             }
             double recordingExpectedDuration = NormalizeRecordingExpectedDuration(
                 GetRecordingExpectedDuration(metadata, sourceFileInfos),
@@ -349,44 +382,6 @@ public sealed class Converter
                     result.ErrorOutput,
                     validationError,
                 });
-            }
-            if (!succeeded
-                && !optimizedAudioRequired
-                && validationError.StartsWith("output_track_timeline_mismatch:", StringComparison.Ordinal)
-                && TryGetAlignedTimelineEnd(sourceProbes, out double alignedTimelineEndSeconds))
-            {
-                AppSessionLogger.Event("warn", "converter", "timeline_alignment_fallback", "conversion output tracks were rebuilt to their shared timeline end", new
-                {
-                    sourceFileNames = sourcePaths,
-                    targetFileName,
-                    alignedTimelineEndSeconds,
-                    validationError,
-                });
-                DeleteTemporaryOutput(temporaryTargetFileName);
-                result = await Task.Run(
-                    () => FfmpegMediaEngine.RemuxFiles(
-                        sourcePaths,
-                        temporaryTargetFileName,
-                        metadata,
-                        token,
-                        sourceTimelineEndSeconds: sourceTimelineEndSeconds,
-                        maximumTimelineEndSeconds: alignedTimelineEndSeconds,
-                        strictTimelineLimit: true),
-                    token);
-                if (result.WasCanceled)
-                {
-                    throw new OperationCanceledException(token);
-                }
-                ReportStorageFailureIfNeeded(result, sourcePaths);
-                (succeeded, validationError) = await ValidateConversionAsync(
-                    result,
-                    temporaryTargetFileName,
-                    sourceProbes,
-                    optimizedAudioExpected: false,
-                    recordingExpectedDuration,
-                    token,
-                    maximumTimelineEndSeconds: alignedTimelineEndSeconds);
-                ApplyValidationIssue(metadata, validationError);
             }
             metadata.HasOptimizedAudio = optimizeAudio;
             await Task.Run(
@@ -583,7 +578,7 @@ public sealed class Converter
     {
         List<VideoRecordingIssueInterval> mergedIntervals = VideoRecordingMetadataStore.CloneIssueIntervals(metadata.IssueIntervals);
         string mergedIssues = metadata.MediaIssue ?? string.Empty;
-        double offset = sourceProbes.Count > 0 ? Math.Max(0d, sourceProbes[0].DurationSeconds) : 0d;
+        double offset = sourceProbes.Count > 0 ? GetSourceTimelineEndSeconds(sourceProbes[0]) : 0d;
         for (int sourceIndex = 1; sourceIndex < sourceFileInfos.Count; sourceIndex++)
         {
             VideoRecordingMetadata sourceMetadata = VideoRecordingMetadataStore.Load(sourceFileInfos[sourceIndex]);
@@ -591,7 +586,7 @@ public sealed class Converter
             mergedIntervals = VideoRecordingMetadataStore.MergeIssueIntervals(
                 mergedIntervals,
                 VideoRecordingMetadataStore.OffsetIssueIntervals(sourceMetadata.IssueIntervals, offset));
-            offset += sourceIndex < sourceProbes.Count ? Math.Max(0d, sourceProbes[sourceIndex].DurationSeconds) : 0d;
+            offset += sourceIndex < sourceProbes.Count ? GetSourceTimelineEndSeconds(sourceProbes[sourceIndex]) : 0d;
         }
         metadata.MediaIssue = mergedIssues;
         metadata.IssueIntervals = mergedIntervals;
@@ -749,11 +744,7 @@ public sealed class Converter
             }
             double sourceAudioEndSeconds = sourceProbes.Sum(probe => Math.Max(0d, probe.AudioEndSeconds));
             double sourceVideoEndSeconds = sourceProbes.Sum(probe => Math.Max(0d, probe.VideoEndSeconds));
-            if (!IsTrackTimelineWithinTolerance(
-                    output.AudioEndSeconds,
-                    output.VideoEndSeconds,
-                    sourceAudioEndSeconds,
-                    sourceVideoEndSeconds))
+            if (!IsTrackTimelineWithinTolerance(output.AudioEndSeconds, output.VideoEndSeconds))
             {
                 return $"output_track_timeline_mismatch:audio={output.AudioEndSeconds:F3},video={output.VideoEndSeconds:F3}";
             }
@@ -910,6 +901,22 @@ public sealed class Converter
             || Math.Abs(audioEndSeconds - videoEndSeconds) <= 2d;
     }
 
+    internal static int FindFirstSourceTimelineMismatchIndex(IReadOnlyList<FfmpegMediaProbeResult> probes)
+    {
+        for (int index = 0; index < probes.Count; index++)
+        {
+            FfmpegMediaProbeResult probe = probes[index];
+            if (probe.HasAudio
+                && probe.HasVideo
+                && !IsTrackTimelineWithinTolerance(probe.AudioEndSeconds, probe.VideoEndSeconds))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
     internal static double GetTimelineIssueStartSeconds(double audioEndSeconds, double videoEndSeconds)
     {
         return Math.Abs(audioEndSeconds - videoEndSeconds) > MaximumTrackTimelineDifferenceSeconds
@@ -923,23 +930,8 @@ public sealed class Converter
         double sourceAudioEndSeconds,
         double sourceVideoEndSeconds)
     {
-        if (IsTrackTimelineWithinTolerance(audioEndSeconds, videoEndSeconds))
-        {
-            return true;
-        }
-        if (sourceAudioEndSeconds <= 0d || sourceVideoEndSeconds <= 0d)
-        {
-            return Math.Abs(audioEndSeconds - videoEndSeconds) <= MaximumTrackTimelineDifferenceSeconds;
-        }
-
-        double outputDifference = audioEndSeconds - videoEndSeconds;
-        double sourceDifference = sourceAudioEndSeconds - sourceVideoEndSeconds;
-        if (Math.Sign(outputDifference) != Math.Sign(sourceDifference))
-        {
-            return false;
-        }
-
-        return Math.Abs(outputDifference) <= Math.Abs(sourceDifference) + 2d;
+        return IsTrackTimelineWithinTolerance(audioEndSeconds, videoEndSeconds)
+            && IsTrackTimelineWithinTolerance(sourceAudioEndSeconds, sourceVideoEndSeconds);
     }
 
     private static void DeleteTemporaryOutput(string? path)

@@ -23,6 +23,16 @@ public sealed class MediaOperationRegistryTests
     }
 
     [Fact]
+    public void CleanupRegistration_ExcludesConcurrentMediaOperationOnTheSamePath()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"emerde-cleanup-{Guid.NewGuid():N}.ts");
+        using IDisposable? cleanup = MediaOperationRegistry.TryRegister(MediaOperationKind.Cleanup, [path]);
+
+        Assert.NotNull(cleanup);
+        Assert.Null(MediaOperationRegistry.TryRegister(MediaOperationKind.Split, [path]));
+    }
+
+    [Fact]
     public void Register_ProtectsExactAndSegmentPathsUntilDisposed()
     {
         string directory = Path.Combine(Path.GetTempPath(), $"emerde-operation-{Guid.NewGuid():N}");

@@ -29,6 +29,8 @@ internal static class MediaDiagnostics
                 hasVideo = probe.HasVideo,
                 audioStreamCount = probe.AudioStreamCount,
                 videoStreamCount = probe.VideoStreamCount,
+                audioStartSeconds = Math.Round(Math.Max(0d, probe.AudioStartSeconds), 3),
+                videoStartSeconds = Math.Round(Math.Max(0d, probe.VideoStartSeconds), 3),
                 audioEndSeconds = Math.Round(Math.Max(0d, probe.AudioEndSeconds), 3),
                 videoEndSeconds = Math.Round(Math.Max(0d, probe.VideoEndSeconds), 3),
                 durationSeconds = Math.Round(Math.Max(0d, probe.DurationSeconds), 3),

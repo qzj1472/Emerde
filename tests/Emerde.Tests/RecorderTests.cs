@@ -442,18 +442,24 @@ public sealed class RecorderTests
     }
 
     [Fact]
-    public void InputFallback_RemovesFailedOutputBeforeAdvancingSessionPart()
+    public void InputFallback_PreservesExistingSessionParts()
     {
-        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "Recorder.cs"));
-        int fallbackStart = source.IndexOf("string? fallbackUrl = SelectInputFallback(", StringComparison.Ordinal);
-        int failedOutputDelete = source.IndexOf("DeleteFailedOutputFiles(outputFileName", fallbackStart, StringComparison.Ordinal);
-        int fallbackContinue = source.IndexOf("continue;", failedOutputDelete, StringComparison.Ordinal);
-        int sessionPartAdvance = source.IndexOf("sessionPartIndex = GetRecordedSourceFilesForPattern(sessionOutputPattern!).Length;", fallbackContinue, StringComparison.Ordinal);
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-recorder-fallback-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string pattern = Path.Combine(directory, "record_%03d.ts");
+        string oldPart = Path.Combine(directory, "record_000.ts");
+        File.WriteAllBytes(oldPart, [1]);
 
-        Assert.True(fallbackStart >= 0);
-        Assert.True(failedOutputDelete > fallbackStart);
-        Assert.True(fallbackContinue > failedOutputDelete);
-        Assert.True(sessionPartAdvance > fallbackContinue);
+        try
+        {
+            Recorder.DeleteFallbackOutputFiles(pattern, metadataPath: null, isSessionPartFile: true);
+
+            Assert.True(File.Exists(oldPart));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     [Fact]
@@ -648,6 +654,51 @@ public sealed class RecorderTests
     }
 
     [Fact]
+    public void NextSessionPartIndex_UsesMaximumExistingIndexWhenThereIsAGap()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-recorder-index-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string pattern = Path.Combine(directory, "record_%03d.ts");
+
+        try
+        {
+            File.WriteAllBytes(Path.Combine(directory, "record_000.ts"), [1]);
+            File.WriteAllBytes(Path.Combine(directory, "record_002.ts"), [1]);
+
+            Assert.Equal(3, Recorder.GetNextSessionPartIndex(pattern));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MediaWorkerIncompleteOutputCleanup_PreservesPartsBeforeAttemptStartIndex()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-worker-cleanup-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string pattern = Path.Combine(directory, "record_%03d.ts");
+        string previousPart = Path.Combine(directory, "record_002.ts");
+        string currentPart = Path.Combine(directory, "record_003.ts");
+
+        try
+        {
+            File.WriteAllBytes(previousPart, [1]);
+            File.WriteAllBytes(currentPart, [1]);
+
+            MediaWorker.DeleteIncompleteOutputs(pattern, 3);
+
+            Assert.True(File.Exists(previousPart));
+            Assert.False(File.Exists(currentPart));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void MediaWorkerOutputLength_SumsMatchingSegmentFiles()
     {
         string directory = Path.Combine(Path.GetTempPath(), $"emerde-worker-progress-{Guid.NewGuid():N}");
@@ -786,7 +837,7 @@ public sealed class RecorderTests
     {
         FfmpegMediaRunResult result = new(1, false, true, "timeline stalled", RequiresInputRestart: true);
 
-        Assert.Equal(MediaWorker.TimelineRestartExitCode, MediaWorker.GetProcessExitCode(result));
+        Assert.Equal(MediaWorker.OutputTimelineMismatchExitCode, MediaWorker.GetProcessExitCode(result));
     }
 
     [Theory]

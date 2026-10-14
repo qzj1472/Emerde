@@ -38,6 +38,10 @@ internal static class MediaFileWorkflow
         try
         {
             VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(source);
+            if (!FfmpegMediaEngine.TryProbe(source.FullName, out FfmpegMediaProbeResult sourceProbe, out _, operationCancellation.Token))
+            {
+                return new MediaFileWorkflowResult(false, [], "Source media could not be probed.");
+            }
             FfmpegMediaRunResult result = await Task.Run(() => FfmpegMediaEngine.SplitFile(
                 source.FullName,
                 temporaryPattern,
@@ -54,6 +58,12 @@ internal static class MediaFileWorkflow
                 || temporaryOutputs.Any(path => new FileInfo(path).Length == 0))
             {
                 return new MediaFileWorkflowResult(false, [], result.ErrorOutput);
+            }
+            if (!temporaryOutputs.All(path => IsValidOutput(path, sourceProbe.HasAudio, sourceProbe.HasVideo, operationCancellation.Token))
+                || !TryProbeAll(temporaryOutputs, out FfmpegMediaProbeResult[] splitProbes, operationCancellation.Token)
+                || !Converter.IsDurationWithinTolerance(sourceProbe.DurationSeconds, splitProbes.Sum(probe => probe.DurationSeconds)))
+            {
+                return new MediaFileWorkflowResult(false, [], "Split outputs failed media validation.");
             }
 
             List<string> outputs = [];
@@ -84,11 +94,11 @@ internal static class MediaFileWorkflow
                 }
                 return new MediaFileWorkflowResult(true, outputs);
             }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or OperationCanceledException)
             {
                 DeleteFiles(outputs);
                 AppSessionLogger.WriteException(exception);
-                return new MediaFileWorkflowResult(false, [], exception.Message);
+                return new MediaFileWorkflowResult(false, [], exception is OperationCanceledException ? "Operation canceled." : exception.Message);
             }
         }
         finally
@@ -141,6 +151,10 @@ internal static class MediaFileWorkflow
         bool targetCommitted = false;
         try
         {
+            if (!TryProbeAll(sources.Select(file => file.FullName).ToArray(), out FfmpegMediaProbeResult[] sourceProbes, operationCancellation.Token))
+            {
+                return new MediaFileWorkflowResult(false, [], "Source media could not be probed.");
+            }
             FfmpegMediaRunResult result = await Task.Run(() => FfmpegMediaEngine.RemuxFiles(
                 sources.Select(file => file.FullName).ToArray(),
                 temporaryPath,
@@ -159,6 +173,16 @@ internal static class MediaFileWorkflow
                 || new FileInfo(temporaryPath).Length == 0)
             {
                 return new MediaFileWorkflowResult(false, [], result.ErrorOutput);
+            }
+            if (!IsValidOutput(
+                    temporaryPath,
+                    sourceProbes.Any(probe => probe.HasAudio),
+                    sourceProbes.Any(probe => probe.HasVideo),
+                    operationCancellation.Token)
+                || !FfmpegMediaEngine.TryProbe(temporaryPath, out FfmpegMediaProbeResult mergedProbe, out _, operationCancellation.Token)
+                || !Converter.IsDurationWithinTolerance(sourceProbes.Sum(probe => probe.DurationSeconds), mergedProbe.DurationSeconds))
+            {
+                return new MediaFileWorkflowResult(false, [], "Merged output failed media validation.");
             }
 
             File.Move(temporaryPath, targetPath, false);
@@ -179,14 +203,14 @@ internal static class MediaFileWorkflow
             progress?.Report(100);
             return new MediaFileWorkflowResult(true, [targetPath]);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or OperationCanceledException)
         {
             if (targetCommitted)
             {
                 DeleteFiles([targetPath]);
             }
             AppSessionLogger.WriteException(exception);
-            return new MediaFileWorkflowResult(false, [], exception.Message);
+            return new MediaFileWorkflowResult(false, [], exception is OperationCanceledException ? "Operation canceled." : exception.Message);
         }
         finally
         {
@@ -212,6 +236,31 @@ internal static class MediaFileWorkflow
             .ToArray();
         return signatures.All(signature => !string.IsNullOrWhiteSpace(signature))
             && signatures.Distinct(StringComparer.Ordinal).Count() == 1;
+    }
+
+    private static bool TryProbeAll(IReadOnlyList<string> paths, out FfmpegMediaProbeResult[] probes, CancellationToken token)
+    {
+        probes = new FfmpegMediaProbeResult[paths.Count];
+        for (int index = 0; index < paths.Count; index++)
+        {
+            token.ThrowIfCancellationRequested();
+            if (!FfmpegMediaEngine.TryProbe(paths[index], out probes[index], out _, token))
+            {
+                probes = [];
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsValidOutput(string path, bool requireAudio, bool requireVideo, CancellationToken token)
+    {
+        return FfmpegMediaEngine.TryProbe(path, out FfmpegMediaProbeResult probe, out _, token)
+            && (probe.HasAudio || probe.HasVideo)
+            && (!requireAudio || probe.HasAudio)
+            && (!requireVideo || probe.HasVideo)
+            && probe.DurationSeconds > 0d;
     }
 
     internal static Task<IDisposable?> TryRegisterOperationAsync(

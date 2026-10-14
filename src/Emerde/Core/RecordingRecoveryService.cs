@@ -893,20 +893,17 @@ internal static class RecordingRecoveryService
             PersistSegmentReason(sourceFiles, sourceMetadata);
         }
 
-        if (IsUsableSource(item.CompletedTargetPath))
+        if (IsUsableSource(item.CompletedTargetPath)
+            && (!item.MergeSessionParts || sourceFiles.Length == 0))
         {
-            if (!item.MergeSessionParts || DeleteSources(item.SourcePattern))
+            (bool finalized, string[] finalizedSourceFiles) = await TryFinalizeOutputsAsync(path, item, sourceFiles, token);
+            if (!finalized)
             {
-                (bool finalized, string[] finalizedSourceFiles) = await TryFinalizeOutputsAsync(path, item, sourceFiles, token);
-                if (!finalized)
-                {
-                    return false;
-                }
-                await PublishFinalizedMediaAsync(path, item, finalizedSourceFiles, sourceMetadata, token);
-                DeleteMarker(path);
-                return true;
+                return false;
             }
-            return false;
+            await PublishFinalizedMediaAsync(path, item, finalizedSourceFiles, sourceMetadata, token);
+            DeleteMarker(path);
+            return true;
         }
 
         using CancellationTokenSource operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -1015,7 +1012,7 @@ internal static class RecordingRecoveryService
             });
             if (!string.Equals(failureReason, "storage_low", StringComparison.Ordinal))
             {
-                _ = Save(path, item);
+                SaveFailureStateOrQuarantine(path, item, "transient recovery state could not be saved");
             }
             return false;
         }
@@ -1039,7 +1036,7 @@ internal static class RecordingRecoveryService
                     item.LastFailureReason,
                 });
             }
-            _ = Save(path, item);
+            SaveFailureStateOrQuarantine(path, item, "recovery failure state could not be saved");
         }
         return false;
     }
@@ -1203,7 +1200,24 @@ internal static class RecordingRecoveryService
 
         if (mergeSessionParts)
         {
+            if (IsSessionPattern(sourcePattern) && !HasConsecutiveSessionPartIndices(sources, sourcePattern))
+            {
+                onFailure?.Invoke("session_segment_gap: source segment indices are not consecutive");
+                return false;
+            }
+
             List<string[]> compatibleGroups = GroupConsecutiveCompatibleSources(sources, tokenSource?.Token ?? CancellationToken.None);
+            Action<string>? CreateMergeCompletionCallback(IReadOnlyList<string> group)
+            {
+                return completedPath =>
+                {
+                    onMergeCompleted?.Invoke(completedPath);
+                    foreach (string source in group)
+                    {
+                        onSourceCompleted?.Invoke(source, completedPath);
+                    }
+                };
+            }
             if (compatibleGroups.Count > 1
                 || (compatibleGroups.Count == 1 && compatibleGroups[0].Length != sources.Length))
             {
@@ -1236,7 +1250,7 @@ internal static class RecordingRecoveryService
                         targetFormat,
                         removeSource,
                         completedSources,
-                        onMergeCompleted,
+                        CreateMergeCompletionCallback(group),
                         onSourceCompleted,
                         onSourceTargetReserved,
                         onMergeTargetReserved,
@@ -1263,7 +1277,7 @@ internal static class RecordingRecoveryService
                     sources,
                     new ConverterOptions(targetFormat, optimizeAudio),
                     tokenSource,
-                    onCompleted: onMergeCompleted,
+                    onCompleted: CreateMergeCompletionCallback(sources),
                     onTargetReserved: onMergeTargetReserved,
                     onFailed: onFailure))
                 {
@@ -1452,6 +1466,50 @@ internal static class RecordingRecoveryService
 
         groups.Add(current.ToArray());
         return groups;
+    }
+
+    internal static bool HasConsecutiveSessionPartIndices(IReadOnlyList<string> sources, string sourcePattern)
+    {
+        if (sources.Count < 2)
+        {
+            return true;
+        }
+
+        long? previousIndex = null;
+        string patternFileName = Path.GetFileName(sourcePattern);
+        int markerIndex = patternFileName.IndexOf("%03d", StringComparison.Ordinal);
+        if (markerIndex < 0)
+        {
+            return true;
+        }
+
+        string prefix = patternFileName[..markerIndex];
+        string suffix = patternFileName[(markerIndex + 4)..];
+        foreach (string source in MediaFileCatalog.OrderSegmentPaths(sources, sourcePattern))
+        {
+            string fileName = Path.GetFileName(source);
+            int numberLength = fileName.Length - prefix.Length - suffix.Length;
+            if (numberLength < 3
+                || !fileName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                || !fileName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
+                || !long.TryParse(
+                    fileName.AsSpan(prefix.Length, numberLength),
+                    System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out long currentIndex))
+            {
+                return false;
+            }
+
+            if (previousIndex.HasValue && currentIndex != previousIndex.Value + 1)
+            {
+                return false;
+            }
+
+            previousIndex = currentIndex;
+        }
+
+        return true;
     }
 
 
@@ -2831,7 +2889,8 @@ internal static class RecordingRecoveryService
 
     internal static bool IsTerminalRecoveryFailure(string? failureReason)
     {
-        return failureReason?.Contains("output_track_timeline_mismatch", StringComparison.Ordinal) == true
+        return failureReason?.Contains("session_segment_gap", StringComparison.Ordinal) == true
+            || failureReason?.Contains("output_track_timeline_mismatch", StringComparison.Ordinal) == true
             || IsMaterialDurationFailure(failureReason)
             || failureReason?.Contains("native_exit_code:-28", StringComparison.OrdinalIgnoreCase) == true
             || failureReason?.Contains("no space left", StringComparison.OrdinalIgnoreCase) == true
@@ -2970,7 +3029,7 @@ internal static class RecordingRecoveryService
             if (IsTransientRecoveryFailure(reason))
             {
                 ResetFailureState(item);
-                _ = Save(path, item);
+                SaveFailureStateOrQuarantine(path, item, "transient recovery state could not be saved");
                 return;
             }
 
@@ -2988,8 +3047,25 @@ internal static class RecordingRecoveryService
             item.BlockedSourceStateFingerprint = item.RetryBlocked
                 ? CreateSourceStateFingerprint(sourceFiles)
                 : string.Empty;
-            _ = Save(path, item);
+            SaveFailureStateOrQuarantine(path, item, "recovery failure state could not be saved");
         }
+    }
+
+    private static void SaveFailureStateOrQuarantine(string path, PendingRecording item, string reason)
+    {
+        if (Save(path, item))
+        {
+            return;
+        }
+
+        AppSessionLogger.Event("error", "recovery", "recovery_state_save_failed", reason, new
+        {
+            path,
+            item.SourcePattern,
+            item.FailureCount,
+            item.LastFailureReason,
+        });
+        QuarantineInvalidMarker(path, reason);
     }
 
     private static bool IsValidStatePath(string path, string extension, string stateDirectory)

@@ -692,6 +692,19 @@ internal static class RecordingCleanupService
                     continue;
                 }
 
+                using IDisposable? cleanupRegistration = MediaOperationRegistry.TryRegister(
+                    MediaOperationKind.Cleanup,
+                    [recording.Path]);
+                if (cleanupRegistration == null)
+                {
+                    AddOrUpdateWithoutSaving(recording with
+                    {
+                        ExpiresAtUtc = DateTime.UtcNow + ProtectedRetryDelay,
+                        RetryCount = recording.RetryCount + 1,
+                    });
+                    continue;
+                }
+
                 if (!TryGetFileIdentity(recording.Path, out string currentIdentity)
                     || !string.Equals(currentIdentity, recording.FileIdentity, StringComparison.Ordinal)
                     || file.Length != recording.Length

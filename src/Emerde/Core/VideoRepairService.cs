@@ -276,7 +276,7 @@ internal sealed class VideoRepairService
         return result;
     }
 
-    private static string GetValidationError(FfmpegMediaProbeResult source, FfmpegMediaProbeResult output)
+    internal static string GetValidationError(FfmpegMediaProbeResult source, FfmpegMediaProbeResult output)
     {
         if (!output.HasAudio && !output.HasVideo)
         {
@@ -290,15 +290,6 @@ internal sealed class VideoRepairService
         {
             return "repair_output_video_missing";
         }
-        if (!Converter.IsTrackTimelineWithinTolerance(
-                output.AudioEndSeconds,
-                output.VideoEndSeconds,
-                source.AudioEndSeconds,
-                source.VideoEndSeconds))
-        {
-            return $"repair_output_track_timeline_mismatch:audio={output.AudioEndSeconds:F3},video={output.VideoEndSeconds:F3}";
-        }
-
         double sourceTimelineEndSeconds = Math.Max(source.AudioEndSeconds, source.VideoEndSeconds);
         if (sourceTimelineEndSeconds > 0d
             && !Converter.IsDurationWithinTolerance(sourceTimelineEndSeconds, output.DurationSeconds))

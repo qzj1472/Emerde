@@ -74,6 +74,27 @@ public sealed class RecordingRecoveryServiceTests
         Assert.Equal(["c.ts"], groups[2]);
     }
 
+    [Theory]
+    [InlineData("session_%03d.ts", "session_003.ts", "session_004.ts", true)]
+    [InlineData("session_%03d.ts", "session_003.ts", "session_005.ts", false)]
+    [InlineData("session_%03d.ts", "session_010.ts", "session_011.ts", true)]
+    public void HasConsecutiveSessionPartIndices_RejectsMissingSegments(
+        string pattern,
+        string first,
+        string second,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            RecordingRecoveryService.HasConsecutiveSessionPartIndices([first, second], pattern));
+    }
+
+    [Fact]
+    public void SessionSegmentGap_IsATerminalRecoveryFailure()
+    {
+        Assert.True(RecordingRecoveryService.IsTerminalRecoveryFailure("session_segment_gap: missing segment"));
+    }
+
     [Fact]
     public void FinalizeOutputs_PreserveSegmentSuffixOnlyForStallSplits()
     {

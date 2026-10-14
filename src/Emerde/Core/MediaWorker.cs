@@ -5,7 +5,7 @@ namespace Emerde.Core;
 internal static class MediaWorker
 {
     public const string ModeArgument = "--emerde-media-worker";
-    internal const int TimelineRestartExitCode = 74;
+    internal const int OutputTimelineMismatchExitCode = 74;
     private const string LegacyExecutablePattern = "*-EmerdeWorker-*.exe";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -44,10 +44,12 @@ internal static class MediaWorker
 
     private static int Run(string commandPath)
     {
+        MediaWorkerCommand? command = null;
+        int segmentStartIndex = 0;
         try
         {
             string json = File.ReadAllText(commandPath);
-            MediaWorkerCommand? command = JsonSerializer.Deserialize<MediaWorkerCommand>(json, JsonOptions);
+            command = JsonSerializer.Deserialize<MediaWorkerCommand>(json, JsonOptions);
             DeleteCommandFile(commandPath);
             if (command == null)
             {
@@ -64,6 +66,7 @@ internal static class MediaWorker
             long lastVideoTimelineTimestamp = -1;
             bool hasVideoStream = false;
             bool hasAudioStream = false;
+            segmentStartIndex = Math.Max(0, command.SegmentOptions?.StartIndex ?? 0);
             using CancellationTokenSource stopSource = new();
             _ = StartControlInputReader(stopSource, Console.In);
             FfmpegInputOptions inputOptions = new(command.UserAgent, command.Headers, command.IsUseProxy, command.HttpProxy, true);
@@ -123,6 +126,7 @@ internal static class MediaWorker
                              FfmpegTimelineEventKind.VideoRecovered => "r",
                              FfmpegTimelineEventKind.AudioRecovered => "u",
                              FfmpegTimelineEventKind.InitialAligned => "i",
+                             FfmpegTimelineEventKind.OutputTimelineMismatch => "m",
                              _ => string.Empty,
                          };
                         Console.Out.WriteLine($"timeline|{eventCode}|{packetProgress.TimelineGapMicroseconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{videoPackets.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{audioPackets.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
@@ -167,7 +171,7 @@ internal static class MediaWorker
 
             if (!result.HadMediaProgress)
             {
-                DeleteIncompleteOutputs(command.OutputFileName);
+                DeleteIncompleteOutputs(command.OutputFileName, segmentStartIndex);
                 return GetProcessExitCode(result);
             }
 
@@ -188,7 +192,7 @@ internal static class MediaWorker
     {
         if (result.RequiresInputRestart)
         {
-            return TimelineRestartExitCode;
+            return OutputTimelineMismatchExitCode;
         }
 
         return result.ExitCode == 0 && !result.HadMediaProgress ? 1 : result.ExitCode;
@@ -382,7 +386,7 @@ internal static class MediaWorker
         return found ? totalLength : fallback;
     }
 
-    private static void DeleteIncompleteOutputs(string path)
+    internal static void DeleteIncompleteOutputs(string path, int segmentStartIndex)
     {
         try
         {
@@ -409,7 +413,9 @@ internal static class MediaWorker
                 if (numberLength >= 3
                     && fileName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
                     && fileName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
-                    && fileName.AsSpan(prefix.Length, numberLength).ToString().All(char.IsDigit))
+                    && fileName.AsSpan(prefix.Length, numberLength).ToString().All(char.IsDigit)
+                    && int.TryParse(fileName.AsSpan(prefix.Length, numberLength), out int segmentIndex)
+                    && segmentIndex >= segmentStartIndex)
                 {
                     File.Delete(candidate);
                 }

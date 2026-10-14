@@ -11,6 +11,7 @@ internal enum RecordingFinalizationFailureKind
     TargetCollision,
     Rename,
     Metadata,
+    AssociatedAssets,
 }
 
 internal sealed record RecordingFinalizationResult(
@@ -89,22 +90,19 @@ internal static partial class RecordingFinalizationService
         {
             if (!PathsEqual(mediaPath, targetPath))
             {
+                if (!RecordingAssociatedAssets.Move(mediaPath, targetPath))
+                {
+                    RollBackCommittedRename(targetPath, mediaPath, metadata);
+                    return new RecordingFinalizationResult(false, mediaPath, metadata, "associated recording assets could not be moved", RecordingFinalizationFailureKind.AssociatedAssets);
+                }
                 VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(mediaPath);
-                _ = RecordingAssociatedAssets.Move(mediaPath, targetPath);
             }
             return new RecordingFinalizationResult(true, targetPath, metadata);
         }
 
         if (!PathsEqual(mediaPath, targetPath))
         {
-            lock (RenameLock)
-            {
-                if (File.Exists(targetPath) && !File.Exists(mediaPath))
-                {
-                    File.Move(targetPath, mediaPath, false);
-                }
-            }
-            _ = RecordingAssociatedAssets.Move(targetPath, mediaPath);
+            RollBackCommittedRename(targetPath, mediaPath, metadata);
         }
         return new RecordingFinalizationResult(false, mediaPath, metadata, "metadata could not be stored", RecordingFinalizationFailureKind.Metadata);
     }
@@ -155,6 +153,21 @@ internal static partial class RecordingFinalizationService
         _ = VideoRecordingMetadataStore.WriteCompletedMetadata(originalPath, result.Metadata);
         _ = RecordingAssociatedAssets.Move(result.Path, originalPath);
         VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(result.Path);
+    }
+
+    private static void RollBackCommittedRename(string targetPath, string sourcePath, VideoRecordingMetadata metadata)
+    {
+        lock (RenameLock)
+        {
+            if (File.Exists(targetPath) && !File.Exists(sourcePath))
+            {
+                File.Move(targetPath, sourcePath, false);
+            }
+        }
+        metadata.FileName = Path.GetFileName(sourcePath);
+        _ = VideoRecordingMetadataStore.WriteCompletedMetadata(sourcePath, metadata);
+        _ = RecordingAssociatedAssets.Move(targetPath, sourcePath);
+        VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(targetPath);
     }
 
     internal static string BuildTemporaryStem(string nickName)
@@ -208,7 +221,9 @@ internal static partial class RecordingFinalizationService
         metadata.AudioCodec = string.IsNullOrWhiteSpace(probe.AudioCodec) ? metadata.AudioCodec : probe.AudioCodec;
         metadata.DurationSeconds = probe.DurationSeconds > 0 ? probe.DurationSeconds : metadata.DurationSeconds;
         metadata.HasOptimizedAudio = metadata.HasOptimizedAudio || hasOptimizedAudio || probe.HasOptimizedAudio;
-        if (metadata.RecordedAt > DateTime.MinValue && metadata.DurationSeconds > 0)
+        if (metadata.EndedAt <= DateTime.MinValue
+            && metadata.RecordedAt > DateTime.MinValue
+            && metadata.DurationSeconds > 0)
         {
             metadata.EndedAt = metadata.RecordedAt.AddSeconds(metadata.DurationSeconds);
         }

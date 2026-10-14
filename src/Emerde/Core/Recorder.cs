@@ -330,7 +330,15 @@ public sealed class Recorder
                 }
                 else
                 {
-                    unregisteredSessionRecordings.Add((sessionOutputPattern, sessionTargetFormat, false));
+                    Volatile.Write(ref deferPostProcessing, 1);
+                    AppSessionLogger.Event("error", "recorder", "record_recovery_registration_failed", "recording was not started because its recovery marker could not be persisted", new
+                    {
+                        startInfo.RoomUrl,
+                        startInfo.NickName,
+                        sourcePattern = sessionOutputPattern,
+                    });
+                    startInfo.RecoveryRegistrationFailed?.Invoke();
+                    return;
                 }
             }
             while (!token.IsCancellationRequested && Volatile.Read(ref stopRequested) == 0)
@@ -387,7 +395,15 @@ public sealed class Recorder
                     }
                     else
                     {
-                        unregisteredRecordingPatterns.Add(FileName);
+                        Volatile.Write(ref deferPostProcessing, 1);
+                        AppSessionLogger.Event("error", "recorder", "record_recovery_registration_failed", "recording attempt was not started because its recovery marker could not be persisted", new
+                        {
+                            startInfo.RoomUrl,
+                            startInfo.NickName,
+                            sourcePattern = FileName,
+                        });
+                        startInfo.RecoveryRegistrationFailed?.Invoke();
+                        return;
                     }
                     outputFileName = FileName;
                 }
@@ -459,7 +475,7 @@ public sealed class Recorder
                 {
                     if (!useSessionPartFiles && !storageFailure && !storageExhausted)
                     {
-                        FinalizeMetadataForOutput(FileName, MetadataPath);
+                        FinalizeMetadataForOutput(FileName, MetadataPath, EndTime);
                     }
                     break;
                 }
@@ -490,7 +506,7 @@ public sealed class Recorder
                 {
                     string failedUrl = Url ?? string.Empty;
                     string selectedFallbackUrl = fallbackUrl;
-                    DeleteFailedOutputFiles(outputFileName, useSessionPartFiles ? null : MetadataPath);
+                    DeleteFallbackOutputFiles(outputFileName, MetadataPath, useSessionPartFiles);
                     Url = selectedFallbackUrl;
                     startInfo.RecordUrl = selectedFallbackUrl;
                     hasTriedInputFallback = true;
@@ -512,14 +528,14 @@ public sealed class Recorder
 
                 if (hasSessionOutput)
                 {
-                    sessionPartIndex = GetRecordedSourceFilesForPattern(sessionOutputPattern!).Length;
+                    sessionPartIndex = GetNextSessionPartIndex(sessionOutputPattern!);
                 }
 
                 if (!useSessionPartFiles
                     && !storageExhausted
                     && !RecordingStorageGuard.IsExhausted(saveFolder, out _))
                 {
-                    FinalizeMetadataForOutput(FileName, MetadataPath);
+                    FinalizeMetadataForOutput(FileName, MetadataPath, EndTime);
                 }
 
                 bool hasStreamRefresh = startInfo.RefreshStreamAsync != null;
@@ -739,7 +755,7 @@ public sealed class Recorder
                 }
                 if (!storageExhausted)
                 {
-                    FinalizeMetadataForOutput(FileName ?? string.Empty, MetadataPath);
+                    FinalizeMetadataForOutput(FileName ?? string.Empty, MetadataPath, EndTime);
                     DeleteMetadataIfNoOutput(FileName ?? string.Empty, MetadataPath);
                 }
                 lock (stateLock)
@@ -1175,7 +1191,6 @@ public sealed class Recorder
             processCancellation.Cancel();
             await CancelCrossStreamVerificationAsync();
             await Task.WhenAll(outputTask, errorTask);
-            wasStalled |= process.ExitCode == MediaWorker.TimelineRestartExitCode;
             lastAttemptWasAudioContentAnomaly = audioContentRestartRequested;
             exitCode = wasStalled ? 1 : process.ExitCode;
         }
@@ -1590,6 +1605,7 @@ public sealed class Recorder
                 {
                     bool videoStalled = timelineEvent == FfmpegTimelineEventKind.VideoStalled;
                     bool audioStalled = timelineEvent == FfmpegTimelineEventKind.AudioStalled;
+                    bool outputTimelineMismatch = timelineEvent == FfmpegTimelineEventKind.OutputTimelineMismatch;
                     string action = timelineEvent switch
                     {
                          FfmpegTimelineEventKind.VideoStalled => "record_video_timeline_stalled",
@@ -1597,6 +1613,7 @@ public sealed class Recorder
                          FfmpegTimelineEventKind.VideoRecovered => "record_video_timeline_recovered",
                          FfmpegTimelineEventKind.AudioRecovered => "record_audio_timeline_recovered",
                          FfmpegTimelineEventKind.InitialAligned => "record_initial_timeline_aligned",
+                         FfmpegTimelineEventKind.OutputTimelineMismatch => "record_output_timeline_mismatch",
                          _ => "record_timeline_event",
                     };
                     string message = timelineEvent switch
@@ -1606,10 +1623,11 @@ public sealed class Recorder
                          FfmpegTimelineEventKind.VideoRecovered => "video timeline resumed on a keyframe and was aligned with audio",
                          FfmpegTimelineEventKind.AudioRecovered => "audio timeline resumed and both tracks were aligned at the last safe timestamp",
                          FfmpegTimelineEventKind.InitialAligned => "video and audio startup timelines were aligned before recording output",
+                         FfmpegTimelineEventKind.OutputTimelineMismatch => "packet timestamp normalization changed the relative audio-video timeline; the recording worker will reconnect",
                          _ => "media timeline state changed",
                     };
                     AppSessionLogger.Event(
-                        videoStalled || audioStalled ? "warn" : "info",
+                        videoStalled || audioStalled || outputTimelineMismatch ? "warn" : "info",
                         "recorder",
                         action,
                         message,
@@ -1625,22 +1643,29 @@ public sealed class Recorder
                             videoPackets = timelineVideoPackets,
                             audioPackets = timelineAudioPackets,
                         });
-                    if (videoStalled || audioStalled)
+                    if (videoStalled || audioStalled || outputTimelineMismatch)
                     {
                         double gapSeconds = gapMicroseconds / 1_000_000d;
-                        double endSeconds = videoStalled
+                        double endSeconds = videoStalled || outputTimelineMismatch
                             ? (lastAudioPtsSeconds >= 0d ? lastAudioPtsSeconds : lastVideoPtsSeconds)
                             : (lastVideoPtsSeconds >= 0d ? lastVideoPtsSeconds : lastAudioPtsSeconds);
-                        double startSeconds = endSeconds >= 0d && gapSeconds > 0d
-                            ? Math.Max(0d, endSeconds - gapSeconds)
-                            : -1d;
+                        double startSeconds = outputTimelineMismatch
+                            ? endSeconds
+                            : endSeconds >= 0d && gapSeconds > 0d
+                                ? Math.Max(0d, endSeconds - gapSeconds)
+                                : -1d;
                         RecordIssueInterval(
                             metadata,
                             "timeline_mismatch",
                             startSeconds,
                             endSeconds >= 0d ? endSeconds : -1d,
-                            videoStalled ? "video_stalled" : "audio_stalled");
-                        StartCrossStreamVerification(startInfo, verificationToken);
+                            outputTimelineMismatch
+                                ? "output_timestamp_normalization_mismatch"
+                                : videoStalled ? "video_stalled" : "audio_stalled");
+                        if (!outputTimelineMismatch)
+                        {
+                            StartCrossStreamVerification(startInfo, verificationToken);
+                        }
                     }
                     continue;
                 }
@@ -1979,6 +2004,7 @@ public sealed class Recorder
              "r" => FfmpegTimelineEventKind.VideoRecovered,
              "u" => FfmpegTimelineEventKind.AudioRecovered,
              "i" => FfmpegTimelineEventKind.InitialAligned,
+            "m" => FfmpegTimelineEventKind.OutputTimelineMismatch,
             _ => FfmpegTimelineEventKind.None,
         };
         return timelineEvent != FfmpegTimelineEventKind.None;
@@ -2211,9 +2237,9 @@ public sealed class Recorder
         }
     }
 
-    private static void FinalizeMetadataForOutput(string fileName, string? metadataPath)
+    private static void FinalizeMetadataForOutput(string fileName, string? metadataPath, DateTime endedAt)
     {
-        _ = VideoRecordingMetadataStore.FinalizeSidecarForMedia(GetRecordedSourceFilesForPattern(fileName), metadataPath);
+        _ = VideoRecordingMetadataStore.FinalizeSidecarForMedia(GetRecordedSourceFilesForPattern(fileName), metadataPath, endedAt);
     }
 
     private static void RequestProcessExit(Process process)
@@ -2719,6 +2745,21 @@ public sealed class Recorder
         }
     }
 
+    internal static void DeleteFallbackOutputFiles(string outputFileName, string? metadataPath, bool isSessionPartFile)
+    {
+        if (!isSessionPartFile)
+        {
+            DeleteFailedOutputFiles(outputFileName, metadataPath);
+        }
+    }
+
+    internal static int GetNextSessionPartIndex(string sessionOutputPattern)
+    {
+        return MediaFileCatalog.GetNextSegmentIndex(
+            GetRecordedSourceFilesForPattern(sessionOutputPattern),
+            sessionOutputPattern);
+    }
+
     public Task WaitForCompletionAsync()
     {
         lock (stateLock)
@@ -2859,10 +2900,12 @@ public sealed class Recorder
             {
                 string baseFileName = suffix == 1 ? requestedBaseFileName : $"{requestedBaseFileName}_{suffix}";
                 string outputPattern = BuildOutputFileName(saveFolder, baseFileName, isToSegment, isHls);
-                if (!ReservedOutputPatterns.Contains(outputPattern) && !OutputExists(saveFolder, baseFileName, outputPattern, isToSegment))
+                if (!ReservedOutputPatterns.Contains(outputPattern)
+                    && !OutputExists(saveFolder, baseFileName, outputPattern, isToSegment)
+                    && TryAcquireOutputLease(outputPattern) is FileStream lease)
                 {
                     ReservedOutputPatterns.Add(outputPattern);
-                    return new OutputReservation(baseFileName, outputPattern);
+                    return new OutputReservation(baseFileName, outputPattern, lease);
                 }
 
                 suffix++;
@@ -2879,14 +2922,36 @@ public sealed class Recorder
             {
                 string baseFileName = suffix == 1 ? requestedBaseFileName : $"{requestedBaseFileName}_{suffix}";
                 string outputPattern = BuildSessionOutputFileName(saveFolder, baseFileName, sourceExtension);
-                if (!ReservedOutputPatterns.Contains(outputPattern) && !OutputExists(saveFolder, baseFileName, outputPattern, isToSegment: true))
+                if (!ReservedOutputPatterns.Contains(outputPattern)
+                    && !OutputExists(saveFolder, baseFileName, outputPattern, isToSegment: true)
+                    && TryAcquireOutputLease(outputPattern) is FileStream lease)
                 {
                     ReservedOutputPatterns.Add(outputPattern);
-                    return new OutputReservation(baseFileName, outputPattern);
+                    return new OutputReservation(baseFileName, outputPattern, lease);
                 }
 
                 suffix++;
             }
+        }
+    }
+
+    private static FileStream? TryAcquireOutputLease(string outputPattern)
+    {
+        string leasePath = outputPattern.Replace("%03d", "segments", StringComparison.Ordinal)
+            + ".emerde-reservation";
+        try
+        {
+            return new FileStream(
+                leasePath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None,
+                1,
+                FileOptions.DeleteOnClose);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return null;
         }
     }
 
@@ -2929,7 +2994,7 @@ public sealed class Recorder
             || candidateStem.StartsWith(baseFileName + "_", StringComparison.OrdinalIgnoreCase);
     }
 
-    internal sealed class OutputReservation(string baseFileName, string outputPattern) : IDisposable
+    internal sealed class OutputReservation(string baseFileName, string outputPattern, FileStream lease) : IDisposable
     {
         public string BaseFileName { get; } = baseFileName;
 
@@ -2941,6 +3006,7 @@ public sealed class Recorder
             {
                 ReservedOutputPatterns.Remove(OutputPattern);
             }
+            lease.Dispose();
         }
     }
 
@@ -3300,6 +3366,8 @@ public record RecorderStartInfo
     internal Action? ReconnectExhausted { get; set; }
 
     internal Action? RapidExitDetected { get; set; }
+
+    internal Action? RecoveryRegistrationFailed { get; set; }
 
     internal Action<string?>? StorageExhausted { get; set; }
 }

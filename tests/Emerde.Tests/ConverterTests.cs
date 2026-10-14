@@ -21,6 +21,16 @@ public sealed class ConverterTests
         Assert.Equal(expected, Converter.IsTrackTimelineWithinTolerance(audioEndSeconds, videoEndSeconds));
     }
 
+    [Fact]
+    public void SourceSegmentTimelineValidation_DoesNotLetOppositeTailErrorsCancel()
+    {
+        FfmpegMediaProbeResult aligned = CreateProbe(10, 10);
+        FfmpegMediaProbeResult audioAhead = CreateProbe(14, 10);
+        FfmpegMediaProbeResult videoAhead = CreateProbe(10, 14);
+
+        Assert.Equal(1, Converter.FindFirstSourceTimelineMismatchIndex([aligned, audioAhead, videoAhead]));
+    }
+
     [Theory]
     [InlineData(100, 100, 100)]
     [InlineData(102, 100, 100)]
@@ -52,14 +62,15 @@ public sealed class ConverterTests
     }
 
     [Theory]
-    [InlineData(4257.260, 4278.433, 4257.100, 4278.300, true)]
-    [InlineData(22255.046, 22348.884, 22255.000, 22348.762, true)]
-    [InlineData(96, 100, 96, 100, true)]
-    [InlineData(94.999, 100, 94, 100, true)]
+    [InlineData(4257.260, 4278.433, 4257.100, 4278.300, false)]
+    [InlineData(22255.046, 22348.884, 22255.000, 22348.762, false)]
+    [InlineData(96, 100, 96, 100, false)]
+    [InlineData(94.999, 100, 94, 100, false)]
     [InlineData(90, 100, 100, 100, false)]
     [InlineData(110, 100, 90, 100, false)]
+    [InlineData(100, 100, 90, 100, false)]
     [InlineData(0, 100, 0, 100, true)]
-    public void TrackTimelineValidation_PreservesSourceTrackTailDifference(
+    public void TrackTimelineValidation_RejectsSourceOrOutputTrackTailDifference(
         double audioEndSeconds,
         double videoEndSeconds,
         double sourceAudioEndSeconds,
@@ -110,6 +121,28 @@ public sealed class ConverterTests
 
         Assert.True(Converter.TryGetAlignedTimelineEnd([first, second], out double endSeconds));
         Assert.Equal(90, endSeconds);
+    }
+
+    private static FfmpegMediaProbeResult CreateProbe(double audioEndSeconds, double videoEndSeconds)
+    {
+        return new FfmpegMediaProbeResult(
+            true,
+            true,
+            1,
+            1,
+            audioEndSeconds,
+            videoEndSeconds,
+            1920,
+            1080,
+            30,
+            Math.Max(audioEndSeconds, videoEndSeconds),
+            0,
+            "h264",
+            "aac",
+            false,
+            string.Empty,
+            new VideoRecordingMetadata(),
+            false);
     }
 
     [Theory]
