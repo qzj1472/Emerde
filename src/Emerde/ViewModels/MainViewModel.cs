@@ -3510,7 +3510,11 @@ public partial class MainViewModel : ReactiveObject, IDisposable
                     string avatarLocalPath = await CacheAvatarAsync(room.RoomUrl, result);
                     Application.Current.Dispatcher.Invoke(() =>
                     {
-                        ApplyRoomInfoResult(room, result, avatarLocalPath);
+                        if (RoomStatuses.Contains(room)
+                            && Configurations.Rooms.Get().Any(item => string.Equals(item.RoomUrl, room.RoomUrl, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            ApplyRoomInfoResult(room, result, avatarLocalPath);
+                        }
                     });
                     return true;
                 });

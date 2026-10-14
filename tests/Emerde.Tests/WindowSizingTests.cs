@@ -26,6 +26,32 @@ public sealed class WindowSizingTests
     }
 
     [Theory]
+    [InlineData(680, 760, 800, 900, 1, 1, 680, 760)]
+    [InlineData(680, 760, 600, 700, 1, 1, 510, 595)]
+    [InlineData(680, 760, 1200, 1000, 2, 2, 510, 425)]
+    public void ContentDialogSize_StaysWithinDpiScaledWorkingArea(
+        double requestedWidth,
+        double requestedHeight,
+        double workAreaWidth,
+        double workAreaHeight,
+        double dpiScaleX,
+        double dpiScaleY,
+        double expectedWidth,
+        double expectedHeight)
+    {
+        System.Windows.Size size = WindowSizing.CalculateBoundedContentDialogSize(
+            requestedWidth,
+            requestedHeight,
+            workAreaWidth,
+            workAreaHeight,
+            dpiScaleX,
+            dpiScaleY);
+
+        Assert.Equal(expectedWidth, size.Width);
+        Assert.Equal(expectedHeight, size.Height);
+    }
+
+    [Theory]
     [InlineData(1d, 0.70d)]
     [InlineData(1.25d, 0.775d)]
     [InlineData(1.5d, 0.85d)]
@@ -97,18 +123,8 @@ public sealed class WindowSizingTests
         string sizingSource = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "WindowSizing.cs"));
         string mainWindowSource = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "MainWindow.xaml.cs"));
 
-        Assert.Contains("ApplyFixedContentDialogWidth(dialog, fixedWidth.Value)", sizingSource, StringComparison.Ordinal);
-        Assert.Contains("dialog.Width = width", sizingSource, StringComparison.Ordinal);
-        Assert.Contains("dialog.MinWidth = width", sizingSource, StringComparison.Ordinal);
-        Assert.Contains("dialog.MaxWidth = width", sizingSource, StringComparison.Ordinal);
-        Assert.Contains("dialog.Resources[DialogMinWidthResource] = width", sizingSource, StringComparison.Ordinal);
-        Assert.Contains("dialog.Resources[DialogMaxWidthResource] = width", sizingSource, StringComparison.Ordinal);
-        Assert.Contains("ApplyFixedContentDialogHeight(dialog, fixedHeight.Value)", sizingSource, StringComparison.Ordinal);
-        Assert.Contains("dialog.Height = height", sizingSource, StringComparison.Ordinal);
-        Assert.Contains("dialog.MinHeight = height", sizingSource, StringComparison.Ordinal);
-        Assert.Contains("dialog.MaxHeight = height", sizingSource, StringComparison.Ordinal);
-        Assert.Contains("dialog.Resources[DialogMinHeightResource] = height", sizingSource, StringComparison.Ordinal);
-        Assert.Contains("dialog.Resources[DialogMaxHeightResource] = height", sizingSource, StringComparison.Ordinal);
+        Assert.Contains("CalculateBoundedContentDialogSize", sizingSource, StringComparison.Ordinal);
+        Assert.Contains("ApplyBoundedContentDialogSize(dialog, size)", sizingSource, StringComparison.Ordinal);
         Assert.Contains("WindowSizing.ShowContentDialogAsync(dialog, this, 680d, 760d)", mainWindowSource, StringComparison.Ordinal);
     }
 
@@ -145,8 +161,8 @@ public sealed class WindowSizingTests
         XElement root = document.Root!;
         XElement content = root.Elements().First(element => !element.Name.LocalName.EndsWith("Resources", StringComparison.Ordinal));
 
-        Assert.Equal("680", (string?)root.Attribute("Width"));
-        Assert.Equal("760", (string?)root.Attribute("Height"));
+        Assert.Null(root.Attribute("Width"));
+        Assert.Null(root.Attribute("Height"));
         Assert.Null(content.Attribute("Width"));
         XElement scrollViewer = content.Descendants().Single(element => element.Name.LocalName == "ScrollViewer");
         Assert.Equal("Stretch", (string?)scrollViewer.Attribute("HorizontalContentAlignment"));

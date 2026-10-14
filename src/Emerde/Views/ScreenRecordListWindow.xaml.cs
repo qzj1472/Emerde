@@ -91,6 +91,7 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
     private Point videoMarqueeStart;
     private Point videoMarqueePointer;
     private readonly HashSet<RecordedVideoItem> videoMarqueeItems = [];
+    private readonly Dictionary<RecordedVideoItem, Rect> videoMarqueeBounds = [];
     private RecordedVideoItem? videoMarqueePressedItem;
     private int videoMarqueeClickCount;
     private IDisposable? videoSelectionRegistration;
@@ -902,6 +903,7 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         videoMarqueeCandidate = false;
         isVideoMarqueeSelecting = true;
         videoMarqueeItems.Clear();
+        videoMarqueeBounds.Clear();
         VideoSelectionRectangle.Visibility = Visibility.Visible;
         VideoListBox.CaptureMouse();
         UpdateVideoMarquee(position);
@@ -980,16 +982,29 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
 
     private void AccumulateVideoMarqueeItems(Rect selection)
     {
-        videoMarqueeItems.Clear();
+        foreach (RecordedVideoItem video in videoMarqueeBounds.Keys.ToArray())
+        {
+            if (!selection.IntersectsWith(videoMarqueeBounds[video]))
+            {
+                videoMarqueeBounds.Remove(video);
+            }
+        }
+
         foreach (ListBoxItem item in EnumerateVisualDescendants<ListBoxItem>(VideoListBox))
         {
             if (TryGetElementBounds(item, VideoListBox, out Rect bounds)
-                && selection.IntersectsWith(ProjectVideoMarqueeToContent(bounds))
                 && item.DataContext is RecordedVideoItem video)
             {
-                videoMarqueeItems.Add(video);
+                Rect contentBounds = ProjectVideoMarqueeToContent(bounds);
+                if (selection.IntersectsWith(contentBounds))
+                {
+                    videoMarqueeBounds[video] = contentBounds;
+                }
             }
         }
+
+        videoMarqueeItems.Clear();
+        videoMarqueeItems.UnionWith(videoMarqueeBounds.Keys);
     }
 
     private void UpdateVideoMarqueeAutoScroll()
@@ -1048,11 +1063,13 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         if (!commit || selection.Width < 1d || selection.Height < 1d)
         {
             videoMarqueeItems.Clear();
+            videoMarqueeBounds.Clear();
             return;
         }
 
         ViewModel.ReplaceSelectionWithItems(videoMarqueeItems);
         videoMarqueeItems.Clear();
+        videoMarqueeBounds.Clear();
     }
 
     private Point GetVideoMarqueeContentPoint(Point viewportPoint)
@@ -1314,6 +1331,13 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
 
     private void ScreenRecordListWindowPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && ViewModel.IsModalOpen)
+        {
+            ViewModel.CloseModalCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.Escape && ViewModel.IsMultiSelectMode)
         {
             if (ViewModel.HasSelectedVideos)
@@ -4686,10 +4710,12 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         if (!move)
         {
             string temporaryTargetPath = MediaFileCatalog.CreateTemporaryPath(targetFilePath, "copy");
+            bool targetCommitted = false;
             try
             {
                 CopyAndVerifyFile(sourceFilePath, temporaryTargetPath);
                 File.Move(temporaryTargetPath, targetFilePath, overwrite: false);
+                targetCommitted = true;
                 CopyAssociatedMetadata(sourceFilePath, targetFilePath);
                 if (!RecordingAssociatedAssets.Copy(sourceFilePath, targetFilePath))
                 {
@@ -4700,9 +4726,12 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             catch
             {
                 DeleteFileIfExists(temporaryTargetPath);
-                DeleteFileIfExists(targetFilePath);
-                VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(targetFilePath);
-                RecordingAssociatedAssets.Delete(targetFilePath);
+                if (targetCommitted)
+                {
+                    DeleteFileIfExists(targetFilePath);
+                    VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(targetFilePath);
+                    RecordingAssociatedAssets.Delete(targetFilePath);
+                }
                 throw;
             }
         }

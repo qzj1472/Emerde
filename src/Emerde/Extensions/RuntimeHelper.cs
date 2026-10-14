@@ -10,22 +10,28 @@ internal static class RuntimeHelper
 {
     private const string RestartParentArgumentPrefix = "--emerde-restart-parent=";
     private const string ShutdownEventSuffix = ".Shutdown";
+    private static EventWaitHandle? singleInstanceHandle;
 
-    public static void CheckSingleInstance(string instanceName, Action<bool> callback = null!)
+    public static bool TryAcquireSingleInstance(string instanceName)
     {
-        EventWaitHandle? handle;
-
-        try
+        EventWaitHandle handle = new(false, EventResetMode.AutoReset, instanceName, out bool createdNew);
+        if (!createdNew)
         {
-            handle = EventWaitHandle.OpenExisting(instanceName);
             handle.Set();
-            callback?.Invoke(false);
-            Environment.Exit(0xFFFF);
+            handle.Dispose();
+            return false;
         }
-        catch (WaitHandleCannotBeOpenedException)
+
+        singleInstanceHandle = handle;
+        return true;
+    }
+
+    public static void StartSingleInstanceListener()
+    {
+        EventWaitHandle? handle = singleInstanceHandle;
+        if (handle == null)
         {
-            callback?.Invoke(true);
-            handle = new EventWaitHandle(false, EventResetMode.AutoReset, instanceName);
+            return;
         }
 
         _ = Task.Factory.StartNew(() =>

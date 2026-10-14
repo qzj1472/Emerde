@@ -15,8 +15,6 @@
                    PrimaryButtonText="{I18N ButtonOfAcknowledge}"
                    SnapsToDevicePixels="True"
                    Style="{StaticResource EmerdeContentDialogStyle}"
-                   Height="760"
-                   Width="680"
                    UseLayoutRounding="True"
                    mc:Ignorable="d">
     <vio:ContentDialog.Resources>

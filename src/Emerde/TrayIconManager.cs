@@ -106,6 +106,17 @@ internal sealed class TrayIconManager : IDisposable
             return;
         }
 
+        if (!ConfigurationSaveScheduler.TrySaveNow())
+        {
+            ConfigurationSaveScheduler.Request();
+            Notifier.AddNotice(
+                "Emerde",
+                "ConfigurationSaveFailedRetrying".Tr(),
+                ConfigurationSaveScheduler.LastSaveError?.Message ?? string.Empty);
+            Interlocked.Exchange(ref shutdownInProgress, 0);
+            return;
+        }
+
         IsShutdownTriggered = true;
         Dispose();
         Application.Current.MainWindow?.Hide();
@@ -152,6 +163,17 @@ internal sealed class TrayIconManager : IDisposable
 
         if (confirmRecording && !await ConfirmRecordingInterruptionAsync())
         {
+            Interlocked.Exchange(ref shutdownInProgress, 0);
+            return false;
+        }
+
+        if (!ConfigurationSaveScheduler.TrySaveNow())
+        {
+            ConfigurationSaveScheduler.Request();
+            Notifier.AddNotice(
+                "Emerde",
+                "ConfigurationSaveFailedRetrying".Tr(),
+                ConfigurationSaveScheduler.LastSaveError?.Message ?? string.Empty);
             Interlocked.Exchange(ref shutdownInProgress, 0);
             return false;
         }

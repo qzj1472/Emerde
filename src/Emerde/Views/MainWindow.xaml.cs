@@ -904,10 +904,20 @@ public partial class MainWindow : FluentWindow
         return isFullScreen && message == WmSysCommand && (commandType == ScSize || commandType == ScMove);
     }
 
+    internal static bool ShouldIgnoreRepeatedGlobalToggleShortcut(Key key, ModifierKeys modifiers, bool isRepeat)
+    {
+        return isRepeat && IsAllRoomsToggleShortcut(key, modifiers);
+    }
+
     private void MainWindowPreviewKeyDown(object sender, KeyEventArgs e)
     {
         Key key = GetShortcutKey(e);
         ModifierKeys modifiers = Keyboard.Modifiers;
+
+        if (ShouldIgnoreRepeatedGlobalToggleShortcut(key, modifiers, e.IsRepeat))
+        {
+            return;
+        }
 
         if (ShouldBypassAppShortcutsForDialog(IsModalDialogActive()))
         {
@@ -1329,6 +1339,11 @@ public partial class MainWindow : FluentWindow
 
         Key key = KeyInterop.KeyFromVirtualKey(msg.wParam.ToInt32());
         ModifierKeys modifiers = Keyboard.Modifiers;
+        bool isRepeat = (msg.lParam.ToInt64() & 0x40000000L) != 0;
+        if (ShouldIgnoreRepeatedGlobalToggleShortcut(key, modifiers, isRepeat))
+        {
+            return;
+        }
         if (ShouldBypassAppShortcutsForDialog(IsModalDialogActive()))
         {
             return;

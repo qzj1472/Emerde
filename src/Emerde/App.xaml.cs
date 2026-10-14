@@ -157,8 +157,7 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        RuntimeHelper.WaitForRestartParent(e.Args);
-        RuntimeHelper.CheckSingleInstance(AppConfig.PackName + (Debugger.IsAttached ? "_DEBUG" : string.Empty));
+        RuntimeHelper.StartSingleInstanceListener();
         try
         {
             AppSessionLogger.Start();

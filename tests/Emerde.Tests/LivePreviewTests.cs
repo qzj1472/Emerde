@@ -340,6 +340,18 @@ public sealed class LivePreviewTests
         Assert.False(MainWindow.IsAllRoomsToggleShortcut(key, System.Windows.Input.ModifierKeys.Shift));
     }
 
+    [Theory]
+    [InlineData(System.Windows.Input.Key.M)]
+    [InlineData(System.Windows.Input.Key.R)]
+    public void RoomToggleShortcuts_IgnoreAutoRepeat(System.Windows.Input.Key key)
+    {
+        System.Windows.Input.ModifierKeys modifiers = System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift;
+
+        Assert.True(MainWindow.ShouldIgnoreRepeatedGlobalToggleShortcut(key, modifiers, true));
+        Assert.False(MainWindow.ShouldIgnoreRepeatedGlobalToggleShortcut(key, modifiers, false));
+        Assert.False(MainWindow.ShouldIgnoreRepeatedGlobalToggleShortcut(key, System.Windows.Input.ModifierKeys.Control, true));
+    }
+
     [Fact]
     public void RoomToggleToolTips_MatchAssignedModifierCombinations()
     {

@@ -28,6 +28,21 @@ internal static class WindowSizing
             : value;
     }
 
+    internal static System.Windows.Size CalculateBoundedContentDialogSize(
+        double requestedWidth,
+        double requestedHeight,
+        double workAreaWidth,
+        double workAreaHeight,
+        double dpiScaleX,
+        double dpiScaleY)
+    {
+        double maxWidth = Math.Max(1d, workAreaWidth * ScreenRatio / Math.Max(0.1d, dpiScaleX));
+        double maxHeight = Math.Max(1d, workAreaHeight * ScreenRatio / Math.Max(0.1d, dpiScaleY));
+        return new System.Windows.Size(
+            RoundLayoutValue(Math.Min(requestedWidth, maxWidth)),
+            RoundLayoutValue(Math.Min(requestedHeight, maxHeight)));
+    }
+
     public static void UseRelativeScreenSize(Window window, double baseWidth, double baseHeight)
     {
         window.SourceInitialized += (_, _) => ApplyScreenRelative(window, baseWidth, baseHeight);
@@ -57,13 +72,21 @@ internal static class WindowSizing
         openContentDialogCount++;
         RemoveContentDialogSizeLimits(dialog);
         ContentDialogFocusService.Attach(dialog);
-        if (fixedWidth is > 0d && double.IsFinite(fixedWidth.Value))
+        if (fixedWidth is > 0d && double.IsFinite(fixedWidth.Value)
+            && fixedHeight is > 0d && double.IsFinite(fixedHeight.Value))
         {
-            ApplyFixedContentDialogWidth(dialog, fixedWidth.Value);
-        }
-        if (fixedHeight is > 0d && double.IsFinite(fixedHeight.Value))
-        {
-            ApplyFixedContentDialogHeight(dialog, fixedHeight.Value);
+            System.Windows.Forms.Screen screen = owner is { IsLoaded: true }
+                ? GetTargetScreen(owner)
+                : System.Windows.Forms.Screen.PrimaryScreen ?? System.Windows.Forms.Screen.AllScreens.First();
+            DpiScale dpi = owner is { IsLoaded: true } ? VisualTreeHelper.GetDpi(owner) : new DpiScale(1d, 1d);
+            System.Windows.Size size = CalculateBoundedContentDialogSize(
+                fixedWidth.Value,
+                fixedHeight.Value,
+                screen.WorkingArea.Width,
+                screen.WorkingArea.Height,
+                dpi.DpiScaleX,
+                dpi.DpiScaleY);
+            ApplyBoundedContentDialogSize(dialog, size);
         }
         try
         {
@@ -87,6 +110,20 @@ internal static class WindowSizing
         dialog.Resources[DialogMinHeightResource] = 0d;
         dialog.Resources[DialogMaxWidthResource] = double.PositiveInfinity;
         dialog.Resources[DialogMaxHeightResource] = double.PositiveInfinity;
+    }
+
+    private static void ApplyBoundedContentDialogSize(ContentDialog dialog, System.Windows.Size size)
+    {
+        dialog.Width = size.Width;
+        dialog.Height = size.Height;
+        dialog.MinWidth = 0d;
+        dialog.MinHeight = 0d;
+        dialog.MaxWidth = size.Width;
+        dialog.MaxHeight = size.Height;
+        dialog.Resources[DialogMinWidthResource] = 0d;
+        dialog.Resources[DialogMinHeightResource] = 0d;
+        dialog.Resources[DialogMaxWidthResource] = size.Width;
+        dialog.Resources[DialogMaxHeightResource] = size.Height;
     }
 
     internal static void ApplyFixedContentDialogWidth(ContentDialog dialog, double width)

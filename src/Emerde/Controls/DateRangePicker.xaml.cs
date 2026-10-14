@@ -53,6 +53,8 @@ public partial class DateRangePicker : WpfUserControl
         BuildWeekdayHeaders();
         UpdateDisplayText();
         BuildMonths();
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
     }
 
     public DateTime? StartDate
@@ -84,6 +86,30 @@ public partial class DateRangePicker : WpfUserControl
     public ObservableCollection<string> WeekdayHeaders { get; } = [];
 
     public ObservableCollection<DateRangeDay> MonthDays { get; } = [];
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        Locale.CultureChanged -= OnCultureChanged;
+        Locale.CultureChanged += OnCultureChanged;
+        RefreshLocalizedContent();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        Locale.CultureChanged -= OnCultureChanged;
+    }
+
+    private void OnCultureChanged(object? sender, EventArgs e)
+    {
+        Dispatcher.Invoke(RefreshLocalizedContent);
+    }
+
+    private void RefreshLocalizedContent()
+    {
+        BuildWeekdayHeaders();
+        UpdateDisplayText();
+        BuildMonths();
+    }
 
     internal static DateRangeSelectionResult SelectPoint(DateTime? anchorDate, bool awaitingSecondPoint, DateTime point)
     {
