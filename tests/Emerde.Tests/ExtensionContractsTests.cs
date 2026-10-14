@@ -709,6 +709,25 @@ public sealed class ExtensionContractsTests
     }
 
     [Fact]
+    public async Task ExtensionHostRuntime_SkipsSameEventReentryInsteadOfWaitingOnItsOwnGate()
+    {
+        string eventName = $"test.event.reentrant.{Guid.NewGuid():N}";
+        int invocations = 0;
+        using IDisposable subscription = ExtensionHostRuntime.Subscribe<string>(
+            "test.reentrant-extension",
+            eventName,
+            async (_, cancellationToken) =>
+            {
+                Interlocked.Increment(ref invocations);
+                await ExtensionHostRuntime.PublishAsync(eventName, "nested", cancellationToken);
+            });
+
+        await ExtensionHostRuntime.PublishAsync(eventName, "outer").WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(1, invocations);
+    }
+
+    [Fact]
     public void RecorderStopOverride_InterceptsAndRestoresDefaultStopPath()
     {
         Recorder recorder = new();

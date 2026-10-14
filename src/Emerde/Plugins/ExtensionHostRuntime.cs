@@ -13,6 +13,7 @@ public static class ExtensionHostRuntime
     internal static readonly TimeSpan CleanupTimeout = TimeSpan.FromSeconds(8);
     private static readonly ConcurrentDictionary<string, object> HostObjects = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> EventPublishGates = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly AsyncLocal<HashSet<string>?> ActiveEventPublishes = new();
     private static readonly object RegistrationLock = new();
     private static readonly List<OverrideRegistration> Overrides = [];
     private static readonly List<EventRegistration> EventSubscriptions = [];
@@ -68,10 +69,19 @@ public static class ExtensionHostRuntime
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(eventName);
         ArgumentNullException.ThrowIfNull(payload);
+        HashSet<string> activePublishes = ActiveEventPublishes.Value ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!activePublishes.Add(eventName))
+        {
+            AppSessionLogger.Event("warn", "extension", "event_publish_reentrant", "reentrant event publication was skipped", new { eventName });
+            return;
+        }
+
         SemaphoreSlim publishGate = EventPublishGates.GetOrAdd(eventName, static _ => new SemaphoreSlim(1, 1));
-        await publishGate.WaitAsync(cancellationToken);
         try
         {
+            await publishGate.WaitAsync(cancellationToken);
+            try
+            {
             EventRegistration[] subscriptions;
             lock (RegistrationLock)
             {
@@ -85,10 +95,15 @@ public static class ExtensionHostRuntime
                 eventName,
                 payload,
                 cancellationToken)));
+            }
+            finally
+            {
+                publishGate.Release();
+            }
         }
         finally
         {
-            publishGate.Release();
+            activePublishes.Remove(eventName);
         }
     }
 
@@ -100,7 +115,9 @@ public static class ExtensionHostRuntime
     {
         try
         {
-            await subscription.Handler(payload!, cancellationToken).AsTask().WaitAsync(EventHandlerTimeout, cancellationToken);
+            using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(EventHandlerTimeout);
+            await subscription.Handler(payload!, timeout.Token).AsTask().WaitAsync(timeout.Token);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

@@ -161,6 +161,7 @@ public sealed partial class ExtensionService
                 {
                     await LoadInProcessExtensionIfNeededAsync(installed, cancellationToken);
                 }
+                await SaveStateAsync(cancellationToken);
                 TryDeleteDirectory(backupDirectory);
             }
             catch
@@ -176,7 +177,6 @@ public sealed partial class ExtensionService
                 }
                 throw;
             }
-            await SaveStateAsync(cancellationToken);
             AppSessionLogger.Event("info", "extension", isUpdate ? "updated" : "installed", "extension package installed", new
             {
                 manifest.Id,
@@ -404,7 +404,10 @@ public sealed partial class ExtensionService
             }
             foreach (Process process in runningProcesses.Values.ToArray())
             {
-                TryKill(process);
+                if (!await TryKillAndWaitAsync(process))
+                {
+                    throw new IOException("An extension process did not exit during shutdown.");
+                }
             }
         }
         finally
@@ -658,9 +661,13 @@ public sealed partial class ExtensionService
 
     private async Task UnloadExtensionAsync(string extensionId, CancellationToken cancellationToken)
     {
-        if (runningProcesses.TryRemove(extensionId, out Process? process))
+        if (runningProcesses.TryGetValue(extensionId, out Process? process))
         {
-            TryKill(process);
+            if (!await TryKillAndWaitAsync(process))
+            {
+                throw new IOException("The extension process did not exit; its directory was left in place.");
+            }
+            runningProcesses.TryRemove(new KeyValuePair<string, Process>(extensionId, process));
             process.Dispose();
         }
         if (!loadedExtensions.TryRemove(extensionId, out LoadedExtension? loaded))
@@ -747,12 +754,12 @@ public sealed partial class ExtensionService
         }
         catch (OperationCanceledException)
         {
-            TryKill(process);
+            await TryKillAndWaitAsync(process);
             return Failure(cancellationToken.IsCancellationRequested ? "ExtensionTaskCanceled".Tr() : "ExtensionTaskTimedOut".Tr());
         }
         catch (Exception e) when (e is IOException or InvalidOperationException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
         {
-            TryKill(process);
+            await TryKillAndWaitAsync(process);
             AppSessionLogger.WriteException(e);
             return Failure(e.Message);
         }
@@ -1140,6 +1147,29 @@ public sealed partial class ExtensionService
         }
     }
 
+    private static async Task<bool> TryKillAndWaitAsync(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(true);
+                await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(8));
+            }
+            return process.HasExited;
+        }
+        catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
+        {
+            AppSessionLogger.WriteException(e);
+            return false;
+        }
+        catch (TimeoutException e)
+        {
+            AppSessionLogger.WriteException(e);
+            return false;
+        }
+    }
+
     private static void TryKill(Process process)
     {
         try
@@ -1149,9 +1179,9 @@ public sealed partial class ExtensionService
                 process.Kill(true);
             }
         }
-        catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
+        catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
         {
-            AppSessionLogger.WriteException(e);
+            AppSessionLogger.WriteException(exception);
         }
     }
 
