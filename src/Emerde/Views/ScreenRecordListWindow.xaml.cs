@@ -1187,7 +1187,7 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
             MenuItem menuItem = new()
             {
                 Header = entry.Label,
-                IsEnabled = entry.IsEnabled,
+                IsEnabled = !item.IsRecordingFile && entry.IsEnabled,
                 Tag = new ExtensionVideoActionTag(entry.Id),
             };
             menuItem.Click += async (_, _) =>
@@ -1223,7 +1223,7 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
             case "OpenFolder":
                 menuItem.Command = viewModel.OpenDirectoryCommand;
                 menuItem.CommandParameter = item;
-                menuItem.IsEnabled = item.CanModify;
+                menuItem.IsEnabled = item.CanModify || CanOpenDirectoryForRecording(item);
                 break;
             case "Rename":
                 menuItem.Command = viewModel.RenameVideoCommand;
@@ -1261,6 +1261,13 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
                 menuItem.IsEnabled = item.CanModify;
                 break;
         }
+    }
+
+    private static bool CanOpenDirectoryForRecording(RecordedVideoItem item)
+    {
+        return item.IsRecordingFile
+            && !string.IsNullOrWhiteSpace(item.DirectoryPath)
+            && Directory.Exists(item.DirectoryPath);
     }
 
     private sealed record ExtensionVideoActionMenuEntry(
@@ -2765,7 +2772,10 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
     [RelayCommand]
     private async Task OpenDirectoryAsync(RecordedVideoItem? item)
     {
-        if (item == null || !item.CanSelect || string.IsNullOrWhiteSpace(item.DirectoryPath) || !Directory.Exists(item.DirectoryPath))
+        if (item == null
+            || (!item.CanSelect && !item.IsRecordingFile)
+            || string.IsNullOrWhiteSpace(item.DirectoryPath)
+            || !Directory.Exists(item.DirectoryPath))
         {
             AppFeedback.Warning(GetResourceText("OpenFolderFailed", "Folder does not exist"));
             return;
