@@ -102,9 +102,6 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
     private int videoRefreshFlashGeneration;
     private MainWindow? hostMainWindow;
     private VideoListToolbarLayoutMode? videoToolbarLayoutMode;
-    private Popup? openAttributeStatusPopup;
-    private FrameworkElement? openAttributeStatusChip;
-
     public ScreenRecordListViewModel ViewModel { get; } = new();
 
     public double VideoCardGridWidth
@@ -178,7 +175,6 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         Unloaded += ScreenRecordListWindowUnloaded;
         IsVisibleChanged += ScreenRecordListWindowIsVisibleChanged;
         PreviewKeyDown += ScreenRecordListWindowPreviewKeyDown;
-        PreviewMouseLeftButtonDown += ScreenRecordListWindowPreviewMouseLeftButtonDown;
         VideoSelectionHost.AddHandler(
             UIElement.PreviewMouseLeftButtonDownEvent,
             new MouseButtonEventHandler(VideoSelectionHostPreviewMouseLeftButtonDown),
@@ -214,7 +210,6 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
 
     private void ScreenRecordListWindowUnloaded(object sender, RoutedEventArgs e)
     {
-        CloseAttributeStatusPopup();
         if (extensionUiSubscribed)
         {
             ExtensionHostRuntime.UiContributionsChanged -= ExtensionUiContributionsChanged;
@@ -676,7 +671,6 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
     {
         if (e.NewValue is false)
         {
-            CloseAttributeStatusPopup();
             FinishVideoMarquee(false);
             ViewModel.ResetSelectionForPageNavigation();
             return;
@@ -769,7 +763,6 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
     {
         if (e.VerticalChange != 0 || e.ExtentHeightChange != 0)
         {
-            CloseAttributeStatusPopup();
         }
         ScheduleVisibleVideoLoading();
         UpdateVideoListEdgeFades(e.OriginalSource as ScrollViewer);
@@ -1314,13 +1307,6 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
 
     private void ScreenRecordListWindowPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && openAttributeStatusPopup is { IsOpen: true })
-        {
-            CloseAttributeStatusPopup();
-            e.Handled = true;
-            return;
-        }
-
         if (e.Key == Key.Escape && ViewModel.IsMultiSelectMode)
         {
             if (ViewModel.HasSelectedVideos)
@@ -1499,131 +1485,10 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
             {
                 return true;
             }
-            if (source is FrameworkElement element
-                && string.Equals(element.Name, "VideoAttributeStatusChip", StringComparison.Ordinal)
-                && element.DataContext is RecordedVideoItem item
-                && item.CanOpenAttributeStatusPopup)
-            {
-                return true;
-            }
-
             source = GetElementParent(source);
         }
 
         return false;
-    }
-
-    private void ScreenRecordListWindowPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (!ShouldCloseAttributeStatusPopupOnOutsideClick(
-                openAttributeStatusPopup is { IsOpen: true },
-                IsClickOnOpenAttributeStatusChip(e.OriginalSource as DependencyObject)))
-        {
-            return;
-        }
-
-        CloseAttributeStatusPopup();
-    }
-
-    internal static bool ShouldCloseAttributeStatusPopupOnOutsideClick(bool isOpen, bool clickOnOpenChip)
-    {
-        return isOpen && !clickOnOpenChip;
-    }
-
-    private bool IsClickOnOpenAttributeStatusChip(DependencyObject? source)
-    {
-        while (source != null)
-        {
-            if (ReferenceEquals(source, openAttributeStatusChip))
-            {
-                return true;
-            }
-
-            source = GetElementParent(source);
-        }
-
-        return false;
-    }
-
-    private void CloseAttributeStatusPopup()
-    {
-        if (openAttributeStatusPopup != null)
-        {
-            openAttributeStatusPopup.Closed -= AttributeStatusPopupClosed;
-            openAttributeStatusPopup.IsOpen = false;
-            openAttributeStatusPopup = null;
-        }
-
-        openAttributeStatusChip = null;
-    }
-
-    private void AttributeStatusPopupClosed(object? sender, EventArgs e)
-    {
-        if (sender is Popup popup)
-        {
-            popup.Closed -= AttributeStatusPopupClosed;
-        }
-
-        if (ReferenceEquals(sender, openAttributeStatusPopup))
-        {
-            openAttributeStatusPopup = null;
-            openAttributeStatusChip = null;
-        }
-    }
-
-    private static Popup? FindAttributeStatusPopup(FrameworkElement chip)
-    {
-        if (chip.FindName("VideoAttributeStatusPopup") is Popup named)
-        {
-            return named;
-        }
-
-        if (chip.Parent is not DependencyObject parent)
-        {
-            return null;
-        }
-
-        foreach (object child in LogicalTreeHelper.GetChildren(parent))
-        {
-            if (child is Popup candidate)
-            {
-                return candidate;
-            }
-        }
-
-        return null;
-    }
-
-    private void VideoAttributeStatusChipMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is not FrameworkElement chip
-            || chip.DataContext is not RecordedVideoItem item
-            || !item.CanOpenAttributeStatusPopup)
-        {
-            return;
-        }
-
-        Popup? popup = FindAttributeStatusPopup(chip);
-        if (popup == null)
-        {
-            return;
-        }
-
-        if (ReferenceEquals(openAttributeStatusPopup, popup) && popup.IsOpen)
-        {
-            CloseAttributeStatusPopup();
-            e.Handled = true;
-            return;
-        }
-
-        CloseAttributeStatusPopup();
-        popup.PlacementTarget = chip;
-        popup.Placement = PlacementMode.Bottom;
-        popup.Closed += AttributeStatusPopupClosed;
-        popup.IsOpen = true;
-        openAttributeStatusPopup = popup;
-        openAttributeStatusChip = chip;
-        e.Handled = true;
     }
 
     private static T? FindVisualParent<T>(DependencyObject? source) where T : DependencyObject
@@ -6183,7 +6048,6 @@ public partial class RecordedVideoItem : ObservableObject
     [NotifyPropertyChangedFor(nameof(CanModify))]
     [NotifyPropertyChangedFor(nameof(CanTranscode))]
     [NotifyPropertyChangedFor(nameof(CanRepair))]
-    [NotifyPropertyChangedFor(nameof(CanOpenAttributeStatusPopup))]
     private bool isInProgress;
 
     [ObservableProperty]
@@ -6192,7 +6056,6 @@ public partial class RecordedVideoItem : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AttributeStatusText))]
     [NotifyPropertyChangedFor(nameof(HasAttributeStatus))]
-    [NotifyPropertyChangedFor(nameof(CanOpenAttributeStatusPopup))]
     [NotifyPropertyChangedFor(nameof(AttributeStatusSections))]
     private bool isStallSegment;
 
@@ -6210,7 +6073,6 @@ public partial class RecordedVideoItem : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AttributeStatusText))]
     [NotifyPropertyChangedFor(nameof(HasAttributeStatus))]
-    [NotifyPropertyChangedFor(nameof(CanOpenAttributeStatusPopup))]
     [NotifyPropertyChangedFor(nameof(AttributeStatusSections))]
     private int segmentIndex = -1;
 
@@ -6218,7 +6080,6 @@ public partial class RecordedVideoItem : ObservableObject
     [NotifyPropertyChangedFor(nameof(AttributeStatusText))]
     [NotifyPropertyChangedFor(nameof(HasAttributeStatus))]
     [NotifyPropertyChangedFor(nameof(SortGroupKey))]
-    [NotifyPropertyChangedFor(nameof(CanOpenAttributeStatusPopup))]
     [NotifyPropertyChangedFor(nameof(AttributeStatusSections))]
     private int segmentCount;
 
@@ -6228,7 +6089,6 @@ public partial class RecordedVideoItem : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AttributeStatusText))]
     [NotifyPropertyChangedFor(nameof(HasAttributeStatus))]
-    [NotifyPropertyChangedFor(nameof(CanOpenAttributeStatusPopup))]
     [NotifyPropertyChangedFor(nameof(AttributeStatusSections))]
     private string mediaIssue = string.Empty;
 
@@ -6246,7 +6106,6 @@ public partial class RecordedVideoItem : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(LifecycleStatusText))]
     [NotifyPropertyChangedFor(nameof(HasLifecycleStatus))]
-    [NotifyPropertyChangedFor(nameof(CanOpenAttributeStatusPopup))]
     private VideoLifecycleStatus lifecycleStatus;
 
     [ObservableProperty]
@@ -6257,7 +6116,6 @@ public partial class RecordedVideoItem : ObservableObject
     [NotifyPropertyChangedFor(nameof(CanModify))]
     [NotifyPropertyChangedFor(nameof(CanTranscode))]
     [NotifyPropertyChangedFor(nameof(CanRepair))]
-    [NotifyPropertyChangedFor(nameof(CanOpenAttributeStatusPopup))]
     private bool isRecordingFile;
 
     [ObservableProperty]
@@ -6298,13 +6156,6 @@ public partial class RecordedVideoItem : ObservableObject
     };
 
     public bool HasAttributeStatus => !string.IsNullOrWhiteSpace(AttributeStatusText);
-
-    public bool CanOpenAttributeStatusPopup => HasAttributeStatus
-        && LifecycleStatus == VideoLifecycleStatus.None
-        && !IsRecordingFile
-        && !IsInProgress;
-
-    public string AttributeStatusPopupTitle => ScreenRecordListViewModel.GetResourceText("VideoAttributeStatusTitle", "Video notices");
 
     public string AttributeStatusText
     {
@@ -6578,9 +6429,7 @@ public partial class RecordedVideoItem : ObservableObject
         OnPropertyChanged(nameof(LifecycleStatusText));
         OnPropertyChanged(nameof(AttributeStatusText));
         OnPropertyChanged(nameof(HasAttributeStatus));
-        OnPropertyChanged(nameof(CanOpenAttributeStatusPopup));
         OnPropertyChanged(nameof(AttributeStatusSections));
-        OnPropertyChanged(nameof(AttributeStatusPopupTitle));
     }
 
     public string StreamerChipText => ScreenRecordListViewModel.FormatResourceText(

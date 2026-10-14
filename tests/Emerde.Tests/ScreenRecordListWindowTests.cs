@@ -1289,7 +1289,7 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
-    public void VideoCardStatusPopup_UsesChipOrderAndUnknownTimes()
+    public void VideoCardStatusDetails_UseChipOrderAndUnknownTimes()
     {
         RecordedVideoItem item = new()
         {
@@ -1327,12 +1327,9 @@ public sealed class ScreenRecordListWindowTests
         Assert.Equal(ScreenRecordListViewModel.GetResourceText("MediaIssueAudioStalledDescription", "The audio stopped while the picture kept going."), sections[1].Details[0].Description);
         Assert.Equal(ScreenRecordListViewModel.GetResourceText("AttributeStatusEntireFile", "Entire file"), sections[2].Details[0].TimeText);
         Assert.Equal(ScreenRecordListViewModel.GetResourceText("OptimizedAudioFailedDescription", "Optimization failed, original audio was kept."), sections[2].Details[0].Description);
-        Assert.True(item.CanOpenAttributeStatusPopup);
         item.LifecycleStatus = VideoLifecycleStatus.Converting;
-        Assert.False(item.CanOpenAttributeStatusPopup);
         item.LifecycleStatus = VideoLifecycleStatus.None;
         item.IsRecordingFile = true;
-        Assert.False(item.CanOpenAttributeStatusPopup);
     }
 
     [Fact]
@@ -1360,7 +1357,7 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
-    public void VideoCardStatusPopup_UsesUnknownTimeWhenIntervalsAreMissing()
+    public void VideoCardStatusDetails_UseUnknownTimeWhenIntervalsAreMissing()
     {
         RecordedVideoItem item = new()
         {
@@ -1370,7 +1367,6 @@ public sealed class ScreenRecordListWindowTests
         IReadOnlyList<VideoAttributeStatusSection> sections = item.BuildAttributeStatusSections();
 
         Assert.Equal(ScreenRecordListViewModel.GetResourceText("AttributeStatusTimeUnknown", "Time not recorded"), sections[0].Details[0].TimeText);
-        Assert.True(item.CanOpenAttributeStatusPopup);
     }
 
     [Fact]
@@ -1383,26 +1379,22 @@ public sealed class ScreenRecordListWindowTests
         Assert.Contains("TextWrapping=\"NoWrap\"", xaml, StringComparison.Ordinal);
         Assert.Contains("ToolTip=\"{Binding AttributeStatusText}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"VideoAttributeStatusChip\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Binding=\"{Binding CanOpenAttributeStatusPopup}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("ItemsSource=\"{Binding AttributeStatusSections}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Placement=\"Bottom\"", xaml, StringComparison.Ordinal);
         Assert.Contains("MaxWidth=\"{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Grid}}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"VideoAttributeStatusPopup\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("StaysOpen=\"True\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("CornerRadius=\"{StaticResource PopupCornerRadius}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("VideoAttributeStatusChipMouseLeftButtonUp", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("VideoAttributeStatusPopup", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("CanOpenAttributeStatusPopup", xaml, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void VideoCardStatusPopup_ClosesOnOutsideClickAndKeepsChipToggle()
+    public void VideoCardStatusChip_IsNotInteractive()
     {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
         string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
 
-        Assert.True(ScreenRecordListWindow.ShouldCloseAttributeStatusPopupOnOutsideClick(true, false));
-        Assert.False(ScreenRecordListWindow.ShouldCloseAttributeStatusPopupOnOutsideClick(true, true));
-        Assert.False(ScreenRecordListWindow.ShouldCloseAttributeStatusPopupOnOutsideClick(false, false));
-        Assert.Contains("PreviewMouseLeftButtonDown += ScreenRecordListWindowPreviewMouseLeftButtonDown", code, StringComparison.Ordinal);
-        Assert.Contains("CloseAttributeStatusPopup()", code, StringComparison.Ordinal);
-        Assert.Contains("FindAttributeStatusPopup(chip)", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("ScreenRecordListWindowPreviewMouseLeftButtonDown", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("CloseAttributeStatusPopup", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("FindAttributeStatusPopup", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("MouseLeftButtonUp=\"VideoAttributeStatusChipMouseLeftButtonUp\"", xaml, StringComparison.Ordinal);
     }
 
     [Fact]

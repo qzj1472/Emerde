@@ -841,8 +841,7 @@
                                                              CornerRadius="{StaticResource UiXNestedCornerRadius}"
                                                              ClipToBounds="True"
                                                              MinWidth="0"
-                                                             Padding="7,0"
-                                                             MouseLeftButtonUp="VideoAttributeStatusChipMouseLeftButtonUp">
+                                                             Padding="7,0">
                                                         <Border.Style>
                                                             <Style TargetType="{x:Type Border}">
                                                                 <Setter Property="Margin" Value="4,0,0,0" />
@@ -854,9 +853,6 @@
                                                                     </DataTrigger>
                                                                     <DataTrigger Binding="{Binding HasLifecycleStatus}" Value="False">
                                                                         <Setter Property="Margin" Value="0" />
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding CanOpenAttributeStatusPopup}" Value="True">
-                                                                        <Setter Property="Cursor" Value="Hand" />
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
@@ -872,79 +868,6 @@
                                                                     TextWrapping="NoWrap"
                                                                     ToolTip="{Binding AttributeStatusText}" />
                                                      </Border>
-                                                     <Popup x:Name="VideoAttributeStatusPopup"
-                                                            AllowsTransparency="True"
-                                                            Focusable="False"
-                                                            HorizontalOffset="0"
-                                                            Placement="Bottom"
-                                                            PlacementTarget="{Binding ElementName=VideoAttributeStatusChip}"
-                                                            PopupAnimation="None"
-                                                            StaysOpen="True"
-                                                            VerticalOffset="4">
-                                                        <Border Width="320"
-                                                                MaxHeight="360"
-                                                                Padding="12,10"
-                                                                Background="{DynamicResource UiXDialogElevatedBrush}"
-                                                                BorderBrush="{DynamicResource UiXStrongStrokeBrush}"
-                                                                BorderThickness="1"
-                                                                CornerRadius="{StaticResource PopupCornerRadius}"
-                                                                SnapsToDevicePixels="True">
-                                                            <Grid>
-                                                                <Grid.RowDefinitions>
-                                                                    <RowDefinition Height="Auto" />
-                                                                    <RowDefinition Height="*" />
-                                                                </Grid.RowDefinitions>
-                                                                <TextBlock Margin="0,0,0,8"
-                                                                           FontSize="14"
-                                                                           FontWeight="SemiBold"
-                                                                           Foreground="{DynamicResource UiXTextPrimaryBrush}"
-                                                                           Text="{Binding AttributeStatusPopupTitle}" />
-                                                                <ScrollViewer Grid.Row="1"
-                                                                              MaxHeight="312"
-                                                                              HorizontalScrollBarVisibility="Disabled"
-                                                                              VerticalScrollBarVisibility="Auto">
-                                                                    <ItemsControl ItemsSource="{Binding AttributeStatusSections}">
-                                                                        <ItemsControl.ItemTemplate>
-                                                                            <DataTemplate>
-                                                                                <StackPanel Margin="0,0,0,8">
-                                                                                    <TextBlock FontSize="13"
-                                                                                               FontWeight="SemiBold"
-                                                                                               Foreground="{DynamicResource UiXTextPrimaryBrush}"
-                                                                                               Text="{Binding Title}" />
-                                                                                    <ItemsControl ItemsSource="{Binding Details}">
-                                                                                        <ItemsControl.ItemTemplate>
-                                                                                            <DataTemplate>
-                                                                                                <StackPanel Margin="0,8,0,0">
-                                                                                                    <TextBlock FontSize="12"
-                                                                                                               Foreground="{DynamicResource UiXTextSecondaryBrush}"
-                                                                                                               Text="{Binding TimeText}">
-                                                                                                        <TextBlock.Style>
-                                                                                                            <Style TargetType="{x:Type TextBlock}">
-                                                                                                                <Setter Property="Visibility" Value="Visible" />
-                                                                                                                <Style.Triggers>
-                                                                                                                    <DataTrigger Binding="{Binding TimeText}" Value="">
-                                                                                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                                                                                    </DataTrigger>
-                                                                                                                </Style.Triggers>
-                                                                                                            </Style>
-                                                                                                        </TextBlock.Style>
-                                                                                                    </TextBlock>
-                                                                                                    <TextBlock FontSize="12"
-                                                                                                               Foreground="{DynamicResource UiXTextPrimaryBrush}"
-                                                                                                               Text="{Binding Description}"
-                                                                                                               TextWrapping="Wrap" />
-                                                                                                </StackPanel>
-                                                                                            </DataTemplate>
-                                                                                        </ItemsControl.ItemTemplate>
-                                                                                    </ItemsControl>
-                                                                                </StackPanel>
-                                                                            </DataTemplate>
-                                                                        </ItemsControl.ItemTemplate>
-                                                                    </ItemsControl>
-                                                                </ScrollViewer>
-                                                            </Grid>
-                                                        </Border>
-                                                     </Popup>
                                                      </Grid>
                                                  </DockPanel>
                                                 <TextBlock Grid.Column="1"
