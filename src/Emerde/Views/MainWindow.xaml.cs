@@ -914,6 +914,16 @@ public partial class MainWindow : FluentWindow
             return;
         }
 
+        if (IsSystemTabGesture(
+                key,
+                modifiers,
+                e.KeyboardDevice.IsKeyDown(Key.LWin),
+                e.KeyboardDevice.IsKeyDown(Key.RWin)))
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (isPreviewFullScreen)
         {
             e.Handled = ExtensionHostRuntime.TryHandleShortcut(key, modifiers)
@@ -1006,6 +1016,18 @@ public partial class MainWindow : FluentWindow
     private static Key GetShortcutKey(KeyEventArgs e)
     {
         return e.Key == Key.System ? e.SystemKey : e.Key;
+    }
+
+    internal static bool IsSystemTabGesture(
+        Key key,
+        ModifierKeys modifiers,
+        bool leftWindowsKeyDown = false,
+        bool rightWindowsKeyDown = false)
+    {
+        return key == Key.Tab
+            && ((modifiers & (ModifierKeys.Alt | ModifierKeys.Windows)) != ModifierKeys.None
+                || leftWindowsKeyDown
+                || rightWindowsKeyDown);
     }
 
     private bool TryHandlePageShortcut(Key key, ModifierKeys modifiers)
@@ -1308,6 +1330,15 @@ public partial class MainWindow : FluentWindow
         Key key = KeyInterop.KeyFromVirtualKey(msg.wParam.ToInt32());
         ModifierKeys modifiers = Keyboard.Modifiers;
         if (ShouldBypassAppShortcutsForDialog(IsModalDialogActive()))
+        {
+            return;
+        }
+
+        if (IsSystemTabGesture(
+                key,
+                modifiers,
+                Keyboard.IsKeyDown(Key.LWin),
+                Keyboard.IsKeyDown(Key.RWin)))
         {
             return;
         }

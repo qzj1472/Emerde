@@ -367,6 +367,33 @@ public sealed class LivePreviewTests
         Assert.False(MainWindow.IsPreviewControlShortcut(true, key, System.Windows.Input.ModifierKeys.None));
     }
 
+    [Theory]
+    [InlineData(System.Windows.Input.ModifierKeys.Alt, false, false)]
+    [InlineData(System.Windows.Input.ModifierKeys.Windows, false, false)]
+    [InlineData(System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Alt, false, false)]
+    [InlineData(System.Windows.Input.ModifierKeys.None, true, false)]
+    [InlineData(System.Windows.Input.ModifierKeys.None, false, true)]
+    public void IsSystemTabGesture_SuppressesSystemTabCombinations(
+        System.Windows.Input.ModifierKeys modifiers,
+        bool leftWindowsKeyDown,
+        bool rightWindowsKeyDown)
+    {
+        Assert.True(MainWindow.IsSystemTabGesture(
+            System.Windows.Input.Key.Tab,
+            modifiers,
+            leftWindowsKeyDown,
+            rightWindowsKeyDown));
+    }
+
+    [Theory]
+    [InlineData(System.Windows.Input.ModifierKeys.None)]
+    [InlineData(System.Windows.Input.ModifierKeys.Shift)]
+    [InlineData(System.Windows.Input.ModifierKeys.Control)]
+    public void IsSystemTabGesture_LeavesApplicationTabGesturesAvailable(System.Windows.Input.ModifierKeys modifiers)
+    {
+        Assert.False(MainWindow.IsSystemTabGesture(System.Windows.Input.Key.Tab, modifiers));
+    }
+
     [Fact]
     public void ShouldBypassAppShortcutsForDialog_DisablesAppShortcutDispatchOnlyWhileDialogIsOpen()
     {
