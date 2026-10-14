@@ -7,6 +7,18 @@ namespace Emerde.Core;
 
 public sealed class ShopeeSpider : ISpider
 {
+    private static readonly HashSet<string> SupportedHosts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "live.shopee.sg",
+        "live.shopee.com.my",
+        "live.shopee.co.id",
+        "live.shopee.ph",
+        "live.shopee.vn",
+        "live.shopee.co.th",
+        "live.shopee.com.br",
+        "live.shopee.tw",
+    };
+
     public static Lazy<ShopeeSpider> Instance { get; } = new(() => new ShopeeSpider());
 
     public string PlatformName => "Shopee";
@@ -18,7 +30,8 @@ public sealed class ShopeeSpider : ISpider
             return null;
         }
 
-        if (!uri.Host.StartsWith("live.shopee.", StringComparison.OrdinalIgnoreCase) && uri.Host != "shp.ee")
+        if (uri.Scheme != Uri.UriSchemeHttps
+            || !IsSupportedHost(uri.Host) && !uri.Host.Equals("shp.ee", StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
@@ -40,22 +53,22 @@ public sealed class ShopeeSpider : ISpider
             return result;
         }
 
-        string resolvedUrl = roomUrl.Contains("live.shopee.", StringComparison.OrdinalIgnoreCase)
+        string resolvedUrl = IsSupportedHost(new Uri(roomUrl).Host)
             ? roomUrl
             : ResolveRedirectUrl(roomUrl) ?? roomUrl;
 
-        if (!Uri.TryCreate(resolvedUrl, UriKind.Absolute, out Uri? uri))
+        if (!Uri.TryCreate(resolvedUrl, UriKind.Absolute, out Uri? uri)
+            || uri.Scheme != Uri.UriSchemeHttps
+            || !IsSupportedHost(uri.Host))
         {
             return result;
         }
 
-        string hostSuffix = uri.Host.StartsWith("live.shopee.", StringComparison.OrdinalIgnoreCase)
-            ? uri.Host["live.shopee.".Length..]
-            : uri.Host.Split('.')[0];
+        string hostSuffix = uri.Host["live.shopee.".Length..];
         string apiHost = $"https://live.shopee.{hostSuffix}";
         string? uid = GetQueryValue(uri.Query, "uid");
         string? sessionId = GetQueryValue(uri.Query, "session");
-        bool isLiving = uri.Host.StartsWith("live.shopee.", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(uid);
+        bool isLiving = string.IsNullOrWhiteSpace(uid);
 
         if (!string.IsNullOrWhiteSpace(uid))
         {
@@ -80,6 +93,11 @@ public sealed class ShopeeSpider : ISpider
         ExtractSession(sessionJson, isLiving, result);
 
         return result;
+    }
+
+    internal static bool IsSupportedHost(string host)
+    {
+        return SupportedHosts.Contains(host);
     }
 
     internal static string? ExtractOngoingSessionId(string? json)

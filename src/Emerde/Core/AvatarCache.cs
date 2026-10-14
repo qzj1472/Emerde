@@ -1,4 +1,5 @@
 using System.Net.Http;
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Windows.Media.Imaging;
@@ -8,6 +9,7 @@ namespace Emerde.Core;
 internal static class AvatarCache
 {
     private const int MaximumAvatarBytes = 5 * 1024 * 1024;
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> RoomUpdateGates = new(StringComparer.OrdinalIgnoreCase);
 
     public static string GetCachedAvatarPath(string roomUrl)
     {
@@ -53,6 +55,8 @@ internal static class AvatarCache
             return GetCachedAvatarSource(roomUrl);
         }
 
+        SemaphoreSlim roomGate = RoomUpdateGates.GetOrAdd(HashRoomUrl(roomUrl), static _ => new SemaphoreSlim(1, 1));
+        await roomGate.WaitAsync(token);
         string? tempPath = null;
         try
         {
@@ -61,7 +65,8 @@ internal static class AvatarCache
             request.Headers.UserAgent.ParseAdd(string.IsNullOrWhiteSpace(userAgent) ? "Mozilla/5.0" : userAgent);
             using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
             timeout.CancelAfter(TimeSpan.FromSeconds(15));
-            using HttpResponseMessage response = await ProxyHttpClientPool.GetCurrent().SendAsync(
+            using ProxyHttpClientPool.ClientLease clientLease = ProxyHttpClientPool.RentCurrent();
+            using HttpResponseMessage response = await clientLease.Client.SendAsync(
                 request,
                 HttpCompletionOption.ResponseHeadersRead,
                 timeout.Token);
@@ -121,6 +126,7 @@ internal static class AvatarCache
                 {
                 }
             }
+            roomGate.Release();
         }
     }
 

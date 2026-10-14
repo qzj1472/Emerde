@@ -22,7 +22,11 @@ public sealed partial class TaobaoSpider : ISpider
             return null;
         }
 
-        if (uri.Host != "tbzb.taobao.com" && uri.Host != "huodong.m.taobao.com" && !uri.Host.EndsWith("tb.cn", StringComparison.OrdinalIgnoreCase))
+        if (uri.Scheme != Uri.UriSchemeHttps
+            || uri.Host != "tbzb.taobao.com"
+                && uri.Host != "huodong.m.taobao.com"
+                && uri.Host != "m.tb.cn"
+                && uri.Host != "tb.cn")
         {
             return null;
         }

@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Web;
 using Newtonsoft.Json.Linq;
@@ -13,6 +15,7 @@ internal static partial class StreamResolver
     private const int RequestTimeoutSeconds = 5;
     private const int RedirectTimeoutSeconds = 3;
     private const int PlaylistTimeoutSeconds = 2;
+    private const int MaximumResponseBytes = 16 * 1024 * 1024;
     private const int LastErrorCacheLimit = 512;
     private const int HlsVariantCacheLimit = 256;
     internal const int DouyinResolverConcurrency = 6;
@@ -1087,11 +1090,12 @@ internal static partial class StreamResolver
             timeout.CancelAfter(TimeSpan.FromSeconds(RequestTimeoutSeconds));
             try
             {
-                using HttpResponseMessage response = ProxyHttpClientPool.GetCurrent().Send(
+                using ProxyHttpClientPool.ClientLease clientLease = ProxyHttpClientPool.RentCurrent();
+                using HttpResponseMessage response = clientLease.Client.Send(
                     request,
-                    HttpCompletionOption.ResponseContentRead,
+                    HttpCompletionOption.ResponseHeadersRead,
                     timeout.Token);
-                string text = response.Content.ReadAsStringAsync(timeout.Token).GetAwaiter().GetResult();
+                string text = ReadResponseTextLimited(response, timeout.Token);
                 bool blockedStatus = (int)response.StatusCode is 403 or 429;
                 bool blockedContent = response.IsSuccessStatusCode && ContainsDouyinChallenge(text);
                 if (IsDouyinRiskControlSignal((int)response.StatusCode, text)
@@ -1292,13 +1296,60 @@ internal static partial class StreamResolver
     {
         using HttpRequestMessage request = CreateRequest(url, referer, cookie, userAgent, accept);
         using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(RequestTimeoutSeconds));
-        using HttpResponseMessage response = ProxyHttpClientPool.GetCurrent().Send(
+        using ProxyHttpClientPool.ClientLease clientLease = ProxyHttpClientPool.RentCurrent();
+        using HttpResponseMessage response = clientLease.Client.Send(
             request,
-            HttpCompletionOption.ResponseContentRead,
+            HttpCompletionOption.ResponseHeadersRead,
             timeout.Token);
         return response.IsSuccessStatusCode
-            ? response.Content.ReadAsStringAsync(timeout.Token).GetAwaiter().GetResult()
+            ? ReadResponseTextLimited(response, timeout.Token)
             : null;
+    }
+
+    internal static string ReadResponseTextLimited(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken,
+        int maximumBytes = MaximumResponseBytes)
+    {
+        if (maximumBytes <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximumBytes));
+        }
+        if (response.Content.Headers.ContentLength is long contentLength && contentLength > maximumBytes)
+        {
+            throw new InvalidDataException("The platform response exceeded the allowed size.");
+        }
+
+        using Stream input = response.Content.ReadAsStreamAsync(cancellationToken).GetAwaiter().GetResult();
+        using MemoryStream output = new();
+        byte[] buffer = new byte[81920];
+        while (true)
+        {
+            int read = input.ReadAsync(buffer.AsMemory(), cancellationToken).AsTask().GetAwaiter().GetResult();
+            if (read == 0)
+            {
+                break;
+            }
+            if (output.Length + read > maximumBytes)
+            {
+                throw new InvalidDataException("The platform response exceeded the allowed size.");
+            }
+            output.Write(buffer, 0, read);
+        }
+
+        Encoding encoding = Encoding.UTF8;
+        string? charset = response.Content.Headers.ContentType?.CharSet?.Trim('"');
+        if (!string.IsNullOrWhiteSpace(charset))
+        {
+            try
+            {
+                encoding = Encoding.GetEncoding(charset);
+            }
+            catch (ArgumentException)
+            {
+            }
+        }
+        return encoding.GetString(output.GetBuffer(), 0, checked((int)output.Length));
     }
 
     private static HttpClient CreateHttpClient(bool allowAutoRedirect = true, int timeoutSeconds = RequestTimeoutSeconds)
@@ -1334,13 +1385,14 @@ internal static partial class StreamResolver
             return;
         }
 
-        if (!TryGetCachedHlsVariant(result.HlsUrl, out HlsVariant variant))
+        string cacheKey = CreateHlsVariantCacheKey(result.HlsUrl, cookie, userAgent);
+        if (!TryGetCachedHlsVariant(cacheKey, out HlsVariant variant))
         {
             variant = ProbeHighestHlsVariant(result.HlsUrl, referer, cookie, userAgent);
             TimeSpan cacheDuration = string.IsNullOrWhiteSpace(variant.Url)
                 ? HlsVariantNegativeCacheDuration
                 : HlsVariantPositiveCacheDuration;
-            CacheHlsVariant(result.HlsUrl, variant, cacheDuration);
+            CacheHlsVariant(cacheKey, variant, cacheDuration);
         }
         if (string.IsNullOrWhiteSpace(variant.Url))
         {
@@ -1361,6 +1413,15 @@ internal static partial class StreamResolver
         {
             result.Bitrate = StreamQualityCatalog.FormatBitrate(variant.Bandwidth);
         }
+    }
+
+    internal static string CreateHlsVariantCacheKey(string playlistUrl, string? cookie, string userAgent)
+    {
+        string proxy = Configurations.IsUseProxy.Get()
+            ? ProxyAddress.Normalize(Configurations.ProxyUrl.Get())
+            : string.Empty;
+        string context = string.Join("\n", playlistUrl, cookie ?? string.Empty, userAgent, proxy);
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(context)));
     }
 
     private static bool TryGetCachedHlsVariant(string playlistUrl, out HlsVariant variant)
@@ -1422,7 +1483,7 @@ internal static partial class StreamResolver
 
                 using HttpResponseMessage response = client.Send(request);
                 string playlist = response.IsSuccessStatusCode
-                    ? response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+                    ? ReadResponseTextLimited(response, CancellationToken.None)
                     : string.Empty;
                 bool blocked = IsDouyinRiskControlSignal((int)response.StatusCode, playlist);
                 if (blocked

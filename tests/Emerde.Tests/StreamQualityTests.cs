@@ -5,6 +5,15 @@ namespace Emerde.Tests;
 public sealed class StreamQualityTests
 {
     [Theory]
+    [InlineData(96_000d, "96 Kbps")]
+    [InlineData(900_000d, "900 Kbps")]
+    [InlineData(1_500_000d, "1.5 Mbps")]
+    public void FormatBitrate_UsesUnitsConsistentWithBitsPerSecond(double bitsPerSecond, string expected)
+    {
+        Assert.Equal(expected, StreamQualityCatalog.FormatBitrate(bitsPerSecond));
+    }
+
+    [Theory]
     [InlineData(0, 6_000_000, 1080, 0, false)]
     [InlineData(1080, 6_000_000, 1080, 0, false)]
     [InlineData(1080, 6_000_000, 720, 0, true)]

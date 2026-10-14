@@ -157,7 +157,8 @@ public sealed partial class KuaishouSpider : ISpider, IQualitySelectableSpider
             {
                 result.Resolution = $"{width}x{height}";
             }
-            result.Bitrate = StreamQualityCatalog.FormatBitrate(selected["bitrate"]?.Value<double?>());
+            double? bitrateKbps = selected["bitrate"]?.Value<double?>();
+            result.Bitrate = StreamQualityCatalog.FormatBitrate(bitrateKbps * 1_000d);
         }
         catch
         {

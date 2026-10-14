@@ -5,6 +5,36 @@ namespace Emerde.Tests;
 
 public sealed class SpiderTests
 {
+    [Fact]
+    public void HlsVariantCacheKey_SeparatesRequestIdentity()
+    {
+        string baseline = StreamResolver.CreateHlsVariantCacheKey(
+            "https://example.test/master.m3u8",
+            "session=one",
+            "agent-one");
+
+        Assert.NotEqual(baseline, StreamResolver.CreateHlsVariantCacheKey(
+            "https://example.test/master.m3u8",
+            "session=two",
+            "agent-one"));
+        Assert.NotEqual(baseline, StreamResolver.CreateHlsVariantCacheKey(
+            "https://example.test/master.m3u8",
+            "session=one",
+            "agent-two"));
+        Assert.DoesNotContain("session=one", baseline, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PlatformResponseBody_StopsAtConfiguredLimit()
+    {
+        using HttpResponseMessage response = new(System.Net.HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes("123456789")),
+        };
+
+        Assert.Throws<InvalidDataException>(() => StreamResolver.ReadResponseTextLimited(response, CancellationToken.None, 8));
+    }
+
     [Theory]
     [InlineData("https://example.test/path", true)]
     [InlineData("http://example.test/path", false)]
@@ -499,6 +529,25 @@ public sealed class SpiderTests
         Assert.Equal(expected, result);
     }
 
+    [Theory]
+    [InlineData("https://live.shopee.sg.evil.com/share?session=1")]
+    [InlineData("https://live.shopee.evil.com/share?session=1")]
+    [InlineData("http://live.shopee.sg/share?session=1")]
+    public void ShopeeParser_RejectsUntrustedHostsAndSchemes(string input)
+    {
+        Assert.Null(ShopeeSpider.Instance.Value.ParseUrl(input));
+    }
+
+    [Theory]
+    [InlineData("live.shopee.sg", true)]
+    [InlineData("live.shopee.com.my", true)]
+    [InlineData("live.shopee.sg.evil.com", false)]
+    [InlineData("shopee.sg", false)]
+    public void ShopeeHostValidation_UsesExplicitRegionalHostAllowlist(string host, bool expected)
+    {
+        Assert.Equal(expected, ShopeeSpider.IsSupportedHost(host));
+    }
+
     [Fact]
     public void ParseUrl_WithTwitCastingLiveUrl_NormalizesRoomUrl()
     {
@@ -579,6 +628,15 @@ public sealed class SpiderTests
         string? result = Spider.ParseUrl(input);
 
         Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData("https://not-taobao.com/live?id=123")]
+    [InlineData("https://evil.tb.cn/live?id=123")]
+    [InlineData("http://tbzb.taobao.com/live?liveId=123")]
+    public void TaobaoParser_RejectsUntrustedHostsAndSchemes(string input)
+    {
+        Assert.Null(TaobaoSpider.Instance.Value.ParseUrl(input));
     }
 
     [Fact]

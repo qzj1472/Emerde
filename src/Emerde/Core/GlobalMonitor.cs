@@ -2116,7 +2116,8 @@ internal static class GlobalMonitor
 
         try
         {
-            using HttpResponseMessage response = await ProxyHttpClientPool.GetCurrent().SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+            using ProxyHttpClientPool.ClientLease clientLease = ProxyHttpClientPool.RentCurrent();
+            using HttpResponseMessage response = await clientLease.Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
             return response.IsSuccessStatusCode;
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested)
@@ -2306,7 +2307,8 @@ internal static class GlobalMonitor
                     room.RoomUrl,
                     settings.PreferredStreamQuality,
                     bypassDouyinThrottle: false,
-                    prioritizeDouyin: true);
+                    prioritizeDouyin: true,
+                    cancellationToken: token);
                 if (result == null)
                 {
                     return null;
@@ -2480,6 +2482,7 @@ internal static class GlobalMonitor
                 : null,
             ReconnectExhausted = () => PauseRoomRecordStart(room.RoomUrl, room.NickName, "reconnect_exhausted"),
             RapidExitDetected = () => PauseRoomRecordStart(room.RoomUrl, room.NickName, "rapid_exit"),
+            RecoveryRegistrationFailed = () => PauseRoomRecordStart(room.RoomUrl, room.NickName, "recovery_registration_failed"),
             StorageExhausted = path =>
             {
                 ReportStorageExhausted(path, "recorder");

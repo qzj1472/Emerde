@@ -189,17 +189,12 @@ internal static class StreamQualityCatalog
         }
 
         double bitrate = value.Value;
-        if (bitrate >= 100_000d)
+        if (bitrate >= 1_000_000d)
         {
             return $"{bitrate / 1_000_000d:0.##} Mbps";
         }
 
-        if (bitrate >= 1_000d)
-        {
-            return $"{bitrate / 1_000d:0.##} Mbps";
-        }
-
-        return $"{bitrate:0.##} Kbps";
+        return $"{bitrate / 1_000d:0.##} Kbps";
     }
 }
 
@@ -423,7 +418,7 @@ internal static partial class StreamMetadataParser
             return number >= 1_000d ? $"{number / 1_000d:0.##} Mbps" : $"{number:0.##} Kbps";
         }
 
-        return StreamQualityCatalog.FormatBitrate(number);
+        return StreamQualityCatalog.FormatBitrate(number >= 100_000d ? number : number * 1_000d);
     }
 
     [GeneratedRegex(@"(?<!\d)(\d{3,5})\s*[xX*]\s*(\d{3,5})(?!\d)")]

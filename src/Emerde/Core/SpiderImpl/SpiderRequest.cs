@@ -57,11 +57,12 @@ internal static class SpiderRequest
             AddHeaders(request, headers, cookie);
             using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(5));
-            using HttpResponseMessage response = ProxyHttpClientPool.GetCurrent()
-                .Send(request, HttpCompletionOption.ResponseContentRead, timeout.Token);
+            using ProxyHttpClientPool.ClientLease clientLease = ProxyHttpClientPool.RentCurrent();
+            using HttpResponseMessage response = clientLease.Client
+                .Send(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
 
             return response.IsSuccessStatusCode
-                ? response.Content.ReadAsStringAsync(timeout.Token).GetAwaiter().GetResult()
+                ? StreamResolver.ReadResponseTextLimited(response, timeout.Token)
                 : null;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
