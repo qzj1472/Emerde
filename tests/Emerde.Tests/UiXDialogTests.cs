@@ -60,12 +60,18 @@ public sealed class UiXDialogTests
         string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "UiXExportLogsContent.xaml"));
         XDocument document = XDocument.Parse(xaml);
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement allOption = document.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "AllOption");
+        XElement todayOption = document.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "TodayOption");
         XElement surface = document.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "Surface");
         XElement contentGrid = document.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "ContentGrid");
         XElement selectionWash = document.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "SelectionWash");
 
         Assert.Contains("new UiXExportLogsContent()", viewModel, StringComparison.Ordinal);
         Assert.Contains("uiXContent!.TodayOnly", viewModel, StringComparison.Ordinal);
+        Assert.Equal("True", (string?)allOption.Attribute("IsChecked"));
+        Assert.True(allOption.Parent!.Elements().ToList().IndexOf(allOption) < todayOption.Parent!.Elements().ToList().IndexOf(todayOption));
+        Assert.Contains("Text=\"{I18N ExportAll}\"", allOption.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Text=\"{I18N ExportToday}\"", todayOption.ToString(), StringComparison.Ordinal);
         Assert.Contains("isUiXEnabled ? string.Empty : \"ExportToday\".Tr()", viewModel, StringComparison.Ordinal);
         Assert.Contains("isUiXEnabled ? \"Export\".Tr() : \"ExportAll\".Tr()", viewModel, StringComparison.Ordinal);
         Assert.Contains("UiXDialogSectionBrush", xaml, StringComparison.Ordinal);

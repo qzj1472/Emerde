@@ -136,7 +136,7 @@
                    Foreground="{DynamicResource UiXTextSecondaryBrush}"
                    Text="{I18N ExportLogsPrompt}"
                    TextWrapping="Wrap" />
-        <RadioButton x:Name="TodayOption"
+        <RadioButton x:Name="AllOption"
                      IsChecked="True"
                      Style="{StaticResource LogRangeOptionStyle}">
             <RadioButton.Tag>
@@ -149,10 +149,10 @@
                 <TextBlock FontSize="14"
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource UiXTextPrimaryBrush}"
-                           Text="{I18N ExportToday}" />
+                           Text="{I18N ExportAll}" />
             </StackPanel>
         </RadioButton>
-        <RadioButton x:Name="AllOption"
+        <RadioButton x:Name="TodayOption"
                      Style="{StaticResource LogRangeOptionStyle}">
             <RadioButton.Tag>
                 <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}"
@@ -164,7 +164,7 @@
                 <TextBlock FontSize="14"
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource UiXTextPrimaryBrush}"
-                           Text="{I18N ExportAll}" />
+                           Text="{I18N ExportToday}" />
             </StackPanel>
         </RadioButton>
     </StackPanel>
