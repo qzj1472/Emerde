@@ -1321,6 +1321,32 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
+    public void VideoCardStatusChips_KeepEachPromptSeparateAndAddOneOverflowMarker()
+    {
+        RecordedVideoItem item = new()
+        {
+            MediaIssue = "timeline_mismatch;optimized_audio_failed",
+            IsStallSegment = true,
+            SegmentIndex = 1,
+            SegmentCount = 3,
+        };
+
+        VideoAttributeStatusChip[] chips = item.AttributeStatusChips.ToArray();
+
+        Assert.Equal(5, chips.Length);
+        Assert.Equal(
+            [
+                ScreenRecordListViewModel.FormatResourceText("SegmentPositionChip", "Part {0}/{1}", 2, 3),
+                ScreenRecordListViewModel.GetResourceText("MediaIssueChip", "A/V issue"),
+                ScreenRecordListViewModel.GetResourceText("OptimizedAudioFailedChip", "Optimized audio failed"),
+                ScreenRecordListViewModel.GetResourceText("StallSegmentChip", "Stall split"),
+            ],
+            chips.Take(4).Select(chip => chip.Title));
+        Assert.True(chips[^1].IsOverflowIndicator);
+        Assert.Equal("…", chips[^1].Title);
+    }
+
+    [Fact]
     public void VideoCardStatusDetails_UseChipOrderAndUnknownTimes()
     {
         RecordedVideoItem item = new()
@@ -1402,31 +1428,29 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
-    public void VideoCardStatusRow_ConstrainsLongTextAndKeepsFullTooltip()
+    public void VideoCardStatusRow_ShowsSeparateChipsAndSharedNameOnlyPopup()
     {
         string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
 
-        Assert.Contains("LastChildFill=\"True\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("TextTrimming=\"CharacterEllipsis\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("TextWrapping=\"NoWrap\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("ToolTip=\"{Binding AttributeStatusText}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"VideoAttributeStatusChip\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("MaxWidth=\"{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Grid}}\"", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("VideoAttributeStatusChipMouseLeftButtonUp", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("VideoAttributeStatusPopup", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("CanOpenAttributeStatusPopup", xaml, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding AttributeStatusChips}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("local:VideoAttributeStatusChipPanel", xaml, StringComparison.Ordinal);
+        Assert.Contains("Click=\"VideoAttributeStatusChipClick\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("IsOverflowIndicator", xaml, StringComparison.Ordinal);
+        Assert.Contains("IsAttributeStatusPopupOpen, Mode=TwoWay", xaml, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding AttributeStatusSections}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding Title}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("ToolTip=\"{Binding AttributeStatusText}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"{Binding Description}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"{Binding TimeText}\"", xaml, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void VideoCardStatusChip_IsNotInteractive()
+    public void VideoCardStatusChip_UsesOneEllipsisWhenTheRemainingChipsDoNotFit()
     {
-        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
-        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
-
-        Assert.DoesNotContain("ScreenRecordListWindowPreviewMouseLeftButtonDown", code, StringComparison.Ordinal);
-        Assert.DoesNotContain("CloseAttributeStatusPopup", code, StringComparison.Ordinal);
-        Assert.DoesNotContain("FindAttributeStatusPopup", code, StringComparison.Ordinal);
-        Assert.DoesNotContain("MouseLeftButtonUp=\"VideoAttributeStatusChipMouseLeftButtonUp\"", xaml, StringComparison.Ordinal);
+        Assert.Equal(3, VideoAttributeStatusChipPanel.GetVisibleStatusCount([45d, 55d, 40d], 200d, 22d));
+        Assert.Equal(2, VideoAttributeStatusChipPanel.GetVisibleStatusCount([45d, 55d, 40d], 140d, 22d));
+        Assert.Equal(1, VideoAttributeStatusChipPanel.GetVisibleStatusCount([45d, 55d, 40d], 110d, 22d));
+        Assert.Equal(0, VideoAttributeStatusChipPanel.GetVisibleStatusCount([45d, 55d], 28d, 22d));
     }
 
     [Fact]

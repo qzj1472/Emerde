@@ -1154,6 +1154,16 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         }
     }
 
+    private void VideoAttributeStatusChipClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is DependencyObject source
+            && FindVisualParent<ListBoxItem>(source)?.DataContext is RecordedVideoItem item)
+        {
+            item.IsAttributeStatusPopupOpen = true;
+        }
+        e.Handled = true;
+    }
+
     private void PopulateVideoCardContextMenu(FrameworkElement card)
     {
         if (card.ContextMenu is not { } contextMenu
@@ -6028,6 +6038,109 @@ public sealed record VideoAttributeStatusSection(string Title, IReadOnlyList<Vid
 
 public sealed record VideoAttributeStatusDetail(string TimeText, string Description);
 
+public sealed record VideoAttributeStatusChip(string Title, bool IsOverflowIndicator = false);
+
+public sealed class VideoAttributeStatusChipPanel : System.Windows.Controls.Panel
+{
+    private const double ChipSpacing = 4d;
+
+    internal static int GetVisibleStatusCount(IReadOnlyList<double> statusWidths, double availableWidth, double overflowWidth, double spacing = ChipSpacing)
+    {
+        double totalWidth = statusWidths.Sum() + Math.Max(0, statusWidths.Count - 1) * spacing;
+        if (totalWidth <= availableWidth)
+        {
+            return statusWidths.Count;
+        }
+
+        double remainingWidth = Math.Max(0d, availableWidth - overflowWidth - spacing);
+        double usedWidth = 0d;
+        int visibleCount = 0;
+        foreach (double statusWidth in statusWidths)
+        {
+            double requiredWidth = statusWidth + (visibleCount > 0 ? spacing : 0d);
+            if (usedWidth + requiredWidth > remainingWidth)
+            {
+                break;
+            }
+
+            usedWidth += requiredWidth;
+            visibleCount++;
+        }
+
+        return visibleCount;
+    }
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        double availableWidth = double.IsFinite(availableSize.Width) ? Math.Max(0d, availableSize.Width) : double.PositiveInfinity;
+        List<UIElement> statusChildren = [];
+        UIElement? overflowChild = null;
+        foreach (UIElement child in InternalChildren)
+        {
+            if (child is FrameworkElement { DataContext: VideoAttributeStatusChip { IsOverflowIndicator: true } })
+            {
+                overflowChild = child;
+                child.Visibility = Visibility.Visible;
+                child.Measure(new Size(double.PositiveInfinity, availableSize.Height));
+            }
+            else
+            {
+                statusChildren.Add(child);
+                child.Visibility = Visibility.Visible;
+                child.Measure(new Size(double.PositiveInfinity, availableSize.Height));
+            }
+        }
+
+        int visibleCount = GetVisibleStatusCount(
+            statusChildren.Select(child => child.DesiredSize.Width).ToArray(),
+            availableWidth,
+            overflowChild?.DesiredSize.Width ?? 22d);
+        bool isOverflowing = visibleCount < statusChildren.Count;
+        for (int index = 0; index < statusChildren.Count; index++)
+        {
+            statusChildren[index].Visibility = index < visibleCount ? Visibility.Visible : Visibility.Collapsed;
+        }
+        if (overflowChild != null)
+        {
+            overflowChild.Visibility = isOverflowing ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        double desiredWidth = statusChildren.Take(visibleCount).Sum(child => child.DesiredSize.Width)
+            + Math.Max(0, visibleCount - 1) * ChipSpacing;
+        double desiredHeight = statusChildren.Take(visibleCount).Select(child => child.DesiredSize.Height).DefaultIfEmpty(0d).Max();
+        if (isOverflowing && overflowChild != null)
+        {
+            desiredWidth += (visibleCount > 0 ? ChipSpacing : 0d) + overflowChild.DesiredSize.Width;
+            desiredHeight = Math.Max(desiredHeight, overflowChild.DesiredSize.Height);
+        }
+
+        return new Size(double.IsFinite(availableWidth) ? Math.Min(availableWidth, desiredWidth) : desiredWidth, desiredHeight);
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        double x = 0d;
+        foreach (UIElement child in InternalChildren)
+        {
+            if (child.Visibility != Visibility.Visible)
+            {
+                child.Arrange(Rect.Empty);
+                continue;
+            }
+
+            if (x > 0d)
+            {
+                x += ChipSpacing;
+            }
+            double width = Math.Min(child.DesiredSize.Width, Math.Max(0d, finalSize.Width - x));
+            child.Arrange(new Rect(x, 0d, width, finalSize.Height));
+            x += width;
+        }
+
+        return finalSize;
+    }
+}
+
 public partial class RecordedVideoItem : ObservableObject
 {
     internal int UserSelectionOrder { get; set; }
@@ -6155,6 +6268,7 @@ public partial class RecordedVideoItem : ObservableObject
     [NotifyPropertyChangedFor(nameof(AttributeStatusText))]
     [NotifyPropertyChangedFor(nameof(HasAttributeStatus))]
     [NotifyPropertyChangedFor(nameof(AttributeStatusSections))]
+    [NotifyPropertyChangedFor(nameof(AttributeStatusChips))]
     private bool isStallSegment;
 
     [ObservableProperty]
@@ -6172,6 +6286,7 @@ public partial class RecordedVideoItem : ObservableObject
     [NotifyPropertyChangedFor(nameof(AttributeStatusText))]
     [NotifyPropertyChangedFor(nameof(HasAttributeStatus))]
     [NotifyPropertyChangedFor(nameof(AttributeStatusSections))]
+    [NotifyPropertyChangedFor(nameof(AttributeStatusChips))]
     private int segmentIndex = -1;
 
     [ObservableProperty]
@@ -6179,6 +6294,7 @@ public partial class RecordedVideoItem : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasAttributeStatus))]
     [NotifyPropertyChangedFor(nameof(SortGroupKey))]
     [NotifyPropertyChangedFor(nameof(AttributeStatusSections))]
+    [NotifyPropertyChangedFor(nameof(AttributeStatusChips))]
     private int segmentCount;
 
     [ObservableProperty]
@@ -6188,12 +6304,14 @@ public partial class RecordedVideoItem : ObservableObject
     [NotifyPropertyChangedFor(nameof(AttributeStatusText))]
     [NotifyPropertyChangedFor(nameof(HasAttributeStatus))]
     [NotifyPropertyChangedFor(nameof(AttributeStatusSections))]
+    [NotifyPropertyChangedFor(nameof(AttributeStatusChips))]
     private string mediaIssue = string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AttributeStatusText))]
     [NotifyPropertyChangedFor(nameof(HasAttributeStatus))]
     [NotifyPropertyChangedFor(nameof(AttributeStatusSections))]
+    [NotifyPropertyChangedFor(nameof(AttributeStatusChips))]
     private List<VideoRecordingIssueInterval> issueIntervals = [];
 
     [ObservableProperty]
@@ -6222,6 +6340,9 @@ public partial class RecordedVideoItem : ObservableObject
 
     [ObservableProperty]
     private bool isSelected;
+
+    [ObservableProperty]
+    private bool isAttributeStatusPopupOpen;
 
     [ObservableProperty]
     private int selectionOrder;
@@ -6285,6 +6406,18 @@ public partial class RecordedVideoItem : ObservableObject
     }
 
     public IReadOnlyList<VideoAttributeStatusSection> AttributeStatusSections => BuildAttributeStatusSections();
+
+    public IReadOnlyList<VideoAttributeStatusChip> AttributeStatusChips
+    {
+        get
+        {
+            List<VideoAttributeStatusChip> chips = AttributeStatusSections
+                .Select(section => new VideoAttributeStatusChip(section.Title))
+                .ToList();
+            chips.Add(new VideoAttributeStatusChip("…", IsOverflowIndicator: true));
+            return chips;
+        }
+    }
 
     internal bool HasAudioVideoIssue => GetMediaIssueCodes().Any(issue =>
         !issue.Equals("optimized_audio_failed", StringComparison.OrdinalIgnoreCase));

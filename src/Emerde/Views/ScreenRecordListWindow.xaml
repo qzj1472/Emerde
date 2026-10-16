@@ -20,6 +20,43 @@
                        Foreground="{DynamicResource UiXTextPrimaryBrush}"
                        Text="{Binding Name, Converter={StaticResource VideoDateGroupLabelConverter}}" />
         </DataTemplate>
+        <DataTemplate x:Key="VideoAttributeStatusChipTemplate">
+            <Button Height="17"
+                    Padding="7,0"
+                    Background="{DynamicResource UiXStallFillBrush}"
+                    BorderThickness="0"
+                    Click="VideoAttributeStatusChipClick"
+                    Cursor="Hand"
+                    FocusVisualStyle="{x:Null}"
+                    Foreground="{DynamicResource UiXStallForegroundBrush}">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="{StaticResource UiXNestedCornerRadius}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Button.Template>
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="MinWidth" Value="22" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsOverflowIndicator}" Value="True">
+                                <Setter Property="Padding" Value="3,0" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+                <TextBlock VerticalAlignment="Center"
+                           FontSize="11"
+                           LineHeight="14"
+                           LineStackingStrategy="BlockLineHeight"
+                           FontWeight="SemiBold"
+                           Text="{Binding Title}"
+                           TextWrapping="NoWrap" />
+            </Button>
+        </DataTemplate>
         <ItemsPanelTemplate x:Key="UiXVideoGroupPanelTemplate">
             <VirtualizingStackPanel IsItemsHost="True"
                                     Orientation="Vertical" />
@@ -834,42 +871,57 @@
                                                             </TextBlock.Style>
                                                         </TextBlock>
                                                     </Border>
-                                                     <Grid MinWidth="0">
-                                                     <Border x:Name="VideoAttributeStatusChip"
-                                                             Height="17"
-                                                             HorizontalAlignment="Left"
-                                                             MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Grid}}"
-                                                             Background="{DynamicResource UiXStallFillBrush}"
-                                                             CornerRadius="{StaticResource UiXNestedCornerRadius}"
-                                                             ClipToBounds="True"
-                                                             MinWidth="0"
-                                                             Padding="7,0">
-                                                        <Border.Style>
-                                                            <Style TargetType="{x:Type Border}">
-                                                                <Setter Property="Margin" Value="4,0,0,0" />
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                                <Setter Property="Cursor" Value="Arrow" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding HasAttributeStatus}" Value="True">
-                                                                        <Setter Property="Visibility" Value="Visible" />
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding HasLifecycleStatus}" Value="False">
-                                                                        <Setter Property="Margin" Value="0" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Border.Style>
-                                                         <TextBlock VerticalAlignment="Center"
-                                                                    FontSize="11"
-                                                                    LineHeight="14"
-                                                                    LineStackingStrategy="BlockLineHeight"
-                                                                    FontWeight="SemiBold"
-                                                                    Foreground="{DynamicResource UiXStallForegroundBrush}"
-                                                                    Text="{Binding AttributeStatusText}"
-                                                                    TextTrimming="CharacterEllipsis"
-                                                                    TextWrapping="NoWrap"
-                                                                    ToolTip="{Binding AttributeStatusText}" />
-                                                     </Border>
+                                                     <Grid x:Name="VideoAttributeStatusHost"
+                                                           MinWidth="0"
+                                                           ClipToBounds="True">
+                                                         <Grid.Style>
+                                                             <Style TargetType="Grid">
+                                                                 <Setter Property="Visibility" Value="Collapsed" />
+                                                                 <Setter Property="Margin" Value="4,0,0,0" />
+                                                                 <Style.Triggers>
+                                                                     <DataTrigger Binding="{Binding HasAttributeStatus}" Value="True">
+                                                                         <Setter Property="Visibility" Value="Visible" />
+                                                                     </DataTrigger>
+                                                                     <DataTrigger Binding="{Binding HasLifecycleStatus}" Value="False">
+                                                                         <Setter Property="Margin" Value="0" />
+                                                                     </DataTrigger>
+                                                                 </Style.Triggers>
+                                                             </Style>
+                                                         </Grid.Style>
+                                                         <ItemsControl ItemsSource="{Binding AttributeStatusChips}"
+                                                                       ItemTemplate="{StaticResource VideoAttributeStatusChipTemplate}"
+                                                                       ClipToBounds="True">
+                                                             <ItemsControl.ItemsPanel>
+                                                                 <ItemsPanelTemplate>
+                                                                     <local:VideoAttributeStatusChipPanel />
+                                                                 </ItemsPanelTemplate>
+                                                             </ItemsControl.ItemsPanel>
+                                                         </ItemsControl>
+                                                         <Popup DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
+                                                                IsOpen="{Binding IsAttributeStatusPopupOpen, Mode=TwoWay}"
+                                                                Placement="Bottom"
+                                                                PlacementTarget="{Binding ElementName=VideoAttributeStatusHost}"
+                                                                PopupAnimation="Fade"
+                                                                StaysOpen="False">
+                                                             <Border MaxWidth="260"
+                                                                     Padding="12,10"
+                                                                     Background="{DynamicResource UiXPanelBrush}"
+                                                                     BorderBrush="{DynamicResource UiXStrongStrokeBrush}"
+                                                                     BorderThickness="1"
+                                                                     CornerRadius="6">
+                                                                 <ItemsControl ItemsSource="{Binding AttributeStatusSections}">
+                                                                     <ItemsControl.ItemTemplate>
+                                                                         <DataTemplate>
+                                                                             <TextBlock Margin="0,2"
+                                                                                        FontSize="12"
+                                                                                        Foreground="{DynamicResource UiXTextPrimaryBrush}"
+                                                                                        Text="{Binding Title}"
+                                                                                        TextWrapping="Wrap" />
+                                                                         </DataTemplate>
+                                                                     </ItemsControl.ItemTemplate>
+                                                                 </ItemsControl>
+                                                             </Border>
+                                                         </Popup>
                                                      </Grid>
                                                  </DockPanel>
                                                 <TextBlock Grid.Column="1"
