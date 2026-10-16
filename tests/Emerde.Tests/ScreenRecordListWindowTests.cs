@@ -1496,21 +1496,23 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
-    public void VideoListXaml_ShowsLocalizedRecordingChipForRecordingFiles()
+    public void VideoListXaml_ShowsIndependentAttributeStatusChips()
     {
         string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
 
         Assert.Contains("Binding=\"{Binding HasAttributeStatus}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Text=\"{Binding AttributeStatusText}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding AttributeStatusChips}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding Title}\"", xaml, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void VideoListXaml_ShowsLocalizedStallSegmentChip()
+    public void VideoListXaml_ShowsLifecycleAndAttributeStatusesSeparately()
     {
         string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
 
         Assert.Contains("Binding=\"{Binding HasAttributeStatus}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Text=\"{Binding AttributeStatusText}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding LifecycleStatusText}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding AttributeStatusChips}\"", xaml, StringComparison.Ordinal);
     }
 
     [Fact]
