@@ -19,7 +19,8 @@ internal static unsafe partial class FfmpegMediaEngine
         bool parallelizePreparation = false,
         IReadOnlyList<double>? sourceTimelineEndSeconds = null)
     {
-        string baseVideoPath = BuildOptimizedAudioTemporaryPath(targetFileName, "base", ".mp4");
+        string targetExtension = Path.GetExtension(targetFileName);
+        string baseVideoPath = BuildOptimizedAudioTemporaryPath(targetFileName, "base", targetExtension);
         string optimizedAudioPath = BuildOptimizedAudioTemporaryPath(targetFileName, "audio", ".m4a");
         Stopwatch totalTimer = Stopwatch.StartNew();
         long audioMilliseconds = 0;
@@ -1155,9 +1156,9 @@ internal static unsafe partial class FfmpegMediaEngine
         try
         {
             ConfigureInterruptCallback(&baseContext, token, out baseInterruptHandle);
-            ThrowIfError(ffmpeg.avformat_open_input(&baseContext, baseVideoPath, null, null), "open base MP4");
+            ThrowIfError(ffmpeg.avformat_open_input(&baseContext, baseVideoPath, null, null), "open base video container");
             ApplyInputRepairPolicy(baseContext);
-            ThrowIfError(ffmpeg.avformat_find_stream_info(baseContext, null), "find base MP4 streams");
+            ThrowIfError(ffmpeg.avformat_find_stream_info(baseContext, null), "find base video streams");
             ConfigureInterruptCallback(&audioContext, token, out audioInterruptHandle);
             ThrowIfError(ffmpeg.avformat_open_input(&audioContext, optimizedAudioPath, null, null), "open optimized audio file");
             ApplyInputRepairPolicy(audioContext);
@@ -1165,7 +1166,7 @@ internal static unsafe partial class FfmpegMediaEngine
             int audioStreamIndex = ffmpeg.av_find_best_stream(audioContext, AVMediaType.AVMEDIA_TYPE_AUDIO, -1, -1, null, 0);
             ThrowIfError(audioStreamIndex, "find optimized audio track");
 
-            ThrowIfError(ffmpeg.avformat_alloc_output_context2(&outputContext, null, "mp4", targetFileName), "create final MP4 output");
+            ThrowIfError(ffmpeg.avformat_alloc_output_context2(&outputContext, null, null, targetFileName), "create final optimized-audio output");
             AddMetadata(outputContext, metadata);
             outputContext->avoid_negative_ts = ffmpeg.AVFMT_AVOID_NEG_TS_MAKE_NON_NEGATIVE;
             int[] baseStreamMap = CreateOutputStreams(baseContext, outputContext);
@@ -1202,14 +1203,17 @@ internal static unsafe partial class FfmpegMediaEngine
 
             if ((outputContext->oformat->flags & ffmpeg.AVFMT_NOFILE) == 0)
             {
-                ThrowIfError(ffmpeg.avio_open(&outputContext->pb, targetFileName, ffmpeg.AVIO_FLAG_WRITE), "open final MP4 output");
+                ThrowIfError(ffmpeg.avio_open(&outputContext->pb, targetFileName, ffmpeg.AVIO_FLAG_WRITE), "open final optimized-audio output");
                 outputOpened = true;
             }
             AVDictionary* writeOptions = null;
-            ffmpeg.av_dict_set(&writeOptions, "movflags", "use_metadata_tags", 0);
+            if (Path.GetExtension(targetFileName).Equals(".mp4", StringComparison.OrdinalIgnoreCase))
+            {
+                ffmpeg.av_dict_set(&writeOptions, "movflags", "use_metadata_tags", 0);
+            }
             try
             {
-                ThrowIfError(ffmpeg.avformat_write_header(outputContext, &writeOptions), "write final MP4 header");
+                ThrowIfError(ffmpeg.avformat_write_header(outputContext, &writeOptions), "write final optimized-audio header");
                 headerWritten = true;
             }
             finally
@@ -1221,7 +1225,7 @@ internal static unsafe partial class FfmpegMediaEngine
             audioPacket = ffmpeg.av_packet_alloc();
             if (basePacket == null || audioPacket == null)
             {
-                return new FfmpegMediaRunResult(1, false, false, "final MP4 packet allocation failed");
+                return new FfmpegMediaRunResult(1, false, false, "final optimized-audio packet allocation failed");
             }
 
             long sourceTimestampBase = baseContext->start_time;
@@ -1250,7 +1254,7 @@ internal static unsafe partial class FfmpegMediaEngine
                     ffmpeg.av_packet_rescale_ts(basePacket, inputStream->time_base, outputStream->time_base);
                     basePacket->stream_index = outputIndex;
                     basePacket->pos = -1;
-                    ThrowIfError(ffmpeg.av_interleaved_write_frame(outputContext, basePacket), "write base MP4 packet");
+                    ThrowIfError(ffmpeg.av_interleaved_write_frame(outputContext, basePacket), "write base video packet");
                     ffmpeg.av_packet_unref(basePacket);
                     hasBasePacket = ReadNextMappedPacket(baseContext, basePacket, baseStreamMap, -1);
                     if (hasBasePacket)
@@ -1263,7 +1267,7 @@ internal static unsafe partial class FfmpegMediaEngine
                     ffmpeg.av_packet_rescale_ts(audioPacket, optimizedInputStream->time_base, optimizedOutputStream->time_base);
                     audioPacket->stream_index = optimizedOutputStream->index;
                     audioPacket->pos = -1;
-                    ThrowIfError(ffmpeg.av_interleaved_write_frame(outputContext, audioPacket), "write optimized audio into MP4");
+                    ThrowIfError(ffmpeg.av_interleaved_write_frame(outputContext, audioPacket), "write optimized audio into final container");
                     ffmpeg.av_packet_unref(audioPacket);
                     hasAudioPacket = ReadNextMappedPacket(audioContext, audioPacket, null, audioStreamIndex);
                 }
@@ -1349,7 +1353,7 @@ internal static unsafe partial class FfmpegMediaEngine
         }
         if (readResult != ffmpeg.AVERROR_EOF)
         {
-            ThrowIfError(readResult, "read final MP4 packet");
+            ThrowIfError(readResult, "read final video packet");
         }
         return false;
     }

@@ -153,6 +153,16 @@ public sealed class FfmpegMediaEngineContractTests
     }
 
     [Fact]
+    public void OptimizedAudio_FinalMuxerUsesTheTargetContainer()
+    {
+        string source = ReadOptimizedAudioSource();
+
+        Assert.Contains("Path.GetExtension(targetFileName)", source);
+        Assert.Contains("avformat_alloc_output_context2(&outputContext, null, null, targetFileName)", source);
+        Assert.Contains("Path.GetExtension(targetFileName).Equals(\".mp4\"", source);
+    }
+
+    [Fact]
     public void OptimizedAudio_ParallelPreparationCancelsSiblingBeforeFallback()
     {
         string source = ReadOptimizedAudioSource();

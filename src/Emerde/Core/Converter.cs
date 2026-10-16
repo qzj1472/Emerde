@@ -6,11 +6,12 @@ namespace Emerde.Core;
 public sealed record ConverterOptions(
     string TargetFormat,
     bool OptimizeAudio = false,
-    bool RemoveSource = false);
+    bool RemoveSource = false,
+    bool AllowSameFormat = false);
 
 public sealed class Converter
 {
-    private const double MaximumTrackTimelineDifferenceSeconds = 5d;
+    private const double MaximumTrackTimelineDifferenceSeconds = 0.5d;
     private const double MaximumRecoverableDurationDriftSeconds = 10d;
     private const double MinimumRecordingDurationToleranceSeconds = 15d;
     private const double RecordingDurationToleranceRatio = 0.0025d;
@@ -119,7 +120,6 @@ public sealed class Converter
             return false;
         }
         string targetFormat = normalizedTargetFormat;
-        bool optimizedAudioRequired = targetFormat == ".mkv";
         bool optimizeAudio = ShouldOptimizeAudio(targetFormat, converterOptions.OptimizeAudio);
 
         if (!FfmpegMediaEngine.IsAvailable)
@@ -135,8 +135,10 @@ public sealed class Converter
             .ToArray();
         if (sourceFileInfos.Length == 0
             || sourceFileInfos.Any(file => !file.Exists)
-            || sourceFileInfos.Any(file => !IsSupportedSourceFormat(file.Extension))
-            || (!allowSameFormat && sourceFileInfos.Any(file => file.Extension.Equals(targetFormat, StringComparison.OrdinalIgnoreCase))))
+            || sourceFileInfos.Any(file => !IsSupportedSourceFormat(file.Extension)
+                && !(converterOptions.AllowSameFormat && optimizeAudio && IsCompletedVideoFormat(file.Extension)))
+            || (!allowSameFormat && !converterOptions.AllowSameFormat
+                && sourceFileInfos.Any(file => file.Extension.Equals(targetFormat, StringComparison.OrdinalIgnoreCase))))
         {
             onFailed?.Invoke("source_invalid");
             return false;
@@ -161,6 +163,12 @@ public sealed class Converter
         VideoRecordingMetadata metadata = VideoRecordingMetadataStore.WithFileName(
             VideoRecordingMetadataStore.Load(sourceFileInfos[0]),
             Path.GetFileName(targetFileName));
+        if (converterOptions.AllowSameFormat && metadata.HasOptimizedAudio)
+        {
+            ReleaseTargetPath(targetFileName);
+            onFailed?.Invoke("optimized_audio_already_present");
+            return false;
+        }
         using CancellationTokenSource operationCancellation = tokenSource == null
             ? new CancellationTokenSource()
             : CancellationTokenSource.CreateLinkedTokenSource(tokenSource.Token);
@@ -234,7 +242,7 @@ public sealed class Converter
             double sourceAudioEndSeconds = sourceProbes.Sum(probe => Math.Max(0d, probe.AudioEndSeconds));
             double sourceVideoEndSeconds = sourceProbes.Sum(probe => Math.Max(0d, probe.VideoEndSeconds));
             MergeSourceIssueMetadata(metadata, sourceFileInfos, sourceProbes);
-            bool sourceStartMismatch = sourceStartMismatchSeconds > 2d;
+            bool sourceStartMismatch = sourceStartMismatchSeconds > MaximumTrackTimelineDifferenceSeconds;
             int sourceEndMismatchIndex = FindFirstSourceTimelineMismatchIndex(sourceProbes);
             bool sourceEndMismatch = sourceEndMismatchIndex >= 0;
             if (sourceStartMismatch || sourceEndMismatch)
@@ -276,6 +284,16 @@ public sealed class Converter
                 probedSourceDuration);
             bool optimizedAudioRequested = optimizeAudio;
             optimizeAudio = optimizedAudioRequested && sourceProbes.All(probe => probe.HasAudio);
+            if (converterOptions.AllowSameFormat && !optimizeAudio)
+            {
+                onFailed?.Invoke("source_audio_missing");
+                return false;
+            }
+            if (converterOptions.AllowSameFormat && sourceProbes.Any(probe => probe.HasOptimizedAudio))
+            {
+                onFailed?.Invoke("optimized_audio_already_present");
+                return false;
+            }
             string[] sourcePaths = sourceFileInfos.Select(file => file.FullName).ToArray();
             AppSessionLogger.Event("info", "converter", "conversion_starting", "recording conversion is starting", new
             {
@@ -284,15 +302,28 @@ public sealed class Converter
                 activeConversions = ActiveConversionCount,
                 optimizeAudio,
                 optimizedAudioRequested,
+                sourceTimelines = sourceProbes.Select((probe, index) => new
+                {
+                    sourceFileName = sourcePaths[index],
+                    probe.AudioStartSeconds,
+                    probe.VideoStartSeconds,
+                    probe.AudioEndSeconds,
+                    probe.VideoEndSeconds,
+                    timelineDifferenceSeconds = Math.Abs(probe.AudioEndSeconds - probe.VideoEndSeconds),
+                }).ToArray(),
             });
             bool optimizedAudioFallback = false;
             bool optimizedAudioFailed = false;
+            VideoRecordingMetadata optimizedAttemptMetadata = optimizeAudio
+                ? VideoRecordingMetadataStore.WithFileName(metadata, Path.GetFileName(targetFileName))
+                : metadata;
+            optimizedAttemptMetadata.HasOptimizedAudio = optimizeAudio;
             FfmpegMediaRunResult result = await Task.Run(
                 () => optimizeAudio
                     ? FfmpegMediaEngine.RemuxFilesWithOptimizedAudio(
                         sourcePaths,
                         temporaryTargetFileName,
-                        metadata,
+                        optimizedAttemptMetadata,
                         token,
                         parallelizePreparation: sourcePaths.Length > 1 && !GlobalMonitor.HasActiveRecorders,
                         sourceTimelineEndSeconds: sourceTimelineEndSeconds)
@@ -316,13 +347,22 @@ public sealed class Converter
                 result,
                 metadata.RoomUrl,
                 optimizeAudio ? "optimized_audio_attempt" : "original_audio_attempt",
-                metadata);
+                optimizedAttemptMetadata);
 
             (bool succeeded, string validationError) = await ValidateConversionAsync(result, temporaryTargetFileName, sourceProbes, optimizeAudio, recordingExpectedDuration, token);
-            ApplyValidationIssue(metadata, validationError);
+            ApplyValidationIssue(optimizedAttemptMetadata, validationError);
             if (!succeeded && optimizeAudio)
             {
-                    AppSessionLogger.Event("info", "converter", "optimized_audio_fallback", "optimized audio conversion failed and plain remux will be attempted", new
+                await Task.Run(
+                    () => MediaDiagnostics.LogProbeOrFailure(
+                        "optimized_audio_candidate",
+                        temporaryTargetFileName,
+                        optimizedAttemptMetadata,
+                        optimizedAttemptMetadata.RoomUrl,
+                        targetFileName,
+                        validationError),
+                    token);
+                AppSessionLogger.Event("info", "converter", "optimized_audio_fallback", "optimized audio conversion failed and plain remux will be attempted", new
                 {
                     sourceFileNames = sourcePaths,
                     targetFileName,
@@ -334,6 +374,8 @@ public sealed class Converter
                 optimizedAudioFallback = true;
                 optimizedAudioFailed = true;
                 optimizeAudio = false;
+                metadata = VideoRecordingMetadataStore.WithFileName(metadata, Path.GetFileName(targetFileName));
+                optimizedAttemptMetadata = metadata;
                 result = await Task.Run(
                     () => FfmpegMediaEngine.RemuxFiles(
                         sourcePaths,
@@ -357,7 +399,7 @@ public sealed class Converter
                     metadata);
                 (succeeded, validationError) = await ValidateConversionAsync(result, temporaryTargetFileName, sourceProbes, optimizedAudioExpected: false, recordingExpectedDuration, token);
                 ApplyValidationIssue(metadata, validationError);
-                if (optimizedAudioRequired && succeeded)
+                if (succeeded)
                 {
                     VideoRecordingMetadataStore.AddIssueInterval(
                         metadata,
@@ -365,16 +407,21 @@ public sealed class Converter
                         -1d,
                         -1d,
                         "original_audio_preserved");
-                    AppSessionLogger.Event("info", "converter", "optimized_audio_failed_original_preserved", "MKV kept the original audio because optimized audio failed", new
+                    AppSessionLogger.Event("info", "converter", "optimized_audio_failed_original_preserved", "the original audio was kept because optimized audio failed", new
                     {
                         sourceFileNames = sourcePaths,
                         targetFileName,
                     });
                 }
+                if (succeeded && converterOptions.AllowSameFormat)
+                {
+                    succeeded = false;
+                    validationError = "optimized_audio_failed";
+                }
             }
-            if (!succeeded && optimizedAudioRequired && optimizedAudioFailed)
+            if (!succeeded && optimizedAudioFailed)
             {
-                AppSessionLogger.Event("error", "converter", "optimized_audio_and_original_failed", "MKV conversion could not produce a valid original audio track after optimized audio failed", new
+                AppSessionLogger.Event("error", "converter", "optimized_audio_and_original_failed", "conversion could not produce a valid original audio track after optimized audio failed", new
                 {
                     sourceFileNames = sourcePaths,
                     targetFileName,
@@ -403,6 +450,10 @@ public sealed class Converter
                 token);
             if (succeeded)
             {
+                if (optimizeAudio)
+                {
+                    metadata = optimizedAttemptMetadata;
+                }
                 File.Move(temporaryTargetFileName, targetFileName, false);
                 targetCreated = true;
                 completionAcknowledged = true;
@@ -488,7 +539,7 @@ public sealed class Converter
 
     internal static ConverterOptions CreateDefaultOptions(string targetFormat)
     {
-        return new ConverterOptions(targetFormat, ShouldOptimizeAudio(targetFormat, false));
+        return new ConverterOptions(targetFormat, ShouldOptimizeAudio(targetFormat, Configurations.IsOptimizeAudio.Get()));
     }
 
     internal static bool ShouldOptimizeAudio(string targetFormat, bool userRequested)
@@ -501,10 +552,15 @@ public sealed class Converter
 
         return normalizedTargetFormat.ToLowerInvariant() switch
         {
-            ".mkv" => true,
-            ".mp4" => userRequested,
+            ".mkv" or ".mp4" => userRequested,
             _ => false,
         };
+    }
+
+    private static bool IsCompletedVideoFormat(string extension)
+    {
+        return extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".mkv", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static bool TryDeleteSourceFiles(IEnumerable<string> sourcePaths)
@@ -742,11 +798,14 @@ public sealed class Converter
             {
                 return $"optimized_audio_track_missing:expected={sourceAudioStreamCount + 1},actual={output.AudioStreamCount}";
             }
-            double sourceAudioEndSeconds = sourceProbes.Sum(probe => Math.Max(0d, probe.AudioEndSeconds));
-            double sourceVideoEndSeconds = sourceProbes.Sum(probe => Math.Max(0d, probe.VideoEndSeconds));
-            if (!IsTrackTimelineWithinTolerance(output.AudioEndSeconds, output.VideoEndSeconds))
+            string outputTimelineError = GetTrackTimelineValidationError(
+                sourceHasAudio && output.HasAudio,
+                sourceHasVideo && output.HasVideo,
+                output.AudioEndSeconds,
+                output.VideoEndSeconds);
+            if (!string.IsNullOrEmpty(outputTimelineError))
             {
-                return $"output_track_timeline_mismatch:audio={output.AudioEndSeconds:F3},video={output.VideoEndSeconds:F3}";
+                return $"{outputTimelineError}:audio={output.AudioEndSeconds:F3},video={output.VideoEndSeconds:F3}";
             }
 
             double probedDuration = sourceProbes.Sum(probe => Math.Max(0, probe.DurationSeconds));
@@ -898,7 +957,26 @@ public sealed class Converter
     {
         return audioEndSeconds <= 0d
             || videoEndSeconds <= 0d
-            || Math.Abs(audioEndSeconds - videoEndSeconds) <= 2d;
+            || Math.Abs(audioEndSeconds - videoEndSeconds) <= MaximumTrackTimelineDifferenceSeconds;
+    }
+
+    internal static string GetTrackTimelineValidationError(
+        bool hasAudio,
+        bool hasVideo,
+        double audioEndSeconds,
+        double videoEndSeconds)
+    {
+        if (!hasAudio || !hasVideo)
+        {
+            return string.Empty;
+        }
+        if (audioEndSeconds <= 0d || videoEndSeconds <= 0d)
+        {
+            return "output_track_timeline_unknown";
+        }
+        return IsTrackTimelineWithinTolerance(audioEndSeconds, videoEndSeconds)
+            ? string.Empty
+            : "output_track_timeline_mismatch";
     }
 
     internal static int FindFirstSourceTimelineMismatchIndex(IReadOnlyList<FfmpegMediaProbeResult> probes)

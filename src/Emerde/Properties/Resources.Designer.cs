@@ -3630,6 +3630,18 @@ namespace Emerde.Properties {
             }
         }
 
+        public static string OptimizedAudioCreated {
+            get {
+                return ResourceManager.GetString("OptimizedAudioCreated", resourceCulture);
+            }
+        }
+
+        public static string OptimizeAudioFromVideo {
+            get {
+                return ResourceManager.GetString("OptimizeAudioFromVideo", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Original audio.
         /// </summary>

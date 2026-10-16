@@ -175,7 +175,7 @@ public sealed class SettingsViewModelTests
             .Single(element => element.Name.LocalName == "CheckBox"
                 && ((string?)element.Attribute("IsChecked"))?.Contains("IsRemoveTs", StringComparison.Ordinal) == true);
 
-        Assert.Contains("IsMp4RecordFormat", (string?)optimizeAudio.Attribute("Visibility"));
+        Assert.Contains("IsTranscodedRecordFormat", (string?)optimizeAudio.Attribute("Visibility"));
         Assert.Contains("IsTranscodedRecordFormat", (string?)removeSource.Attribute("Visibility"));
     }
 
@@ -190,7 +190,7 @@ public sealed class SettingsViewModelTests
             .Single(element => element.Name.LocalName == "CheckBox"
                 && ((string?)element.Attribute("IsChecked"))?.Contains("IsRemoveTs", StringComparison.Ordinal) == true);
 
-        Assert.Contains("IsMp4RecordFormat", (string?)optimizeAudio.Attribute("Visibility"));
+        Assert.Contains("IsTranscodedRecordFormat", (string?)optimizeAudio.Attribute("Visibility"));
         Assert.Contains("IsTranscodedRecordFormat", (string?)removeSource.Attribute("Visibility"));
         Assert.Same(optimizeAudio.Parent, removeSource.Parent);
         Assert.Equal("http://schemas.microsoft.com/winfx/2006/xaml/presentation", optimizeAudio.Parent?.Name.NamespaceName);

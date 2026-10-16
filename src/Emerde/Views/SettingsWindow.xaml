@@ -913,7 +913,7 @@
                             <CheckBox Margin="0,0,0,6"
                                       Content="{I18N CreateOptimizedAudioTrack}"
                                       IsChecked="{Binding IsOptimizeAudio, Mode=TwoWay}"
-                                      Visibility="{Binding IsMp4RecordFormat, Converter={x:Static c:BoolToVisibilityConverter.Instance}}" />
+                                      Visibility="{Binding IsTranscodedRecordFormat, Converter={x:Static c:BoolToVisibilityConverter.Instance}}" />
                             <CheckBox Grid.Row="1"
                                       Margin="0,6,0,0"
                                       Content="{I18N RecordFormatAutoRemove}"

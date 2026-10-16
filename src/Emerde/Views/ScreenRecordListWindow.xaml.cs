@@ -1252,6 +1252,11 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
                 menuItem.CommandParameter = item;
                 menuItem.IsEnabled = item.CanTranscode;
                 break;
+            case "OptimizeAudio":
+                menuItem.Command = viewModel.OptimizeAudioFromVideoCommand;
+                menuItem.CommandParameter = item;
+                menuItem.IsEnabled = item.CanCreateOptimizedAudio;
+                break;
             case "Merge":
                 menuItem.Command = viewModel.OpenMergeSelectedCommand;
                 menuItem.CommandParameter = null;
@@ -2949,6 +2954,49 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
     }
 
     [RelayCommand]
+    private async Task OptimizeAudioFromVideoAsync(RecordedVideoItem? item)
+    {
+        if (item == null || !item.CanCreateOptimizedAudio || !CanModifyVideo(item) || IsOperating)
+        {
+            return;
+        }
+
+        string targetFormat = Path.GetExtension(item.FullPath).ToLowerInvariant();
+        ConverterOptions options = CreateOptimizedAudioOptions(targetFormat);
+        IsUserTranscoding = true;
+        IsOperating = true;
+        OperationProgressText = GetResourceText("TranscodingVideo", "Transcoding...");
+        OnPropertyChanged(nameof(IsIdle));
+
+        try
+        {
+            bool converted = await new Converter().ExecuteAsync(item.FullPath, options);
+            if (converted)
+            {
+                AppFeedback.Success(GetResourceText("OptimizedAudioCreated", "Optimized audio created"));
+            }
+            else
+            {
+                AppFeedback.Warning(GetResourceText("TranscodeFailed", "Transcoding failed"));
+            }
+            await RefreshForDisplayAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            if (IsUserTranscoding)
+            {
+                IsUserTranscoding = false;
+                IsOperating = false;
+                OperationProgressText = string.Empty;
+                OnPropertyChanged(nameof(IsIdle));
+            }
+        }
+    }
+
+    [RelayCommand]
     private async Task RepairVideoAsync(RecordedVideoItem? item)
     {
         if (item == null || !item.CanRepair || !CanModifyVideo(item) || IsOperating)
@@ -3084,10 +3132,10 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         };
         formatSelector.SelectionChanged += (_, _) =>
         {
-            bool isMp4 = formatSelector.SelectedIndex == 0;
-            optimizeAudio.IsEnabled = isMp4;
-            optimizeAudio.Visibility = isMp4 ? Visibility.Visible : Visibility.Collapsed;
-            description.Visibility = isMp4 ? Visibility.Visible : Visibility.Collapsed;
+            bool supportsOptimizedAudio = formatSelector.SelectedIndex is 0 or 1;
+            optimizeAudio.IsEnabled = supportsOptimizedAudio;
+            optimizeAudio.Visibility = supportsOptimizedAudio ? Visibility.Visible : Visibility.Collapsed;
+            description.Visibility = supportsOptimizedAudio ? Visibility.Visible : Visibility.Collapsed;
         };
         TextBlock targetFormatLabel = new()
         {
@@ -3138,7 +3186,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             formatSelector.SelectedIndex,
             optimizeAudio.IsChecked == true,
             removeSource.IsChecked == true);
-        if (options.TargetFormat == ".mp4")
+        if (options.TargetFormat is ".mp4" or ".mkv")
         {
             Configurations.IsOptimizeAudio.Set(options.OptimizeAudio);
             ConfigurationSaveScheduler.Request();
@@ -3155,9 +3203,19 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         return selectedIndex switch
         {
             0 => new ConverterOptions(".mp4", optimizeAudio, removeSource),
-            1 => new ConverterOptions(".mkv", true, removeSource),
+            1 => new ConverterOptions(".mkv", optimizeAudio, removeSource),
             _ => throw new ArgumentOutOfRangeException(nameof(selectedIndex)),
         };
+    }
+
+    internal static ConverterOptions CreateOptimizedAudioOptions(string targetFormat)
+    {
+        string normalizedFormat = targetFormat.Trim().ToLowerInvariant();
+        if (normalizedFormat is not (".mp4" or ".mkv"))
+        {
+            throw new ArgumentOutOfRangeException(nameof(targetFormat));
+        }
+        return new ConverterOptions(normalizedFormat, OptimizeAudio: true, AllowSameFormat: true);
     }
 
     [RelayCommand]
@@ -3971,6 +4029,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             SegmentKind = metadata.SegmentKind,
             MediaIssue = metadata.MediaIssue,
             IssueIntervals = VideoRecordingMetadataStore.CloneIssueIntervals(metadata.IssueIntervals),
+            HasOptimizedAudio = metadata.HasOptimizedAudio,
             WasRepaired = metadata.WasRepaired,
             SourceLength = snapshot.Length,
             SourceLastWriteTimeUtc = snapshot.LastWriteTimeUtc,
@@ -6138,6 +6197,10 @@ public partial class RecordedVideoItem : ObservableObject
     private List<VideoRecordingIssueInterval> issueIntervals = [];
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanCreateOptimizedAudio))]
+    private bool hasOptimizedAudio;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AttributeStatusText))]
     [NotifyPropertyChangedFor(nameof(HasAttributeStatus))]
     private bool wasRepaired;
@@ -6442,6 +6505,10 @@ public partial class RecordedVideoItem : ObservableObject
     public bool CanModify => !IsInProgress && !IsRecordingFile;
 
     public bool CanTranscode => SupportsTranscode && !IsInProgress && !IsRecordingFile;
+
+    public bool CanCreateOptimizedAudio => CanModify
+        && !HasOptimizedAudio
+        && ScreenRecordListViewModel.IsCompletedVideoFormat(FullPath);
 
     public bool CanRepair => SupportsTranscode && !IsInProgress && !IsRecordingFile;
 

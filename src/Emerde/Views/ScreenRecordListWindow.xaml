@@ -608,6 +608,8 @@
                                               Tag="Rename" />
                                     <MenuItem Header="{I18N TranscodeVideo}"
                                               Tag="Transcode" />
+                                    <MenuItem Header="{I18N OptimizeAudioFromVideo}"
+                                              Tag="OptimizeAudio" />
                                     <Separator />
                                     <MenuItem Header="{I18N MergeVideos}"
                                               Tag="Merge" />

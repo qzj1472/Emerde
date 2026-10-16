@@ -7,10 +7,10 @@ public sealed class ConverterTests
 {
     [Theory]
     [InlineData(100, 100, true)]
-    [InlineData(102, 100, true)]
-    [InlineData(102.001, 100, false)]
-    [InlineData(100, 102, true)]
-    [InlineData(100, 102.001, false)]
+    [InlineData(100.5, 100, true)]
+    [InlineData(100.501, 100, false)]
+    [InlineData(100, 100.5, true)]
+    [InlineData(100, 100.501, false)]
     [InlineData(0, 100, true)]
     [InlineData(100, 0, true)]
     public void TrackTimelineValidation_RejectsEitherTrackPastTheOther(
@@ -33,7 +33,8 @@ public sealed class ConverterTests
 
     [Theory]
     [InlineData(100, 100, 100)]
-    [InlineData(102, 100, 100)]
+    [InlineData(100.5, 100, 100)]
+    [InlineData(100.501, 100, 0)]
     [InlineData(4257.260, 4278.433, 0)]
     public void GetTimelineIssueStartSeconds_UsesWholeFileForLargeFixedOffset(
         double audioEndSeconds,
@@ -41,6 +42,24 @@ public sealed class ConverterTests
         double expected)
     {
         Assert.Equal(expected, Converter.GetTimelineIssueStartSeconds(audioEndSeconds, videoEndSeconds));
+    }
+
+    [Theory]
+    [InlineData(true, true, 100, 100, "")]
+    [InlineData(true, true, 100, 100.5, "")]
+    [InlineData(true, true, 100, 100.501, "output_track_timeline_mismatch")]
+    [InlineData(true, true, 0, 100, "output_track_timeline_unknown")]
+    [InlineData(true, false, 0, 100, "")]
+    public void OutputTrackTimelineValidation_RejectsUnknownAndVisibleOffsets(
+        bool hasAudio,
+        bool hasVideo,
+        double audioEndSeconds,
+        double videoEndSeconds,
+        string expected)
+    {
+        Assert.Equal(
+            expected,
+            Converter.GetTrackTimelineValidationError(hasAudio, hasVideo, audioEndSeconds, videoEndSeconds));
     }
 
     [Theory]
@@ -160,7 +179,7 @@ public sealed class ConverterTests
     [Theory]
     [InlineData("mp4", false)]
     [InlineData(".MP4", false)]
-    [InlineData("mkv", true)]
+    [InlineData("mkv", false)]
     [InlineData("ts", false)]
     public void CreateDefaultOptions_UsesTheTargetFormatAudioPolicy(string targetFormat, bool expected)
     {
@@ -168,12 +187,12 @@ public sealed class ConverterTests
     }
 
     [Theory]
-    [InlineData(".mkv", false, true)]
+    [InlineData(".mkv", false, false)]
     [InlineData(".mkv", true, true)]
     [InlineData(".mp4", false, false)]
     [InlineData(".mp4", true, true)]
     [InlineData(".ts", true, false)]
-    public void ShouldOptimizeAudio_AlwaysEnablesMkvAndPreservesMp4Selection(
+    public void ShouldOptimizeAudio_UsesTheUserSelectionForMp4AndMkv(
         string targetFormat,
         bool userRequested,
         bool expected)

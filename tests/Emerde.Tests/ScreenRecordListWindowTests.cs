@@ -32,6 +32,7 @@ public sealed class ScreenRecordListWindowTests
         string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
 
         Assert.Contains("ContextMenuOpening=\"VideoCardContextMenuOpening\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("I18N OptimizeAudioFromVideo", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("{I18N RepairVideo}", xaml, StringComparison.Ordinal);
         Assert.Contains("GetOverrides<IExtensionVideoAction>(ExtensionContractNames.VideoListActions)", code, StringComparison.Ordinal);
     }
@@ -51,7 +52,7 @@ public sealed class ScreenRecordListWindowTests
     [Theory]
     [InlineData(0, true, ".mp4", true)]
     [InlineData(0, false, ".mp4", false)]
-    [InlineData(1, false, ".mkv", true)]
+    [InlineData(1, false, ".mkv", false)]
     public void CreateTranscodeOptions_MapsDialogSelection(int selectedIndex, bool optimizeAudio, string targetFormat, bool expectedOptimization)
     {
         ConverterOptions options = ScreenRecordListViewModel.CreateTranscodeOptions(selectedIndex, optimizeAudio);
@@ -79,6 +80,37 @@ public sealed class ScreenRecordListWindowTests
             removeSource);
 
         Assert.True(options.RemoveSource);
+    }
+
+    [Theory]
+    [InlineData(".mp4")]
+    [InlineData(".MKV")]
+    public void CreateOptimizedAudioOptions_UsesNewSameFormatOutput(string targetFormat)
+    {
+        ConverterOptions options = ScreenRecordListViewModel.CreateOptimizedAudioOptions(targetFormat);
+
+        Assert.Equal(targetFormat.ToLowerInvariant(), options.TargetFormat);
+        Assert.True(options.OptimizeAudio);
+        Assert.True(options.AllowSameFormat);
+    }
+
+    [Theory]
+    [InlineData("video.mp4", false, true)]
+    [InlineData("video.mkv", false, true)]
+    [InlineData("video.mkv", true, false)]
+    [InlineData("video.ts", false, false)]
+    public void RecordedVideoItem_CreatesOptimizedAudioOnlyForUnoptimizedCompletedFiles(
+        string path,
+        bool hasOptimizedAudio,
+        bool expected)
+    {
+        RecordedVideoItem item = new()
+        {
+            FullPath = path,
+            HasOptimizedAudio = hasOptimizedAudio,
+        };
+
+        Assert.Equal(expected, item.CanCreateOptimizedAudio);
     }
 
     [Fact]

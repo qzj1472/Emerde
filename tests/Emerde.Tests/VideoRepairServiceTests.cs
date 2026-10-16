@@ -67,7 +67,7 @@ public sealed class VideoRepairServiceTests
         FfmpegMediaProbeResult output = CreateProbe(99, 100, 100);
 
         Assert.Empty(VideoRepairService.GetValidationError(source, output));
-        Assert.True(Converter.IsTrackTimelineWithinTolerance(output.AudioEndSeconds, output.VideoEndSeconds));
+        Assert.False(Converter.IsTrackTimelineWithinTolerance(output.AudioEndSeconds, output.VideoEndSeconds));
     }
 
     [Fact]

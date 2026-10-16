@@ -744,7 +744,9 @@
   <data name="TranscodeVideo" xml:space="preserve"><value>轉碼</value></data>
   <data name="TargetFormat" xml:space="preserve"><value>目標格式</value></data>
   <data name="CreateOptimizedAudioTrack" xml:space="preserve"><value>建立優化音軌（建議）</value></data>
-  <data name="OptimizedAudioTrackDescription" xml:space="preserve"><value>MP4 會保留原音軌，並額外建立經過增益、壓縮與限幅處理的 AAC 音軌。</value></data>
+  <data name="OptimizedAudioTrackDescription" xml:space="preserve"><value>MP4 和 MKV 會保留原音軌，並額外建立經過增益、壓縮與限幅處理的 AAC 音軌。</value></data>
+  <data name="OptimizeAudioFromVideo" xml:space="preserve"><value>建立優化音訊</value></data>
+  <data name="OptimizedAudioCreated" xml:space="preserve"><value>已建立優化音訊</value></data>
   <data name="DeleteSourceAfterTranscode" xml:space="preserve"><value>轉碼成功後刪除來源檔案</value></data>
   <data name="SplitButton" xml:space="preserve"><value>分割</value></data>
   <data name="SplitVideo" xml:space="preserve"><value>分割影片</value></data>
@@ -837,9 +839,9 @@
   <data name="ReleaseNotes1610Items" xml:space="preserve"><value>新增音訊、視訊、容器、編碼、解析度、幀率、時間軸、串流數量、解碼錯誤、RMS、峰值與近靜音區間等媒體診斷記錄。|MKV 錄製一律產生最佳化音訊；最佳化音訊無法產生但原音訊有效時保留原音訊，並明確標記最佳化音訊問題。|增加錄製時間軸與音訊內容取樣，用於判斷異常發生在直播來源、TS 輸入、中間分段或最終成品。|增加錄製恢復用的自動備援分段；備援分段最後會合併為一個成品，設定中主動配置的分段仍保持獨立。|錄製中和整理中的同一直播間分段折疊為一個影片卡片，分段編號穩定，多個狀態可以同時顯示。|保留既有影片封面，新的封面產生流程只用於新產生的封面。|增加磁碟空間保護，空間不足時暫停錄製相關處理，空間恢復前保持提示。|完善恢復流程和錄影中繼資料寫入，處理中斷後可以繼續恢復而不遺失錄影狀態。|磁碟空間不足導致的轉碼失敗不再進行無意義的恢復重試。|空中繼資料流不再持續產生異常日誌。</value></data>
   <data name="ReleaseNotes1610AdditionalItems" xml:space="preserve"><value>最佳化安裝程式版本顯示、輸出命名與彈窗背景遮罩一致性。|最佳化恢復設定對齊、過長狀態文字換行、頭像快取清理和解析器取消處理。|記錄處理速度供後續比較，本版本沒有修改轉換效能邏輯。</value></data>
   <data name="ReleaseNotes171Title" xml:space="preserve"><value>Emerde 1.7.1</value></data>
-  <data name="ReleaseNotes171Date" xml:space="preserve"><value>2026-10-15</value></data>
+  <data name="ReleaseNotes171Date" xml:space="preserve"><value>2026-10-17</value></data>
   <data name="ReleaseNotes171Items" xml:space="preserve"><value>修正轉碼驗證過嚴導致完整錄影僅因時間軸輕微偏移就被判定失敗的問題。|最佳化音訊失敗時保留原始音訊，優先確保整場錄影完整。|相容的自動分段按順序合併；後續不相容的分段獨立儲存。|恢復任務會等待錄製檔案釋放後再處理，減少誤判失敗和誤清理。|修正封面產生的媒體資源異常導致轉碼被誤判失敗的問題，並降低封面產生的資源佔用。|錄製重新連線切換到重新整理後的串流網址時會重新計算重試次數。|減少一般音訊取樣、串流切換和來源檔案暫時缺失造成的誤報。|YouTube 直播在沒有可用 HLS 時優先使用可直接播放的影音格式，改善預覽和錄製相容性。|移除成品影片的異常浮動彈窗，詳細診斷仍會寫入記錄。|錄製中的右鍵選單僅保留開啟資料夾，其他操作繼續停用。|封鎖 Win+Tab、Alt+Tab 等系統 Tab 組合鍵觸發 Emerde 焦點導覽，保留 Ctrl+Tab 切換頁面。</value></data>
-  <data name="ReleaseNotes171AdditionalItems" xml:space="preserve"><value>完善收尾階段和分段處理相關的診斷及恢復狀態記錄。|強化分段錄製輸出和恢復流程，保留已完成分段、檢測缺失分段，並在輸出時間軸漂移時觸發重新連線。|拆分、合併、修復和最終輸出現在都會在提交前驗證；設定、記錄、網路回應和擴充功能關閉流程失敗時會安全處理。|增強安裝程式回滾、解除安裝清理和 Debug 診斷能力。|依目前 1.7.1 原始碼重新產生更新日誌和安裝程式。</value></data>
+  <data name="ReleaseNotes171AdditionalItems" xml:space="preserve"><value>完善收尾階段和分段處理相關的診斷及恢復狀態記錄。|強化分段錄製輸出和恢復流程，保留已完成分段、檢測缺失分段，並在輸出時間軸漂移時觸發重新連線。|拆分、合併、修復和最終輸出現在都會在提交前驗證；設定、記錄、網路回應和擴充功能關閉流程失敗時會安全處理。|增強安裝程式回滾、解除安裝清理和 Debug 診斷能力。|依目前 1.7.1 原始碼重新產生更新日誌和安裝程式。|音畫同步校驗收緊至 0.5 秒，隔離被拒絕的優化音訊候選；MKV 遵循音訊開關，已完成的 MP4/MKV 可另存優化音訊成品。</value></data>
   <data name="ReleaseNotes1611Title" xml:space="preserve"><value>Emerde 1.6.11</value></data>
   <data name="ReleaseNotes1611Date" xml:space="preserve"><value>2026-09-13</value></data>
   <data name="ReleaseNotes1611Items" xml:space="preserve"><value>去掉新增房間、首頁選取層、設定頁、影片列表和通知裡殘留的舊介面，統一使用 UI-X。|關於頁面補充自動分段說明：自動分段用於錄製異常、重新連線和恢復備援；預設自動分段最後會合併為一個成品，設定中的自訂分段仍保持獨立。|音訊內容持續異常時會重啟目前錄製，避免繼續寫入異常音軌。|卡頓恢復產生的內部暫時分段不再作為額外成品出現在影片列表。|影片列表去掉舊表頭佔位，錄製中和整理中的卡片不再留下大塊空白。|連續且參數一致的自動分段會合併成一條；後面不相容的單獨保存，不再標成同一組分段。|最佳化音訊失敗時保留原始音訊並繼續合併，優先保證整場完整。|成品卡片用一顆提示彙總異常；點擊後可查看音畫異常、最佳化音訊失敗、卡頓分段的發生時間。|B 站卡頓回退後會再嘗試原畫，不再釘在備用流。|影片列表捲動時保留已載入封面，滑回去不再先顯示佔位</value></data>

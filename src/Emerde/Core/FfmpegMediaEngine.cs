@@ -85,7 +85,7 @@ internal readonly record struct FfmpegPacketProgress(
 
 internal static unsafe partial class FfmpegMediaEngine
 {
-    private const double TimelineBoundaryToleranceSeconds = 2d;
+    private const double TimelineBoundaryToleranceSeconds = 0.5d;
     private const long OutputTimelineMismatchThresholdMicroseconds = 2L * 1_000_000;
     internal const long VideoTimelineStallThresholdMicroseconds = 3L * 1_000_000;
     internal const long InitialMediaSyncMaximumDurationMicroseconds = 10L * 1_000_000;
