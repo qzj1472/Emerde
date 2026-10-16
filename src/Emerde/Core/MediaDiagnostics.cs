@@ -105,6 +105,8 @@ internal static class MediaDiagnostics
                 wasCanceled = result.WasCanceled,
                 hadMediaProgress = result.HadMediaProgress,
                 processedDurationSeconds = Math.Round(Math.Max(0d, result.ProcessedDurationSeconds), 3),
+                audioEndSeconds = Math.Round(Math.Max(0d, result.AudioEndSeconds), 3),
+                videoEndSeconds = Math.Round(Math.Max(0d, result.VideoEndSeconds), 3),
                 recoveredReadErrors = result.RecoveredReadErrors,
                 discardedPackets = result.DiscardedPackets,
                 errorOutput = result.ErrorOutput,

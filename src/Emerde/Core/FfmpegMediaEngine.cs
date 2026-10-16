@@ -58,7 +58,9 @@ internal sealed record FfmpegMediaRunResult(
     double ProcessedDurationSeconds = 0d,
     bool RequiresInputRestart = false,
     int RecoveredReadErrors = 0,
-    int DiscardedPackets = 0);
+    int DiscardedPackets = 0,
+    double AudioEndSeconds = 0d,
+    double VideoEndSeconds = 0d);
 
 internal enum FfmpegTimelineEventKind
 {
@@ -1979,6 +1981,8 @@ internal static unsafe partial class FfmpegMediaEngine
         bool hadProgress = false;
         int recoveredReadErrors = 0;
         int discardedPackets = 0;
+        long audioEndTimestamp = ffmpeg.AV_NOPTS_VALUE;
+        long videoEndTimestamp = ffmpeg.AV_NOPTS_VALUE;
         long lastAudioTimelineTimestamp = ffmpeg.AV_NOPTS_VALUE;
         long lastVideoTimelineTimestamp = ffmpeg.AV_NOPTS_VALUE;
         long baselineTimelineDifference = ffmpeg.AV_NOPTS_VALUE;
@@ -2356,6 +2360,18 @@ internal static unsafe partial class FfmpegMediaEngine
                         ffmpeg.av_packet_rescale_ts(packet, inputStream->time_base, outputStream->time_base);
                         ApplyTimelineOffset(packet, outputStream, timelineOffset);
                         NormalizePacketDts(packet, outputStream, outputStreamIndex, lastPacketEnds);
+                        long packetEndTimestamp = GetPacketPresentationEndTimestamp(packet, outputStream);
+                        if (packetEndTimestamp != ffmpeg.AV_NOPTS_VALUE)
+                        {
+                            if (isAudioPacket)
+                            {
+                                audioEndTimestamp = Math.Max(audioEndTimestamp, packetEndTimestamp);
+                            }
+                            else if (isVideoPacket)
+                            {
+                                videoEndTimestamp = Math.Max(videoEndTimestamp, packetEndTimestamp);
+                            }
+                        }
                         packet->stream_index = outputStreamIndex;
                         packet->pos = -1;
                         sourceDecodeEndTimestamp = Math.Max(
@@ -2467,7 +2483,9 @@ internal static unsafe partial class FfmpegMediaEngine
                     string.Empty,
                     Math.Max(0d, timelineOffset / (double)ffmpeg.AV_TIME_BASE),
                     RecoveredReadErrors: recoveredReadErrors,
-                    DiscardedPackets: discardedPackets);
+                    DiscardedPackets: discardedPackets,
+                    AudioEndSeconds: ToMediaSeconds(audioEndTimestamp),
+                    VideoEndSeconds: ToMediaSeconds(videoEndTimestamp));
         }
         catch (Exception e)
         {
@@ -2660,6 +2678,29 @@ internal static unsafe partial class FfmpegMediaEngine
             endTimestamp,
             outputStream->time_base,
             new AVRational { num = 1, den = ffmpeg.AV_TIME_BASE });
+    }
+
+    private static long GetPacketPresentationEndTimestamp(AVPacket* packet, AVStream* outputStream)
+    {
+        long timestamp = packet->pts == ffmpeg.AV_NOPTS_VALUE ? packet->dts : packet->pts;
+        if (timestamp == ffmpeg.AV_NOPTS_VALUE)
+        {
+            return ffmpeg.AV_NOPTS_VALUE;
+        }
+
+        long duration = Math.Max(1, packet->duration);
+        long endTimestamp = AddSaturated(timestamp, duration);
+        return ffmpeg.av_rescale_q(
+            endTimestamp,
+            outputStream->time_base,
+            new AVRational { num = 1, den = ffmpeg.AV_TIME_BASE });
+    }
+
+    private static double ToMediaSeconds(long timestampMicroseconds)
+    {
+        return timestampMicroseconds <= 0
+            ? 0d
+            : timestampMicroseconds / (double)ffmpeg.AV_TIME_BASE;
     }
 
     private static bool IsFileInputFullyConsumed(AVFormatContext* inputContext, string sourceFileName)

@@ -63,6 +63,18 @@ public sealed class ConverterTests
     }
 
     [Theory]
+    [InlineData(100d, 99d, 100d)]
+    [InlineData(0d, 99d, 99d)]
+    [InlineData(0d, 0d, 0d)]
+    public void TrackEndResolution_UsesPacketEvidenceOnlyWhenProbeIsUnknown(
+        double probedEndSeconds,
+        double packetEndSeconds,
+        double expected)
+    {
+        Assert.Equal(expected, Converter.ResolveTrackEndSeconds(probedEndSeconds, packetEndSeconds));
+    }
+
+    [Theory]
     [InlineData(true, false, true, true, true)]
     [InlineData(false, true, true, true, true)]
     [InlineData(false, false, true, true, false)]

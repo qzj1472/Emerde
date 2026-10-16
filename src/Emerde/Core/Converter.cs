@@ -617,7 +617,9 @@ public sealed class Converter
                 result.ProcessedDurationSeconds,
                 recordingExpectedDuration,
                 token,
-                maximumTimelineEndSeconds),
+                maximumTimelineEndSeconds,
+                result.AudioEndSeconds,
+                result.VideoEndSeconds),
             token);
         if (validationError.StartsWith("duration_mismatch_recoverable:", StringComparison.Ordinal))
         {
@@ -769,7 +771,9 @@ public sealed class Converter
         double processedDurationSeconds,
         double recordingExpectedDuration,
         CancellationToken token,
-        double maximumTimelineEndSeconds = 0d)
+        double maximumTimelineEndSeconds = 0d,
+        double packetAudioEndSeconds = 0d,
+        double packetVideoEndSeconds = 0d)
     {
         try
         {
@@ -801,11 +805,11 @@ public sealed class Converter
             string outputTimelineError = GetTrackTimelineValidationError(
                 sourceHasAudio && output.HasAudio,
                 sourceHasVideo && output.HasVideo,
-                output.AudioEndSeconds,
-                output.VideoEndSeconds);
+                ResolveTrackEndSeconds(output.AudioEndSeconds, packetAudioEndSeconds),
+                ResolveTrackEndSeconds(output.VideoEndSeconds, packetVideoEndSeconds));
             if (!string.IsNullOrEmpty(outputTimelineError))
             {
-                return $"{outputTimelineError}:audio={output.AudioEndSeconds:F3},video={output.VideoEndSeconds:F3}";
+                return $"{outputTimelineError}:audio={ResolveTrackEndSeconds(output.AudioEndSeconds, packetAudioEndSeconds):F3},video={ResolveTrackEndSeconds(output.VideoEndSeconds, packetVideoEndSeconds):F3},packet_audio={packetAudioEndSeconds:F3},packet_video={packetVideoEndSeconds:F3}";
             }
 
             double probedDuration = sourceProbes.Sum(probe => Math.Max(0, probe.DurationSeconds));
@@ -958,6 +962,11 @@ public sealed class Converter
         return audioEndSeconds <= 0d
             || videoEndSeconds <= 0d
             || Math.Abs(audioEndSeconds - videoEndSeconds) <= MaximumTrackTimelineDifferenceSeconds;
+    }
+
+    internal static double ResolveTrackEndSeconds(double probedEndSeconds, double packetEndSeconds)
+    {
+        return probedEndSeconds > 0d ? probedEndSeconds : Math.Max(0d, packetEndSeconds);
     }
 
     internal static string GetTrackTimelineValidationError(
