@@ -1454,6 +1454,18 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
+    public void VideoDateHeader_UsesOnlyTheTextWidthAndLeavesDividerSeparate()
+    {
+        string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+        XDocument document = XDocument.Parse(xaml);
+        XElement headerTemplate = document.Descendants().Single(element => (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "VideoDateGroupHeaderTemplate");
+        XElement groupTemplate = document.Descendants().Single(element => (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "UiXVideoGroupTemplate");
+
+        Assert.Equal("Left", (string?)headerTemplate.Element(XName.Get("TextBlock", "http://schemas.microsoft.com/winfx/2006/xaml/presentation"))?.Attribute("HorizontalAlignment"));
+        Assert.NotNull(groupTemplate.Descendants(XName.Get("Border", "http://schemas.microsoft.com/winfx/2006/xaml/presentation")).SingleOrDefault(element => (string?)element.Attribute("Height") == "1"));
+    }
+
+    [Fact]
     public void VideoCards_DisableEntranceMotionForUiXVirtualization()
     {
         string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));

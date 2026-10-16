@@ -16,6 +16,7 @@
         <local:VideoDateGroupLabelConverter x:Key="VideoDateGroupLabelConverter" />
         <DataTemplate x:Key="VideoDateGroupHeaderTemplate">
             <TextBlock FontSize="15"
+                       HorizontalAlignment="Left"
                        FontWeight="SemiBold"
                        Foreground="{DynamicResource UiXTextPrimaryBrush}"
                        Text="{Binding Name, Converter={StaticResource VideoDateGroupLabelConverter}}" />
