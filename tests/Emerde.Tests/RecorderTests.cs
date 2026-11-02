@@ -154,28 +154,15 @@ public sealed class RecorderTests
             Quality = "Original",
             VideoCodec = "h264",
             AudioCodec = "aac",
-            HasOptimizedAudio = true,
             RecordedAt = Timestamp,
             EndedAt = Timestamp.AddMinutes(90),
             DurationSeconds = 5400,
         };
-        const string rule = "{主播名}|{平台}|{直播标题}|{房间号}|{分辨率}|{码率}|{帧率}|{画质}|{视频编码}|{音频编码}|{优化音频}|{录制开始时间}|{录制结束时间}|{视频时长}";
+        const string rule = "{主播名}|{平台}|{直播标题}|{房间号}|{分辨率}|{码率}|{帧率}|{画质}|{视频编码}|{音频编码}|{录制开始时间}|{录制结束时间}|{视频时长}";
 
         string result = RecordingFinalizationService.BuildFinalStem(rule, metadata);
 
-        Assert.Equal($"Host|Platform|Title|Room42|1920x1080|8 Mbps|60fps|Original|h264|aac|{"OptimizedAudioTrack".Tr()}|2026-07-03_12-34-56|2026-07-03_14-04-56|01-30-00", result);
-    }
-
-    [Fact]
-    public void FinalFileName_OmitsUnavailableOptimizedAudioToken()
-    {
-        VideoRecordingMetadata metadata = new()
-        {
-            NickName = "Host",
-            HasOptimizedAudio = false,
-        };
-
-        Assert.Equal("Host", RecordingFinalizationService.BuildFinalStem("{主播名}_{优化音频}", metadata));
+        Assert.Equal("Host|Platform|Title|Room42|1920x1080|8 Mbps|60fps|Original|h264|aac|2026-07-03_12-34-56|2026-07-03_14-04-56|01-30-00", result);
     }
 
     [Theory]
@@ -463,24 +450,14 @@ public sealed class RecorderTests
     }
 
     [Fact]
-    public void InitialSessionRecoveryMarker_PreservesOptimizedAudioSelection()
+    public void InitialSessionRecoveryMarkerDoesNotRequestArchivedAudioProcessing()
     {
         string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "Recorder.cs"));
         int initialRegistration = source.IndexOf(
             "sessionPendingRecordingPath = RecordingRecoveryService.RegisterSessionParts(",
             StringComparison.Ordinal);
-        int optimizeAudioArgument = source.IndexOf(
-            "recordingOptions.IsOptimizeAudio,",
-            initialRegistration,
-            StringComparison.Ordinal);
-        int finalizeNameArgument = source.IndexOf(
-            "finalizeName: true);",
-            optimizeAudioArgument,
-            StringComparison.Ordinal);
-
         Assert.True(initialRegistration >= 0);
-        Assert.True(optimizeAudioArgument > initialRegistration);
-        Assert.True(finalizeNameArgument > optimizeAudioArgument);
+        Assert.DoesNotContain("recordingOptions.IsOptimizeAudio", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -911,15 +888,11 @@ public sealed class RecorderTests
     }
 
     [Fact]
-    public void BuildAudioMappingArguments_AddsOriginalAndOptimizedTracks()
+    public void BuildAudioMappingArguments_CopiesOriginalStreamsOnly()
     {
-        IReadOnlyList<string> arguments = Recorder.BuildAudioMappingArguments(useOptimizedAudio: true);
+        IReadOnlyList<string> arguments = Recorder.BuildAudioMappingArguments();
 
-        Assert.Contains("-filter_complex", arguments);
-        Assert.Contains("0:a:0?", arguments);
-        Assert.Contains("[aopt]", arguments);
-        Assert.Contains($"title={"OriginalAudioTrack".Tr()}", arguments);
-        Assert.Contains($"title={"OptimizedAudioTrack".Tr()}", arguments);
+        Assert.Equal(["-map", "0", "-c:v", "copy", "-c:a", "copy"], arguments);
     }
 
     [Fact]
@@ -937,8 +910,7 @@ public sealed class RecorderTests
             false,
             1,
             SegmentTimeUnitHelper.Seconds,
-            new VideoRecordingMetadata(),
-            false);
+            new VideoRecordingMetadata());
 
         Assert.Contains("-c:v", arguments);
         Assert.Contains("copy", arguments);
@@ -965,8 +937,7 @@ public sealed class RecorderTests
             false,
             1,
             SegmentTimeUnitHelper.Seconds,
-            new VideoRecordingMetadata(),
-            false);
+            new VideoRecordingMetadata());
 
         List<string> argumentList = arguments.ToList();
         int inputIndex = argumentList.IndexOf("-i");
@@ -999,8 +970,7 @@ public sealed class RecorderTests
             true,
             100_000_000,
             SegmentTimeUnitHelper.Megabytes,
-            new VideoRecordingMetadata(),
-            false);
+            new VideoRecordingMetadata());
 
         Assert.DoesNotContain("-segment_size", arguments);
     }

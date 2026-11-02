@@ -30,12 +30,66 @@ internal sealed record FfmpegMediaProbeResult(
     long Bitrate,
     string VideoCodec,
     string AudioCodec,
-    bool HasOptimizedAudio,
     string StreamSignature,
     VideoRecordingMetadata Metadata,
     bool HasEmerdeMetadata,
     double AudioStartSeconds = 0d,
-    double VideoStartSeconds = 0d);
+    double VideoStartSeconds = 0d,
+    bool HasAudioStartTimestamp = false,
+    bool HasVideoStartTimestamp = false,
+    long AudioPacketCount = 0,
+    long VideoPacketCount = 0,
+    long AudioKeyframeCount = 0,
+    long VideoKeyframeCount = 0,
+    double FirstAudioPtsSeconds = 0d,
+    double FirstAudioDtsSeconds = 0d,
+    double LastAudioPtsSeconds = 0d,
+    double LastAudioDtsSeconds = 0d,
+    double FirstVideoPtsSeconds = 0d,
+    double FirstVideoDtsSeconds = 0d,
+    double LastVideoPtsSeconds = 0d,
+    double LastVideoDtsSeconds = 0d,
+    int TimestampDiscontinuityCount = 0,
+    int InterPacketGapCount = 0,
+    double MaximumInterPacketGapSeconds = 0d,
+    bool PacketDiagnosticsComplete = false);
+
+internal readonly record struct FfmpegProbePacketDiagnostics(
+    long AudioPacketCount,
+    long VideoPacketCount,
+    long AudioKeyframeCount,
+    long VideoKeyframeCount,
+    double FirstAudioPtsSeconds,
+    double FirstAudioDtsSeconds,
+    double LastAudioPtsSeconds,
+    double LastAudioDtsSeconds,
+    double FirstVideoPtsSeconds,
+    double FirstVideoDtsSeconds,
+    double LastVideoPtsSeconds,
+    double LastVideoDtsSeconds,
+    int TimestampDiscontinuityCount,
+    int InterPacketGapCount,
+    double MaximumInterPacketGapSeconds,
+    bool Complete)
+{
+    public static FfmpegProbePacketDiagnostics Empty => new(
+        0,
+        0,
+        0,
+        0,
+        0d,
+        0d,
+        0d,
+        0d,
+        0d,
+        0d,
+        0d,
+        0d,
+        0,
+        0,
+        0d,
+        false);
+}
 
 internal readonly record struct FfmpegStreamCompatibility(
     int MediaType,
@@ -60,7 +114,30 @@ internal sealed record FfmpegMediaRunResult(
     int RecoveredReadErrors = 0,
     int DiscardedPackets = 0,
     double AudioEndSeconds = 0d,
-    double VideoEndSeconds = 0d);
+    double VideoEndSeconds = 0d,
+    IReadOnlyList<FfmpegSegmentTimelineDiagnostic>? SegmentTimelineDiagnostics = null);
+
+internal sealed record FfmpegSegmentTimelineDiagnostic(
+    int SegmentIndex,
+    double InputAudioStartSeconds,
+    double InputAudioEndSeconds,
+    double InputVideoStartSeconds,
+    double InputVideoEndSeconds,
+    double OutputAudioStartSeconds,
+    double OutputAudioEndSeconds,
+    double OutputVideoStartSeconds,
+    double OutputVideoEndSeconds,
+    double SourceClockCorrectionSeconds,
+    double MaximumSourceClockCorrectionSeconds,
+    double MaximumRecoveryCorrectionSeconds,
+    double MaximumCombinedTimestampCorrectionSeconds,
+    double SourceTimestampBaseSeconds,
+    double TimelineOffsetSeconds,
+    int AudioPacketCount,
+    int VideoPacketCount,
+    int DiscardedPacketCount,
+    int SourceClockDiscontinuityCount,
+    int TimelineRecoveryEventCount);
 
 internal enum FfmpegTimelineEventKind
 {
@@ -88,7 +165,7 @@ internal readonly record struct FfmpegPacketProgress(
 internal static unsafe partial class FfmpegMediaEngine
 {
     private const double TimelineBoundaryToleranceSeconds = 0.5d;
-    private const long OutputTimelineMismatchThresholdMicroseconds = 2L * 1_000_000;
+    private const long OutputTimelineMismatchThresholdMicroseconds = 2_000_000;
     internal const long VideoTimelineStallThresholdMicroseconds = 3L * 1_000_000;
     internal const long InitialMediaSyncMaximumDurationMicroseconds = 10L * 1_000_000;
     internal const long InitialMediaSyncMaximumBytes = 64L * 1024 * 1024;
@@ -300,7 +377,7 @@ internal static unsafe partial class FfmpegMediaEngine
                 &outputContext,
                 out outputOpened,
                 out headerWritten);
-            long[] lastPacketEnds = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)outputContext->nb_streams).ToArray();
+            long[] lastPacketDts = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)outputContext->nb_streams).ToArray();
             long[] nextInputDts = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)inputContext->nb_streams).ToArray();
             SegmentClock segmentClock = new();
             MediaTimelineRecovery timelineRecovery = new(
@@ -559,7 +636,7 @@ internal static unsafe partial class FfmpegMediaEngine
                         &outputContext,
                         out outputOpened,
                         out headerWritten);
-                    lastPacketEnds = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)outputContext->nb_streams).ToArray();
+                    lastPacketDts = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)outputContext->nb_streams).ToArray();
                     segmentClockStartTimestamp = packetClockTimestamp;
                     segmentOutputTimestampBase = packetSourceTimestamp == ffmpeg.AV_NOPTS_VALUE
                         ? ffmpeg.AV_NOPTS_VALUE
@@ -589,7 +666,7 @@ internal static unsafe partial class FfmpegMediaEngine
                     segmentOutputTimestampBase,
                     AddSaturated(segmentClock.CurrentCorrection, timelineRecoveryResult.PacketTimestampCorrection));
                 ffmpeg.av_packet_rescale_ts(packet, inputStream->time_base, outputStream->time_base);
-                NormalizePacketDts(packet, outputStream, outputStreamIndex, lastPacketEnds);
+                NormalizePacketDts(packet, outputStream, outputStreamIndex, lastPacketDts);
                 if ((isAudioPacket || isVideoPacket)
                     && packet->pts != ffmpeg.AV_NOPTS_VALUE
                     && packetTimelineTimestamp != ffmpeg.AV_NOPTS_VALUE
@@ -851,6 +928,17 @@ internal static unsafe partial class FfmpegMediaEngine
                 new AVRational { num = 1, den = ffmpeg.AV_TIME_BASE });
     }
 
+    private static long GetPacketPresentationTimestampMicroseconds(AVPacket* packet, AVStream* stream)
+    {
+        long timestamp = packet->pts != ffmpeg.AV_NOPTS_VALUE ? packet->pts : packet->dts;
+        return timestamp == ffmpeg.AV_NOPTS_VALUE
+            ? ffmpeg.AV_NOPTS_VALUE
+            : ffmpeg.av_rescale_q(
+                timestamp,
+                stream->time_base,
+                new AVRational { num = 1, den = ffmpeg.AV_TIME_BASE });
+    }
+
     private static long GetPacketTimelineTimestampMicroseconds(
         AVPacket* packet,
         AVStream* inputStream,
@@ -1084,6 +1172,128 @@ internal static unsafe partial class FfmpegMediaEngine
             lastSourceTimestamp = sourceTimestampMicroseconds;
             lastPacketDuration = packetDuration;
             return monotonicTimestamp;
+        }
+    }
+
+    internal sealed class FfmpegSegmentTimelineAccumulator(int segmentIndex)
+    {
+        private long inputAudioStart = long.MaxValue;
+        private long inputAudioEnd = long.MinValue;
+        private long inputVideoStart = long.MaxValue;
+        private long inputVideoEnd = long.MinValue;
+        private long outputAudioStart = long.MaxValue;
+        private long outputAudioEnd = long.MinValue;
+        private long outputVideoStart = long.MaxValue;
+        private long outputVideoEnd = long.MinValue;
+        private long maximumSourceClockCorrection;
+        private long maximumRecoveryCorrection;
+        private long maximumCombinedTimestampCorrection;
+
+        public int AudioPacketCount { get; private set; }
+
+        public int VideoPacketCount { get; private set; }
+
+        public int SourceClockDiscontinuityCount { get; set; }
+
+        public int TimelineRecoveryEventCount { get; set; }
+
+        public void ObserveInput(AVMediaType mediaType, long startTimestamp, long endTimestamp)
+        {
+            Observe(mediaType, startTimestamp, endTimestamp, true, ref inputAudioStart, ref inputAudioEnd, ref inputVideoStart, ref inputVideoEnd);
+        }
+
+        public void ObserveOutput(AVMediaType mediaType, long startTimestamp, long endTimestamp)
+        {
+            Observe(mediaType, startTimestamp, endTimestamp, false, ref outputAudioStart, ref outputAudioEnd, ref outputVideoStart, ref outputVideoEnd);
+        }
+
+        public void ObserveCorrections(long sourceClockCorrection, long recoveryCorrection)
+        {
+            long absoluteSourceCorrection = sourceClockCorrection == long.MinValue ? long.MaxValue : Math.Abs(sourceClockCorrection);
+            maximumSourceClockCorrection = Math.Max(maximumSourceClockCorrection, absoluteSourceCorrection);
+            long absoluteCorrection = recoveryCorrection == long.MinValue ? long.MaxValue : Math.Abs(recoveryCorrection);
+            maximumRecoveryCorrection = Math.Max(maximumRecoveryCorrection, absoluteCorrection);
+            long combinedCorrection = AddSaturated(sourceClockCorrection, recoveryCorrection);
+            long absoluteCombinedCorrection = combinedCorrection == long.MinValue ? long.MaxValue : Math.Abs(combinedCorrection);
+            maximumCombinedTimestampCorrection = Math.Max(maximumCombinedTimestampCorrection, absoluteCombinedCorrection);
+        }
+
+        public FfmpegSegmentTimelineDiagnostic CreateDiagnostic(
+            long sourceClockCorrection,
+            int discardedPacketCount,
+            long sourceTimestampBase,
+            long timelineOffset)
+        {
+            return new FfmpegSegmentTimelineDiagnostic(
+                segmentIndex,
+                ToMediaSeconds(inputAudioStart),
+                ToMediaSeconds(inputAudioEnd),
+                ToMediaSeconds(inputVideoStart),
+                ToMediaSeconds(inputVideoEnd),
+                ToMediaSeconds(outputAudioStart),
+                ToMediaSeconds(outputAudioEnd),
+                ToMediaSeconds(outputVideoStart),
+                ToMediaSeconds(outputVideoEnd),
+                ToSignedMediaSeconds(sourceClockCorrection),
+                ToMediaSeconds(maximumSourceClockCorrection),
+                ToMediaSeconds(maximumRecoveryCorrection),
+                ToMediaSeconds(maximumCombinedTimestampCorrection),
+                ToSignedMediaSeconds(sourceTimestampBase),
+                ToSignedMediaSeconds(timelineOffset),
+                AudioPacketCount,
+                VideoPacketCount,
+                discardedPacketCount,
+                SourceClockDiscontinuityCount,
+                TimelineRecoveryEventCount);
+        }
+
+        private void Observe(
+            AVMediaType mediaType,
+            long startTimestamp,
+            long endTimestamp,
+            bool countPacket,
+            ref long audioStart,
+            ref long audioEnd,
+            ref long videoStart,
+            ref long videoEnd)
+        {
+            if (startTimestamp == ffmpeg.AV_NOPTS_VALUE || endTimestamp == ffmpeg.AV_NOPTS_VALUE)
+            {
+                return;
+            }
+
+            if (mediaType == AVMediaType.AVMEDIA_TYPE_AUDIO)
+            {
+                audioStart = Math.Min(audioStart, startTimestamp);
+                audioEnd = Math.Max(audioEnd, endTimestamp);
+                if (countPacket)
+                {
+                    AudioPacketCount++;
+                }
+            }
+            else if (mediaType == AVMediaType.AVMEDIA_TYPE_VIDEO)
+            {
+                videoStart = Math.Min(videoStart, startTimestamp);
+                videoEnd = Math.Max(videoEnd, endTimestamp);
+                if (countPacket)
+                {
+                    VideoPacketCount++;
+                }
+            }
+        }
+
+        private static double ToMediaSeconds(long timestampMicroseconds)
+        {
+            return timestampMicroseconds is long.MaxValue or long.MinValue || timestampMicroseconds <= 0
+                ? 0d
+                : timestampMicroseconds / (double)ffmpeg.AV_TIME_BASE;
+        }
+
+        private static double ToSignedMediaSeconds(long timestampMicroseconds)
+        {
+            return timestampMicroseconds == ffmpeg.AV_NOPTS_VALUE
+                ? 0d
+                : timestampMicroseconds / (double)ffmpeg.AV_TIME_BASE;
         }
     }
 
@@ -1601,15 +1811,15 @@ internal static unsafe partial class FfmpegMediaEngine
         AVPacket* packet,
         AVStream* stream,
         int outputStreamIndex,
-        long[] lastPacketEnds)
+        long[] lastPacketDts)
     {
         if (packet->dts == ffmpeg.AV_NOPTS_VALUE)
         {
             return;
         }
 
-        long previousPacketEnd = lastPacketEnds[outputStreamIndex];
-        long shift = GetPacketTimestampShift(packet->dts, previousPacketEnd);
+        long previousPacketDts = lastPacketDts[outputStreamIndex];
+        long shift = GetPacketTimestampShift(packet->dts, previousPacketDts);
         if (shift != 0)
         {
             packet->dts = AddSaturated(packet->dts, shift);
@@ -1619,34 +1829,35 @@ internal static unsafe partial class FfmpegMediaEngine
             }
         }
 
-        long duration = GetPacketDuration(packet, stream);
         if (packet->duration <= 0)
         {
-            packet->duration = duration;
+            packet->duration = GetPacketDuration(packet, stream);
         }
-        lastPacketEnds[outputStreamIndex] = AddSaturated(packet->dts, duration);
+        lastPacketDts[outputStreamIndex] = packet->dts;
     }
 
     internal static long GetPacketTimestampShift(
         long packetDts,
-        long previousPacketEnd)
+        long previousPacketDts)
     {
-        if (previousPacketEnd == ffmpeg.AV_NOPTS_VALUE)
+        if (previousPacketDts == ffmpeg.AV_NOPTS_VALUE)
         {
             return 0;
         }
 
-        long gap = SubtractSaturated(packetDts, previousPacketEnd);
-        return gap < 0
-            ? SubtractSaturated(previousPacketEnd, packetDts)
+        return packetDts <= previousPacketDts
+            ? SubtractSaturated(AddSaturated(previousPacketDts, 1), packetDts)
             : 0;
     }
 
-    internal sealed class OutputTimelineTransformMonitor(long thresholdMicroseconds)
+    internal sealed class OutputTimelineTransformMonitor(long thresholdMicroseconds, int requiredConsecutiveSamples = 3)
     {
         private long audioShift = ffmpeg.AV_NOPTS_VALUE;
         private long videoShift = ffmpeg.AV_NOPTS_VALUE;
         private long baselineDifference = ffmpeg.AV_NOPTS_VALUE;
+        private int consecutiveMismatchSamples;
+
+        private int RequiredConsecutiveSamples => Math.Max(1, requiredConsecutiveSamples);
 
         public bool Observe(bool isAudio, long expectedTimestamp, long outputTimestamp, out long mismatchMicroseconds)
         {
@@ -1675,7 +1886,14 @@ internal static unsafe partial class FfmpegMediaEngine
 
             long mismatch = SubtractSaturated(difference, baselineDifference);
             mismatchMicroseconds = mismatch == long.MinValue ? long.MaxValue : Math.Abs(mismatch);
-            return mismatchMicroseconds > thresholdMicroseconds;
+            if (mismatchMicroseconds <= thresholdMicroseconds)
+            {
+                consecutiveMismatchSamples = 0;
+                return false;
+            }
+
+            consecutiveMismatchSamples++;
+            return consecutiveMismatchSamples >= RequiredConsecutiveSamples;
         }
     }
 
@@ -1718,9 +1936,10 @@ internal static unsafe partial class FfmpegMediaEngine
         string sourceFileName,
         out FfmpegMediaProbeResult result,
         out string error,
-        CancellationToken token = default)
+        CancellationToken token = default,
+        bool includePacketDiagnostics = false)
     {
-        result = new FfmpegMediaProbeResult(false, false, 0, 0, 0, 0, 0, 0, 0, 0, 0, string.Empty, string.Empty, false, string.Empty, new VideoRecordingMetadata(), false);
+        result = new FfmpegMediaProbeResult(false, false, 0, 0, 0, 0, 0, 0, 0, 0, 0, string.Empty, string.Empty, string.Empty, new VideoRecordingMetadata(), false);
         error = string.Empty;
         AVFormatContext* inputContext = null;
         AVDictionary* options = null;
@@ -1752,6 +1971,8 @@ internal static unsafe partial class FfmpegMediaEngine
             int videoStreamCount = 0;
             double audioStartSeconds = double.PositiveInfinity;
             double videoStartSeconds = double.PositiveInfinity;
+            bool hasAudioStartTimestamp = true;
+            bool hasVideoStartTimestamp = true;
             double audioEndSeconds = 0;
             double videoEndSeconds = 0;
             int width = 0;
@@ -1759,7 +1980,6 @@ internal static unsafe partial class FfmpegMediaEngine
             double frameRate = 0;
             string videoCodec = string.Empty;
             string audioCodec = string.Empty;
-            bool hasOptimizedAudio = false;
             List<string> streamSignatures = [];
             for (int index = 0; index < inputContext->nb_streams; index++)
             {
@@ -1769,16 +1989,17 @@ internal static unsafe partial class FfmpegMediaEngine
                 {
                     hasAudio = true;
                     audioStreamCount++;
+                    hasAudioStartTimestamp &= stream->start_time != ffmpeg.AV_NOPTS_VALUE;
                     audioStartSeconds = Math.Min(audioStartSeconds, GetStreamStartSeconds(stream));
                     audioEndSeconds = Math.Max(audioEndSeconds, GetStreamEndSeconds(stream));
                     streamSignatures.Add(BuildStreamSignature(stream));
                     audioCodec = FirstCodecName(audioCodec, parameters->codec_id);
-                    hasOptimizedAudio |= IsOptimizedAudioStream(stream);
                 }
                 else if (parameters->codec_type == AVMediaType.AVMEDIA_TYPE_VIDEO)
                 {
                     hasVideo = true;
                     videoStreamCount++;
+                    hasVideoStartTimestamp &= stream->start_time != ffmpeg.AV_NOPTS_VALUE;
                     videoStartSeconds = Math.Min(videoStartSeconds, GetStreamStartSeconds(stream));
                     videoEndSeconds = Math.Max(videoEndSeconds, GetStreamEndSeconds(stream));
                     streamSignatures.Add(BuildStreamSignature(stream));
@@ -1805,6 +2026,9 @@ internal static unsafe partial class FfmpegMediaEngine
                 : 0;
             IReadOnlyDictionary<string, string> metadataTags = ReadMetadataTags(inputContext->metadata);
             VideoRecordingMetadata metadata = VideoRecordingMetadataStore.FromTags(metadataTags, Path.GetFileName(sourceFileName));
+            FfmpegProbePacketDiagnostics packetDiagnostics = includePacketDiagnostics
+                ? ReadProbePacketDiagnostics(inputContext, token)
+                : FfmpegProbePacketDiagnostics.Empty;
             result = new FfmpegMediaProbeResult(
                 hasAudio,
                 hasVideo,
@@ -1819,12 +2043,29 @@ internal static unsafe partial class FfmpegMediaEngine
                 inputContext->bit_rate,
                 videoCodec,
                 audioCodec,
-                hasOptimizedAudio,
                 string.Join(";", streamSignatures.Order(StringComparer.Ordinal)),
                 metadata,
                 VideoRecordingMetadataStore.HasEmerdeTags(metadataTags),
                 double.IsFinite(audioStartSeconds) ? audioStartSeconds : 0d,
-                double.IsFinite(videoStartSeconds) ? videoStartSeconds : 0d);
+                double.IsFinite(videoStartSeconds) ? videoStartSeconds : 0d,
+                hasAudio && hasAudioStartTimestamp,
+                hasVideo && hasVideoStartTimestamp,
+                packetDiagnostics.AudioPacketCount,
+                packetDiagnostics.VideoPacketCount,
+                packetDiagnostics.AudioKeyframeCount,
+                packetDiagnostics.VideoKeyframeCount,
+                packetDiagnostics.FirstAudioPtsSeconds,
+                packetDiagnostics.FirstAudioDtsSeconds,
+                packetDiagnostics.LastAudioPtsSeconds,
+                packetDiagnostics.LastAudioDtsSeconds,
+                packetDiagnostics.FirstVideoPtsSeconds,
+                packetDiagnostics.FirstVideoDtsSeconds,
+                packetDiagnostics.LastVideoPtsSeconds,
+                packetDiagnostics.LastVideoDtsSeconds,
+                packetDiagnostics.TimestampDiscontinuityCount,
+                packetDiagnostics.InterPacketGapCount,
+                packetDiagnostics.MaximumInterPacketGapSeconds,
+                packetDiagnostics.Complete);
             if (!hasAudio && !hasVideo)
             {
                 error = "input contains no supported audio or video streams";
@@ -1856,6 +2097,185 @@ internal static unsafe partial class FfmpegMediaEngine
                 interruptHandle.Free();
             }
         }
+    }
+
+    private static FfmpegProbePacketDiagnostics ReadProbePacketDiagnostics(AVFormatContext* inputContext, CancellationToken token)
+    {
+        if (ffmpeg.av_seek_frame(inputContext, -1, 0, ffmpeg.AVSEEK_FLAG_BACKWARD) < 0)
+        {
+            return FfmpegProbePacketDiagnostics.Empty;
+        }
+
+        ffmpeg.avformat_flush(inputContext);
+        AVPacket* packet = ffmpeg.av_packet_alloc();
+        if (packet == null)
+        {
+            return FfmpegProbePacketDiagnostics.Empty;
+        }
+
+        ProbePacketAccumulator accumulator = new();
+        try
+        {
+            while (true)
+            {
+                token.ThrowIfCancellationRequested();
+                int readResult = ffmpeg.av_read_frame(inputContext, packet);
+                if (readResult == ffmpeg.AVERROR_EOF)
+                {
+                    return accumulator.ToDiagnostics(complete: true);
+                }
+                if (readResult < 0)
+                {
+                    return accumulator.ToDiagnostics(complete: false);
+                }
+
+                if (packet->stream_index >= 0 && packet->stream_index < inputContext->nb_streams)
+                {
+                    accumulator.Observe(packet, inputContext->streams[packet->stream_index]);
+                }
+                ffmpeg.av_packet_unref(packet);
+            }
+        }
+        finally
+        {
+            AVPacket* packetPointer = packet;
+            ffmpeg.av_packet_free(&packetPointer);
+        }
+    }
+
+    private sealed class ProbePacketAccumulator
+    {
+        private long audioPacketCount;
+        private long videoPacketCount;
+        private long audioKeyframeCount;
+        private long videoKeyframeCount;
+        private double firstAudioPtsSeconds;
+        private double firstAudioDtsSeconds;
+        private double lastAudioPtsSeconds;
+        private double lastAudioDtsSeconds;
+        private double firstVideoPtsSeconds;
+        private double firstVideoDtsSeconds;
+        private double lastVideoPtsSeconds;
+        private double lastVideoDtsSeconds;
+        private double previousAudioDtsSeconds = double.NaN;
+        private double previousVideoDtsSeconds = double.NaN;
+        private int timestampDiscontinuityCount;
+        private int interPacketGapCount;
+        private double maximumInterPacketGapSeconds;
+
+        public void Observe(AVPacket* packet, AVStream* stream)
+        {
+            AVMediaType mediaType = stream->codecpar->codec_type;
+            if (mediaType is not AVMediaType.AVMEDIA_TYPE_AUDIO and not AVMediaType.AVMEDIA_TYPE_VIDEO)
+            {
+                return;
+            }
+
+            double ptsSeconds = ToProbePacketSeconds(packet->pts, stream->time_base);
+            double dtsSeconds = ToProbePacketSeconds(packet->dts, stream->time_base);
+            bool isKeyframe = (packet->flags & ffmpeg.AV_PKT_FLAG_KEY) != 0;
+            if (mediaType == AVMediaType.AVMEDIA_TYPE_AUDIO)
+            {
+                audioPacketCount++;
+                if (isKeyframe)
+                {
+                    audioKeyframeCount++;
+                }
+                UpdateTimestamps(
+                    ptsSeconds,
+                    dtsSeconds,
+                    ref firstAudioPtsSeconds,
+                    ref firstAudioDtsSeconds,
+                    ref lastAudioPtsSeconds,
+                    ref lastAudioDtsSeconds,
+                    ref previousAudioDtsSeconds,
+                    ref interPacketGapCount,
+                    ref maximumInterPacketGapSeconds);
+            }
+            else
+            {
+                videoPacketCount++;
+                if (isKeyframe)
+                {
+                    videoKeyframeCount++;
+                }
+                UpdateTimestamps(
+                    ptsSeconds,
+                    dtsSeconds,
+                    ref firstVideoPtsSeconds,
+                    ref firstVideoDtsSeconds,
+                    ref lastVideoPtsSeconds,
+                    ref lastVideoDtsSeconds,
+                    ref previousVideoDtsSeconds,
+                    ref interPacketGapCount,
+                    ref maximumInterPacketGapSeconds);
+            }
+        }
+
+        public FfmpegProbePacketDiagnostics ToDiagnostics(bool complete)
+        {
+            return new(
+                audioPacketCount,
+                videoPacketCount,
+                audioKeyframeCount,
+                videoKeyframeCount,
+                firstAudioPtsSeconds,
+                firstAudioDtsSeconds,
+                lastAudioPtsSeconds,
+                lastAudioDtsSeconds,
+                firstVideoPtsSeconds,
+                firstVideoDtsSeconds,
+                lastVideoPtsSeconds,
+                lastVideoDtsSeconds,
+                timestampDiscontinuityCount,
+                interPacketGapCount,
+                maximumInterPacketGapSeconds,
+                complete);
+        }
+
+        private void UpdateTimestamps(
+            double ptsSeconds,
+            double dtsSeconds,
+            ref double firstPtsSeconds,
+            ref double firstDtsSeconds,
+            ref double lastPtsSeconds,
+            ref double lastDtsSeconds,
+            ref double previousDtsSeconds,
+            ref int gapCount,
+            ref double maximumGapSeconds)
+        {
+            if (ptsSeconds > 0d)
+            {
+                firstPtsSeconds = firstPtsSeconds > 0d ? Math.Min(firstPtsSeconds, ptsSeconds) : ptsSeconds;
+                lastPtsSeconds = Math.Max(lastPtsSeconds, ptsSeconds);
+            }
+            if (dtsSeconds > 0d)
+            {
+                firstDtsSeconds = firstDtsSeconds > 0d ? Math.Min(firstDtsSeconds, dtsSeconds) : dtsSeconds;
+                if (!double.IsNaN(previousDtsSeconds))
+                {
+                    double delta = dtsSeconds - previousDtsSeconds;
+                    if (delta < -0.5d)
+                    {
+                        timestampDiscontinuityCount++;
+                    }
+                    else if (delta > 2d)
+                    {
+                        gapCount++;
+                        maximumGapSeconds = Math.Max(maximumGapSeconds, delta);
+                    }
+                }
+                previousDtsSeconds = dtsSeconds;
+                lastDtsSeconds = Math.Max(lastDtsSeconds, dtsSeconds);
+            }
+        }
+    }
+
+    private static double ToProbePacketSeconds(long timestamp, AVRational timeBase)
+    {
+        return timestamp == ffmpeg.AV_NOPTS_VALUE
+            ? 0d
+            : Math.Max(0d, timestamp * ffmpeg.av_q2d(timeBase));
     }
 
     public static bool TryGetStreamSignature(string sourceFileName, out string streamSignature, CancellationToken token = default)
@@ -1976,7 +2396,7 @@ internal static unsafe partial class FfmpegMediaEngine
         bool outputPathReserved = false;
         int[]? streamMap = null;
         FfmpegStreamCompatibility[]? streamCompatibilities = null;
-        long[]? lastPacketEnds = null;
+        long[]? lastPacketDts = null;
         long timelineOffset = 0;
         bool hadProgress = false;
         int recoveredReadErrors = 0;
@@ -1987,6 +2407,7 @@ internal static unsafe partial class FfmpegMediaEngine
         long lastVideoTimelineTimestamp = ffmpeg.AV_NOPTS_VALUE;
         long baselineTimelineDifference = ffmpeg.AV_NOPTS_VALUE;
         long lastTimelineSampleTimestamp = 0;
+        List<FfmpegSegmentTimelineDiagnostic> segmentTimelineDiagnostics = [];
         LiveAudioContentAnalyzer? audioContentAnalyzer = null;
 
         try
@@ -2041,7 +2462,7 @@ internal static unsafe partial class FfmpegMediaEngine
                         NotifyStreamPresence(inputContext, onStreamsDiscovered);
                         audioContentAnalyzer = LiveAudioContentAnalyzer.TryCreate(inputContext, inputOptions?.IsLive == true ? onAudioContentSample : null);
                         streamCompatibilities = CreateStreamCompatibilities(inputContext, streamMap, (int)outputContext->nb_streams);
-                        lastPacketEnds = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)outputContext->nb_streams).ToArray();
+                        lastPacketDts = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)outputContext->nb_streams).ToArray();
 
                         if ((outputContext->oformat->flags & ffmpeg.AVFMT_NOFILE) == 0)
                         {
@@ -2070,7 +2491,7 @@ internal static unsafe partial class FfmpegMediaEngine
                             }
                         }
                     }
-                    else if (streamMap == null || streamCompatibilities == null || lastPacketEnds == null)
+                    else if (streamMap == null || streamCompatibilities == null || lastPacketDts == null)
                     {
                         return new FfmpegMediaRunResult(1, false, hadProgress, "output stream map is missing");
                     }
@@ -2095,15 +2516,17 @@ internal static unsafe partial class FfmpegMediaEngine
                             ? Math.Min(sourceTimelineLimitSeconds, maximumTimelineEndSeconds)
                             : maximumTimelineEndSeconds;
                     }
-                    long sourceDecodeEndTimestamp = timelineOffset;
+                    long sourceTimelineEndTimestamp = timelineOffset;
                     int referenceStreamIndex = GetSegmentReferenceStreamIndex(inputContext);
                     if (referenceStreamIndex < 0)
                     {
                         return new FfmpegMediaRunResult(1, false, hadProgress, "input contains no supported audio or video streams");
                     }
                     bool sourceHadReferenceProgress = false;
+                    int discardedPacketsBeforeSource = discardedPackets;
                     long[] nextInputDts = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)inputContext->nb_streams).ToArray();
                     SegmentClock sourceClock = new();
+                    FfmpegSegmentTimelineAccumulator segmentTimeline = new(sourceIndex + 1);
                     MediaTimelineRecovery timelineRecovery = new(
                         VideoTimelineStallThresholdMicroseconds,
                         inputOptions?.IsLive == true || salvageDamagedFile);
@@ -2287,6 +2710,10 @@ internal static unsafe partial class FfmpegMediaEngine
                         if (inputStreamIndex == referenceStreamIndex)
                         {
                             _ = sourceClock.Observe(packet, inputStream);
+                            if (sourceClock.LastObservationWasDiscontinuity)
+                            {
+                                segmentTimeline.SourceClockDiscontinuityCount++;
+                            }
                             if (mediaType == AVMediaType.AVMEDIA_TYPE_VIDEO
                                 && sourceClock.LastObservationWasDiscontinuity)
                             {
@@ -2337,9 +2764,20 @@ internal static unsafe partial class FfmpegMediaEngine
                         }
                         bool isVideoPacket = mediaType == AVMediaType.AVMEDIA_TYPE_VIDEO;
                         bool isAudioPacket = mediaType == AVMediaType.AVMEDIA_TYPE_AUDIO;
+                        long inputPresentationTimestamp = GetPacketPresentationTimestampMicroseconds(packet, inputStream);
+                        long inputPacketEndTimestamp = inputPresentationTimestamp == ffmpeg.AV_NOPTS_VALUE
+                            ? ffmpeg.AV_NOPTS_VALUE
+                            : AddSaturated(inputPresentationTimestamp, GetPacketDurationMicroseconds(packet, inputStream));
+                        segmentTimeline.ObserveInput(mediaType, inputPresentationTimestamp, inputPacketEndTimestamp);
                         if (isAudioPacket)
                         {
                             audioContentAnalyzer?.Observe(packet);
+                        }
+                        long recoveryCorrection = timelineRecoveryResult.PacketTimestampCorrection;
+                        segmentTimeline.ObserveCorrections(sourceClock.CurrentCorrection, recoveryCorrection);
+                        if (timelineRecoveryResult.EventKind != FfmpegTimelineEventKind.None)
+                        {
+                            segmentTimeline.TimelineRecoveryEventCount++;
                         }
                         NormalizeSourcePacketTimestamps(
                             packet,
@@ -2359,7 +2797,12 @@ internal static unsafe partial class FfmpegMediaEngine
                         }
                         ffmpeg.av_packet_rescale_ts(packet, inputStream->time_base, outputStream->time_base);
                         ApplyTimelineOffset(packet, outputStream, timelineOffset);
-                        NormalizePacketDts(packet, outputStream, outputStreamIndex, lastPacketEnds);
+                        NormalizePacketDts(packet, outputStream, outputStreamIndex, lastPacketDts);
+                        long outputPresentationTimestamp = GetPacketPresentationTimestampMicroseconds(packet, outputStream);
+                        long outputPacketEndTimestamp = outputPresentationTimestamp == ffmpeg.AV_NOPTS_VALUE
+                            ? ffmpeg.AV_NOPTS_VALUE
+                            : AddSaturated(outputPresentationTimestamp, GetPacketDurationMicroseconds(packet, outputStream));
+                        segmentTimeline.ObserveOutput(mediaType, outputPresentationTimestamp, outputPacketEndTimestamp);
                         long packetEndTimestamp = GetPacketPresentationEndTimestamp(packet, outputStream);
                         if (packetEndTimestamp != ffmpeg.AV_NOPTS_VALUE)
                         {
@@ -2374,8 +2817,9 @@ internal static unsafe partial class FfmpegMediaEngine
                         }
                         packet->stream_index = outputStreamIndex;
                         packet->pos = -1;
-                        sourceDecodeEndTimestamp = Math.Max(
-                            sourceDecodeEndTimestamp,
+                        sourceTimelineEndTimestamp = ResolveSegmentTimelineEndTimestamp(
+                            sourceTimelineEndTimestamp,
+                            packetEndTimestamp,
                             GetPacketDecodeEndTimestamp(packet, outputStream));
 
                         int writeResult = ffmpeg.av_interleaved_write_frame(outputContext, packet);
@@ -2438,6 +2882,12 @@ internal static unsafe partial class FfmpegMediaEngine
                     {
                         return new FfmpegMediaRunResult(1, false, hadProgress, $"source {sourceIndex + 1} contains no readable media packets");
                     }
+
+                    segmentTimelineDiagnostics.Add(segmentTimeline.CreateDiagnostic(
+                        sourceClock.CurrentCorrection,
+                        Math.Max(0, discardedPackets - discardedPacketsBeforeSource),
+                        sourceTimestampBase,
+                        timelineOffset));
                     if (!salvageDamagedFile
                         && inputOptions == null
                         && !IsFileInputFullyConsumed(inputContext, sourceFileNames[sourceIndex]))
@@ -2445,7 +2895,7 @@ internal static unsafe partial class FfmpegMediaEngine
                         return new FfmpegMediaRunResult(1, false, hadProgress, $"source {sourceIndex + 1} ended before the physical file end");
                     }
 
-                    timelineOffset = Math.Max(timelineOffset, sourceDecodeEndTimestamp);
+                    timelineOffset = Math.Max(timelineOffset, sourceTimelineEndTimestamp);
                 }
                 finally
                 {
@@ -2485,7 +2935,8 @@ internal static unsafe partial class FfmpegMediaEngine
                     RecoveredReadErrors: recoveredReadErrors,
                     DiscardedPackets: discardedPackets,
                     AudioEndSeconds: ToMediaSeconds(audioEndTimestamp),
-                    VideoEndSeconds: ToMediaSeconds(videoEndTimestamp));
+                    VideoEndSeconds: ToMediaSeconds(videoEndTimestamp),
+                    SegmentTimelineDiagnostics: segmentTimelineDiagnostics);
         }
         catch (Exception e)
         {
@@ -2696,6 +3147,17 @@ internal static unsafe partial class FfmpegMediaEngine
             new AVRational { num = 1, den = ffmpeg.AV_TIME_BASE });
     }
 
+    internal static long ResolveSegmentTimelineEndTimestamp(
+        long currentEndTimestamp,
+        long presentationEndTimestamp,
+        long decodeEndTimestamp)
+    {
+        long candidateEndTimestamp = presentationEndTimestamp != ffmpeg.AV_NOPTS_VALUE
+            ? presentationEndTimestamp
+            : decodeEndTimestamp;
+        return Math.Max(currentEndTimestamp, candidateEndTimestamp);
+    }
+
     private static double ToMediaSeconds(long timestampMicroseconds)
     {
         return timestampMicroseconds <= 0
@@ -2729,13 +3191,6 @@ internal static unsafe partial class FfmpegMediaEngine
         return string.IsNullOrWhiteSpace(current)
             ? ffmpeg.avcodec_get_name(codecId) ?? string.Empty
             : current;
-    }
-
-    private static bool IsOptimizedAudioStream(AVStream* stream)
-    {
-        string expected = "OptimizedAudioTrack".Tr();
-        return string.Equals(ReadMetadataValue(stream->metadata, "title"), expected, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(ReadMetadataValue(stream->metadata, "handler_name"), expected, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool TryAdvanceDamagedFileInput(AVFormatContext* inputContext, string sourceFileName)
@@ -2966,7 +3421,6 @@ internal static unsafe partial class FfmpegMediaEngine
         AddMetadata(dictionary, "emerde_quality", metadata.Quality);
         AddMetadata(dictionary, "emerde_video_codec", metadata.VideoCodec);
         AddMetadata(dictionary, "emerde_audio_codec", metadata.AudioCodec);
-        AddMetadata(dictionary, "emerde_optimized_audio", metadata.HasOptimizedAudio ? bool.TrueString : string.Empty);
         AddMetadata(dictionary, "emerde_cover_path", metadata.CoverPath);
         AddMetadata(dictionary, "emerde_segment_reason", metadata.SegmentReason);
         AddMetadata(dictionary, "emerde_recorded_at", FormatTimestamp(metadata.RecordedAt));

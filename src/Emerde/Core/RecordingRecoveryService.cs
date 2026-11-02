@@ -12,7 +12,7 @@ namespace Emerde.Core;
 internal static class RecordingRecoveryService
 {
     private const int MaxAutomaticRecoveryFailures = 3;
-    private const int CurrentRecoveryPolicyVersion = 2;
+    private const int CurrentRecoveryPolicyVersion = 4;
     private const int PendingProcessingBatchSize = 8;
     private const int FinalizationAttemptCount = 5;
     private const int PendingMarkerSaveAttempts = 3;
@@ -48,7 +48,7 @@ internal static class RecordingRecoveryService
             return null;
         }
 
-        return Register(sourcePattern, targetFormat, options.IsRemoveTs, options.IsOptimizeAudio, mergeSessionParts: false, roomUrl, fileNameRule: options.SaveFileNameCustomRule, finalizeName: finalizeName);
+        return Register(sourcePattern, targetFormat, options.IsRemoveTs, mergeSessionParts: false, roomUrl, fileNameRule: options.SaveFileNameCustomRule, finalizeName: finalizeName);
     }
 
     internal static string? RegisterSessionParts(
@@ -56,7 +56,6 @@ internal static class RecordingRecoveryService
         string targetFormat,
         bool removeSource,
         string roomUrl = "",
-        bool optimizeAudio = false,
         bool mergeSessionParts = true,
         string segmentReason = "",
         string fileNameRule = "",
@@ -67,14 +66,13 @@ internal static class RecordingRecoveryService
             return null;
         }
 
-        return Register(sourcePattern, targetFormat, removeSource, optimizeAudio, mergeSessionParts, roomUrl, segmentReason, fileNameRule, finalizeName);
+        return Register(sourcePattern, targetFormat, removeSource, mergeSessionParts, roomUrl, segmentReason, fileNameRule, finalizeName);
     }
 
     private static string? Register(
         string sourcePattern,
         string targetFormat,
         bool removeSource,
-        bool optimizeAudio,
         bool mergeSessionParts,
         string roomUrl,
         string segmentReason = "",
@@ -93,7 +91,6 @@ internal static class RecordingRecoveryService
                 SourcePattern = sourcePattern,
                 TargetFormat = targetFormat,
                 RemoveSource = removeSource,
-                OptimizeAudio = optimizeAudio,
                 MergeSessionParts = mergeSessionParts,
                 FinalizeOnly = !mergeSessionParts
                     && Path.GetExtension(sourcePattern).Equals(targetFormat, StringComparison.OrdinalIgnoreCase),
@@ -183,7 +180,6 @@ internal static class RecordingRecoveryService
         }
         item.TargetFormat = targetFormat;
         item.RemoveSource = options.IsRemoveTs;
-        item.OptimizeAudio = options.IsOptimizeAudio;
         item.FileNameRule = options.SaveFileNameCustomRule;
         ResetFailureState(item);
         return Save(path, item);
@@ -199,7 +195,7 @@ internal static class RecordingRecoveryService
                 return false;
             }
 
-            item.MergeSessionParts = false;
+            item.MergeSessionParts = true;
             item.SegmentReason = VideoRecordingMetadataStore.TimelineStallSegmentReason;
             return Save(path, item);
         }
@@ -743,7 +739,6 @@ internal static class RecordingRecoveryService
         IEnumerable<string> sourceFiles,
         string targetFormat,
         bool removeSource,
-        bool optimizeAudio,
         bool mergeSessionParts)
     {
         string[] normalizedSources;
@@ -761,7 +756,7 @@ internal static class RecordingRecoveryService
             return string.Empty;
         }
         string payload = string.Join('\n', normalizedSources)
-            + $"\n{targetFormat.ToLowerInvariant()}:{removeSource}:{optimizeAudio}:{mergeSessionParts}";
+            + $"\n{targetFormat.ToLowerInvariant()}:{removeSource}:{mergeSessionParts}";
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
     }
 
@@ -771,7 +766,6 @@ internal static class RecordingRecoveryService
             sourceFiles,
             item.TargetFormat,
             item.RemoveSource,
-            item.OptimizeAudio,
             item.MergeSessionParts);
     }
 
@@ -878,15 +872,6 @@ internal static class RecordingRecoveryService
         VideoRecordingMetadata sourceMetadata = LoadFirstMetadata(sourceFiles);
         bool isStallSegment = item.SegmentReason.Equals(VideoRecordingMetadataStore.TimelineStallSegmentReason, StringComparison.Ordinal)
             || sourceMetadata.SegmentReason.Equals(VideoRecordingMetadataStore.TimelineStallSegmentReason, StringComparison.Ordinal);
-        if (isStallSegment && item.MergeSessionParts && !IsUsableSource(item.CompletedTargetPath))
-        {
-            item.MergeSessionParts = false;
-            item.SegmentReason = VideoRecordingMetadataStore.TimelineStallSegmentReason;
-            if (!Save(path, item))
-            {
-                return false;
-            }
-        }
         if (isStallSegment)
         {
             sourceMetadata.SegmentReason = VideoRecordingMetadataStore.TimelineStallSegmentReason;
@@ -967,7 +952,6 @@ internal static class RecordingRecoveryService
                 }
             },
             operationCancellation,
-            item.OptimizeAudio,
             reason => failureReason = SelectFailureReason(failureReason, reason));
         if (completed)
         {
@@ -980,6 +964,20 @@ internal static class RecordingRecoveryService
             await PublishFinalizedMediaAsync(path, item, finalizedSourceFiles, sourceMetadata, token);
             DeleteMarker(path);
             return true;
+        }
+
+        if (item.FinalizeName && !IsTransientRecoveryFailure(failureReason))
+        {
+            (bool finalized, string[] finalizedSourceFiles) = await TryFinalizeOutputsAsync(
+                path,
+                item,
+                [],
+                token,
+                includeRetainedSources: false);
+            if (finalized && (IsUsableSource(item.CompletedTargetPath) || item.CompletedSources.Count > 0))
+            {
+                await PublishFinalizedMediaAsync(path, item, finalizedSourceFiles, sourceMetadata, token);
+            }
         }
 
         string[] remainingSources = GetSourceFiles(item.SourcePattern);
@@ -1029,7 +1027,7 @@ internal static class RecordingRecoveryService
                 : string.Empty;
             if (item.RetryBlocked)
             {
-                AppSessionLogger.Event("error", "recovery", "recovery_retry_blocked", "automatic recovery retry was paused after repeated conversion failures", new
+                AppSessionLogger.Event("error", "recovery", "recovery_retry_blocked", "automatic recovery was paused because the current sources still fail media validation", new
                 {
                     item.SourcePattern,
                     item.FailureCount,
@@ -1119,8 +1117,7 @@ internal static class RecordingRecoveryService
                     sourceMetadata);
                 string effectiveRoomUrl = string.IsNullOrWhiteSpace(roomUrl) ? metadata.RoomUrl : roomUrl;
                 bool wasMerged = mergeSessionParts
-                    && !string.IsNullOrWhiteSpace(completedTargetPath)
-                    && fullPath.Equals(Path.GetFullPath(completedTargetPath), StringComparison.OrdinalIgnoreCase);
+                    && completedSources?.Count(source => Path.GetFullPath(source.Value).Equals(fullPath, StringComparison.OrdinalIgnoreCase)) > 1;
                 return new ExtensionMediaFinalizedEvent(
                     CreateFinalizedEventId(recordingId, fullPath),
                     recordingId,
@@ -1189,7 +1186,6 @@ internal static class RecordingRecoveryService
         Action<string, string>? onSourceTargetReserved = null,
         Action<string>? onIntermediateTargetReserved = null,
         CancellationTokenSource? tokenSource = null,
-        bool optimizeAudio = false,
         Action<string>? onFailure = null)
     {
         string[] sources = GetSourceFiles(sourcePattern);
@@ -1202,11 +1198,31 @@ internal static class RecordingRecoveryService
         {
             if (IsSessionPattern(sourcePattern) && !HasConsecutiveSessionPartIndices(sources, sourcePattern))
             {
-                onFailure?.Invoke("session_segment_gap: source segment indices are not consecutive");
-                return false;
+                AppSessionLogger.Event("warn", "recovery", "session_segment_gap_split", "recording parts with missing indices will be processed as separate groups", new
+                {
+                    sourcePattern,
+                    sourceFiles = sources,
+                });
             }
 
-            List<string[]> compatibleGroups = GroupConsecutiveCompatibleSources(sources, tokenSource?.Token ?? CancellationToken.None);
+            HashSet<string> isolatedSources = new(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, string> isolationReasons = new(StringComparer.OrdinalIgnoreCase);
+            List<string[]> compatibleGroups = GroupConsecutiveCompatibleSources(
+                sources,
+                (first, second) => (!IsSessionPattern(sourcePattern)
+                        || HasConsecutiveSessionPartIndices([first, second], sourcePattern))
+                    && FfmpegMediaEngine.AreSourcesStreamCompatible(first, second, tokenSource?.Token ?? CancellationToken.None),
+                source =>
+                {
+                    bool eligible = IsSourceEligibleForMerge(source, tokenSource?.Token ?? CancellationToken.None, out string reason);
+                    if (!eligible)
+                    {
+                        isolatedSources.Add(source);
+                        isolationReasons[source] = reason;
+                    }
+                    return eligible;
+                },
+                tokenSource?.Token ?? CancellationToken.None);
             Action<string>? CreateMergeCompletionCallback(IReadOnlyList<string> group)
             {
                 return completedPath =>
@@ -1219,13 +1235,54 @@ internal static class RecordingRecoveryService
                 };
             }
             if (compatibleGroups.Count > 1
-                || (compatibleGroups.Count == 1 && compatibleGroups[0].Length != sources.Length))
+                || (compatibleGroups.Count == 1 && compatibleGroups[0].Length != sources.Length)
+                || isolatedSources.Count > 0)
             {
                 bool grouped = true;
                 foreach (string[] group in compatibleGroups)
                 {
                     if (group.Length == 1)
                     {
+                        string isolatedSource = group[0];
+                        if (isolatedSources.Contains(isolatedSource))
+                        {
+                            string reason = isolationReasons[isolatedSource];
+                            string? repairedSource = await TryRepairSourceAsync(
+                                isolatedSource,
+                                targetFormat,
+                                tokenSource?.Token ?? CancellationToken.None,
+                                onFailure);
+                            if (IsUsableSource(repairedSource))
+                            {
+                                onSourceCompleted?.Invoke(isolatedSource, repairedSource!);
+                                if (removeSource)
+                                {
+                                    File.Delete(isolatedSource);
+                                    VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(isolatedSource);
+                                    RecordingAssociatedAssets.Delete(isolatedSource);
+                                }
+                                AppSessionLogger.Event("info", "recovery", "recovery_isolated_source_repaired", "an isolated recording part was repaired as an independent output while healthy parts continued", new
+                                {
+                                    sourcePattern,
+                                    sourcePath = isolatedSource,
+                                    repairedPath = repairedSource,
+                                    reason,
+                                });
+                                continue;
+                            }
+
+                            RecordIsolatedSourceIssue(isolatedSource, reason);
+                            grouped = false;
+                            onFailure?.Invoke($"source_segment_isolated:{Path.GetFileName(isolatedSource)}:{reason}");
+                            AppSessionLogger.Event("warn", "recovery", "recovery_source_isolated", "a damaged recording part was retained separately while healthy parts continued", new
+                            {
+                                sourcePattern,
+                                sourcePath = isolatedSource,
+                                reason,
+                            });
+                            continue;
+                        }
+
                         if (!await ProcessSourcesIndividuallyAsync(
                             group,
                             targetFormat,
@@ -1234,7 +1291,6 @@ internal static class RecordingRecoveryService
                             onSourceCompleted,
                             onSourceTargetReserved,
                             tokenSource,
-                            optimizeAudio,
                             onFailure,
                             null))
                         {
@@ -1250,12 +1306,11 @@ internal static class RecordingRecoveryService
                         targetFormat,
                         removeSource,
                         completedSources,
-                        CreateMergeCompletionCallback(group),
+                        onMergeCompleted,
                         onSourceCompleted,
                         onSourceTargetReserved,
                         onMergeTargetReserved,
                         tokenSource,
-                        optimizeAudio,
                         onFailure,
                         intermediateTargetPath,
                         onIntermediateCompleted,
@@ -1275,7 +1330,7 @@ internal static class RecordingRecoveryService
                 if (!await new Converter().ExecuteSessionPartsAsync(
                     sourcePattern,
                     sources,
-                    new ConverterOptions(targetFormat, optimizeAudio),
+                    new ConverterOptions(targetFormat),
                     tokenSource,
                     onCompleted: CreateMergeCompletionCallback(sources),
                     onTargetReserved: onMergeTargetReserved,
@@ -1289,7 +1344,6 @@ internal static class RecordingRecoveryService
                         onSourceCompleted,
                         onSourceTargetReserved,
                         tokenSource,
-                        optimizeAudio,
                         onFailure,
                         sources.Length == 1 ? Converter.BuildSessionTargetPath(sourcePattern, targetFormat) : null);
                 }
@@ -1315,7 +1369,7 @@ internal static class RecordingRecoveryService
                 bool merged = await new Converter().ExecuteSessionPartsAsync(
                     sourcePattern,
                     sources,
-                    new ConverterOptions(sourceFormat, optimizeAudio),
+                    new ConverterOptions(sourceFormat),
                     tokenSource,
                     onCompleted: completedPath =>
                     {
@@ -1338,7 +1392,6 @@ internal static class RecordingRecoveryService
                         onSourceCompleted,
                         onSourceTargetReserved,
                         tokenSource,
-                        optimizeAudio,
                         onFailure,
                         sources.Length == 1 ? Converter.BuildSessionTargetPath(sourcePattern, targetFormat) : null);
                 }
@@ -1347,7 +1400,7 @@ internal static class RecordingRecoveryService
 
             bool completed = await new Converter().ExecuteWithCompletionAsync(
                 mergedSource,
-                new ConverterOptions(targetFormat, optimizeAudio),
+                new ConverterOptions(targetFormat),
                 onMergeCompleted ?? (_ => { }),
                 tokenSource,
                 onTargetReserved: onMergeTargetReserved,
@@ -1379,7 +1432,6 @@ internal static class RecordingRecoveryService
                 onSourceCompleted,
                 onSourceTargetReserved,
                 tokenSource,
-                optimizeAudio,
                 onFailure,
                 sources.Length == 1 ? Converter.BuildSessionTargetPath(sourcePattern, targetFormat) : null);
             if (fallbackCompleted && IsUsableSource(mergedSource))
@@ -1400,7 +1452,6 @@ internal static class RecordingRecoveryService
             onSourceCompleted,
             onSourceTargetReserved,
             tokenSource,
-            optimizeAudio,
             onFailure,
             null);
     }
@@ -1444,28 +1495,244 @@ internal static class RecordingRecoveryService
         Func<string, string, bool> areCompatible,
         CancellationToken token = default)
     {
+        return GroupConsecutiveCompatibleSources(sources, areCompatible, static _ => true, token);
+    }
+
+    internal static List<string[]> GroupConsecutiveCompatibleSources(
+        IReadOnlyList<string> sources,
+        Func<string, string, bool> areCompatible,
+        Func<string, bool> isMergeEligible,
+        CancellationToken token = default)
+    {
         List<string[]> groups = [];
         if (sources.Count == 0)
         {
             return groups;
         }
 
-        List<string> current = [sources[0]];
-        for (int index = 1; index < sources.Count; index++)
+        List<string> current = [];
+        foreach (string source in sources)
         {
             token.ThrowIfCancellationRequested();
-            if (areCompatible(current[^1], sources[index]))
+            if (!isMergeEligible(source))
             {
-                current.Add(sources[index]);
+                if (current.Count > 0)
+                {
+                    groups.Add(current.ToArray());
+                    current.Clear();
+                }
+                groups.Add([source]);
+                continue;
+            }
+
+            if (current.Count == 0)
+            {
+                current.Add(source);
+                continue;
+            }
+
+            if (areCompatible(current[^1], source))
+            {
+                current.Add(source);
                 continue;
             }
 
             groups.Add(current.ToArray());
-            current = [sources[index]];
+            current = [source];
         }
 
-        groups.Add(current.ToArray());
+        if (current.Count > 0)
+        {
+            groups.Add(current.ToArray());
+        }
         return groups;
+    }
+
+    private static bool IsSourceEligibleForMerge(string source, CancellationToken token, out string failureReason)
+    {
+        if (!FfmpegMediaEngine.TryProbe(source, out FfmpegMediaProbeResult probe, out string error, token, includePacketDiagnostics: true))
+        {
+            failureReason = $"source_probe_failed:{error}";
+            return false;
+        }
+
+        if (!probe.HasVideo)
+        {
+            failureReason = "source_video_missing";
+            return false;
+        }
+
+        if (!Converter.IsSourceTimelineWithinTolerance(probe))
+        {
+            failureReason = "source_timeline_mismatch";
+            return false;
+        }
+
+        if (probe.PacketDiagnosticsComplete && probe.TimestampDiscontinuityCount > 0)
+        {
+            failureReason = $"source_timestamp_discontinuity:{probe.TimestampDiscontinuityCount}";
+            return false;
+        }
+
+        if (probe.PacketDiagnosticsComplete && probe.InterPacketGapCount > 0)
+        {
+            failureReason = $"source_internal_pause:count={probe.InterPacketGapCount},maximum={probe.MaximumInterPacketGapSeconds:F3}";
+            return false;
+        }
+
+        VideoRecordingMetadata storedMetadata = VideoRecordingMetadataStore.Load(new FileInfo(source));
+        VideoRecordingMetadata combinedMetadata = VideoRecordingMetadataStore.Merge(probe.Metadata, storedMetadata);
+        if (HasRecordedSourceMediaDamage(combinedMetadata, probe))
+        {
+            failureReason = "source_recorded_media_damage";
+            return false;
+        }
+
+        failureReason = string.Empty;
+        return true;
+    }
+
+    internal static bool HasRecordedSourceMediaDamage(VideoRecordingMetadata metadata)
+    {
+        HashSet<string> damageKinds = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "audio_content_anomaly",
+            "audio_decode_error",
+            "audio_stalled",
+            "timeline_mismatch",
+            "video_decode_error",
+            "video_stalled",
+        };
+        string[] mediaIssues = metadata.MediaIssue
+            .Split([';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        VideoRecordingIssueInterval[] intervals = (metadata.IssueIntervals ?? []).ToArray();
+        bool hasTimelineIssue = mediaIssues.Contains("timeline_mismatch", StringComparer.OrdinalIgnoreCase);
+        bool hasTimelineInterval = intervals
+            .Where(interval => interval.Kind.Equals("timeline_mismatch", StringComparison.OrdinalIgnoreCase))
+            .Any();
+        return mediaIssues.Any(issue => damageKinds.Contains(issue)
+                && !issue.Equals("timeline_mismatch", StringComparison.OrdinalIgnoreCase))
+            || (hasTimelineIssue && !hasTimelineInterval)
+            || intervals
+                .Any(interval => (damageKinds.Contains(interval.Kind) || damageKinds.Contains(interval.Detail))
+                    && !interval.Detail.Equals("output_timestamp_normalization_mismatch", StringComparison.OrdinalIgnoreCase));
+    }
+
+    internal static bool HasRecordedSourceMediaDamage(
+        VideoRecordingMetadata metadata,
+        FfmpegMediaProbeResult probe)
+    {
+        HashSet<string> damageKinds = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "audio_content_anomaly",
+            "audio_decode_error",
+            "audio_stalled",
+            "timeline_mismatch",
+            "video_decode_error",
+            "video_stalled",
+        };
+        HashSet<string> issueKinds = metadata.MediaIssue
+            .Split([';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(damageKinds.Contains)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        bool hasTimelineIssue = metadata.MediaIssue
+            .Split([';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Contains("timeline_mismatch", StringComparer.OrdinalIgnoreCase);
+        VideoRecordingIssueInterval[] damageIntervals = (metadata.IssueIntervals ?? [])
+            .Where(interval => damageKinds.Contains(interval.Kind)
+                || damageKinds.Contains(interval.Detail)
+                || (interval.Kind.Equals("timeline_mismatch", StringComparison.OrdinalIgnoreCase)
+                    && !interval.Detail.Equals("output_timestamp_normalization_mismatch", StringComparison.OrdinalIgnoreCase)))
+            .Where(interval => !interval.Detail.Equals("output_timestamp_normalization_mismatch", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (hasTimelineIssue
+            && (metadata.IssueIntervals ?? []).Any(interval => interval.Kind.Equals("timeline_mismatch", StringComparison.OrdinalIgnoreCase)
+                && interval.Detail.Equals("output_timestamp_normalization_mismatch", StringComparison.OrdinalIgnoreCase))
+            && !damageIntervals.Any(interval => interval.Kind.Equals("timeline_mismatch", StringComparison.OrdinalIgnoreCase)))
+        {
+            issueKinds.Remove("timeline_mismatch");
+        }
+        foreach (VideoRecordingIssueInterval interval in damageIntervals)
+        {
+            if (damageKinds.Contains(interval.Kind))
+            {
+                issueKinds.Add(interval.Kind);
+            }
+            if (damageKinds.Contains(interval.Detail))
+            {
+                issueKinds.Add(interval.Detail);
+            }
+        }
+        if (issueKinds.Count == 0 && damageIntervals.Length == 0 && !hasTimelineIssue)
+        {
+            return false;
+        }
+        if (hasTimelineIssue
+            && damageIntervals.Length == 0
+            && !(metadata.IssueIntervals ?? []).Any(interval => interval.Kind.Equals("timeline_mismatch", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        double[] knownStarts = [];
+        if (probe.HasAudioStartTimestamp)
+        {
+            knownStarts = [.. knownStarts, probe.AudioStartSeconds];
+        }
+        if (probe.HasVideoStartTimestamp)
+        {
+            knownStarts = [.. knownStarts, probe.VideoStartSeconds];
+        }
+        double sourceEnd = Math.Max(Math.Max(0d, probe.AudioEndSeconds), Math.Max(0d, probe.VideoEndSeconds));
+        double sourceStart = knownStarts.Length > 0
+            ? knownStarts.Min()
+            : sourceEnd > 0d && probe.DurationSeconds > 0d
+                ? Math.Max(0d, sourceEnd - probe.DurationSeconds)
+                : double.NaN;
+        if (sourceEnd <= 0d || !double.IsFinite(sourceStart))
+        {
+            return true;
+        }
+
+        foreach (string issueKind in issueKinds)
+        {
+            VideoRecordingIssueInterval[] matchingIntervals = damageIntervals
+                .Where(interval => interval.Kind.Equals(issueKind, StringComparison.OrdinalIgnoreCase)
+                    || interval.Detail.Equals(issueKind, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            if (matchingIntervals.Length == 0
+                || matchingIntervals.Any(interval => interval.StartSeconds < 0d || interval.EndSeconds < 0d))
+            {
+                return true;
+            }
+
+            if (matchingIntervals.Any(interval => interval.StartSeconds == interval.EndSeconds
+                    ? interval.StartSeconds >= sourceStart && interval.StartSeconds < sourceEnd
+                    : interval.StartSeconds < sourceEnd && interval.EndSeconds > sourceStart))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void RecordIsolatedSourceIssue(string source, string reason)
+    {
+        VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(new FileInfo(source));
+        string issueKind = reason.Equals("source_timeline_mismatch", StringComparison.Ordinal)
+            ? "timeline_mismatch"
+            : "source_segment_isolated";
+        metadata.MediaIssue = VideoRecordingMetadataStore.AddMediaIssue(metadata.MediaIssue, issueKind);
+        VideoRecordingMetadataStore.AddIssueInterval(metadata, issueKind, -1d, -1d, reason);
+        if (!VideoRecordingMetadataStore.WriteCompletedMetadata(source, metadata))
+        {
+            AppSessionLogger.Event("warn", "recovery", "recovery_isolated_source_metadata_failed", "the isolated recording part remains on disk but its warning metadata could not be saved", new
+            {
+                sourcePath = source,
+                reason,
+            });
+        }
     }
 
     internal static bool HasConsecutiveSessionPartIndices(IReadOnlyList<string> sources, string sourcePattern)
@@ -1528,7 +1795,6 @@ internal static class RecordingRecoveryService
         Action<string, string>? onSourceTargetReserved,
         Action<string>? onMergeTargetReserved,
         CancellationTokenSource? tokenSource,
-        bool optimizeAudio,
         Action<string>? onFailure,
         string? intermediateTargetPath,
         Action<string>? onIntermediateCompleted,
@@ -1539,26 +1805,37 @@ internal static class RecordingRecoveryService
         string groupPattern = BuildCompatibleGroupPattern(sources);
         if (targetIsSourceFormat || removeSource)
         {
+            string? mergedTargetPath = null;
             if (!await new Converter().ExecuteSessionPartsAsync(
                 groupPattern,
                 sources,
-                new ConverterOptions(targetFormat, optimizeAudio),
+                new ConverterOptions(targetFormat),
                 tokenSource,
-                onCompleted: onMergeCompleted,
+                onCompleted: completedPath =>
+                {
+                    mergedTargetPath = completedPath;
+                    onMergeCompleted?.Invoke(completedPath);
+                },
                 onTargetReserved: onMergeTargetReserved,
                 onFailed: onFailure))
             {
-                return await ProcessSourcesIndividuallyAsync(
+                return await ProcessFailedCompatibleGroupAsync(
+                    sourcePattern,
                     sources,
                     targetFormat,
                     removeSource,
                     completedSources,
+                    onMergeCompleted,
                     onSourceCompleted,
                     onSourceTargetReserved,
+                    onMergeTargetReserved,
                     tokenSource,
-                    optimizeAudio,
-                    onFailure,
-                    sources.Count == 1 ? Converter.BuildSessionTargetPath(sourcePattern, targetFormat) : null);
+                    onFailure);
+            }
+
+            foreach (string source in sources)
+            {
+                onSourceCompleted?.Invoke(source, mergedTargetPath!);
             }
 
             CancellationToken token = tokenSource?.Token ?? CancellationToken.None;
@@ -1582,7 +1859,7 @@ internal static class RecordingRecoveryService
             bool merged = await new Converter().ExecuteSessionPartsAsync(
                 groupPattern,
                 sources,
-                new ConverterOptions(sourceFormat, optimizeAudio),
+                new ConverterOptions(sourceFormat),
                 tokenSource,
                 onCompleted: completedPath =>
                 {
@@ -1598,31 +1875,41 @@ internal static class RecordingRecoveryService
                     return false;
                 }
 
-                return await ProcessSourcesIndividuallyAsync(
+                return await ProcessFailedCompatibleGroupAsync(
+                    sourcePattern,
                     sources,
                     targetFormat,
                     removeSource,
                     completedSources,
+                    onMergeCompleted,
                     onSourceCompleted,
                     onSourceTargetReserved,
+                    onMergeTargetReserved,
                     tokenSource,
-                    optimizeAudio,
-                    onFailure,
-                    sources.Count == 1 ? Converter.BuildSessionTargetPath(sourcePattern, targetFormat) : null);
+                    onFailure);
             }
 
             mergedSource = createdIntermediate!;
         }
 
+        string? completedTargetPath = null;
         bool completed = await new Converter().ExecuteWithCompletionAsync(
             mergedSource,
-            new ConverterOptions(targetFormat, optimizeAudio),
-            onMergeCompleted ?? (_ => { }),
+            new ConverterOptions(targetFormat),
+            completedPath =>
+            {
+                completedTargetPath = completedPath;
+                onMergeCompleted?.Invoke(completedPath);
+            },
             tokenSource,
             onTargetReserved: onMergeTargetReserved,
             onFailed: onFailure);
         if (completed)
         {
+            foreach (string source in sources)
+            {
+                onSourceCompleted?.Invoke(source, completedTargetPath!);
+            }
             CancellationToken token = tokenSource?.Token ?? CancellationToken.None;
             foreach (string source in sources)
             {
@@ -1630,6 +1917,11 @@ internal static class RecordingRecoveryService
                 File.Delete(source);
                 VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(source);
                 RecordingAssociatedAssets.Delete(source);
+            }
+
+            if (DeleteIntermediateSource(mergedSource))
+            {
+                onIntermediateCompleted?.Invoke(string.Empty);
             }
 
             return true;
@@ -1640,26 +1932,102 @@ internal static class RecordingRecoveryService
             return false;
         }
 
-        bool fallbackCompleted = await ProcessSourcesIndividuallyAsync(
+        bool fallbackCompleted = await ProcessFailedCompatibleGroupAsync(
+            sourcePattern,
             sources,
             targetFormat,
             removeSource,
             completedSources,
+            onMergeCompleted,
             onSourceCompleted,
             onSourceTargetReserved,
+            onMergeTargetReserved,
             tokenSource,
-            optimizeAudio,
-            onFailure,
-            sources.Count == 1 ? Converter.BuildSessionTargetPath(sourcePattern, targetFormat) : null);
-        if (fallbackCompleted && IsUsableSource(mergedSource))
+            onFailure);
+        if (DeleteIntermediateSource(mergedSource))
         {
-            (tokenSource?.Token ?? CancellationToken.None).ThrowIfCancellationRequested();
-            File.Delete(mergedSource);
-            VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(mergedSource);
-            RecordingAssociatedAssets.Delete(mergedSource);
+            onIntermediateCompleted?.Invoke(string.Empty);
+        }
+        return fallbackCompleted;
+    }
+
+    private static bool DeleteIntermediateSource(string path)
+    {
+        try
+        {
+            File.Delete(path);
+            VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(path);
+            RecordingAssociatedAssets.Delete(path);
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            AppSessionLogger.WriteException(exception);
+            return false;
+        }
+    }
+
+    private static async Task<bool> ProcessFailedCompatibleGroupAsync(
+        string sourcePattern,
+        IReadOnlyList<string> sources,
+        string targetFormat,
+        bool removeSource,
+        IReadOnlyDictionary<string, string>? completedSources,
+        Action<string>? onMergeCompleted,
+        Action<string, string>? onSourceCompleted,
+        Action<string, string>? onSourceTargetReserved,
+        Action<string>? onMergeTargetReserved,
+        CancellationTokenSource? tokenSource,
+        Action<string>? onFailure)
+    {
+        if (sources.Count == 1)
+        {
+            return await ProcessSourcesIndividuallyAsync(
+                sources,
+                targetFormat,
+                removeSource,
+                completedSources,
+                onSourceCompleted,
+                onSourceTargetReserved,
+                tokenSource,
+                onFailure,
+                null);
         }
 
-        return fallbackCompleted;
+        int middle = sources.Count / 2;
+        string[] firstGroup = sources.Take(middle).ToArray();
+        string[] secondGroup = sources.Skip(middle).ToArray();
+        bool firstCompleted = await MergeCompatibleGroupAsync(
+            sourcePattern,
+            firstGroup,
+            targetFormat,
+            removeSource,
+            completedSources,
+            onMergeCompleted,
+            onSourceCompleted,
+            onSourceTargetReserved,
+            onMergeTargetReserved,
+            tokenSource,
+            onFailure,
+            intermediateTargetPath: null,
+            onIntermediateCompleted: null,
+            onIntermediateTargetReserved: null);
+        bool secondCompleted = await MergeCompatibleGroupAsync(
+            sourcePattern,
+            secondGroup,
+            targetFormat,
+            removeSource,
+            completedSources,
+            onMergeCompleted,
+            onSourceCompleted,
+            onSourceTargetReserved,
+            onMergeTargetReserved,
+            tokenSource,
+            onFailure,
+            intermediateTargetPath: null,
+            onIntermediateCompleted: null,
+            onIntermediateTargetReserved: null);
+        return firstCompleted && secondCompleted;
     }
 
     private static async Task<bool> ProcessSourcesIndividuallyAsync(
@@ -1670,21 +2038,27 @@ internal static class RecordingRecoveryService
         Action<string, string>? onSourceCompleted,
         Action<string, string>? onSourceTargetReserved,
         CancellationTokenSource? tokenSource,
-        bool optimizeAudio,
         Action<string>? onFailure,
         string? singleSourceTargetPath)
     {
+        bool allSourcesCompleted = true;
         foreach (string source in sources)
         {
             CancellationToken token = tokenSource?.Token ?? CancellationToken.None;
             token.ThrowIfCancellationRequested();
             if (Path.GetExtension(source).Equals(targetFormat, StringComparison.OrdinalIgnoreCase))
             {
-                if (!FfmpegMediaEngine.TryProbe(source, out _, out _, token))
+                if (!FfmpegMediaEngine.TryProbe(source, out FfmpegMediaProbeResult probe, out _, token, includePacketDiagnostics: true)
+                    || !Converter.IsSourceTimelineWithinTolerance(probe))
                 {
                     token.ThrowIfCancellationRequested();
-                    onFailure?.Invoke("source_probe_failed");
-                    return false;
+                    onFailure?.Invoke("source_probe_or_timeline_validation_failed");
+                    allSourcesCompleted = false;
+                    continue;
+                }
+                if (completedSources?.ContainsKey(source) != true)
+                {
+                    onSourceCompleted?.Invoke(source, source);
                 }
                 continue;
             }
@@ -1700,7 +2074,7 @@ internal static class RecordingRecoveryService
                 string? createdTarget = null;
                 bool converted = await new Converter().ExecuteWithCompletionAsync(
                     source,
-                    new ConverterOptions(targetFormat, optimizeAudio),
+                    new ConverterOptions(targetFormat),
                     completedPath =>
                     {
                         onSourceCompleted?.Invoke(source, completedPath);
@@ -1716,15 +2090,17 @@ internal static class RecordingRecoveryService
                     {
                         return false;
                     }
-                    if (!AllowsUnoptimizedRepairFallback(targetFormat))
+                    if (!SupportsRepairFallback(targetFormat))
                     {
-                        onFailure?.Invoke("mkv_original_or_media_invalid");
-                        return false;
+                        onFailure?.Invoke("repair_target_format_unsupported");
+                        allSourcesCompleted = false;
+                        continue;
                     }
                     createdTarget = await TryRepairSourceAsync(source, targetFormat, token, onFailure);
                     if (!IsUsableSource(createdTarget))
                     {
-                        return false;
+                        allSourcesCompleted = false;
+                        continue;
                     }
                     onSourceCompleted?.Invoke(source, createdTarget!);
                 }
@@ -1740,7 +2116,7 @@ internal static class RecordingRecoveryService
             }
         }
 
-        return true;
+        return allSourcesCompleted;
     }
 
     private static async Task<string?> TryRepairSourceAsync(
@@ -1754,7 +2130,10 @@ internal static class RecordingRecoveryService
             return null;
         }
 
-        VideoRepairResult result = await new VideoRepairService().RepairAsync(source, targetFormat, token);
+        VideoRepairResult result = await new VideoRepairService().RepairAsync(
+            source,
+            targetFormat,
+            token);
         token.ThrowIfCancellationRequested();
         if (IsStorageLowForRecovery(source, onFailure))
         {
@@ -1764,6 +2143,11 @@ internal static class RecordingRecoveryService
             && IsUsableSource(result.OutputPath))
         {
             return result.OutputPath;
+        }
+
+        if (result.Status is VideoRepairStatus.PartiallyRepaired)
+        {
+            VideoRepairService.DiscardRejectedRepairOutput(result.OutputPath);
         }
 
         string reason = string.IsNullOrWhiteSpace(result.Error)
@@ -1814,20 +2198,65 @@ internal static class RecordingRecoveryService
 
     private static async Task WaitForSourceFilesToSettleAsync(string sourcePattern, CancellationToken token)
     {
-        if (!HasPendingSourceFile(sourcePattern) || GetSourceFiles(sourcePattern).Length > 0)
+        if (!HasPendingSourceFile(sourcePattern))
         {
             return;
         }
 
-        for (int attempt = 0; attempt < 4; attempt++)
+        Dictionary<string, (long Length, long LastWriteTimeUtcTicks)>? previousSnapshot = null;
+        for (int attempt = 0; attempt < 8; attempt++)
         {
             token.ThrowIfCancellationRequested();
-            await Task.Delay(TimeSpan.FromMilliseconds(250 * (attempt + 1)), token);
-            if (GetSourceFiles(sourcePattern).Length > 0 || !HasPendingSourceFile(sourcePattern))
+            string[] sourceFiles = GetSourceFiles(sourcePattern);
+            if (sourceFiles.Length == 0)
             {
+                await Task.Delay(TimeSpan.FromMilliseconds(250), token);
+                continue;
+            }
+
+            Dictionary<string, (long Length, long LastWriteTimeUtcTicks)> snapshot = [];
+            foreach (string sourceFile in sourceFiles)
+            {
+                token.ThrowIfCancellationRequested();
+                try
+                {
+                    FileInfo info = new(sourceFile);
+                    if (!info.Exists)
+                    {
+                        continue;
+                    }
+                    snapshot[info.FullName] = (info.Length, info.LastWriteTimeUtc.Ticks);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    AppSessionLogger.WriteException(exception);
+                }
+            }
+
+            if (snapshot.Count > 0
+                && previousSnapshot != null
+                && snapshot.Count == previousSnapshot.Count
+                && snapshot.All(item => previousSnapshot.TryGetValue(item.Key, out (long Length, long LastWriteTimeUtcTicks) previous)
+                    && previous == item.Value))
+            {
+                AppSessionLogger.Event("info", "recovery", "recovery_sources_settled", "recording source files remained stable before processing", new
+                {
+                    sourcePattern,
+                    sourceCount = snapshot.Count,
+                    stabilityChecks = attempt + 1,
+                });
                 return;
             }
+
+            previousSnapshot = snapshot;
+            await Task.Delay(TimeSpan.FromMilliseconds(350), token);
         }
+
+        AppSessionLogger.Event("warn", "recovery", "recovery_sources_stability_timeout", "recording source files did not provide two identical size and timestamp snapshots", new
+        {
+            sourcePattern,
+            sourceCount = GetSourceFiles(sourcePattern).Length,
+        });
     }
 
     private static bool HasPendingSourceFile(string sourcePattern)
@@ -2052,7 +2481,8 @@ internal static class RecordingRecoveryService
         string markerPath,
         PendingRecording item,
         IReadOnlyCollection<string> sourceFiles,
-        CancellationToken token)
+        CancellationToken token,
+        bool includeRetainedSources = true)
     {
         if (!item.FinalizeName)
         {
@@ -2069,18 +2499,16 @@ internal static class RecordingRecoveryService
             IsUsableSource(path)
             && Path.GetExtension(path).Equals(item.TargetFormat, StringComparison.OrdinalIgnoreCase)));
 
-        string[] outputPaths = item.FinalizationOutputs.Count > 0
-            ? item.FinalizationOutputs
-                .OrderBy(output => output.Order)
-                .Select(output => output.OriginalPath)
-                .ToArray()
-            : outputs
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(path => GetOutputSegmentIndex(path, item))
-                .ThenBy(path => path, StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-        bool preserveSegmentSuffix = item.SegmentReason.Equals(VideoRecordingMetadataStore.TimelineStallSegmentReason, StringComparison.Ordinal)
-            && (outputPaths.Length > 1 || !item.MergeSessionParts);
+        string[] outputPaths = outputs
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(path => GetOutputSegmentIndex(path, item))
+            .ThenBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        bool isStallSegment = item.SegmentReason.Equals(VideoRecordingMetadataStore.TimelineStallSegmentReason, StringComparison.Ordinal);
+        bool preserveSegmentSuffix = ShouldPreserveSegmentSuffix(
+            item.MergeSessionParts,
+            isStallSegment,
+            outputPaths.Length);
         string segmentGroupId = outputPaths
             .Select(path => ResolveExistingFinalizationPath(item, path))
             .Where(path => !string.IsNullOrWhiteSpace(path))
@@ -2093,68 +2521,80 @@ internal static class RecordingRecoveryService
             .Select(output => output.TargetPath)
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (item.FinalizationOutputs.Count == 0)
+        HashSet<string> plannedPaths = item.FinalizationOutputs
+            .SelectMany(output => new[] { output.OriginalPath, output.TargetPath })
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        bool addedFinalizationOutput = false;
+        bool allFinalizationsSucceeded = true;
+        for (int outputIndex = 0; outputIndex < outputPaths.Length; outputIndex++)
         {
-            for (int outputIndex = 0; outputIndex < outputPaths.Length; outputIndex++)
+            string output = outputPaths[outputIndex];
+            if (plannedPaths.Contains(output))
             {
-                string output = outputPaths[outputIndex];
-                token.ThrowIfCancellationRequested();
-                VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(new FileInfo(output));
-                metadata.SchemaVersion = 4;
-                if (preserveSegmentSuffix)
-                {
-                    metadata.SegmentGroupId = segmentGroupId;
-                    metadata.SegmentIndex = outputIndex;
-                    metadata.SegmentCount = outputPaths.Length;
-                    metadata.SegmentKind = item.SegmentReason.Equals(VideoRecordingMetadataStore.TimelineStallSegmentReason, StringComparison.Ordinal)
-                        ? "stall"
-                        : "recording";
-                }
-                else
-                {
-                    metadata.SegmentGroupId = string.Empty;
-                    metadata.SegmentIndex = -1;
-                    metadata.SegmentCount = 0;
-                    metadata.SegmentKind = string.Empty;
-                }
-                if (preserveSegmentSuffix && metadata.DurationSeconds > 0d)
-                {
-                    VideoRecordingMetadataStore.AddIssueInterval(
-                        metadata,
-                        "stall_segment",
-                        metadata.DurationSeconds,
-                        metadata.DurationSeconds,
-                        "timeline_stall");
-                }
-                if (!VideoRecordingMetadataStore.WriteCompletedMetadata(output, metadata))
-                {
-                    return (false, sourceFiles.ToArray());
-                }
-                RecordingFinalizationPlan plan = RecordingFinalizationService.PlanFile(
-                    output,
-                    item.FileNameRule,
-                    preserveSegmentSuffix,
-                    reservedTargets,
-                    segmentSuffix: preserveSegmentSuffix && outputPaths.Length > 1
-                        ? $"_{outputIndex:000}"
-                        : null,
-                    token: token);
-                if (!plan.Success)
-                {
-                    AppSessionLogger.Event("warn", "recovery", "recording_finalization_plan_failed", plan.Error, new { markerPath, output });
-                    return (false, sourceFiles.ToArray());
-                }
-                item.FinalizationOutputs.Add(new PendingOutputFinalization
-                {
-                    OriginalPath = output,
-                    TargetPath = plan.TargetPath,
-                    Order = outputIndex,
-                });
+                continue;
             }
-            if (!Save(markerPath, item))
+
+            token.ThrowIfCancellationRequested();
+            VideoRecordingMetadata metadata = VideoRecordingMetadataStore.Load(new FileInfo(output));
+            metadata.SchemaVersion = 4;
+            if (preserveSegmentSuffix)
             {
-                return (false, sourceFiles.ToArray());
+                metadata.SegmentGroupId = segmentGroupId;
+                metadata.SegmentIndex = outputIndex;
+                metadata.SegmentCount = outputPaths.Length;
+                metadata.SegmentKind = isStallSegment
+                    ? "stall"
+                    : "recording";
             }
+            else
+            {
+                metadata.SegmentGroupId = string.Empty;
+                metadata.SegmentIndex = -1;
+                metadata.SegmentCount = 0;
+                metadata.SegmentKind = string.Empty;
+            }
+            if (isStallSegment && preserveSegmentSuffix && metadata.DurationSeconds > 0d)
+            {
+                VideoRecordingMetadataStore.AddIssueInterval(
+                    metadata,
+                    "stall_segment",
+                    metadata.DurationSeconds,
+                    metadata.DurationSeconds,
+                    "timeline_stall");
+            }
+            if (!VideoRecordingMetadataStore.WriteCompletedMetadata(output, metadata))
+            {
+                AppSessionLogger.Event("warn", "recovery", "recording_finalization_plan_failed", "completed media metadata could not be stored", new { markerPath, output });
+                allFinalizationsSucceeded = false;
+                continue;
+            }
+            RecordingFinalizationPlan plan = RecordingFinalizationService.PlanFile(
+                output,
+                item.FileNameRule,
+                preserveSegmentSuffix,
+                reservedTargets,
+                segmentSuffix: preserveSegmentSuffix && outputPaths.Length > 1
+                    ? $"_{outputIndex:000}"
+                    : null,
+                token: token);
+            if (!plan.Success)
+            {
+                AppSessionLogger.Event("warn", "recovery", "recording_finalization_plan_failed", plan.Error, new { markerPath, output });
+                allFinalizationsSucceeded = false;
+                continue;
+            }
+            item.FinalizationOutputs.Add(new PendingOutputFinalization
+            {
+                OriginalPath = output,
+                TargetPath = plan.TargetPath,
+                Order = outputIndex,
+            });
+            plannedPaths.Add(output);
+            addedFinalizationOutput = true;
+        }
+        if (addedFinalizationOutput && !Save(markerPath, item))
+        {
+            return (false, sourceFiles.ToArray());
         }
 
         foreach (PendingOutputFinalization output in item.FinalizationOutputs.OrderBy(output => output.Order))
@@ -2165,7 +2605,8 @@ internal static class RecordingRecoveryService
                 if (!ShouldReplanFinalizationOutput(output)
                     || !TryReplanFinalizationOutput(markerPath, item, output, preserveSegmentSuffix, reservedTargets, token, out inputPath))
                 {
-                    return (false, sourceFiles.ToArray());
+                    allFinalizationsSucceeded = false;
+                    continue;
                 }
             }
             if (output.Committed
@@ -2186,7 +2627,8 @@ internal static class RecordingRecoveryService
                     markerPath,
                     inputPath,
                 });
-                return (false, sourceFiles.ToArray());
+                allFinalizationsSucceeded = false;
+                continue;
             }
             RecordingFinalizationResult result = await FinalizePlannedOutputAsync(
                 markerPath,
@@ -2199,7 +2641,8 @@ internal static class RecordingRecoveryService
             if (!result.Success)
             {
                 AppSessionLogger.Event("warn", "recovery", "recording_finalization_failed", result.Error, new { markerPath, output = inputPath });
-                return (false, sourceFiles.ToArray());
+                allFinalizationsSucceeded = false;
+                continue;
             }
             output.Committed = true;
             UpdateFinalizedOutputPath(item, output.OriginalPath, result.Path);
@@ -2209,7 +2652,7 @@ internal static class RecordingRecoveryService
             }
         }
 
-        if (!item.RemoveSource)
+        if (includeRetainedSources && !item.RemoveSource)
         {
             foreach (string sourcePath in GetRetainedSourcePaths(sourceFiles, item.TargetFormat, item.IntermediateTargetPath))
             {
@@ -2225,7 +2668,8 @@ internal static class RecordingRecoveryService
                         markerPath,
                         sourcePath,
                     });
-                    return (false, sourceFiles.ToArray());
+                    allFinalizationsSucceeded = false;
+                    continue;
                 }
 
                 RecordingFinalizationResult result = await FinalizeRetainedSourceAsync(
@@ -2236,7 +2680,8 @@ internal static class RecordingRecoveryService
                 if (!result.Success)
                 {
                     AppSessionLogger.Event("warn", "recovery", "recording_source_finalization_failed", result.Error, new { markerPath, sourcePath });
-                    return (false, sourceFiles.ToArray());
+                    allFinalizationsSucceeded = false;
+                    continue;
                 }
                 if (item.IntermediateTargetPath.Equals(sourcePath, StringComparison.OrdinalIgnoreCase))
                 {
@@ -2248,7 +2693,7 @@ internal static class RecordingRecoveryService
                 }
             }
         }
-        return (true, sourceFiles.ToArray());
+        return (allFinalizationsSucceeded, sourceFiles.ToArray());
     }
 
     internal static string[] GetRetainedSourcePaths(IEnumerable<string> sourceFiles, string targetFormat, string? intermediateTargetPath = null)
@@ -2444,6 +2889,12 @@ internal static class RecordingRecoveryService
         return ParseSegmentIndex(path);
     }
 
+    internal static bool ShouldPreserveSegmentSuffix(bool mergeSessionParts, bool isStallSegment, int outputCount)
+    {
+        return mergeSessionParts && outputCount > 1
+            || isStallSegment && (outputCount > 1 || !mergeSessionParts);
+    }
+
     private static int ParseSegmentIndex(string path)
     {
         string stem = Path.GetFileNameWithoutExtension(path);
@@ -2614,7 +3065,7 @@ internal static class RecordingRecoveryService
     internal static bool ShouldUpdateForGlobalChange(string? roomUrl, IEnumerable<Room> rooms)
     {
         return !string.IsNullOrWhiteSpace(roomUrl)
-            && rooms.Any(room => room.IsFollowGlobalSettings
+            && rooms.Any(room => RoomRecordingSettings.HasAnyGlobalInheritance(room)
                 && string.Equals(room.RoomUrl, roomUrl, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -2890,6 +3341,9 @@ internal static class RecordingRecoveryService
     internal static bool IsTerminalRecoveryFailure(string? failureReason)
     {
         return failureReason?.Contains("session_segment_gap", StringComparison.Ordinal) == true
+            || failureReason?.Contains("source_segment_isolated", StringComparison.Ordinal) == true
+            || failureReason?.Contains("source_internal_pause", StringComparison.Ordinal) == true
+            || failureReason?.Contains("source_timestamp_discontinuity", StringComparison.Ordinal) == true
             || failureReason?.Contains("output_track_timeline_mismatch", StringComparison.Ordinal) == true
             || IsMaterialDurationFailure(failureReason)
             || failureReason?.Contains("native_exit_code:-28", StringComparison.OrdinalIgnoreCase) == true
@@ -3141,9 +3595,9 @@ internal static class RecordingRecoveryService
         return true;
     }
 
-    internal static bool AllowsUnoptimizedRepairFallback(string targetFormat)
+    internal static bool SupportsRepairFallback(string targetFormat)
     {
-        return !targetFormat.Equals(".mkv", StringComparison.OrdinalIgnoreCase);
+        return !string.IsNullOrEmpty(VideoRepairService.NormalizeTargetExtension(targetFormat));
     }
 
     private static void QuarantineInvalidMarker(string path, string reason)
@@ -3180,7 +3634,6 @@ internal static class RecordingRecoveryService
 
         public bool RemoveSource { get; set; }
 
-        public bool OptimizeAudio { get; set; }
 
         public bool MergeSessionParts { get; set; }
 

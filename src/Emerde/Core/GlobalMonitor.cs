@@ -352,7 +352,7 @@ internal static class GlobalMonitor
             return false;
         }
 
-        return GetEffectiveRoomRecord(room.RoomUrl, room.IsToRecord, room.IsFollowGlobalSettings);
+        return GetEffectiveRoomRecord(room.RoomUrl, room.IsToRecord, RoomRecordingSettings.IsFollowingGlobal(room.IsRecordFollowingGlobal, room));
     }
 
     public static bool GetEffectiveRoomRecord(string roomUrl, bool roomValue, bool followsGlobal)
@@ -373,7 +373,7 @@ internal static class GlobalMonitor
             return false;
         }
 
-        return GetEffectiveRoomMonitor(room.RoomUrl, room.IsToMonitor, room.IsFollowGlobalSettings);
+        return GetEffectiveRoomMonitor(room.RoomUrl, room.IsToMonitor, RoomRecordingSettings.IsFollowingGlobal(room.IsMonitorFollowingGlobal, room));
     }
 
     public static bool GetEffectiveRoomMonitor(string roomUrl, bool roomValue, bool followsGlobal)
@@ -418,7 +418,7 @@ internal static class GlobalMonitor
     {
         RefreshRoutineInterval();
         Room[] rooms = Configurations.Rooms.Get() ?? [];
-        if (Configurations.IsMonitorRunning.Get() || rooms.Any(room => !room.IsFollowGlobalSettings && GetEffectiveRoomMonitor(room)))
+        if (Configurations.IsMonitorRunning.Get() || rooms.Any(room => !RoomRecordingSettings.IsFollowingGlobal(room.IsMonitorFollowingGlobal, room) && GetEffectiveRoomMonitor(room)))
         {
             Start();
         }

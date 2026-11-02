@@ -266,7 +266,6 @@ internal static class VideoRecordingMetadataStore
                 || !string.IsNullOrWhiteSpace(metadata.Quality)
                 || !string.IsNullOrWhiteSpace(metadata.VideoCodec)
                 || !string.IsNullOrWhiteSpace(metadata.AudioCodec)
-                || metadata.HasOptimizedAudio
                 || !string.IsNullOrWhiteSpace(metadata.CoverPath)
                 || metadata.RecordingAvatar.Length > 0
                 || metadata.CoverCompositionVersion > 0
@@ -424,7 +423,6 @@ internal static class VideoRecordingMetadataStore
             Quality = First(preferred.Quality, fallback.Quality),
             VideoCodec = First(preferred.VideoCodec, fallback.VideoCodec),
             AudioCodec = First(preferred.AudioCodec, fallback.AudioCodec),
-            HasOptimizedAudio = preferred.HasOptimizedAudio || fallback.HasOptimizedAudio,
             CoverPath = First(preferred.CoverPath, fallback.CoverPath),
             RecordingAvatar = preferred.RecordingAvatar.Length > 0 ? preferred.RecordingAvatar : fallback.RecordingAvatar,
             CoverCompositionVersion = Math.Max(preferred.CoverCompositionVersion, fallback.CoverCompositionVersion),
@@ -461,7 +459,6 @@ internal static class VideoRecordingMetadataStore
             Quality = metadata.Quality,
             VideoCodec = metadata.VideoCodec,
             AudioCodec = metadata.AudioCodec,
-            HasOptimizedAudio = metadata.HasOptimizedAudio,
             CoverPath = metadata.CoverPath,
             RecordingAvatar = metadata.RecordingAvatar,
             CoverCompositionVersion = metadata.CoverCompositionVersion,
@@ -500,7 +497,6 @@ internal static class VideoRecordingMetadataStore
         AddMetadata(arguments, "emerde_quality", metadata.Quality);
         AddMetadata(arguments, "emerde_video_codec", metadata.VideoCodec);
         AddMetadata(arguments, "emerde_audio_codec", metadata.AudioCodec);
-        AddMetadata(arguments, "emerde_optimized_audio", metadata.HasOptimizedAudio ? bool.TrueString : string.Empty);
         AddMetadata(arguments, "emerde_cover_path", metadata.CoverPath);
         AddMetadata(arguments, "emerde_cover_composition_version", metadata.CoverCompositionVersion > 0 ? metadata.CoverCompositionVersion.ToString(CultureInfo.InvariantCulture) : string.Empty);
         AddMetadata(arguments, "emerde_segment_reason", metadata.SegmentReason);
@@ -549,7 +545,6 @@ internal static class VideoRecordingMetadataStore
             Quality = GetTag(tags, "emerde_quality"),
             VideoCodec = GetTag(tags, "emerde_video_codec"),
             AudioCodec = GetTag(tags, "emerde_audio_codec"),
-            HasOptimizedAudio = ParseBoolean(GetTag(tags, "emerde_optimized_audio")),
             CoverPath = GetTag(tags, "emerde_cover_path"),
             CoverCompositionVersion = ParseInteger(GetTag(tags, "emerde_cover_composition_version"), 0),
             SegmentReason = GetTag(tags, "emerde_segment_reason"),
@@ -599,7 +594,6 @@ internal static class VideoRecordingMetadataStore
             Quality = Get("emerde_quality"),
             VideoCodec = Get("emerde_video_codec"),
             AudioCodec = Get("emerde_audio_codec"),
-            HasOptimizedAudio = ParseBoolean(Get("emerde_optimized_audio")),
             CoverPath = Get("emerde_cover_path"),
             CoverCompositionVersion = ParseInteger(Get("emerde_cover_composition_version"), 0),
             SegmentReason = Get("emerde_segment_reason"),

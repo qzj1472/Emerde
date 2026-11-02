@@ -80,7 +80,6 @@ public sealed class VideoRecordingMetadataStoreTests
             Assert.Equal(metadata.FrameRate, loaded.FrameRate);
             Assert.Equal(metadata.VideoCodec, loaded.VideoCodec);
             Assert.Equal(metadata.AudioCodec, loaded.AudioCodec);
-            Assert.Equal(metadata.HasOptimizedAudio, loaded.HasOptimizedAudio);
             Assert.Equal(metadata.RecordedAt, loaded.RecordedAt);
             Assert.Equal(metadata.EndedAt, loaded.EndedAt);
             Assert.Equal(metadata.DurationSeconds, loaded.DurationSeconds);
@@ -141,7 +140,6 @@ public sealed class VideoRecordingMetadataStoreTests
             FrameRate = 60,
             VideoCodec = "h264",
             AudioCodec = "aac",
-            HasOptimizedAudio = true,
             SegmentReason = VideoRecordingMetadataStore.TimelineStallSegmentReason,
             RecordingAvatar = [1, 2, 3, 4],
             CoverCompositionVersion = RecordingCoverStore.CurrentCompositionVersion,

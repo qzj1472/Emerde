@@ -439,7 +439,6 @@ internal static class AppSessionLogger
         string snapshot = string.Join('|',
             Configurations.RecordFormat.Get(),
             Configurations.IsRemoveTs.Get(),
-            Configurations.IsOptimizeAudio.Get(),
             Configurations.IsToSegment.Get(),
             Configurations.SegmentTime.Get(),
             Configurations.SegmentTimeUnit.Get());

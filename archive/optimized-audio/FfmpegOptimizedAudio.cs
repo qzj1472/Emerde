@@ -406,7 +406,7 @@ internal static unsafe partial class FfmpegMediaEngine
                 sourceIndex,
                 inputContext);
             long sourceDurationUs = 0;
-            long[] lastPacketEnds = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)inputContext->nb_streams).ToArray();
+            long[] lastPacketDts = Enumerable.Repeat(ffmpeg.AV_NOPTS_VALUE, (int)inputContext->nb_streams).ToArray();
             int referenceStreamIndex = GetSegmentReferenceStreamIndex(inputContext);
             SegmentClock sourceClock = new();
             bool awaitingVideoKeyframe = false;
@@ -449,7 +449,7 @@ internal static unsafe partial class FfmpegMediaEngine
                             continue;
                         }
                         ApplyPacketTimestampCorrection(inputPacket, packetStream, sourceClock.CurrentCorrection);
-                        NormalizePacketDts(inputPacket, packetStream, packetStreamIndex, lastPacketEnds);
+                        NormalizePacketDts(inputPacket, packetStream, packetStreamIndex, lastPacketDts);
                         if (sourceTimelineLimitSeconds > 0d
                             && PacketExceedsSourceTimelineLimit(
                                 inputPacket,
@@ -1362,7 +1362,7 @@ internal static unsafe partial class FfmpegMediaEngine
         AVFormatContext* inputContext,
         AVPacket* packet,
         long[] nextInputDts,
-        long[] lastPacketEnds,
+        long[] lastPacketDts,
         ref long sourceTimestampBase)
     {
         int inputStreamIndex = packet->stream_index;
@@ -1373,7 +1373,7 @@ internal static unsafe partial class FfmpegMediaEngine
             sourceTimestampBase = GetPacketTimestamp(packet, inputStream);
         }
         NormalizeSourcePacketTimestamps(packet, inputStream, sourceTimestampBase);
-        NormalizePacketDts(packet, inputStream, inputStreamIndex, lastPacketEnds);
+        NormalizePacketDts(packet, inputStream, inputStreamIndex, lastPacketDts);
     }
 
     private static string BuildOptimizedAudioTemporaryPath(string targetFileName, string role, string extension)

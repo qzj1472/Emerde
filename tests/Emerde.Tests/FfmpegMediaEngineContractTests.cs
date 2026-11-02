@@ -87,6 +87,33 @@ public sealed class FfmpegMediaEngineContractTests
     }
 
     [Fact]
+    public void OutputTimelineTransform_RequiresPersistentMismatchBeforeRestart()
+    {
+        FfmpegMediaEngine.OutputTimelineTransformMonitor monitor = new(2_000_000, 3);
+
+        Assert.False(monitor.Observe(true, 0, 0, out _));
+        Assert.False(monitor.Observe(false, 0, 0, out _));
+        Assert.False(monitor.Observe(true, 1_000_000, 4_000_000, out _));
+        Assert.False(monitor.Observe(false, 1_000_000, 1_000_000, out _));
+        Assert.True(monitor.Observe(true, 2_000_000, 5_000_000, out long mismatch));
+        Assert.Equal(3_000_000, mismatch);
+    }
+
+    [Fact]
+    public void OutputTimelineTransform_ClearsTransientMismatchEvidence()
+    {
+        FfmpegMediaEngine.OutputTimelineTransformMonitor monitor = new(2_000_000, 3);
+
+        Assert.False(monitor.Observe(true, 0, 0, out _));
+        Assert.False(monitor.Observe(false, 0, 0, out _));
+        Assert.False(monitor.Observe(true, 1_000_000, 4_000_000, out _));
+        Assert.False(monitor.Observe(false, 1_000_000, 1_000_000, out _));
+        Assert.False(monitor.Observe(true, 2_000_000, 2_000_000, out _));
+        Assert.False(monitor.Observe(false, 2_000_000, 2_000_000, out _));
+        Assert.False(monitor.Observe(true, 3_000_000, 6_000_000, out _));
+    }
+
+    [Fact]
     public void Remux_PreservesSharedSourceTimelineBeforeApplyingSessionOffset()
     {
         string source = ReadSource();
@@ -103,6 +130,54 @@ public sealed class FfmpegMediaEngineContractTests
         Assert.True(timelineSampleIndex < rescaleIndex);
         Assert.True(offsetIndex > rescaleIndex);
         Assert.Contains("GetPacketDecodeEndTimestamp(packet, outputStream)", source);
+        Assert.Contains("ResolveSegmentTimelineEndTimestamp(", source);
+    }
+
+    [Theory]
+    [InlineData(1000, 900, 1100, 1000)]
+    [InlineData(1000, 1200, 1300, 1200)]
+    [InlineData(1000, long.MinValue, 1300, 1300)]
+    public void SegmentTimelineBoundary_PrefersPresentationEndAndFallsBackToDecodeEnd(
+        long currentEnd,
+        long presentationEnd,
+        long decodeEnd,
+        long expected)
+    {
+        Assert.Equal(
+            expected,
+            FfmpegMediaEngine.ResolveSegmentTimelineEndTimestamp(currentEnd, presentationEnd, decodeEnd));
+    }
+
+    [Fact]
+    public void SegmentTimelineDiagnostic_TracksInputOutputRangesAndCorrections()
+    {
+        FfmpegMediaEngine.FfmpegSegmentTimelineAccumulator accumulator = new(3);
+        accumulator.ObserveInput(FFmpeg.AutoGen.AVMediaType.AVMEDIA_TYPE_AUDIO, 1_000_000, 1_100_000);
+        accumulator.ObserveInput(FFmpeg.AutoGen.AVMediaType.AVMEDIA_TYPE_VIDEO, 1_020_000, 1_120_000);
+        accumulator.ObserveOutput(FFmpeg.AutoGen.AVMediaType.AVMEDIA_TYPE_AUDIO, 9_000_000, 9_100_000);
+        accumulator.ObserveOutput(FFmpeg.AutoGen.AVMediaType.AVMEDIA_TYPE_VIDEO, 9_020_000, 9_220_000);
+        accumulator.ObserveCorrections(-500_000, 300_000);
+
+        FfmpegSegmentTimelineDiagnostic diagnostic = accumulator.CreateDiagnostic(-500_000, 2, 1_000_000, 8_000_000);
+
+        Assert.Equal(3, diagnostic.SegmentIndex);
+        Assert.Equal(1d, diagnostic.InputAudioStartSeconds, 3);
+        Assert.Equal(1.1d, diagnostic.InputAudioEndSeconds, 3);
+        Assert.Equal(1.02d, diagnostic.InputVideoStartSeconds, 3);
+        Assert.Equal(1.12d, diagnostic.InputVideoEndSeconds, 3);
+        Assert.Equal(9d, diagnostic.OutputAudioStartSeconds, 3);
+        Assert.Equal(9.1d, diagnostic.OutputAudioEndSeconds, 3);
+        Assert.Equal(9.02d, diagnostic.OutputVideoStartSeconds, 3);
+        Assert.Equal(9.22d, diagnostic.OutputVideoEndSeconds, 3);
+        Assert.Equal(-0.5d, diagnostic.SourceClockCorrectionSeconds, 3);
+        Assert.Equal(0.5d, diagnostic.MaximumSourceClockCorrectionSeconds, 3);
+        Assert.Equal(0.3d, diagnostic.MaximumRecoveryCorrectionSeconds, 3);
+        Assert.Equal(0.2d, diagnostic.MaximumCombinedTimestampCorrectionSeconds, 3);
+        Assert.Equal(1d, diagnostic.SourceTimestampBaseSeconds, 3);
+        Assert.Equal(8d, diagnostic.TimelineOffsetSeconds, 3);
+        Assert.Equal(1, diagnostic.AudioPacketCount);
+        Assert.Equal(1, diagnostic.VideoPacketCount);
+        Assert.Equal(2, diagnostic.DiscardedPacketCount);
     }
 
     [Fact]
@@ -278,24 +353,44 @@ public sealed class FfmpegMediaEngineContractTests
         string optimizedAudioSource = ReadOptimizedAudioSource();
 
         Assert.Contains("sourceDelta <= 0", source);
-        Assert.Contains("return gap < 0", source);
-        Assert.Contains("NormalizePacketDts(inputPacket, packetStream, packetStreamIndex, lastPacketEnds)", optimizedAudioSource);
-        Assert.Contains("NormalizePacketDts(packet, inputStream, inputStreamIndex, lastPacketEnds)", optimizedAudioSource);
+        Assert.Contains("return packetDts <= previousPacketDts", source);
+        Assert.Contains("NormalizePacketDts(inputPacket, packetStream, packetStreamIndex, lastPacketDts)", optimizedAudioSource);
+        Assert.Contains("NormalizePacketDts(packet, inputStream, inputStreamIndex, lastPacketDts)", optimizedAudioSource);
     }
 
     [Theory]
     [InlineData(105, 100, 0)]
-    [InlineData(110, 100, 0)]
-    [InlineData(111, 100, 0)]
-    [InlineData(90, 100, 10)]
-    public void PacketNormalization_ComputesDiscontinuityShift(
+    [InlineData(101, 100, 0)]
+    [InlineData(100, 100, 1)]
+    [InlineData(90, 100, 11)]
+    public void PacketNormalization_OnlyShiftsDuplicateOrBackwardDts(
         long packetDts,
-        long previousPacketEnd,
+        long previousPacketDts,
         long expectedShift)
     {
         Assert.Equal(
             expectedShift,
-            FfmpegMediaEngine.GetPacketTimestampShift(packetDts, previousPacketEnd));
+            FfmpegMediaEngine.GetPacketTimestampShift(packetDts, previousPacketDts));
+    }
+
+    [Fact]
+    public void PacketNormalization_DoesNotAccumulateShiftsForOverlappingPacketDurations()
+    {
+        string source = ReadSource();
+        long[] packetDtsValues = [0, 1500, 3000, 4500, 6000];
+        long previousPacketDts = long.MinValue;
+        long totalShift = 0;
+
+        foreach (long packetDts in packetDtsValues)
+        {
+            long shift = FfmpegMediaEngine.GetPacketTimestampShift(packetDts, previousPacketDts);
+            totalShift += shift;
+            previousPacketDts = packetDts + shift;
+        }
+
+        Assert.Contains("lastPacketDts[outputStreamIndex] = packet->dts;", source);
+        Assert.DoesNotContain("lastPacketEnds[outputStreamIndex] = AddSaturated(packet->dts, duration);", source);
+        Assert.Equal(0, totalShift);
     }
 
     [Theory]
@@ -355,15 +450,21 @@ public sealed class FfmpegMediaEngineContractTests
     }
 
     [Fact]
-    public void OutputTimelineTransformMonitor_RestartsWhenNormalizationAddsLargeRelativeShift()
+    public void OutputTimelineTransformMonitor_RestartsWhenNormalizationAddsOverTwoSecondRelativeShift()
     {
         FfmpegMediaEngine.OutputTimelineTransformMonitor monitor = new(2_000_000);
 
         Assert.False(monitor.Observe(true, 0, 0, out _));
         Assert.False(monitor.Observe(false, 0, 0, out _));
         Assert.False(monitor.Observe(true, 1_000_000, 1_000_000, out _));
-        Assert.True(monitor.Observe(false, 1_000_000, 3_100_000, out long mismatch));
-        Assert.Equal(2_100_000, mismatch);
+        Assert.False(monitor.Observe(false, 1_000_000, 3_000_000, out long boundaryMismatch));
+        Assert.Equal(2_000_000, boundaryMismatch);
+        Assert.False(monitor.Observe(false, 1_000_000, 3_000_001, out long mismatch));
+        Assert.Equal(2_000_001, mismatch);
+        Assert.False(monitor.Observe(false, 1_000_000, 3_000_002, out mismatch));
+        Assert.Equal(2_000_002, mismatch);
+        Assert.True(monitor.Observe(false, 1_000_000, 3_000_003, out mismatch));
+        Assert.Equal(2_000_003, mismatch);
     }
 
     [Fact]
@@ -573,8 +674,7 @@ public sealed class FfmpegMediaEngineContractTests
         string source = ReadSource();
 
         Assert.Contains("GetPacketDuration(packet, inputStream)", source);
-        Assert.Contains("long duration = GetPacketDuration(packet, stream);", source);
-        Assert.Contains("packet->duration = duration;", source);
+        Assert.Contains("packet->duration = GetPacketDuration(packet, stream);", source);
     }
 
     [Fact]
@@ -876,7 +976,7 @@ public sealed class FfmpegMediaEngineContractTests
     {
         string source = ReadSource();
 
-        Assert.Contains("sourceDecodeEndTimestamp = Math.Max(", source);
+        Assert.Contains("sourceTimelineEndTimestamp = ResolveSegmentTimelineEndTimestamp(", source);
         Assert.Contains("GetPacketDecodeEndTimestamp(packet, outputStream)", source);
         Assert.Contains("if (!sourceHadReferenceProgress)", source);
         Assert.Contains("contains no readable media packets", source);
@@ -930,7 +1030,7 @@ public sealed class FfmpegMediaEngineContractTests
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
         while (directory != null)
         {
-            string candidate = Path.Combine(directory.FullName, "src", "Emerde", "Core", "FfmpegOptimizedAudio.cs");
+            string candidate = Path.Combine(directory.FullName, "archive", "optimized-audio", "FfmpegOptimizedAudio.cs");
             if (File.Exists(candidate))
             {
                 return File.ReadAllText(candidate);

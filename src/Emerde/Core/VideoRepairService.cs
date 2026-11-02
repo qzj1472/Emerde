@@ -68,10 +68,8 @@ internal sealed class VideoRepairService
             VideoRecordingMetadata metadata = VideoRecordingMetadataStore.WithFileName(
                 VideoRecordingMetadataStore.Load(new FileInfo(fullSourcePath)),
                 Path.GetFileName(targetPath));
-            using IDisposable workSlot = await ConversionWorkScheduler.EnterAsync(false, token);
-            double maximumTimelineEndSeconds = Math.Max(
-                Math.Max(0d, sourceProbe.AudioEndSeconds),
-                Math.Max(0d, sourceProbe.VideoEndSeconds));
+            using IDisposable workSlot = await ConversionWorkScheduler.EnterAsync(token);
+            double maximumTimelineEndSeconds = Converter.GetSourceTimelineEndSeconds(sourceProbe);
             FfmpegMediaRunResult runResult = await Task.Run(
                 () => FfmpegMediaEngine.RepairFile(
                     fullSourcePath,
@@ -84,20 +82,75 @@ internal sealed class VideoRepairService
             {
                 return Canceled();
             }
-            if (runResult.ExitCode != 0 || !runResult.HadMediaProgress)
+            FfmpegMediaProbeResult? outputProbe = null;
+            string validationError = string.Empty;
+            if (runResult.ExitCode == 0 && runResult.HadMediaProgress)
             {
-                return Failed(string.IsNullOrWhiteSpace(runResult.ErrorOutput) ? "repair_no_media_progress" : runResult.ErrorOutput);
+                try
+                {
+                    outputProbe = await ProbeAsync(temporaryPath, token);
+                    validationError = GetValidationError(sourceProbe, outputProbe);
+                }
+                catch (Exception exception) when (exception is IOException or InvalidDataException)
+                {
+                    validationError = exception.Message;
+                }
             }
 
-            FfmpegMediaProbeResult outputProbe = await ProbeAsync(temporaryPath, token);
-            string validationError = GetValidationError(sourceProbe, outputProbe);
-            if (!string.IsNullOrEmpty(validationError))
+            bool requiresReencode = runResult.ExitCode != 0
+                || !runResult.HadMediaProgress
+                || outputProbe == null
+                || !string.IsNullOrEmpty(validationError);
+            if (requiresReencode)
             {
-                return Failed(validationError);
+                TryDelete(temporaryPath);
+                AppSessionLogger.Event("info", "video_repair", "video_repair_reencode_started", "packet recovery did not produce an accepted output; decode and re-encode fallback started", new
+                {
+                    sourcePath = fullSourcePath,
+                    targetPath,
+                    remuxFailure = string.IsNullOrWhiteSpace(validationError) ? runResult.ErrorOutput : validationError,
+                });
+                runResult = await Task.Run(
+                    () => FfmpegMediaEngine.ReencodeFile(
+                        fullSourcePath,
+                        temporaryPath,
+                        metadata,
+                        token,
+                        maximumTimelineEndSeconds),
+                    token);
+                if (runResult.WasCanceled)
+                {
+                    return Canceled();
+                }
+                if (runResult.ExitCode != 0 || !runResult.HadMediaProgress)
+                {
+                    string reencodeError = string.IsNullOrWhiteSpace(runResult.ErrorOutput)
+                        ? "reencode_no_media_progress"
+                        : runResult.ErrorOutput;
+                    AppSessionLogger.Event("warn", "video_repair", "video_repair_reencode_failed", "decode and re-encode fallback failed", new
+                    {
+                        sourcePath = fullSourcePath,
+                        targetPath,
+                        reason = reencodeError,
+                    });
+                    return Failed(reencodeError);
+                }
+                outputProbe = await ProbeAsync(temporaryPath, token);
+                validationError = GetValidationError(sourceProbe, outputProbe);
+                if (!string.IsNullOrEmpty(validationError))
+                {
+                    AppSessionLogger.Event("warn", "video_repair", "video_repair_reencode_rejected", "decode and re-encode output failed final validation", new
+                    {
+                        sourcePath = fullSourcePath,
+                        targetPath,
+                        reason = validationError,
+                    });
+                    return Failed($"reencode_validation_failed:{validationError}");
+                }
             }
 
             bool timelineAligned = Converter.IsTrackTimelineWithinTolerance(
-                outputProbe.AudioEndSeconds,
+                outputProbe!.AudioEndSeconds,
                 outputProbe.VideoEndSeconds);
             VideoRepairStatus status = timelineAligned
                 ? VideoRepairStatus.Repaired
@@ -175,6 +228,19 @@ internal sealed class VideoRepairService
 
         string mediaPath = path[..^RepairReportSuffix.Length];
         return MediaFileCatalog.IsMediaPath(mediaPath) && !File.Exists(mediaPath);
+    }
+
+    internal static void DiscardRejectedRepairOutput(string outputPath)
+    {
+        if (string.IsNullOrWhiteSpace(outputPath))
+        {
+            return;
+        }
+
+        TryDelete(outputPath);
+        TryDeleteRepairReport(outputPath);
+        VideoRecordingMetadataStore.TryDeleteSidecarIfNoSourceVideosRemain(outputPath);
+        RecordingAssociatedAssets.Delete(outputPath);
     }
 
     internal static void TryDeleteRepairReport(string mediaPath)

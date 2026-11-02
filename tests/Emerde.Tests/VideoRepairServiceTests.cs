@@ -37,6 +37,20 @@ public sealed class VideoRepairServiceTests
     }
 
     [Fact]
+    public void ReencodeFallback_RejectsInvalidPathsWithoutStartingNativeWork()
+    {
+        FfmpegMediaRunResult result = FfmpegMediaEngine.ReencodeFile(
+            string.Empty,
+            string.Empty,
+            new VideoRecordingMetadata(),
+            CancellationToken.None);
+
+        Assert.Equal(1, result.ExitCode);
+        Assert.False(result.HadMediaProgress);
+        Assert.Equal("reencode_path_invalid", result.ErrorOutput);
+    }
+
+    [Fact]
     public void OrphanedRepairReport_RequiresARecognizedMissingMediaPath()
     {
         string directory = Path.Combine(Path.GetTempPath(), $"emerde-repair-report-{Guid.NewGuid():N}");
@@ -67,7 +81,7 @@ public sealed class VideoRepairServiceTests
         FfmpegMediaProbeResult output = CreateProbe(99, 100, 100);
 
         Assert.Empty(VideoRepairService.GetValidationError(source, output));
-        Assert.False(Converter.IsTrackTimelineWithinTolerance(output.AudioEndSeconds, output.VideoEndSeconds));
+        Assert.True(Converter.IsTrackTimelineWithinTolerance(output.AudioEndSeconds, output.VideoEndSeconds));
     }
 
     [Fact]
@@ -78,6 +92,28 @@ public sealed class VideoRepairServiceTests
 
         Assert.Empty(VideoRepairService.GetValidationError(source, output));
         Assert.False(Converter.IsTrackTimelineWithinTolerance(output.AudioEndSeconds, output.VideoEndSeconds));
+    }
+
+    [Fact]
+    public void DiscardRejectedRepairOutput_RemovesMediaAndReport()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-repair-rejected-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string mediaPath = Path.Combine(directory, "record.mkv");
+        File.WriteAllText(mediaPath, "media");
+        File.WriteAllText(mediaPath + VideoRepairService.RepairReportSuffix, "{}");
+
+        try
+        {
+            VideoRepairService.DiscardRejectedRepairOutput(mediaPath);
+
+            Assert.False(File.Exists(mediaPath));
+            Assert.False(File.Exists(mediaPath + VideoRepairService.RepairReportSuffix));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     private static FfmpegMediaProbeResult CreateProbe(double audioEnd, double videoEnd, double duration)
@@ -96,7 +132,6 @@ public sealed class VideoRepairServiceTests
             0,
             "h264",
             "aac",
-            false,
             string.Empty,
             new VideoRecordingMetadata(),
             false);

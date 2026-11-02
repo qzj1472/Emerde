@@ -80,8 +80,7 @@ internal static class MediaFileCatalog
     {
         List<string?> configuredFolders = [Configurations.SaveFolder.Get()];
         configuredFolders.AddRange((Configurations.Rooms.Get() ?? [])
-            .Where(room => !room.IsFollowGlobalSettings && !string.IsNullOrWhiteSpace(room.SaveFolder))
-            .Select(room => room.SaveFolder));
+            .Select(room => RoomRecordingSettings.Get(room).SaveFolder));
         configuredFolders.AddRange(SaveFolderHelper.GetFallbackSaveFolders().Where(Directory.Exists));
 
         HashSet<string> folders = new(StringComparer.OrdinalIgnoreCase);

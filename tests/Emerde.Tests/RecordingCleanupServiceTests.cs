@@ -3,7 +3,12 @@ using System.Text.Json;
 
 namespace Emerde.Tests;
 
-[Collection("MediaOperationRegistry")]
+[CollectionDefinition("RecordingCleanupService", DisableParallelization = true)]
+public sealed class RecordingCleanupServiceCollection
+{
+}
+
+[Collection("RecordingCleanupService")]
 public sealed class RecordingCleanupServiceTests : IDisposable
 {
     private readonly string stateDirectory = Path.Combine(

@@ -504,6 +504,91 @@ public sealed class GlobalMonitorTests
     }
 
     [Fact]
+    public void RoomRecordingSettings_ResolvesInheritancePerSetting()
+    {
+        string oldFormat = Configurations.RecordFormat.Get();
+        int oldRoutineInterval = Configurations.RoutineInterval.Get();
+        string oldSaveFolder = Configurations.SaveFolder.Get();
+        string oldQuality = Configurations.PreferredStreamQuality.Get();
+        try
+        {
+            Configurations.RecordFormat.Set("TS/FLV -> MP4");
+            Configurations.RoutineInterval.Set(9000);
+            Configurations.SaveFolder.Set("global-folder");
+            Configurations.PreferredStreamQuality.Set(StreamQualityCatalog.Original);
+
+            Room room = new()
+            {
+                IsFollowGlobalSettings = false,
+                IsRecordFormatFollowingGlobal = true,
+                RecordFormat = "TS/FLV -> MKV",
+                IsRoutineIntervalFollowingGlobal = false,
+                RoutineInterval = 5000,
+                IsOutputFolderFollowingGlobal = true,
+                SaveFolder = "room-folder",
+                IsQualityFollowingGlobal = false,
+                PreferredStreamQuality = StreamQualityCatalog.High,
+            };
+
+            RoomRecordingOptions settings = RoomRecordingSettings.Get(room);
+
+            Assert.Equal("TS/FLV -> MP4", settings.RecordFormat);
+            Assert.Equal(5000, settings.RoutineInterval);
+            Assert.Equal("global-folder", settings.SaveFolder);
+            Assert.Equal(StreamQualityCatalog.High, settings.PreferredStreamQuality);
+            Assert.True(settings.IsRecordFormatFollowingGlobal);
+            Assert.False(settings.IsRoutineIntervalFollowingGlobal);
+            Assert.True(settings.IsOutputFolderFollowingGlobal);
+            Assert.False(settings.IsQualityFollowingGlobal);
+        }
+        finally
+        {
+            Configurations.RecordFormat.Set(oldFormat);
+            Configurations.RoutineInterval.Set(oldRoutineInterval);
+            Configurations.SaveFolder.Set(oldSaveFolder);
+            Configurations.PreferredStreamQuality.Set(oldQuality);
+        }
+    }
+
+    [Fact]
+    public void EffectiveRoomSwitches_UseTheirOwnInheritanceFlags()
+    {
+        bool oldMonitorRunning = Configurations.IsMonitorRunning.Get();
+        bool oldMonitor = Configurations.IsToMonitor.Get();
+        bool oldRecord = Configurations.IsToRecord.Get();
+        try
+        {
+            Configurations.IsMonitorRunning.Set(true);
+            Configurations.IsToMonitor.Set(false);
+            Configurations.IsToRecord.Set(false);
+            Room room = new()
+            {
+                RoomUrl = "https://example.test/independent-switches",
+                IsFollowGlobalSettings = false,
+                IsMonitorFollowingGlobal = false,
+                IsRecordFollowingGlobal = true,
+                IsToMonitor = true,
+                IsToRecord = true,
+            };
+
+            Assert.True(GlobalMonitor.GetEffectiveRoomMonitor(room));
+            Assert.False(GlobalMonitor.GetEffectiveRoomRecord(room));
+
+            room.IsMonitorFollowingGlobal = true;
+            room.IsRecordFollowingGlobal = false;
+
+            Assert.False(GlobalMonitor.GetEffectiveRoomMonitor(room));
+            Assert.True(GlobalMonitor.GetEffectiveRoomRecord(room));
+        }
+        finally
+        {
+            Configurations.IsMonitorRunning.Set(oldMonitorRunning);
+            Configurations.IsToMonitor.Set(oldMonitor);
+            Configurations.IsToRecord.Set(oldRecord);
+        }
+    }
+
+    [Fact]
     public void NormalizeScheduleDaysSelection_PreservesExplicitEmptySelection()
     {
         Assert.Empty(RoomRecordingSettings.NormalizeScheduleDaysSelection(string.Empty));

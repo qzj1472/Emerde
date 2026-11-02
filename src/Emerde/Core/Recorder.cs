@@ -21,7 +21,6 @@ public sealed class Recorder
     internal static readonly TimeSpan VideoProgressStallTimeout = TimeSpan.FromSeconds(5);
     internal static readonly TimeSpan MediaSpeedSummaryInterval = TimeSpan.FromSeconds(30);
     internal const int InternalSessionSegmentSeconds = 20 * 60;
-    private const string OptimizedAudioFilter = "[0:a:0]volume=30dB,acompressor=threshold=-10dB:ratio=3,alimiter=limit=0.316227766:level=false[aopt]";
 
     internal static readonly TimeSpan ProcessStopGracePeriod = TimeSpan.FromSeconds(3);
 
@@ -321,7 +320,6 @@ public sealed class Recorder
                     sessionTargetFormat,
                     recordingOptions.IsRemoveTs,
                     startInfo.RoomUrl,
-                    recordingOptions.IsOptimizeAudio,
                     fileNameRule: recordingOptions.SaveFileNameCustomRule,
                     finalizeName: true);
                 if (!string.IsNullOrWhiteSpace(sessionPendingRecordingPath))
@@ -384,7 +382,6 @@ public sealed class Recorder
                             "." + sessionSourceExtension,
                             removeSource: false,
                             startInfo.RoomUrl,
-                            optimizeAudio: false,
                             mergeSessionParts: false,
                             fileNameRule: recordingOptions.SaveFileNameCustomRule,
                             finalizeName: true)
@@ -407,8 +404,6 @@ public sealed class Recorder
                     }
                     outputFileName = FileName;
                 }
-                bool useOptimizedAudio = false;
-
                 List<string> arguments = BuildArguments(
                     outputFileName,
                     isUseProxy,
@@ -419,8 +414,7 @@ public sealed class Recorder
                     isToSegmentBySize,
                     segmentTime,
                     segmentTimeUnit,
-                    metadata,
-                    useOptimizedAudio);
+                    metadata);
 
                 Parameters = FormatArguments(arguments);
                 AppSessionLogger.Event("info", "recorder", "record_process_starting", "ffmpeg recording process is starting", new
@@ -434,7 +428,6 @@ public sealed class Recorder
                     outputFileName,
                     isToSegment,
                     useSessionPartFiles,
-                    useOptimizedAudio,
                     isUseProxy,
                     attempt,
                 });
@@ -816,8 +809,7 @@ public sealed class Recorder
                         latestTargetFormat,
                         postProcessingOptions.IsRemoveTs,
                         startInfo.RoomUrl,
-                        postProcessingOptions.IsOptimizeAudio,
-                        mergeSessionParts: !isStallSegment,
+                        mergeSessionParts: true,
                         segmentReason: isStallSegment
                             ? VideoRecordingMetadataStore.TimelineStallSegmentReason
                             : string.Empty,
@@ -962,8 +954,7 @@ public sealed class Recorder
         bool isToSegmentBySize,
         long segmentTime,
         int segmentTimeUnit,
-        VideoRecordingMetadata metadata,
-        bool useOptimizedAudio)
+        VideoRecordingMetadata metadata)
     {
         List<string> arguments =
         [
@@ -1013,7 +1004,7 @@ public sealed class Recorder
                 "-reset_timestamps", "1"
             );
 
-        arguments.AddRange(BuildAudioMappingArguments(useOptimizedAudio));
+        arguments.AddRange(BuildAudioMappingArguments());
 
         arguments.AddRange(VideoRecordingMetadataStore.BuildFfmpegMetadataArguments(metadata));
         if (VideoRecordingMetadataStore.UsesMovMetadataTags(outputFileName))
@@ -1654,14 +1645,15 @@ public sealed class Recorder
                             : endSeconds >= 0d && gapSeconds > 0d
                                 ? Math.Max(0d, endSeconds - gapSeconds)
                                 : -1d;
-                        RecordIssueInterval(
-                            metadata,
-                            "timeline_mismatch",
-                            startSeconds,
-                            endSeconds >= 0d ? endSeconds : -1d,
-                            outputTimelineMismatch
-                                ? "output_timestamp_normalization_mismatch"
-                                : videoStalled ? "video_stalled" : "audio_stalled");
+                        if (!outputTimelineMismatch)
+                        {
+                            RecordIssueInterval(
+                                metadata,
+                                "timeline_mismatch",
+                                startSeconds,
+                                endSeconds >= 0d ? endSeconds : -1d,
+                                videoStalled ? "video_stalled" : "audio_stalled");
+                        }
                         if (!outputTimelineMismatch)
                         {
                             StartCrossStreamVerification(startInfo, verificationToken);
@@ -2768,29 +2760,13 @@ public sealed class Recorder
         }
     }
 
-    internal static IReadOnlyList<string> BuildAudioMappingArguments(bool useOptimizedAudio)
+    internal static IReadOnlyList<string> BuildAudioMappingArguments()
     {
-        string originalAudioTrack = "OriginalAudioTrack".Tr();
-        string optimizedAudioTrack = "OptimizedAudioTrack".Tr();
-        return useOptimizedAudio
-            ? [
-                "-filter_complex", OptimizedAudioFilter,
-                "-map", "0:v?",
-                "-map", "0:a:0?",
-                "-map", "[aopt]",
-                "-c:v", "copy",
-                "-c:a:0", "copy",
-                "-c:a:1", "aac",
-                "-metadata:s:a:0", $"title={originalAudioTrack}",
-                "-metadata:s:a:0", $"handler_name={originalAudioTrack}",
-                "-metadata:s:a:1", $"title={optimizedAudioTrack}",
-                "-metadata:s:a:1", $"handler_name={optimizedAudioTrack}",
-            ]
-            : [
-                "-map", "0",
-                "-c:v", "copy",
-                "-c:a", "copy",
-            ];
+        return [
+            "-map", "0",
+            "-c:v", "copy",
+            "-c:a", "copy",
+        ];
     }
 
     internal static bool ShouldUseTransportStream(bool isHls, bool isToSegment, string? targetFormat)
@@ -3436,8 +3412,6 @@ public sealed class VideoRecordingMetadata
     public string VideoCodec { get; set; } = string.Empty;
 
     public string AudioCodec { get; set; } = string.Empty;
-
-    public bool HasOptimizedAudio { get; set; }
 
     public string CoverPath { get; set; } = string.Empty;
 

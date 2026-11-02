@@ -36,7 +36,6 @@ internal static partial class RecordingFinalizationService
     public static RecordingFinalizationResult FinalizeFile(
         string mediaPath,
         string? rule = null,
-        bool hasOptimizedAudio = false,
         bool preserveSegmentSuffix = true,
         string? plannedTargetPath = null,
         CancellationToken token = default)
@@ -54,7 +53,7 @@ internal static partial class RecordingFinalizationService
             return new RecordingFinalizationResult(false, mediaPath, metadata, probeError, RecordingFinalizationFailureKind.Probe);
         }
 
-        ApplyProbe(metadata, probe, hasOptimizedAudio);
+        ApplyProbe(metadata, probe);
         string targetPath;
 
         lock (RenameLock)
@@ -128,7 +127,7 @@ internal static partial class RecordingFinalizationService
             return new RecordingFinalizationPlan(false, mediaPath, mediaPath, probeError);
         }
 
-        ApplyProbe(metadata, probe, hasOptimizedAudio: false);
+        ApplyProbe(metadata, probe);
         string targetPath;
         lock (RenameLock)
         {
@@ -190,7 +189,6 @@ internal static partial class RecordingFinalizationService
             .Replace("{画质}", metadata.Quality, StringComparison.Ordinal)
             .Replace("{视频编码}", metadata.VideoCodec, StringComparison.Ordinal)
             .Replace("{音频编码}", metadata.AudioCodec, StringComparison.Ordinal)
-            .Replace("{优化音频}", metadata.HasOptimizedAudio ? "OptimizedAudioTrack".Tr() : string.Empty, StringComparison.Ordinal)
             .Replace("{录制开始时间}", FormatTimestamp(metadata.RecordedAt), StringComparison.Ordinal)
             .Replace("{录制结束时间}", FormatTimestamp(metadata.EndedAt), StringComparison.Ordinal)
             .Replace("{视频时长}", FormatDuration(metadata.DurationSeconds), StringComparison.Ordinal)
@@ -205,7 +203,7 @@ internal static partial class RecordingFinalizationService
             : value;
     }
 
-    private static void ApplyProbe(VideoRecordingMetadata metadata, FfmpegMediaProbeResult probe, bool hasOptimizedAudio)
+    private static void ApplyProbe(VideoRecordingMetadata metadata, FfmpegMediaProbeResult probe)
     {
         metadata.SchemaVersion = 4;
         if (probe.Width > 0 && probe.Height > 0)
@@ -220,7 +218,6 @@ internal static partial class RecordingFinalizationService
         metadata.VideoCodec = string.IsNullOrWhiteSpace(probe.VideoCodec) ? metadata.VideoCodec : probe.VideoCodec;
         metadata.AudioCodec = string.IsNullOrWhiteSpace(probe.AudioCodec) ? metadata.AudioCodec : probe.AudioCodec;
         metadata.DurationSeconds = probe.DurationSeconds > 0 ? probe.DurationSeconds : metadata.DurationSeconds;
-        metadata.HasOptimizedAudio = metadata.HasOptimizedAudio || hasOptimizedAudio || probe.HasOptimizedAudio;
         if (metadata.EndedAt <= DateTime.MinValue
             && metadata.RecordedAt > DateTime.MinValue
             && metadata.DurationSeconds > 0)

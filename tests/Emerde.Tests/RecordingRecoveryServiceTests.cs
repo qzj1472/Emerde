@@ -74,6 +74,135 @@ public sealed class RecordingRecoveryServiceTests
         Assert.Equal(["c.ts"], groups[2]);
     }
 
+    [Fact]
+    public void GroupConsecutiveCompatibleSources_IsolatesIneligiblePartsAndKeepsHealthyRuns()
+    {
+        List<string[]> groups = RecordingRecoveryService.GroupConsecutiveCompatibleSources(
+            ["part_000.ts", "part_001.ts", "part_002.ts", "part_003.ts", "part_004.ts"],
+            static (_, _) => true,
+            source => !source.EndsWith("002.ts", StringComparison.Ordinal));
+
+        Assert.Equal(3, groups.Count);
+        Assert.Equal(["part_000.ts", "part_001.ts"], groups[0]);
+        Assert.Equal(["part_002.ts"], groups[1]);
+        Assert.Equal(["part_003.ts", "part_004.ts"], groups[2]);
+    }
+
+    [Fact]
+    public void GroupConsecutiveCompatibleSources_SplitsAtMissingSessionIndices()
+    {
+        const string pattern = "session_%03d.ts";
+        List<string[]> groups = RecordingRecoveryService.GroupConsecutiveCompatibleSources(
+            ["session_003.ts", "session_004.ts", "session_006.ts", "session_007.ts"],
+            (first, second) => RecordingRecoveryService.HasConsecutiveSessionPartIndices([first, second], pattern));
+
+        Assert.Equal(2, groups.Count);
+        Assert.Equal(["session_003.ts", "session_004.ts"], groups[0]);
+        Assert.Equal(["session_006.ts", "session_007.ts"], groups[1]);
+    }
+
+    [Theory]
+    [InlineData("audio_content_anomaly", true)]
+    [InlineData("timeline_mismatch", true)]
+    [InlineData("optimized_audio_failed", false)]
+    [InlineData("", false)]
+    public void HasRecordedSourceMediaDamage_SeparatesCaptureDamageFromOptimizationFailure(string issue, bool expected)
+    {
+        VideoRecordingMetadata metadata = new()
+        {
+            MediaIssue = issue,
+        };
+
+        Assert.Equal(expected, RecordingRecoveryService.HasRecordedSourceMediaDamage(metadata));
+    }
+
+    [Fact]
+    public void HasRecordedSourceMediaDamage_UsesIntervalsToIsolateOnlyAffectedSegment()
+    {
+        VideoRecordingMetadata metadata = new()
+        {
+            MediaIssue = "audio_content_anomaly",
+            IssueIntervals =
+            [
+                new VideoRecordingIssueInterval
+                {
+                    Kind = "audio_content_anomaly",
+                    StartSeconds = 61d,
+                    EndSeconds = 74d,
+                },
+            ],
+        };
+        FfmpegMediaProbeResult healthySegment = CreateProbe(0d, 60d);
+        FfmpegMediaProbeResult damagedSegment = CreateProbe(60d, 120d);
+
+        Assert.False(RecordingRecoveryService.HasRecordedSourceMediaDamage(metadata, healthySegment));
+        Assert.True(RecordingRecoveryService.HasRecordedSourceMediaDamage(metadata, damagedSegment));
+    }
+
+    [Fact]
+    public void HasRecordedSourceMediaDamage_UnknownIntervalRemainsConservative()
+    {
+        VideoRecordingMetadata metadata = new()
+        {
+            MediaIssue = "timeline_mismatch",
+            IssueIntervals =
+            [
+                new VideoRecordingIssueInterval
+                {
+                    Kind = "timeline_mismatch",
+                    StartSeconds = -1d,
+                    EndSeconds = -1d,
+                },
+            ],
+        };
+
+        Assert.True(RecordingRecoveryService.HasRecordedSourceMediaDamage(metadata, CreateProbe(0d, 60d)));
+    }
+
+    [Fact]
+    public void HasRecordedSourceMediaDamage_IgnoresProvisionalOutputTimestampWarning()
+    {
+        VideoRecordingMetadata metadata = new()
+        {
+            MediaIssue = "timeline_mismatch",
+            IssueIntervals =
+            [
+                new VideoRecordingIssueInterval
+                {
+                    Kind = "timeline_mismatch",
+                    StartSeconds = 12d,
+                    EndSeconds = 12.1d,
+                    Detail = "output_timestamp_normalization_mismatch",
+                },
+            ],
+        };
+
+        Assert.False(RecordingRecoveryService.HasRecordedSourceMediaDamage(metadata));
+        Assert.False(RecordingRecoveryService.HasRecordedSourceMediaDamage(metadata, CreateProbe(0d, 60d)));
+    }
+
+    [Fact]
+    public void HasRecordedSourceMediaDamage_KeepsConfirmedTimelineMismatchAsDamage()
+    {
+        VideoRecordingMetadata metadata = new()
+        {
+            MediaIssue = "timeline_mismatch",
+            IssueIntervals =
+            [
+                new VideoRecordingIssueInterval
+                {
+                    Kind = "timeline_mismatch",
+                    StartSeconds = -1d,
+                    EndSeconds = -1d,
+                    Detail = "source_track_end_mismatch",
+                },
+            ],
+        };
+
+        Assert.True(RecordingRecoveryService.HasRecordedSourceMediaDamage(metadata));
+        Assert.True(RecordingRecoveryService.HasRecordedSourceMediaDamage(metadata, CreateProbe(0d, 60d)));
+    }
+
     [Theory]
     [InlineData("session_%03d.ts", "session_003.ts", "session_004.ts", true)]
     [InlineData("session_%03d.ts", "session_003.ts", "session_005.ts", false)]
@@ -96,14 +225,30 @@ public sealed class RecordingRecoveryServiceTests
     }
 
     [Fact]
-    public void FinalizeOutputs_PreserveSegmentSuffixOnlyForStallSplits()
+    public void FinalizeOutputs_PreserveSegmentSuffixForUnmergedSessionOutputs()
     {
         string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Core", "RecordingRecoveryService.cs"));
 
         Assert.Contains("GroupConsecutiveCompatibleSources(", code, StringComparison.Ordinal);
-        Assert.Contains("item.SegmentReason.Equals(VideoRecordingMetadataStore.TimelineStallSegmentReason", code, StringComparison.Ordinal);
+        Assert.Contains("ShouldPreserveSegmentSuffix(", code, StringComparison.Ordinal);
         Assert.Contains("metadata.SegmentIndex = -1;", code, StringComparison.Ordinal);
         Assert.Contains("metadata.SegmentCount = 0;", code, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(true, false, 2, true)]
+    [InlineData(true, false, 1, false)]
+    [InlineData(false, true, 1, true)]
+    [InlineData(false, false, 2, false)]
+    public void ShouldPreserveSegmentSuffix_ReflectsWhetherOutputsRemainSplit(
+        bool mergeSessionParts,
+        bool isStallSegment,
+        int outputCount,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            RecordingRecoveryService.ShouldPreserveSegmentSuffix(mergeSessionParts, isStallSegment, outputCount));
     }
 
     [Fact]
@@ -122,6 +267,7 @@ public sealed class RecordingRecoveryServiceTests
     [InlineData("duration_mismatch:expected=10.000,actual=1.000", true)]
     [InlineData("repair_failed:repair_output_track_timeline_mismatch:audio=1.000,video=4.000", true)]
     [InlineData("repair_failed:repair_output_duration_mismatch:expected=10.000,actual=1.000", true)]
+    [InlineData("source_segment_isolated:session_002.ts:source_internal_pause", true)]
     [InlineData("native_exit_code:1", false)]
     [InlineData(null, false)]
     public void IsTerminalRecoveryFailure_OnlyBlocksUnrecoverableValidationFailures(
@@ -300,7 +446,7 @@ public sealed class RecordingRecoveryServiceTests
             await RecordingRecoveryService.ProcessAsync(markerPath);
 
             JsonNode saved = JsonNode.Parse(File.ReadAllText(markerPath))!;
-            Assert.Equal(2, saved["RecoveryPolicyVersion"]!.GetValue<int>());
+            Assert.Equal(4, saved["RecoveryPolicyVersion"]!.GetValue<int>());
             Assert.False(saved["FinalizeName"]!.GetValue<bool>());
             Assert.Equal(1, saved["FailureCount"]!.GetValue<int>());
             Assert.False(saved["RetryBlocked"]!.GetValue<bool>());
@@ -374,6 +520,50 @@ public sealed class RecordingRecoveryServiceTests
     }
 
     [Fact]
+    public void CreateMediaFinalizedEvents_MarksEachSuccessfulMergedGroup()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"Emerde.FinalizedGroups.{Guid.NewGuid():N}");
+        string markerPath = Path.Combine(root, "recording-id.json");
+        string firstSource = Path.Combine(root, "recording_000.ts");
+        string secondSource = Path.Combine(root, "recording_001.ts");
+        string thirdSource = Path.Combine(root, "recording_002.ts");
+        string fourthSource = Path.Combine(root, "recording_003.ts");
+        string firstTarget = Path.Combine(root, "recording-a.mp4");
+        string secondTarget = Path.Combine(root, "recording-b.mp4");
+        Directory.CreateDirectory(root);
+        File.WriteAllBytes(firstTarget, [1]);
+        File.WriteAllBytes(secondTarget, [2]);
+
+        try
+        {
+            ExtensionMediaFinalizedEvent[] events = RecordingRecoveryService.CreateMediaFinalizedEvents(
+                markerPath,
+                Path.Combine(root, "recording_%03d.ts"),
+                ".mp4",
+                string.Empty,
+                true,
+                secondTarget,
+                new Dictionary<string, string>
+                {
+                    [firstSource] = firstTarget,
+                    [secondSource] = secondTarget,
+                    [thirdSource] = firstTarget,
+                    [fourthSource] = secondTarget,
+                },
+                [],
+                new VideoRecordingMetadata(),
+                DateTimeOffset.UtcNow);
+
+            Assert.Equal(2, events.Length);
+            Assert.All(events, finalizedEvent => Assert.True(finalizedEvent.WasMerged));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task QueueProcessAsync_HandlesInvalidPathsWithoutFaulting()
     {
         await RecordingRecoveryService.QueueProcessAsync(["\0"]);
@@ -405,14 +595,12 @@ public sealed class RecordingRecoveryServiceTests
         string? markerPath = RecordingRecoveryService.Register(sourcePattern, new RoomRecordingOptions
         {
             RecordFormat = "TS/FLV -> MKV",
-            IsOptimizeAudio = true,
         }, roomUrl);
 
         Assert.NotNull(markerPath);
         try
         {
             Assert.Contains($"\"RoomUrl\": \"{roomUrl}\"", File.ReadAllText(markerPath!));
-            Assert.Contains("\"OptimizeAudio\": true", File.ReadAllText(markerPath!));
             Assert.Contains("\"FinalizeName\": false", File.ReadAllText(markerPath!));
         }
         finally
@@ -461,13 +649,11 @@ public sealed class RecordingRecoveryServiceTests
             {
                 RecordFormat = "TS/FLV -> MKV",
                 IsRemoveTs = true,
-                IsOptimizeAudio = true,
             }));
 
             string marker = File.ReadAllText(markerPath!);
             Assert.Contains("\"TargetFormat\": \".mkv\"", marker);
             Assert.Contains("\"RemoveSource\": true", marker);
-            Assert.Contains("\"OptimizeAudio\": true", marker);
 
             Assert.False(RecordingRecoveryService.UpdateOptions(markerPath!, new RoomRecordingOptions
             {
@@ -510,7 +696,7 @@ public sealed class RecordingRecoveryServiceTests
     }
 
     [Fact]
-    public void StallSessionMarker_DisablesMergingAndSurvivesRawFormatUpdate()
+    public void StallSessionMarkerKeepsMergingEnabledAndSurvivesRawFormatUpdate()
     {
         string sourcePattern = Path.Combine(Path.GetTempPath(), $"emerde-recording-{Guid.NewGuid():N}_%03d.ts");
         string? markerPath = RecordingRecoveryService.RegisterSessionParts(sourcePattern, ".ts", removeSource: false);
@@ -526,7 +712,7 @@ public sealed class RecordingRecoveryServiceTests
             }));
 
             JsonObject marker = JsonNode.Parse(File.ReadAllText(markerPath!))!.AsObject();
-            Assert.False(marker["MergeSessionParts"]!.GetValue<bool>());
+            Assert.True(marker["MergeSessionParts"]!.GetValue<bool>());
             Assert.Equal(VideoRecordingMetadataStore.TimelineStallSegmentReason, marker["SegmentReason"]!.GetValue<string>());
         }
         finally
@@ -560,7 +746,7 @@ public sealed class RecordingRecoveryServiceTests
             JsonObject marker = JsonNode.Parse(File.ReadAllText(markerPath))!.AsObject();
             Assert.Equal(".mkv", marker["TargetFormat"]!.GetValue<string>());
             Assert.NotNull(marker["CompletedSources"]);
-            Assert.False(marker["OptimizeAudio"]!.GetValue<bool>());
+            Assert.Null(marker["OptimizeAudio"]);
         }
         finally
         {
@@ -815,19 +1001,19 @@ public sealed class RecordingRecoveryServiceTests
     }
 
     [Fact]
-    public void RegisterSessionParts_StoresOptimizedAudioForCrashRecovery()
+    public void RegisterSessionParts_DoesNotStoreArchivedAudioOptions()
     {
         string sourcePattern = Path.Combine(Path.GetTempPath(), $"emerde-session-{Guid.NewGuid():N}_%03d.ts");
         string? markerPath = RecordingRecoveryService.RegisterSessionParts(
             sourcePattern,
             ".mp4",
             removeSource: false,
-            optimizeAudio: true);
+            mergeSessionParts: true);
 
         Assert.NotNull(markerPath);
         try
         {
-            Assert.Contains("\"OptimizeAudio\": true", File.ReadAllText(markerPath!));
+            Assert.DoesNotContain("OptimizeAudio", File.ReadAllText(markerPath!), StringComparison.Ordinal);
         }
         finally
         {
@@ -837,13 +1023,13 @@ public sealed class RecordingRecoveryServiceTests
     }
 
     [Theory]
-    [InlineData(".mkv", false)]
-    [InlineData(".MKV", false)]
+    [InlineData(".mkv", true)]
+    [InlineData(".MKV", true)]
     [InlineData(".mp4", true)]
-    [InlineData(".ts", true)]
-    public void AllowsUnoptimizedRepairFallback_ProtectsMkvAudioPolicy(string targetFormat, bool expected)
+    [InlineData(".ts", false)]
+    public void SupportsRepairFallback_OnlyAcceptsRepairOutputFormats(string targetFormat, bool expected)
     {
-        Assert.Equal(expected, RecordingRecoveryService.AllowsUnoptimizedRepairFallback(targetFormat));
+        Assert.Equal(expected, RecordingRecoveryService.SupportsRepairFallback(targetFormat));
     }
 
     [Fact]
@@ -1022,13 +1208,13 @@ public sealed class RecordingRecoveryServiceTests
         string[] reversed = RecordingRecoveryService.CreateSourceProcessingKeys([second, first]);
         string[] overlapping = RecordingRecoveryService.CreateSourceProcessingKeys([first]);
         string orderedSemanticKey = RecordingRecoveryService.CreateRecoverySemanticKey(
-            [first, second], ".mkv", removeSource: false, optimizeAudio: false, mergeSessionParts: true);
+            [first, second], ".mkv", removeSource: false, mergeSessionParts: true);
         string reversedSemanticKey = RecordingRecoveryService.CreateRecoverySemanticKey(
-            [second, first], ".MKV", removeSource: false, optimizeAudio: false, mergeSessionParts: true);
+            [second, first], ".MKV", removeSource: false, mergeSessionParts: true);
         string differentRemoveSource = RecordingRecoveryService.CreateRecoverySemanticKey(
-            [first, second], ".mkv", removeSource: true, optimizeAudio: false, mergeSessionParts: true);
+            [first, second], ".mkv", removeSource: true, mergeSessionParts: true);
         string differentMergeMode = RecordingRecoveryService.CreateRecoverySemanticKey(
-            [first, second], ".mkv", removeSource: false, optimizeAudio: false, mergeSessionParts: false);
+            [first, second], ".mkv", removeSource: false, mergeSessionParts: false);
 
         Assert.Equal(ordered.Order(), reversed.Order());
         Assert.Contains(overlapping[0], ordered);
@@ -1166,6 +1352,8 @@ public sealed class RecordingRecoveryServiceTests
             Assert.False(await RecordingRecoveryService.ProcessSourcePatternAsync(sourcePattern, ".mp4", removeSource: false, mergeSessionParts: true));
             Assert.False(File.Exists(Path.Combine(directory, "session.mp4")));
             Assert.False(File.Exists(Path.Combine(directory, "session_000.mp4")));
+            Assert.True(File.Exists(firstSource));
+            Assert.True(File.Exists(secondSource));
         }
         finally
         {
@@ -1198,5 +1386,30 @@ public sealed class RecordingRecoveryServiceTests
         }
 
         throw new FileNotFoundException(string.Join(Path.DirectorySeparatorChar, parts));
+    }
+
+    private static FfmpegMediaProbeResult CreateProbe(double startSeconds, double endSeconds)
+    {
+        return new FfmpegMediaProbeResult(
+            true,
+            true,
+            1,
+            1,
+            endSeconds,
+            endSeconds,
+            1920,
+            1080,
+            30d,
+            endSeconds - startSeconds,
+            0,
+            "h264",
+            "aac",
+            string.Empty,
+            new VideoRecordingMetadata(),
+            true,
+            startSeconds,
+            startSeconds,
+            true,
+            true);
     }
 }
