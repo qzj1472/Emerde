@@ -103,9 +103,17 @@ public partial class RoomStatusReactive : ReactiveObject
     private bool isToRecord = true;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveIsToRecord))]
+    private bool? isRecordFollowingGlobal;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EffectiveIsToMonitor))]
     [NotifyPropertyChangedFor(nameof(MonitorMenuText))]
     private bool isToMonitor = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveIsToMonitor))]
+    private bool? isMonitorFollowingGlobal;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(EffectiveIsToNotify))]
@@ -119,9 +127,9 @@ public partial class RoomStatusReactive : ReactiveObject
 
     public bool EffectiveIsToNotify => Configurations.IsToNotify.Get() && IsToNotify;
 
-    public bool EffectiveIsToRecord => GlobalMonitor.GetEffectiveRoomRecord(RoomUrl, IsToRecord, IsFollowGlobalSettings);
+    public bool EffectiveIsToRecord => GlobalMonitor.GetEffectiveRoomRecord(RoomUrl, IsToRecord, IsRecordFollowingGlobal ?? IsFollowGlobalSettings);
 
-    public bool EffectiveIsToMonitor => GlobalMonitor.GetEffectiveRoomMonitor(RoomUrl, IsToMonitor, IsFollowGlobalSettings);
+    public bool EffectiveIsToMonitor => GlobalMonitor.GetEffectiveRoomMonitor(RoomUrl, IsToMonitor, IsMonitorFollowingGlobal ?? IsFollowGlobalSettings);
 
     public bool CanEditRoomSettings => !IsFollowGlobalSettings;
 

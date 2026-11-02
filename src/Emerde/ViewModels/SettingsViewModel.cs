@@ -800,7 +800,6 @@ public partial class SettingsViewModel : ReactiveObject
             {
                 RecordFormat = nextRecordFormat,
                 IsRemoveTs = isRemoveTs,
-                IsOptimizeAudio = Configurations.IsOptimizeAudio.Get(),
             });
             if (!string.IsNullOrWhiteSpace(Recorder.GetTargetFormat(nextRecordFormat)))
             {
@@ -872,16 +871,6 @@ public partial class SettingsViewModel : ReactiveObject
     partial void OnIsRemoveTsChanged(bool value)
     {
         Configurations.IsRemoveTs.Set(value);
-        ConfigurationSaveScheduler.Request();
-        NotifyRuntimeConfigurationChanged();
-    }
-
-    [ObservableProperty]
-    private bool isOptimizeAudio = Configurations.IsOptimizeAudio.Get();
-
-    partial void OnIsOptimizeAudioChanged(bool value)
-    {
-        Configurations.IsOptimizeAudio.Set(value);
         ConfigurationSaveScheduler.Request();
         NotifyRuntimeConfigurationChanged();
     }

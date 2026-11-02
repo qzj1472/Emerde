@@ -82,7 +82,6 @@ public sealed class RoomCardSelectionTests
             PlatformName = "Douyin",
             PreferredStreamQuality = "original",
             RecordFormat = "mkv",
-            IsOptimizeAudio = true,
             SaveFolder = @"D:\records",
             RoutineInterval = 60000,
         };
@@ -96,28 +95,7 @@ public sealed class RoomCardSelectionTests
         Assert.Equal(@"D:\records", clone.SaveFolder);
         Assert.Equal("original", clone.PreferredStreamQuality);
         Assert.Equal("mkv", clone.RecordFormat);
-        Assert.True(clone.IsOptimizeAudio);
         Assert.Equal(60000, clone.RoutineInterval);
-    }
-
-    [Fact]
-    public void LocalRecordingSettings_PersistAndResolveOptimizedAudio()
-    {
-        Room room = new()
-        {
-            IsFollowGlobalSettings = false,
-        };
-        RoomRecordingSettings.Apply(room, new RoomRecordingOptions
-        {
-            RecordFormat = "TS/FLV -> MP4",
-            IsOptimizeAudio = true,
-        });
-
-        Assert.True(room.IsOptimizeAudio);
-        Assert.True(RoomRecordingSettings.Get(room).IsOptimizeAudio);
-
-        room.IsOptimizeAudio = null;
-        Assert.Equal(RoomRecordingSettings.GetGlobal().IsOptimizeAudio, RoomRecordingSettings.Get(room).IsOptimizeAudio);
     }
 
     [Fact]

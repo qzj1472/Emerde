@@ -293,7 +293,6 @@ public interface IExtensionMediaService
     Task<ExtensionMediaOperationResult> TranscodeAsync(
         string sourcePath,
         string targetFormat,
-        bool optimizeAudio,
         CancellationToken cancellationToken = default);
 
     Task<ExtensionMediaOperationResult> SplitAsync(

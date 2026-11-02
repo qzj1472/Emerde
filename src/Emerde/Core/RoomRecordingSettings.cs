@@ -5,13 +5,32 @@ namespace Emerde.Core;
 
 public sealed record RoomRecordingOptions
 {
+    public bool IsMonitorFollowingGlobal { get; init; }
+
+    public bool IsRecordFollowingGlobal { get; init; }
+
+    public bool IsMonitoringScheduleFollowingGlobal { get; init; }
+
+    public bool IsRoutineIntervalFollowingGlobal { get; init; }
+
+    public bool IsQualityFollowingGlobal { get; init; }
+
+    public bool IsRecordFormatFollowingGlobal { get; init; }
+
+    public bool IsSegmentFollowingGlobal { get; init; }
+
+    public bool IsOutputFolderFollowingGlobal { get; init; }
+
+    public bool IsOutputPathLevelFollowingGlobal { get; init; }
+
+    public bool IsOutputNamingFollowingGlobal { get; init; }
+
     public string PreferredStreamQuality { get; init; } = StreamQualityCatalog.Original;
 
     public string RecordFormat { get; init; } = "TS/FLV";
 
     public bool IsRemoveTs { get; init; }
 
-    public bool IsOptimizeAudio { get; init; }
 
     public bool IsToSegment { get; init; }
 
@@ -76,7 +95,6 @@ internal static class RoomRecordingSettings
             PreferredStreamQuality = StreamQualityCatalog.NormalizePreference(Configurations.PreferredStreamQuality.Get()),
             RecordFormat = NormalizeRecordFormat(Configurations.RecordFormat.Get()),
             IsRemoveTs = Configurations.IsRemoveTs.Get(),
-            IsOptimizeAudio = Configurations.IsOptimizeAudio.Get(),
             IsToSegment = Configurations.IsToSegment.Get(),
             SegmentTime = Math.Max(1, Configurations.SegmentTime.Get()),
             SegmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(Configurations.SegmentTimeUnit.Get()),
@@ -104,21 +122,26 @@ internal static class RoomRecordingSettings
     public static RoomRecordingOptions Get(Room room)
     {
         RoomRecordingOptions global = GetGlobal();
-        if (room.IsFollowGlobalSettings)
-        {
-            return global;
-        }
-
-        string scheduleDays = room.RoutineScheduleUseDays == false
+        bool monitorFollowsGlobal = IsFollowingGlobal(room.IsMonitorFollowingGlobal, room);
+        bool recordFollowsGlobal = IsFollowingGlobal(room.IsRecordFollowingGlobal, room);
+        bool scheduleFollowsGlobal = IsFollowingGlobal(room.IsMonitoringScheduleFollowingGlobal, room);
+        bool intervalFollowsGlobal = IsFollowingGlobal(room.IsRoutineIntervalFollowingGlobal, room);
+        bool qualityFollowsGlobal = IsFollowingGlobal(room.IsQualityFollowingGlobal, room);
+        bool formatFollowsGlobal = IsFollowingGlobal(room.IsRecordFormatFollowingGlobal, room);
+        bool segmentFollowsGlobal = IsFollowingGlobal(room.IsSegmentFollowingGlobal, room);
+        bool outputFolderFollowsGlobal = IsFollowingGlobal(room.IsOutputFolderFollowingGlobal, room);
+        bool outputPathLevelFollowsGlobal = IsFollowingGlobal(room.IsOutputPathLevelFollowingGlobal, room);
+        bool outputNamingFollowsGlobal = IsFollowingGlobal(room.IsOutputNamingFollowingGlobal, room);
+        string scheduleDays = !scheduleFollowsGlobal && room.RoutineScheduleUseDays == false
             ? string.Empty
-            : room.RoutineScheduleDays == null
+            : scheduleFollowsGlobal || room.RoutineScheduleDays == null
                 ? global.RoutineScheduleDays
                 : NormalizeScheduleDaysSelection(room.RoutineScheduleDays);
-        int scheduleStartHour = Math.Clamp(room.RoutineScheduleStartHour ?? global.RoutineScheduleStartHour, 0, 23);
-        int scheduleStartMinute = Math.Clamp(room.RoutineScheduleStartMinute ?? global.RoutineScheduleStartMinute, 0, 59);
-        int scheduleEndHour = Math.Clamp(room.RoutineScheduleEndHour ?? global.RoutineScheduleEndHour, 0, 23);
-        int scheduleEndMinute = Math.Clamp(room.RoutineScheduleEndMinute ?? global.RoutineScheduleEndMinute, 0, 59);
-        if (room.RoutineScheduleUseTimeRange == false)
+        int scheduleStartHour = Math.Clamp(scheduleFollowsGlobal ? global.RoutineScheduleStartHour : room.RoutineScheduleStartHour ?? global.RoutineScheduleStartHour, 0, 23);
+        int scheduleStartMinute = Math.Clamp(scheduleFollowsGlobal ? global.RoutineScheduleStartMinute : room.RoutineScheduleStartMinute ?? global.RoutineScheduleStartMinute, 0, 59);
+        int scheduleEndHour = Math.Clamp(scheduleFollowsGlobal ? global.RoutineScheduleEndHour : room.RoutineScheduleEndHour ?? global.RoutineScheduleEndHour, 0, 23);
+        int scheduleEndMinute = Math.Clamp(scheduleFollowsGlobal ? global.RoutineScheduleEndMinute : room.RoutineScheduleEndMinute ?? global.RoutineScheduleEndMinute, 0, 59);
+        if (!scheduleFollowsGlobal && room.RoutineScheduleUseTimeRange == false)
         {
             scheduleStartHour = 0;
             scheduleStartMinute = 0;
@@ -127,17 +150,26 @@ internal static class RoomRecordingSettings
         }
         return new RoomRecordingOptions
         {
-            PreferredStreamQuality = StreamQualityCatalog.NormalizePreference(room.PreferredStreamQuality, global.PreferredStreamQuality),
-            RecordFormat = NormalizeRecordFormat(room.RecordFormat, global.RecordFormat),
-            IsRemoveTs = room.IsRemoveTs ?? global.IsRemoveTs,
-            IsOptimizeAudio = room.IsOptimizeAudio ?? global.IsOptimizeAudio,
-            IsToSegment = room.IsToSegment ?? global.IsToSegment,
-            SegmentTime = Math.Max(1, room.SegmentTime ?? global.SegmentTime),
-            SegmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(room.SegmentTimeUnit ?? global.SegmentTimeUnit),
-            RoutineInterval = MonitorTiming.NormalizeRoutineInterval(room.RoutineInterval ?? global.RoutineInterval),
-            RoutineScheduleMode = Math.Clamp(room.RoutineScheduleMode ?? global.RoutineScheduleMode, 0, 4),
-            RoutineScheduleStartDate = room.RoutineScheduleStartDate == null ? global.RoutineScheduleStartDate : ParseScheduleDate(room.RoutineScheduleStartDate),
-            RoutineScheduleEndDate = room.RoutineScheduleEndDate == null ? global.RoutineScheduleEndDate : ParseScheduleDate(room.RoutineScheduleEndDate),
+            IsMonitorFollowingGlobal = monitorFollowsGlobal,
+            IsRecordFollowingGlobal = recordFollowsGlobal,
+            IsMonitoringScheduleFollowingGlobal = scheduleFollowsGlobal,
+            IsRoutineIntervalFollowingGlobal = intervalFollowsGlobal,
+            IsQualityFollowingGlobal = qualityFollowsGlobal,
+            IsRecordFormatFollowingGlobal = formatFollowsGlobal,
+            IsSegmentFollowingGlobal = segmentFollowsGlobal,
+            IsOutputFolderFollowingGlobal = outputFolderFollowsGlobal,
+            IsOutputPathLevelFollowingGlobal = outputPathLevelFollowsGlobal,
+            IsOutputNamingFollowingGlobal = outputNamingFollowsGlobal,
+            PreferredStreamQuality = qualityFollowsGlobal ? global.PreferredStreamQuality : StreamQualityCatalog.NormalizePreference(room.PreferredStreamQuality, global.PreferredStreamQuality),
+            RecordFormat = formatFollowsGlobal ? global.RecordFormat : NormalizeRecordFormat(room.RecordFormat, global.RecordFormat),
+            IsRemoveTs = formatFollowsGlobal ? global.IsRemoveTs : room.IsRemoveTs ?? global.IsRemoveTs,
+            IsToSegment = segmentFollowsGlobal ? global.IsToSegment : room.IsToSegment ?? global.IsToSegment,
+            SegmentTime = Math.Max(1, segmentFollowsGlobal ? global.SegmentTime : room.SegmentTime ?? global.SegmentTime),
+            SegmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(segmentFollowsGlobal ? global.SegmentTimeUnit : room.SegmentTimeUnit ?? global.SegmentTimeUnit),
+            RoutineInterval = MonitorTiming.NormalizeRoutineInterval(intervalFollowsGlobal ? global.RoutineInterval : room.RoutineInterval ?? global.RoutineInterval),
+            RoutineScheduleMode = Math.Clamp(scheduleFollowsGlobal ? global.RoutineScheduleMode : room.RoutineScheduleMode ?? global.RoutineScheduleMode, 0, 4),
+            RoutineScheduleStartDate = scheduleFollowsGlobal || room.RoutineScheduleStartDate == null ? global.RoutineScheduleStartDate : ParseScheduleDate(room.RoutineScheduleStartDate),
+            RoutineScheduleEndDate = scheduleFollowsGlobal || room.RoutineScheduleEndDate == null ? global.RoutineScheduleEndDate : ParseScheduleDate(room.RoutineScheduleEndDate),
             RoutineScheduleUseDays = HasRoutineScheduleDayRestriction(scheduleDays),
             RoutineScheduleDays = scheduleDays,
             RoutineScheduleUseTimeRange = HasRoutineScheduleTimeRestriction(
@@ -149,9 +181,9 @@ internal static class RoomRecordingSettings
             RoutineScheduleStartMinute = scheduleStartMinute,
             RoutineScheduleEndHour = scheduleEndHour,
             RoutineScheduleEndMinute = scheduleEndMinute,
-            SaveFolder = room.SaveFolder ?? global.SaveFolder,
-            SaveFolderPathLevel = Math.Clamp(room.SaveFolderPathLevel ?? global.SaveFolderPathLevel, 0, 3),
-            SaveFileNameCustomRule = NormalizeCustomRule(room.SaveFileNameCustomRule, global.SaveFileNameCustomRule),
+            SaveFolder = outputFolderFollowsGlobal ? global.SaveFolder : room.SaveFolder ?? global.SaveFolder,
+            SaveFolderPathLevel = Math.Clamp(outputPathLevelFollowsGlobal ? global.SaveFolderPathLevel : room.SaveFolderPathLevel ?? global.SaveFolderPathLevel, 0, 3),
+            SaveFileNameCustomRule = outputNamingFollowsGlobal ? global.SaveFileNameCustomRule : NormalizeCustomRule(room.SaveFileNameCustomRule, global.SaveFileNameCustomRule),
         };
     }
 
@@ -173,10 +205,29 @@ internal static class RoomRecordingSettings
 
     public static void Apply(Room room, RoomRecordingOptions settings)
     {
+        room.IsMonitorFollowingGlobal = settings.IsMonitorFollowingGlobal;
+        room.IsRecordFollowingGlobal = settings.IsRecordFollowingGlobal;
+        room.IsMonitoringScheduleFollowingGlobal = settings.IsMonitoringScheduleFollowingGlobal;
+        room.IsRoutineIntervalFollowingGlobal = settings.IsRoutineIntervalFollowingGlobal;
+        room.IsQualityFollowingGlobal = settings.IsQualityFollowingGlobal;
+        room.IsRecordFormatFollowingGlobal = settings.IsRecordFormatFollowingGlobal;
+        room.IsSegmentFollowingGlobal = settings.IsSegmentFollowingGlobal;
+        room.IsOutputFolderFollowingGlobal = settings.IsOutputFolderFollowingGlobal;
+        room.IsOutputPathLevelFollowingGlobal = settings.IsOutputPathLevelFollowingGlobal;
+        room.IsOutputNamingFollowingGlobal = settings.IsOutputNamingFollowingGlobal;
+        room.IsFollowGlobalSettings = settings.IsMonitorFollowingGlobal
+            && settings.IsRecordFollowingGlobal
+            && settings.IsMonitoringScheduleFollowingGlobal
+            && settings.IsRoutineIntervalFollowingGlobal
+            && settings.IsQualityFollowingGlobal
+            && settings.IsRecordFormatFollowingGlobal
+            && settings.IsSegmentFollowingGlobal
+            && settings.IsOutputFolderFollowingGlobal
+            && settings.IsOutputPathLevelFollowingGlobal
+            && settings.IsOutputNamingFollowingGlobal;
         room.PreferredStreamQuality = StreamQualityCatalog.NormalizePreference(settings.PreferredStreamQuality);
         room.RecordFormat = NormalizeRecordFormat(settings.RecordFormat);
         room.IsRemoveTs = settings.IsRemoveTs;
-        room.IsOptimizeAudio = settings.IsOptimizeAudio;
         room.IsToSegment = settings.IsToSegment;
         room.SegmentTime = Math.Max(1, settings.SegmentTime);
         room.SegmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(settings.SegmentTimeUnit);
@@ -194,6 +245,25 @@ internal static class RoomRecordingSettings
         room.SaveFolder = settings.SaveFolder ?? string.Empty;
         room.SaveFolderPathLevel = Math.Clamp(settings.SaveFolderPathLevel, 0, 3);
         room.SaveFileNameCustomRule = NormalizeCustomRule(settings.SaveFileNameCustomRule);
+    }
+
+    public static bool IsFollowingGlobal(bool? settingValue, Room room)
+    {
+        return settingValue ?? room.IsFollowGlobalSettings;
+    }
+
+    public static bool HasAnyGlobalInheritance(Room room)
+    {
+        return IsFollowingGlobal(room.IsMonitorFollowingGlobal, room)
+            || IsFollowingGlobal(room.IsRecordFollowingGlobal, room)
+            || IsFollowingGlobal(room.IsMonitoringScheduleFollowingGlobal, room)
+            || IsFollowingGlobal(room.IsRoutineIntervalFollowingGlobal, room)
+            || IsFollowingGlobal(room.IsQualityFollowingGlobal, room)
+            || IsFollowingGlobal(room.IsRecordFormatFollowingGlobal, room)
+            || IsFollowingGlobal(room.IsSegmentFollowingGlobal, room)
+            || IsFollowingGlobal(room.IsOutputFolderFollowingGlobal, room)
+            || IsFollowingGlobal(room.IsOutputPathLevelFollowingGlobal, room)
+            || IsFollowingGlobal(room.IsOutputNamingFollowingGlobal, room);
     }
 
     private static string NormalizeRecordFormat(string? value, string fallback = "TS/FLV")

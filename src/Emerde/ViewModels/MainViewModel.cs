@@ -435,6 +435,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             IsToRecord = room.IsToRecord,
             IsToMonitor = room.IsToMonitor,
             IsFollowGlobalSettings = room.IsFollowGlobalSettings,
+            IsMonitorFollowingGlobal = room.IsMonitorFollowingGlobal,
+            IsRecordFollowingGlobal = room.IsRecordFollowingGlobal,
             AddedOrder = addedOrder,
         };
     }
@@ -460,10 +462,19 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             IsToRecord = room.IsToRecord,
             IsToMonitor = room.IsToMonitor,
             IsFollowGlobalSettings = room.IsFollowGlobalSettings,
+            IsMonitorFollowingGlobal = room.IsMonitorFollowingGlobal,
+            IsRecordFollowingGlobal = room.IsRecordFollowingGlobal,
+            IsMonitoringScheduleFollowingGlobal = room.IsMonitoringScheduleFollowingGlobal,
+            IsRoutineIntervalFollowingGlobal = room.IsRoutineIntervalFollowingGlobal,
+            IsQualityFollowingGlobal = room.IsQualityFollowingGlobal,
+            IsRecordFormatFollowingGlobal = room.IsRecordFormatFollowingGlobal,
+            IsSegmentFollowingGlobal = room.IsSegmentFollowingGlobal,
+            IsOutputFolderFollowingGlobal = room.IsOutputFolderFollowingGlobal,
+            IsOutputPathLevelFollowingGlobal = room.IsOutputPathLevelFollowingGlobal,
+            IsOutputNamingFollowingGlobal = room.IsOutputNamingFollowingGlobal,
             PreferredStreamQuality = room.PreferredStreamQuality,
             RecordFormat = room.RecordFormat,
             IsRemoveTs = room.IsRemoveTs,
-            IsOptimizeAudio = room.IsOptimizeAudio,
             IsToSegment = room.IsToSegment,
             SegmentTime = room.SegmentTime,
             SegmentTimeUnit = room.SegmentTimeUnit,
@@ -2402,7 +2413,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
     private static bool HasIndependentMonitorRooms()
     {
-        return Configurations.Rooms.Get().Any(room => !room.IsFollowGlobalSettings && GlobalMonitor.GetEffectiveRoomMonitor(room));
+        return Configurations.Rooms.Get().Any(room => !RoomRecordingSettings.IsFollowingGlobal(room.IsMonitorFollowingGlobal, room) && GlobalMonitor.GetEffectiveRoomMonitor(room));
     }
 
     [RelayCommand]
@@ -2588,6 +2599,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             IsToMonitor = isToMonitor,
             IsToRecord = isToRecord,
             IsFollowGlobalSettings = isFollowGlobalSettings,
+            IsMonitorFollowingGlobal = recordingOptions.IsMonitorFollowingGlobal,
+            IsRecordFollowingGlobal = recordingOptions.IsRecordFollowingGlobal,
             AddedOrder = RoomStatuses.Count == 0 ? 0 : RoomStatuses.Max(room => room.AddedOrder) + 1,
         };
         if (spiderResult != null)
@@ -3352,9 +3365,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
 
         Room? room = Configurations.Rooms.Get()
             .FirstOrDefault(item => string.Equals(NormalizeRoomUrl(item.RoomUrl), NormalizeRoomUrl(roomStatus.RoomUrl), StringComparison.OrdinalIgnoreCase));
-        if (room is { IsFollowGlobalSettings: false } && !string.IsNullOrWhiteSpace(room.SaveFolder))
+        if (room != null && !RoomRecordingSettings.IsFollowingGlobal(room.IsOutputFolderFollowingGlobal, room))
         {
-            return room.SaveFolder;
+            return RoomRecordingSettings.Get(room).SaveFolder;
         }
 
         return Configurations.SaveFolder.Get();
@@ -4438,6 +4451,8 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         target.IsToRecord = source.IsToRecord;
         target.IsToMonitor = source.IsToMonitor;
         target.IsFollowGlobalSettings = source.IsFollowGlobalSettings;
+        target.IsMonitorFollowingGlobal = source.IsMonitorFollowingGlobal;
+        target.IsRecordFollowingGlobal = source.IsRecordFollowingGlobal;
     }
 
     private static Task<string> CacheAvatarAsync(string roomUrl, ISpiderResult result, CancellationToken token = default)
@@ -5027,7 +5042,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             return;
         }
 
-        if (SelectedItem.IsFollowGlobalSettings)
+        if (SelectedItem.IsMonitorFollowingGlobal ?? SelectedItem.IsFollowGlobalSettings)
         {
             bool enabled = !GlobalMonitor.GetEffectiveRoomMonitor(SelectedItem.RoomUrl, SelectedItem.IsToMonitor, true);
             GlobalMonitor.SetTemporaryRoomMonitor(SelectedItem.RoomUrl, enabled);
@@ -5091,7 +5106,7 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             SelectedItem.IsFollowGlobalSettings,
         });
 
-        if (SelectedItem.IsFollowGlobalSettings)
+        if (SelectedItem.IsRecordFollowingGlobal ?? SelectedItem.IsFollowGlobalSettings)
         {
             GlobalMonitor.SetTemporaryRoomRecord(SelectedItem.RoomUrl, enabled);
             SelectedItem.RefreshStatus();
@@ -5148,7 +5163,9 @@ public partial class MainViewModel : ReactiveObject, IDisposable
         foreach (RoomStatus roomStatus in GlobalMonitor.RoomStatus.Values)
         {
             Room? room = rooms.FirstOrDefault(room => string.Equals(room.RoomUrl, roomStatus.RoomUrl, StringComparison.OrdinalIgnoreCase));
-            if (room is { IsFollowGlobalSettings: false } && GlobalMonitor.GetEffectiveRoomRecord(room))
+            if (room != null
+                && !RoomRecordingSettings.IsFollowingGlobal(room.IsRecordFollowingGlobal, room)
+                && GlobalMonitor.GetEffectiveRoomRecord(room))
             {
                 continue;
             }
@@ -5510,6 +5527,23 @@ public partial class MainViewModel : ReactiveObject, IDisposable
             roomStatusReactive.IsToRecord = SelectedItem.IsToRecord;
             roomStatusReactive.IsToMonitor = SelectedItem.IsToMonitor;
             roomStatusReactive.IsFollowGlobalSettings = SelectedItem.IsFollowGlobalSettings;
+            roomStatusReactive.IsMonitorFollowingGlobal = SelectedItem.IsMonitorFollowingGlobal;
+            roomStatusReactive.IsRecordFollowingGlobal = SelectedItem.IsRecordFollowingGlobal;
+            if (recordingOptions != null)
+            {
+                roomStatusReactive.IsMonitorFollowingGlobal = recordingOptions.IsMonitorFollowingGlobal;
+                roomStatusReactive.IsRecordFollowingGlobal = recordingOptions.IsRecordFollowingGlobal;
+                roomStatusReactive.IsFollowGlobalSettings = recordingOptions.IsMonitorFollowingGlobal
+                    && recordingOptions.IsRecordFollowingGlobal
+                    && recordingOptions.IsMonitoringScheduleFollowingGlobal
+                    && recordingOptions.IsRoutineIntervalFollowingGlobal
+                    && recordingOptions.IsQualityFollowingGlobal
+                    && recordingOptions.IsRecordFormatFollowingGlobal
+                    && recordingOptions.IsSegmentFollowingGlobal
+                    && recordingOptions.IsOutputFolderFollowingGlobal
+                    && recordingOptions.IsOutputPathLevelFollowingGlobal
+                    && recordingOptions.IsOutputNamingFollowingGlobal;
+            }
         }
 
         Room[] rooms = Configurations.Rooms.Get();

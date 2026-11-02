@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.Reflection;
 using System.Windows;
@@ -13,7 +14,7 @@ public static class ExtensionHostRuntime
     internal static readonly TimeSpan CleanupTimeout = TimeSpan.FromSeconds(8);
     private static readonly ConcurrentDictionary<string, object> HostObjects = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> EventPublishGates = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly AsyncLocal<HashSet<string>?> ActiveEventPublishes = new();
+    private static readonly AsyncLocal<ImmutableHashSet<string>?> ActiveEventPublishes = new();
     private static readonly object RegistrationLock = new();
     private static readonly List<OverrideRegistration> Overrides = [];
     private static readonly List<EventRegistration> EventSubscriptions = [];
@@ -69,12 +70,15 @@ public static class ExtensionHostRuntime
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(eventName);
         ArgumentNullException.ThrowIfNull(payload);
-        HashSet<string> activePublishes = ActiveEventPublishes.Value ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (!activePublishes.Add(eventName))
+        ImmutableHashSet<string> previousPublishes = ActiveEventPublishes.Value
+            ?? ImmutableHashSet.Create<string>(StringComparer.OrdinalIgnoreCase);
+        ImmutableHashSet<string> activePublishes = previousPublishes;
+        if (activePublishes.Contains(eventName))
         {
             AppSessionLogger.Event("warn", "extension", "event_publish_reentrant", "reentrant event publication was skipped", new { eventName });
             return;
         }
+        ActiveEventPublishes.Value = activePublishes.Add(eventName);
 
         SemaphoreSlim publishGate = EventPublishGates.GetOrAdd(eventName, static _ => new SemaphoreSlim(1, 1));
         try
@@ -103,7 +107,7 @@ public static class ExtensionHostRuntime
         }
         finally
         {
-            activePublishes.Remove(eventName);
+            ActiveEventPublishes.Value = previousPublishes;
         }
     }
 

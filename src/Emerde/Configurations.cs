@@ -56,7 +56,6 @@ public static class Configurations
     public static ConfigurationDefinition<string> PreferredStreamQuality { get; } = new(nameof(PreferredStreamQuality), StreamQualityCatalog.Original);
     public static ConfigurationDefinition<string> RecordFormat { get; } = new(nameof(RecordFormat), "TS/FLV");
     public static ConfigurationDefinition<bool> IsRemoveTs { get; } = new(nameof(IsRemoveTs), false);
-    public static ConfigurationDefinition<bool> IsOptimizeAudio { get; } = new(nameof(IsOptimizeAudio), false);
     public static ConfigurationDefinition<bool> IsToSegment { get; } = new(nameof(IsToSegment), false);
     public static ConfigurationDefinition<long> SegmentTime { get; } = new(nameof(SegmentTime), 1800L);
     public static ConfigurationDefinition<int> SegmentTimeUnit { get; } = new(nameof(SegmentTimeUnit), 1);
@@ -103,10 +102,19 @@ public sealed class Room
     public bool IsToRecord { get; set; } = true;
     public bool IsToMonitor { get; set; } = true;
     public bool IsFollowGlobalSettings { get; set; } = true;
+    public bool? IsMonitorFollowingGlobal { get; set; }
+    public bool? IsRecordFollowingGlobal { get; set; }
+    public bool? IsMonitoringScheduleFollowingGlobal { get; set; }
+    public bool? IsRoutineIntervalFollowingGlobal { get; set; }
+    public bool? IsQualityFollowingGlobal { get; set; }
+    public bool? IsRecordFormatFollowingGlobal { get; set; }
+    public bool? IsSegmentFollowingGlobal { get; set; }
+    public bool? IsOutputFolderFollowingGlobal { get; set; }
+    public bool? IsOutputPathLevelFollowingGlobal { get; set; }
+    public bool? IsOutputNamingFollowingGlobal { get; set; }
     public string? PreferredStreamQuality { get; set; }
     public string? RecordFormat { get; set; }
     public bool? IsRemoveTs { get; set; }
-    public bool? IsOptimizeAudio { get; set; }
     public bool? IsToSegment { get; set; }
     public long? SegmentTime { get; set; }
     public int? SegmentTimeUnit { get; set; }

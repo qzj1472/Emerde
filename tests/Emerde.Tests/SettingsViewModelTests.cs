@@ -168,34 +168,26 @@ public sealed class SettingsViewModelTests
     public void RecordFormatOptions_UseFormatSpecificVisibility()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "SettingsWindow.xaml"));
-        XElement optimizeAudio = document.Descendants()
-            .Single(element => element.Name.LocalName == "CheckBox"
-                && ((string?)element.Attribute("IsChecked"))?.Contains("IsOptimizeAudio", StringComparison.Ordinal) == true);
         XElement removeSource = document.Descendants()
             .Single(element => element.Name.LocalName == "CheckBox"
                 && ((string?)element.Attribute("IsChecked"))?.Contains("IsRemoveTs", StringComparison.Ordinal) == true);
 
-        Assert.Contains("IsTranscodedRecordFormat", (string?)optimizeAudio.Attribute("Visibility"));
         Assert.Contains("IsTranscodedRecordFormat", (string?)removeSource.Attribute("Visibility"));
+        Assert.DoesNotContain(document.Descendants(), element =>
+            ((string?)element.Attribute("IsChecked"))?.Contains("IsOptimizeAudio", StringComparison.Ordinal) == true);
     }
 
     [Fact]
     public void LocalRecordFormatOptions_UseFormatSpecificVisibility()
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "LocalSettingsContentDialog.xaml"));
-        XElement optimizeAudio = document.Descendants()
-            .Single(element => element.Name.LocalName == "CheckBox"
-                && ((string?)element.Attribute("IsChecked"))?.Contains("IsOptimizeAudio", StringComparison.Ordinal) == true);
         XElement removeSource = document.Descendants()
             .Single(element => element.Name.LocalName == "CheckBox"
                 && ((string?)element.Attribute("IsChecked"))?.Contains("IsRemoveTs", StringComparison.Ordinal) == true);
 
-        Assert.Contains("IsTranscodedRecordFormat", (string?)optimizeAudio.Attribute("Visibility"));
         Assert.Contains("IsTranscodedRecordFormat", (string?)removeSource.Attribute("Visibility"));
-        Assert.Same(optimizeAudio.Parent, removeSource.Parent);
-        Assert.Equal("http://schemas.microsoft.com/winfx/2006/xaml/presentation", optimizeAudio.Parent?.Name.NamespaceName);
-        Assert.Null(optimizeAudio.Parent?.Attribute("Spacing"));
-        Assert.Equal("0,0,0,12", (string?)optimizeAudio.Attribute("Margin"));
+        Assert.DoesNotContain(document.Descendants(), element =>
+            ((string?)element.Attribute("IsChecked"))?.Contains("IsOptimizeAudio", StringComparison.Ordinal) == true);
     }
 
     [Fact]
@@ -252,16 +244,73 @@ public sealed class SettingsViewModelTests
         XDocument workspace = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "UiXRoomWorkspace.xaml"));
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "LocalSettingsContentDialog.xaml.cs"));
+        string workspaceSource = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "UiXRoomWorkspace.xaml.cs"));
 
         Assert.Contains(document.Descendants(), element => (string?)element.Attribute(x + "Name") == "LocalSettingsItemsPanel");
         Assert.Contains(document.Descendants(), element => (string?)element.Attribute(x + "Name") == "RoomActionsCard");
         Assert.Contains(document.Descendants(), element => (string?)element.Attribute(x + "Name") == "SaveCard");
         Assert.DoesNotContain(workspace.Descendants(), element => element.Name.LocalName == "RadioButton"
             && (string?)element.Attribute("Content") == "{I18N UiXWorkspaceOverview}");
-        Assert.Contains(workspace.Descendants(), element => element.Name.LocalName == "RadioButton"
-            && (string?)element.Attribute("Content") == "{I18N UiXWorkspaceOutput}");
+        Assert.Equal(3, workspace.Descendants().Count(element => element.Name.LocalName == "RadioButton"
+            && (string?)element.Attribute("Content") is "{I18N UiXWorkspaceRun}" or "{I18N UiXWorkspaceRecording}" or "{I18N UiXWorkspaceOutput}"));
+        Assert.Contains(workspace.Descendants(), element => element.Name.LocalName == "Button"
+            && (string?)element.Attribute("Content") == "{I18N FollowAllGlobalSettings}");
+        Assert.Contains(workspace.Descendants(), element => element.Name.LocalName == "TextBlock"
+            && (string?)element.Attribute("Text") == "{I18N FollowGlobalSettings}");
+        string[] inheritanceBindings =
+        [
+            "Editor.IsMonitorFollowingGlobal",
+            "Editor.IsRecordFollowingGlobal",
+            "Editor.IsMonitoringScheduleFollowingGlobal",
+            "Editor.IsRoutineIntervalFollowingGlobal",
+            "Editor.IsQualityFollowingGlobal",
+            "Editor.IsRecordFormatFollowingGlobal",
+            "Editor.IsSegmentFollowingGlobal",
+            "Editor.IsOutputFolderFollowingGlobal",
+            "Editor.IsOutputPathLevelFollowingGlobal",
+            "Editor.IsOutputNamingFollowingGlobal",
+        ];
+        Assert.All(inheritanceBindings, binding => Assert.Contains(workspace.Descendants(), element =>
+            element.Name.LocalName == "CheckBox"
+            && ((string?)element.Attribute("IsChecked"))?.Contains(binding, StringComparison.Ordinal) == true));
+        Assert.All(inheritanceBindings, binding => Assert.Contains(workspace.Descendants(), element =>
+            element.Name.LocalName == "CheckBox"
+            && ((string?)element.Attribute("IsChecked"))?.Contains(binding, StringComparison.Ordinal) == true
+            && element.Attribute("Content") == null));
+        string[] inheritedStatusBindings =
+        [
+            "Editor.IsMonitorFollowingGlobal",
+            "Editor.IsRecordFollowingGlobal",
+            "Editor.IsMonitoringScheduleFollowingGlobal",
+            "Editor.IsRoutineIntervalFollowingGlobal",
+            "Editor.IsQualityFollowingGlobal",
+            "Editor.IsRecordFormatFollowingGlobal",
+            "Editor.IsSegmentFollowingGlobal",
+            "Editor.IsOutputFolderFollowingGlobal",
+            "Editor.IsOutputPathLevelFollowingGlobal",
+            "Editor.IsOutputNamingFollowingGlobal",
+        ];
+        Assert.All(inheritedStatusBindings, binding => Assert.Contains(workspace.Descendants(), element =>
+            element.Name.LocalName == "TextBlock"
+            && (string?)element.Attribute("Text") == "{I18N FollowGlobalSettings}"
+            && ((string?)element.Attribute("Visibility"))?.Contains(binding, StringComparison.Ordinal) == true));
+        Assert.Contains(workspace.Descendants(), element => element.Name.LocalName == "StackPanel"
+            && (string?)element.Attribute(x + "Name") == "RunStage"
+            && ((string?)element.Attribute("Visibility"))?.Contains("RunVisibility", StringComparison.Ordinal) == true);
+        Assert.Contains(workspace.Descendants(), element => element.Name.LocalName == "StackPanel"
+            && (string?)element.Attribute(x + "Name") == "RecordingStage"
+            && ((string?)element.Attribute("Visibility"))?.Contains("RecordingVisibility", StringComparison.Ordinal) == true);
+        Assert.Contains(workspace.Descendants(), element => element.Name.LocalName == "StackPanel"
+            && (string?)element.Attribute(x + "Name") == "OutputStage"
+            && ((string?)element.Attribute("Visibility"))?.Contains("OutputVisibility", StringComparison.Ordinal) == true);
         Assert.Contains(workspace.Descendants(), element => element.Name.LocalName == "Grid"
             && ((string?)element.Attribute("Visibility"))?.Contains("CustomWorkspaceVisibility", StringComparison.Ordinal) == true);
+        Assert.Contains("public Visibility CustomWorkspaceVisibility => Visibility.Visible;", workspaceSource, StringComparison.Ordinal);
+        Assert.Contains("public Visibility RunVisibility => SelectedStage == 1 ? Visibility.Visible : Visibility.Collapsed;", workspaceSource, StringComparison.Ordinal);
+        Assert.Contains("public Visibility RecordingVisibility => SelectedStage == 2 ? Visibility.Visible : Visibility.Collapsed;", workspaceSource, StringComparison.Ordinal);
+        Assert.Contains("public Visibility OutputVisibility => SelectedStage == 3 ? Visibility.Visible : Visibility.Collapsed;", workspaceSource, StringComparison.Ordinal);
+        Assert.Contains("public Visibility FollowAllGlobalButtonVisibility => IsCustomMode ? Visibility.Visible : Visibility.Collapsed;", workspaceSource, StringComparison.Ordinal);
+        Assert.Contains("public Visibility FollowGlobalTextVisibility => IsCustomMode ? Visibility.Collapsed : Visibility.Visible;", workspaceSource, StringComparison.Ordinal);
         Assert.Contains(workspace.Descendants(), element => element.Name.LocalName == "Button"
             && ((string?)element.Attribute("Command"))?.Contains("DeleteLastSaveFileNameTokenCommand", StringComparison.Ordinal) == true);
         Assert.Contains(workspace.Descendants(), element => element.Name.LocalName == "Button"
@@ -563,10 +612,10 @@ public sealed class SettingsViewModelTests
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "UiXRoomWorkspace.xaml"));
         string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "UiXRoomWorkspace.xaml.cs"));
 
-        XElement customMode = document.Descendants()
-            .Single(element => element.Name.LocalName == "RadioButton"
-                && (string?)element.Attribute("Content") == "{I18N Custom}");
-        Assert.Equal("0", (string?)customMode.Attribute("Margin"));
+        XElement followAll = document.Descendants()
+            .Single(element => element.Name.LocalName == "Button"
+                && (string?)element.Attribute("Content") == "{I18N FollowAllGlobalSettings}");
+        Assert.Equal("FollowAllGlobalSettingsClick", (string?)followAll.Attribute("Click"));
 
         XElement skipValidation = document.Descendants()
             .Single(element => element.Name.LocalName == "CheckBox"
@@ -642,8 +691,10 @@ public sealed class SettingsViewModelTests
         string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "UiXRoomWorkspace.xaml.cs"));
 
         Assert.DoesNotContain(document.Descendants(), element => element.Name.LocalName == "RadioButton"
-            && (string?)element.Attribute("GroupName") is "WorkspaceMode" or "WorkspaceStage");
-        Assert.Contains("IsFollowGlobalSettings = true", source, StringComparison.Ordinal);
+            && (string?)element.Attribute("GroupName") is "WorkspaceMode");
+        Assert.Contains("private int selectedStage = 1;", source, StringComparison.Ordinal);
+        Assert.Contains("StageButtonClick", source, StringComparison.Ordinal);
+        Assert.Contains("IsFollowGlobalSettings = false", source, StringComparison.Ordinal);
         Assert.Contains("CreateForEdit(RoomStatusReactive room) => new(room, false)", source, StringComparison.Ordinal);
         Assert.Contains("Editor = new LocalSettingsContentDialog(room", source, StringComparison.Ordinal);
         Assert.DoesNotContain("static bool isCustomMode", source, StringComparison.OrdinalIgnoreCase);
@@ -662,7 +713,7 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
-    public void LocalSettings_FollowGlobalUsesCurrentGlobalValuesAndCustomStartsFromTheirSnapshot()
+    public void LocalSettings_InheritanceCanBeDisabledPerSetting()
     {
         bool oldMonitor = Configurations.IsToMonitor.Get();
         bool oldRecord = Configurations.IsToRecord.Get();
@@ -693,12 +744,20 @@ public sealed class SettingsViewModelTests
                 Configurations.IsToRecord.Set(false);
                 Configurations.PreferredStreamQuality.Set(StreamQualityCatalog.Original);
                 Configurations.RecordFormat.Set("TS/FLV -> MP4");
-                editor.IsFollowGlobalSettings = false;
+                editor.IsMonitorFollowingGlobal = false;
+                editor.IsRecordFollowingGlobal = false;
+                editor.IsQualityFollowingGlobal = false;
+                editor.IsRecordFormatFollowingGlobal = false;
 
-                Assert.True(editor.IsToMonitor);
-                Assert.False(editor.IsToRecord);
-                Assert.Equal(StreamQualityCatalog.Original, editor.PreferredQuality);
-                Assert.Equal(1, editor.RecordFormatIndex);
+                Assert.False(editor.IsMonitorFollowingGlobal);
+                Assert.False(editor.IsRecordFollowingGlobal);
+                Assert.False(editor.IsQualityFollowingGlobal);
+                Assert.False(editor.IsRecordFormatFollowingGlobal);
+                Assert.False(editor.IsFollowGlobalSettings);
+                Assert.False(editor.IsToMonitor);
+                Assert.True(editor.IsToRecord);
+                Assert.Equal(StreamQualityCatalog.High, editor.PreferredQuality);
+                Assert.Equal(2, editor.RecordFormatIndex);
             });
         }
         finally

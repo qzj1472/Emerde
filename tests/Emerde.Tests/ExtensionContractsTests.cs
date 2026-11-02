@@ -728,6 +728,36 @@ public sealed class ExtensionContractsTests
     }
 
     [Fact]
+    public async Task ExtensionHostRuntime_DoesNotTreatSiblingChildPublishesAsReentrant()
+    {
+        string parentEvent = $"test.event.parent.{Guid.NewGuid():N}";
+        string childEvent = $"test.event.child.{Guid.NewGuid():N}";
+        int childInvocations = 0;
+        using IDisposable firstParent = ExtensionHostRuntime.Subscribe<string>(
+            "test.parent.first",
+            parentEvent,
+            async (_, cancellationToken) =>
+                await ExtensionHostRuntime.PublishAsync(childEvent, "child", cancellationToken));
+        using IDisposable secondParent = ExtensionHostRuntime.Subscribe<string>(
+            "test.parent.second",
+            parentEvent,
+            async (_, cancellationToken) =>
+                await ExtensionHostRuntime.PublishAsync(childEvent, "child", cancellationToken));
+        using IDisposable child = ExtensionHostRuntime.Subscribe<string>(
+            "test.child",
+            childEvent,
+            (_, _) =>
+            {
+                Interlocked.Increment(ref childInvocations);
+                return ValueTask.CompletedTask;
+            });
+
+        await ExtensionHostRuntime.PublishAsync(parentEvent, "parent");
+
+        Assert.Equal(2, childInvocations);
+    }
+
+    [Fact]
     public void RecorderStopOverride_InterceptsAndRestoresDefaultStopPath()
     {
         Recorder recorder = new();

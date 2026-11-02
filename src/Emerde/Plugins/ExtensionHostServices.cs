@@ -261,7 +261,6 @@ internal sealed class ExtensionMediaService : IExtensionMediaService
     public async Task<ExtensionMediaOperationResult> TranscodeAsync(
         string sourcePath,
         string targetFormat,
-        bool optimizeAudio,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
@@ -270,7 +269,7 @@ internal sealed class ExtensionMediaService : IExtensionMediaService
         using CancellationTokenSource source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         bool success = await new Converter().ExecuteWithCompletionAsync(
             sourcePath,
-            new ConverterOptions(targetFormat, optimizeAudio),
+            new ConverterOptions(targetFormat),
             path => outputPath = path,
             source);
         return new ExtensionMediaOperationResult(
