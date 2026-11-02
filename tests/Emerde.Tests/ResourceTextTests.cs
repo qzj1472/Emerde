@@ -222,6 +222,7 @@ public sealed class ResourceTextTests
             "ReleaseNotes171RemovedFeaturesItem",
             "ReleaseNotes171TimelineToleranceItem",
             "ReleaseNotes171PacketTimestampCorrectionItem",
+            "ReleaseNotes171HuyaCompatibilityItem",
             "ReleaseNotesCategoryRemovedFeatures",
             "ReleaseNotes1611Title",
             "ReleaseNotes1611Date",

@@ -177,13 +177,18 @@ public sealed class WindowSizingTests
     {
         XDocument document = XDocument.Load(FindRepositoryFile("src", "Emerde", "Views", "UpdateReleaseNotesContentDialog.xaml"));
         XElement rootGrid = document.Root!.Elements().Single(element => element.Name.LocalName == "Grid");
-        XElement scrollViewer = rootGrid.Descendants().Single(element => element.Name.LocalName == "ScrollViewer");
+        XElement bodySurface = rootGrid.Elements().Single(element => element.Name.LocalName == "Border"
+            && (string?)element.Attribute("Grid.Row") == "2");
+        XElement scrollViewer = bodySurface.Descendants().Single(element => element.Name.LocalName == "ScrollViewer");
 
         Assert.Equal(3, rootGrid.Descendants().Count(element => element.Name.LocalName == "RowDefinition"));
-        Assert.Equal("2", (string?)scrollViewer.Attribute("Grid.Row"));
+        Assert.Equal("True", (string?)bodySurface.Attribute("ClipToBounds"));
+        Assert.Equal("Transparent", (string?)scrollViewer.Attribute("Background"));
         Assert.Equal("0", (string?)rootGrid.Elements().First(element => element.Name.LocalName == "Border").Attribute("Grid.Row"));
         Assert.Equal("1", (string?)rootGrid.Elements().First(element => element.Name.LocalName == "StackPanel").Attribute("Grid.Row"));
         Assert.Equal("Auto", (string?)scrollViewer.Attribute("VerticalScrollBarVisibility"));
+        Assert.Contains(document.Descendants(), element => element.Name.LocalName == "TextBlock"
+            && ((string?)element.Attribute("Text"))?.Contains("UpgradeSummary", StringComparison.Ordinal) == true);
     }
 
     private static string FindRepositoryFile(params string[] segments)

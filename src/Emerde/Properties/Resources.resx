@@ -1346,4 +1346,5 @@
   <data name="ReleaseNotes171RemovedFeaturesItem" xml:space="preserve"><value>Archived optimized audio processing in the repository; it is no longer exposed or used by the application.</value></data>
   <data name="ReleaseNotes171TimelineToleranceItem" xml:space="preserve"><value>A/V validation returned to the established 2-second tolerance and checks the completed output against its source timelines.</value></data>
   <data name="ReleaseNotes171PacketTimestampCorrectionItem" xml:space="preserve"><value>TS 重封装现在只对重复或倒退的视频解码时间戳做维持递增所需的最小修正，避免时间线随数据包累计拉长。</value></data>
+  <data name="ReleaseNotes171HuyaCompatibilityItem" xml:space="preserve"><value>虎牙房间解析已兼容当前页面数据结构，并移除了请求中与虎牙无关的第三方微信 AppID Referer。</value></data>
 </root>

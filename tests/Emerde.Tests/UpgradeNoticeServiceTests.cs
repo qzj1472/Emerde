@@ -202,6 +202,39 @@ public sealed class UpgradeNoticeServiceTests
     }
 
     [Fact]
+    public void ReleaseNotes171_DisplaysAndAuditsEveryLocalizedItem()
+    {
+        ReleaseNoteEntry entry = ReleaseNotesCatalog.GetEntry("1.7.1");
+        string[] items = entry.Sections.SelectMany(section => section.Items).ToArray();
+
+        Assert.Equal("2026-10-18", entry.Date);
+        Assert.Equal(items.Length, entry.AuditTrail.Count);
+        Assert.Equal(items.Length, items.Distinct(StringComparer.Ordinal).Count());
+        Assert.All(entry.AuditTrail, audit =>
+        {
+            Assert.Equal("1.7.1", audit.Version);
+            Assert.Equal("2026-10-20", audit.WrittenAt);
+            Assert.Contains(audit.Text, items);
+        });
+        Assert.Contains(items, item => item.Contains("warning chips", StringComparison.OrdinalIgnoreCase)
+            || item.Contains("异常提示胶囊", StringComparison.Ordinal)
+            || item.Contains("異常提示膠囊", StringComparison.Ordinal)
+            || item.Contains("警告チップ", StringComparison.Ordinal));
+        Assert.Contains(entry.Sections, section => section.Title.Contains("Removed features", StringComparison.OrdinalIgnoreCase)
+            || section.Title.Contains("移除", StringComparison.Ordinal)
+            || section.Title.Contains("削除", StringComparison.Ordinal));
+        Assert.Contains(items, item => item.Contains("archived", StringComparison.OrdinalIgnoreCase)
+            || item.Contains("归档", StringComparison.Ordinal)
+            || item.Contains("封存", StringComparison.Ordinal));
+        Assert.Contains(items, item => item.Contains("timestamp", StringComparison.OrdinalIgnoreCase)
+            || item.Contains("时间戳", StringComparison.Ordinal)
+            || item.Contains("時間戳", StringComparison.Ordinal));
+        Assert.Contains(items, item => item.Contains("Huya", StringComparison.OrdinalIgnoreCase)
+            || item.Contains("虎牙", StringComparison.Ordinal));
+        Assert.Equal(items.Length, ReleaseNotesCatalog.AuditRecords.Count(audit => audit.Version == "1.7.1"));
+    }
+
+    [Fact]
     public void ReleaseNotes1610_ContainsAuditRecordsForEveryDisplayedItem()
     {
         ReleaseNoteEntry entry = ReleaseNotesCatalog.GetEntry("1.6.10");

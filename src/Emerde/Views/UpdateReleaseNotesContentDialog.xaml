@@ -136,6 +136,8 @@
                                Spacing="5">
                     <TextBlock Style="{StaticResource UpdateReleaseNotesTitleStyle}"
                                Text="{Binding CurrentVersionTitle}" />
+                    <TextBlock Style="{StaticResource UpdateReleaseNotesCaptionStyle}"
+                               Text="{Binding UpgradeSummary}" />
                 </ui:StackPanel>
             </Grid>
         </Border>
@@ -153,17 +155,19 @@
                       Style="{StaticResource UpdateReleaseNotesComboBoxStyle}" />
         </ui:StackPanel>
 
-        <ScrollViewer Grid.Row="2"
-                      Margin="0,16,0,0"
-                      BorderThickness="0"
-                      Focusable="True"
-                      FocusVisualStyle="{x:Null}"
-                      IsTabStop="True"
-                      HorizontalAlignment="Stretch"
-                      HorizontalContentAlignment="Stretch"
-                      HorizontalScrollBarVisibility="Disabled"
-                      VerticalScrollBarVisibility="Auto">
-            <Border Style="{StaticResource UpdateReleaseNotesBodySurfaceStyle}">
+        <Border Grid.Row="2"
+                Margin="0,16,0,0"
+                ClipToBounds="True"
+                Style="{StaticResource UpdateReleaseNotesBodySurfaceStyle}">
+            <ScrollViewer Background="Transparent"
+                          BorderThickness="0"
+                          Focusable="True"
+                          FocusVisualStyle="{x:Null}"
+                          IsTabStop="True"
+                          HorizontalAlignment="Stretch"
+                          HorizontalContentAlignment="Stretch"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
                 <ui:StackPanel Spacing="10">
                         <TextBlock Style="{StaticResource UpdateReleaseNotesTitleStyle}"
                                    Text="{Binding SelectedItem.Title, ElementName=ReleaseNoteVersionPicker}" />
@@ -198,7 +202,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                 </ui:StackPanel>
-            </Border>
-        </ScrollViewer>
+            </ScrollViewer>
+        </Border>
     </Grid>
 </vio:ContentDialog>

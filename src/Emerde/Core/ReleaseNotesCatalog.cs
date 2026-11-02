@@ -32,25 +32,36 @@ internal static class ReleaseNotesCatalog
 
     private static ReleaseNoteEntry Create171()
     {
-        IReadOnlyList<string> items = SplitItems(GetText("ReleaseNotes171Items", "Fixed overly strict transcoding validation that could mark a complete recording as failed when only a small timeline drift was present|Optimized-audio failures now preserve the original audio and prioritize a complete recording|Compatible automatic segments are merged in order; an incompatible later segment is saved independently|Recovery waits for recording files to be released before processing, reducing false failures and accidental cleanup|Cover generation no longer lets a media-resource error incorrectly fail transcoding, and uses a lower-overhead pixel composition path|Recording reconnect retries are recalculated after switching to a refreshed stream URL|Reduced false warnings from ordinary audio sampling, stream switches, and temporarily missing source files|YouTube live recording now prefers directly playable muxed formats when HLS is unavailable, improving preview and recording compatibility|Removed the finished-video issue popup; diagnostic details remain available in logs|Recording-in-progress context menus now keep only Open folder available|System Tab combinations such as Win+Tab and Alt+Tab no longer activate Emerde focus navigation; Ctrl+Tab remains available for page switching"));
-        IReadOnlyList<string> additional = SplitItems(GetText("ReleaseNotes171AdditionalItems", "Updated diagnostics and recovery state reporting around finalization and segment handling|Release notes and installer are rebuilt for the current 1.7.1 source|A/V synchronization is validated within 0.5 seconds, rejected optimized-audio candidates are isolated, MKV follows the audio setting, and completed MP4/MKV files can create a separate optimized-audio copy"));
+        IReadOnlyList<string> items = SplitItems(GetText("ReleaseNotes171Items", "Fixed overly strict transcoding validation that could mark a complete recording as failed when only a small timeline drift was present|Validated recovered media before final output and preserved rejected source segments for retry|Compatible automatic segments are merged in order; an incompatible later segment is saved independently|Recovery waits for recording files to be released before processing, reducing false failures and accidental cleanup|Cover generation no longer lets a media-resource error incorrectly fail transcoding, and uses a lower-overhead pixel composition path|Recording reconnect retries are recalculated after switching to a refreshed stream URL|Reduced false warnings from ordinary audio sampling, stream switches, and temporarily missing source files|YouTube live recording now prefers directly playable muxed formats when HLS is unavailable, improving preview and recording compatibility|Finished-video issue types appear as separate chips; clicking any chip opens one list of issue names without detailed contents|Recording-in-progress context menus now keep only Open folder available|System Tab combinations such as Win+Tab and Alt+Tab no longer activate Emerde focus navigation; Ctrl+Tab remains available for page switching"));
+        IReadOnlyList<string> additionalBase = SplitItems(
+            GetText("ReleaseNotes171AdditionalItems", "Updated diagnostics and recovery state reporting around finalization and segment handling|Release notes and installer are rebuilt for the current 1.7.1 source|A/V synchronization uses the established 2-second tolerance with source-aware final-output validation"));
+        IReadOnlyList<string> additional = [
+            .. additionalBase.Where((_, index) => index != 5),
+            GetText("ReleaseNotes171MediaRecoveryItem", "Recovery detects cumulative timeline drift across recording parts, tries validated MKV repair, and discards rejected partial outputs while preserving the original segments."),
+            GetText("ReleaseNotes171VideoListDeleteItem", "Deleting a collapsed recording card now includes all loaded sibling segments."),
+            GetText("ReleaseNotes171RemovedFeaturesItem", "Archived optimized audio processing in the repository; it is no longer exposed or used by the application.")];
+        string timelineToleranceItem = GetText("ReleaseNotes171TimelineToleranceItem", "A/V validation uses the established 2-second tolerance and checks the completed output against its source timelines.");
+        string packetTimestampCorrectionItem = GetText("ReleaseNotes171PacketTimestampCorrectionItem", "TS remuxing now corrects repeated or backward video decode timestamps by only the minimum step needed for monotonic ordering, preventing cumulative timeline stretch.");
+        string uiFollowUp = GetText("ReleaseNotes171UiFollowUp", "Video warning chips now keep even side padding, their popup surface uses a fully rounded background, the release-notes body clips to its rounded surface while scrolling, and double-clicking blank space beside a date heading refreshes the list.");
+        string huyaCompatibilityItem = GetText("ReleaseNotes171HuyaCompatibilityItem", "Huya room parsing now supports the current room-page data shape and no longer sends an unrelated third-party WeChat AppID as the request Referer.");
         ReleaseNoteEntry entry = new(
             "1.7.1",
             GetText("ReleaseNotes171Title", "Emerde 1.7.1"),
             GetText("ReleaseNotes171Date", "2026-10-14"),
             RemoveEmpty(
-                Section("ReleaseNotesCategoryBugFixes", "Bug fixes", Pick(items, 0, 1, 3, 4, 6, 7, 8)),
+                Section("ReleaseNotesCategoryBugFixes", "Bug fixes", Pick(items, 0, 1, 3, 4, 6, 7, 8).Concat(Pick(additional, 10, 11)).Append(huyaCompatibilityItem).ToArray()),
                 Section("ReleaseNotesCategoryFeatures", "Feature additions", Pick(items, 2)),
-                Section("ReleaseNotesCategoryStability", "Performance and stability", Pick(items, 5).Concat(Pick(additional, 0, 5)).ToArray()),
-                Section("ReleaseNotesCategoryUi", "Interface changes", Pick(items, 9, 10)),
-                Section("ReleaseNotesCategoryInstall", "Installation and upgrade", Pick(additional, 1))));
+                Section("ReleaseNotesCategoryStability", "Performance and stability", Pick(items, 5).Concat(Pick(additional, 0, 1, 2, 5, 6, 7, 8, 9)).Append(timelineToleranceItem).Append(packetTimestampCorrectionItem).ToArray()),
+                Section("ReleaseNotesCategoryRemovedFeatures", "Removed features", Pick(additional, 12)),
+                Section("ReleaseNotesCategoryUi", "Interface changes", Pick(items, 9, 10).Append(uiFollowUp).ToArray()),
+                Section("ReleaseNotesCategoryInstall", "Installation and upgrade", Pick(additional, 3, 4))));
         return entry with
         {
             AuditTrail = CreateAuditTrail(
                 "1.7.1",
-                items.Concat(additional),
-                "2026-10-17",
-                "working-tree-20261017")
+                items.Concat(additional).Append(timelineToleranceItem).Append(uiFollowUp).Append(packetTimestampCorrectionItem).Append(huyaCompatibilityItem),
+                "2026-10-20",
+                "working-tree-20261020")
         };
     }
 
