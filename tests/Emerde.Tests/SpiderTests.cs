@@ -1499,6 +1499,36 @@ public sealed class SpiderTests
     }
 
     [Fact]
+    public void HuyaExtractProfileRoomId_AcceptsCurrentEmbeddedPageShape()
+    {
+        Assert.Equal("10188", HuyaSpider.ExtractProfileRoomId(
+            "stream: {\"data\":[{\"gameLiveInfo\":{\"profileRoom\":10188,\"privateHost\":\"dank1ng\"}}]}"));
+    }
+
+    [Fact]
+    public void HuyaRequest_DoesNotEmbedAThirdPartyWechatAppId()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        string? path = null;
+        while (directory != null)
+        {
+            string candidate = Path.Combine(directory.FullName, "src", "Emerde", "Core", "SpiderImpl", "HuyaSpider.cs");
+            if (File.Exists(candidate))
+            {
+                path = candidate;
+                break;
+            }
+
+            directory = directory.Parent;
+        }
+
+        Assert.NotNull(path);
+        string source = File.ReadAllText(path!);
+
+        Assert.DoesNotContain("servicewechat.com", source, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void DouyuExtractors_MapMobileBetardSignAndStreamData()
     {
         DouyuSpiderResult result = new()

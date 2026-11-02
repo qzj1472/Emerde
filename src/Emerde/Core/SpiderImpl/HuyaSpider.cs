@@ -85,6 +85,11 @@ public sealed partial class HuyaSpider : ISpider
 
         Match match = ProfileRoomRegex.Match(html);
 
+        if (!match.Success)
+        {
+            match = EmbeddedProfileRoomRegex.Match(html);
+        }
+
         return match.Success ? match.Groups[1].Value : null;
     }
 
@@ -228,7 +233,6 @@ public sealed partial class HuyaSpider : ISpider
 
         request.AddHeader("User-Agent", "ios/7.830 (ios 17.0; ; iPhone 15 (A2846/A3089/A3090/A3092))");
         request.AddHeader("Accept-Language", "zh-CN,zh;q=0.9");
-        request.AddHeader("Referer", "https://servicewechat.com/wx74767bf0b684f7d3/301/page-frame.html");
         request.AddHeader("xweb_xhr", "1");
         if (!string.IsNullOrWhiteSpace(cookie))
         {
@@ -247,6 +251,9 @@ public sealed partial class HuyaSpider : ISpider
 
     [GeneratedRegex("\"ProfileRoom\"\\s*:\\s*(\\d+)\\s*,\\s*\"sPrivateHost", RegexOptions.Singleline)]
     private static partial Regex ProfileRoomRegex { get; }
+
+    [GeneratedRegex("\\\"profileRoom\\\"\\s*:\\s*(\\d+)", RegexOptions.IgnoreCase)]
+    private static partial Regex EmbeddedProfileRoomRegex { get; }
 }
 
 public sealed class HuyaSpiderResult : ISpiderResult
