@@ -70,15 +70,143 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
     [ObservableProperty]
     private string roomUrl = string.Empty;
 
-    [ObservableProperty]
-    private bool isFollowGlobalSettings = true;
-
-    partial void OnIsFollowGlobalSettingsChanged(bool value)
+    public bool IsFollowGlobalSettings
     {
-        if (!value)
+        get => IsMonitorFollowingGlobal
+            && IsRecordFollowingGlobal
+            && IsMonitoringScheduleFollowingGlobal
+            && IsRoutineIntervalFollowingGlobal
+            && IsQualityFollowingGlobal
+            && IsRecordFormatFollowingGlobal
+            && IsSegmentFollowingGlobal
+            && IsOutputFolderFollowingGlobal
+            && IsOutputPathLevelFollowingGlobal
+            && IsOutputNamingFollowingGlobal;
+        set
         {
-            InitializeFromGlobalSettings();
+            IsMonitorFollowingGlobal = value;
+            IsRecordFollowingGlobal = value;
+            IsMonitoringScheduleFollowingGlobal = value;
+            IsRoutineIntervalFollowingGlobal = value;
+            IsQualityFollowingGlobal = value;
+            IsRecordFormatFollowingGlobal = value;
+            IsSegmentFollowingGlobal = value;
+            IsOutputFolderFollowingGlobal = value;
+            IsOutputPathLevelFollowingGlobal = value;
+            IsOutputNamingFollowingGlobal = value;
+            if (!value)
+            {
+                InitializeFromGlobalSettings();
+            }
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CanEditLocalSettings));
         }
+    }
+
+    public bool HasCustomSettings => !IsFollowGlobalSettings;
+
+    public bool CanEditMonitor => !IsMonitorFollowingGlobal;
+
+    public bool CanEditRecord => !IsRecordFollowingGlobal;
+
+    public bool CanEditMonitoringSchedule => !IsMonitoringScheduleFollowingGlobal;
+
+    public bool CanEditRoutineInterval => !IsRoutineIntervalFollowingGlobal;
+
+    public bool CanEditQuality => !IsQualityFollowingGlobal;
+
+    public bool CanEditRecordFormat => !IsRecordFormatFollowingGlobal;
+
+    public bool CanEditSegment => !IsSegmentFollowingGlobal;
+
+    public bool CanEditOutputFolder => !IsOutputFolderFollowingGlobal;
+
+    public bool CanEditOutputPathLevel => !IsOutputPathLevelFollowingGlobal;
+
+    public bool CanEditOutputNaming => !IsOutputNamingFollowingGlobal;
+
+    [ObservableProperty]
+    private bool isMonitorFollowingGlobal;
+
+    partial void OnIsMonitorFollowingGlobalChanged(bool value) => OnInheritanceChanged(value, InheritedSetting.Monitor);
+
+    [ObservableProperty]
+    private bool isRecordFollowingGlobal;
+
+    partial void OnIsRecordFollowingGlobalChanged(bool value) => OnInheritanceChanged(value, InheritedSetting.Record);
+
+    [ObservableProperty]
+    private bool isMonitoringScheduleFollowingGlobal;
+
+    partial void OnIsMonitoringScheduleFollowingGlobalChanged(bool value) => OnInheritanceChanged(value, InheritedSetting.Schedule);
+
+    [ObservableProperty]
+    private bool isRoutineIntervalFollowingGlobal;
+
+    partial void OnIsRoutineIntervalFollowingGlobalChanged(bool value) => OnInheritanceChanged(value, InheritedSetting.Interval);
+
+    [ObservableProperty]
+    private bool isQualityFollowingGlobal;
+
+    partial void OnIsQualityFollowingGlobalChanged(bool value) => OnInheritanceChanged(value, InheritedSetting.Quality);
+
+    [ObservableProperty]
+    private bool isRecordFormatFollowingGlobal;
+
+    partial void OnIsRecordFormatFollowingGlobalChanged(bool value) => OnInheritanceChanged(value, InheritedSetting.Format);
+
+    [ObservableProperty]
+    private bool isSegmentFollowingGlobal;
+
+    partial void OnIsSegmentFollowingGlobalChanged(bool value) => OnInheritanceChanged(value, InheritedSetting.Segment);
+
+    [ObservableProperty]
+    private bool isOutputFolderFollowingGlobal;
+
+    partial void OnIsOutputFolderFollowingGlobalChanged(bool value) => OnInheritanceChanged(value, InheritedSetting.OutputFolder);
+
+    [ObservableProperty]
+    private bool isOutputPathLevelFollowingGlobal;
+
+    partial void OnIsOutputPathLevelFollowingGlobalChanged(bool value) => OnInheritanceChanged(value, InheritedSetting.OutputPathLevel);
+
+    [ObservableProperty]
+    private bool isOutputNamingFollowingGlobal;
+
+    partial void OnIsOutputNamingFollowingGlobalChanged(bool value) => OnInheritanceChanged(value, InheritedSetting.OutputNaming);
+
+    private enum InheritedSetting
+    {
+        Monitor,
+        Record,
+        Schedule,
+        Interval,
+        Quality,
+        Format,
+        Segment,
+        OutputFolder,
+        OutputPathLevel,
+        OutputNaming,
+    }
+
+    private void OnInheritanceChanged(bool followsGlobal, InheritedSetting setting)
+    {
+        if (followsGlobal)
+        {
+            CopyGlobalSetting(setting);
+        }
+        OnPropertyChanged(nameof(IsFollowGlobalSettings));
+        OnPropertyChanged(nameof(HasCustomSettings));
+        OnPropertyChanged(nameof(CanEditMonitor));
+        OnPropertyChanged(nameof(CanEditRecord));
+        OnPropertyChanged(nameof(CanEditMonitoringSchedule));
+        OnPropertyChanged(nameof(CanEditRoutineInterval));
+        OnPropertyChanged(nameof(CanEditQuality));
+        OnPropertyChanged(nameof(CanEditRecordFormat));
+        OnPropertyChanged(nameof(CanEditSegment));
+        OnPropertyChanged(nameof(CanEditOutputFolder));
+        OnPropertyChanged(nameof(CanEditOutputPathLevel));
+        OnPropertyChanged(nameof(CanEditOutputNaming));
         OnPropertyChanged(nameof(CanEditLocalSettings));
     }
 
@@ -225,8 +353,6 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
     [ObservableProperty]
     private bool isRemoveTs;
 
-    [ObservableProperty]
-    private bool isOptimizeAudio;
 
     [ObservableProperty]
     private bool isToSegment;
@@ -298,10 +424,25 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
     {
         NickName = room.NickName;
         RoomUrl = room.RoomUrl;
-        IsFollowGlobalSettings = room.IsFollowGlobalSettings;
+        Room? storedRoom = Configurations.Rooms.Get()
+            .FirstOrDefault(item => string.Equals(item.RoomUrl, room.RoomUrl, StringComparison.OrdinalIgnoreCase));
+        RoomRecordingOptions recordingOptions = storedRoom == null
+            ? RoomRecordingSettings.GetGlobal()
+            : RoomRecordingSettings.Get(storedRoom);
+        bool followDefault = storedRoom == null ? room.IsFollowGlobalSettings : false;
+        IsMonitorFollowingGlobal = storedRoom == null ? followDefault : recordingOptions.IsMonitorFollowingGlobal;
+        IsRecordFollowingGlobal = storedRoom == null ? followDefault : recordingOptions.IsRecordFollowingGlobal;
+        IsMonitoringScheduleFollowingGlobal = storedRoom == null ? followDefault : recordingOptions.IsMonitoringScheduleFollowingGlobal;
+        IsRoutineIntervalFollowingGlobal = storedRoom == null ? followDefault : recordingOptions.IsRoutineIntervalFollowingGlobal;
+        IsQualityFollowingGlobal = storedRoom == null ? followDefault : recordingOptions.IsQualityFollowingGlobal;
+        IsRecordFormatFollowingGlobal = storedRoom == null ? followDefault : recordingOptions.IsRecordFormatFollowingGlobal;
+        IsSegmentFollowingGlobal = storedRoom == null ? followDefault : recordingOptions.IsSegmentFollowingGlobal;
+        IsOutputFolderFollowingGlobal = storedRoom == null ? followDefault : recordingOptions.IsOutputFolderFollowingGlobal;
+        IsOutputPathLevelFollowingGlobal = storedRoom == null ? followDefault : recordingOptions.IsOutputPathLevelFollowingGlobal;
+        IsOutputNamingFollowingGlobal = storedRoom == null ? followDefault : recordingOptions.IsOutputNamingFollowingGlobal;
         IsToNotify = room.IsToNotify;
-        IsToMonitor = room.IsFollowGlobalSettings ? Configurations.IsToMonitor.Get() : room.IsToMonitor;
-        IsToRecord = room.IsFollowGlobalSettings ? Configurations.IsToRecord.Get() : room.IsToRecord;
+        IsToMonitor = IsMonitorFollowingGlobal ? Configurations.IsToMonitor.Get() : room.IsToMonitor;
+        IsToRecord = IsRecordFollowingGlobal ? Configurations.IsToRecord.Get() : room.IsToRecord;
         ShowIdentityHeader = showIdentityHeader;
         ShowSettingsHeader = showSettingsHeader;
         useGlobalQualityOptionsWhenPlatformUnknown = useGlobalQualityOptions;
@@ -310,11 +451,7 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
             ? StreamQualityCatalog.GlobalOptions
             : StreamQualityCatalog.GetOptions(room.PlatformName);
 
-        Room? storedRoom = Configurations.Rooms.Get()
-            .FirstOrDefault(item => string.Equals(item.RoomUrl, room.RoomUrl, StringComparison.OrdinalIgnoreCase));
-        InitializeRecordingOptions(room.IsFollowGlobalSettings || storedRoom == null
-            ? RoomRecordingSettings.GetGlobal()
-            : RoomRecordingSettings.Get(storedRoom));
+        InitializeRecordingOptions(recordingOptions);
 
         if (initializeView)
         {
@@ -556,6 +693,16 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         int scheduleEndMinute = ClampMinute(RoutineScheduleEndMinute);
         return new RoomRecordingOptions
         {
+            IsMonitorFollowingGlobal = IsMonitorFollowingGlobal,
+            IsRecordFollowingGlobal = IsRecordFollowingGlobal,
+            IsMonitoringScheduleFollowingGlobal = IsMonitoringScheduleFollowingGlobal,
+            IsRoutineIntervalFollowingGlobal = IsRoutineIntervalFollowingGlobal,
+            IsQualityFollowingGlobal = IsQualityFollowingGlobal,
+            IsRecordFormatFollowingGlobal = IsRecordFormatFollowingGlobal,
+            IsSegmentFollowingGlobal = IsSegmentFollowingGlobal,
+            IsOutputFolderFollowingGlobal = IsOutputFolderFollowingGlobal,
+            IsOutputPathLevelFollowingGlobal = IsOutputPathLevelFollowingGlobal,
+            IsOutputNamingFollowingGlobal = IsOutputNamingFollowingGlobal,
             PreferredStreamQuality = PreferredQuality,
             RecordFormat = RecordFormatIndex switch
             {
@@ -564,7 +711,6 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
                 _ => "TS/FLV",
             },
             IsRemoveTs = IsRemoveTs,
-            IsOptimizeAudio = IsOptimizeAudio,
             IsToSegment = IsToSegment,
             SegmentTime = Math.Max(1, segmentRawValue),
             SegmentTimeUnit = SegmentTimeUnitHelper.NormalizeUnit(SegmentTimeUnitIndex),
@@ -602,7 +748,6 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
             _ => 0,
         };
         IsRemoveTs = settings.IsRemoveTs;
-        IsOptimizeAudio = settings.IsOptimizeAudio;
         IsToSegment = settings.IsToSegment;
 
         segmentRawValue = Math.Max(1, settings.SegmentTime);
@@ -689,6 +834,105 @@ public sealed partial class LocalSettingsContentDialog : System.Windows.Controls
         IsToMonitor = Configurations.IsToMonitor.Get();
         IsToRecord = Configurations.IsToRecord.Get();
         InitializeRecordingOptions(RoomRecordingSettings.GetGlobal());
+    }
+
+    private void CopyGlobalSetting(InheritedSetting setting)
+    {
+        RoomRecordingOptions global = RoomRecordingSettings.GetGlobal();
+        switch (setting)
+        {
+            case InheritedSetting.Monitor:
+                IsToMonitor = Configurations.IsToMonitor.Get();
+                break;
+            case InheritedSetting.Record:
+                IsToRecord = Configurations.IsToRecord.Get();
+                break;
+            case InheritedSetting.Schedule:
+                InitializeSchedule(global);
+                break;
+            case InheritedSetting.Interval:
+                SetRoutineInterval(global.RoutineInterval);
+                break;
+            case InheritedSetting.Quality:
+                PreferredQuality = QualityOptions.Any(option => option.Value == global.PreferredStreamQuality)
+                    ? global.PreferredStreamQuality
+                    : StreamQualityCatalog.Original;
+                break;
+            case InheritedSetting.Format:
+                RecordFormatIndex = global.RecordFormat switch
+                {
+                    "TS/FLV -> MP4" => 1,
+                    "TS/FLV -> MKV" => 2,
+                    _ => 0,
+                };
+                IsRemoveTs = global.IsRemoveTs;
+                break;
+            case InheritedSetting.Segment:
+                IsToSegment = global.IsToSegment;
+                SetSegmentTime(global.SegmentTime, global.SegmentTimeUnit);
+                break;
+            case InheritedSetting.OutputFolder:
+                SaveFolder = global.SaveFolder;
+                break;
+            case InheritedSetting.OutputPathLevel:
+                SaveFolderPathLevelIndex = global.SaveFolderPathLevel;
+                break;
+            case InheritedSetting.OutputNaming:
+                SaveFileNameCustomRule = global.SaveFileNameCustomRule;
+                break;
+        }
+    }
+
+    private void InitializeSchedule(RoomRecordingOptions settings)
+    {
+        RoutineScheduleModeIndex = Math.Clamp(settings.RoutineScheduleMode, 0, 4);
+        RoutineScheduleStartDate = settings.RoutineScheduleStartDate?.ToDateTime(TimeOnly.MinValue);
+        RoutineScheduleEndDate = settings.RoutineScheduleEndDate?.ToDateTime(TimeOnly.MinValue);
+        RoutineScheduleUseDays = settings.RoutineScheduleUseDays;
+        HashSet<DayOfWeek> days = ParseScheduleDays(settings.RoutineScheduleDays);
+        RoutineScheduleMonday = days.Contains(DayOfWeek.Monday);
+        RoutineScheduleTuesday = days.Contains(DayOfWeek.Tuesday);
+        RoutineScheduleWednesday = days.Contains(DayOfWeek.Wednesday);
+        RoutineScheduleThursday = days.Contains(DayOfWeek.Thursday);
+        RoutineScheduleFriday = days.Contains(DayOfWeek.Friday);
+        RoutineScheduleSaturday = days.Contains(DayOfWeek.Saturday);
+        RoutineScheduleSunday = days.Contains(DayOfWeek.Sunday);
+        RoutineScheduleUseTimeRange = settings.RoutineScheduleUseTimeRange;
+        RoutineScheduleStartHour = settings.RoutineScheduleStartHour;
+        RoutineScheduleStartMinute = settings.RoutineScheduleStartMinute;
+        RoutineScheduleEndHour = settings.RoutineScheduleEndHour;
+        RoutineScheduleEndMinute = settings.RoutineScheduleEndMinute;
+    }
+
+    private void SetRoutineInterval(int milliseconds)
+    {
+        routineIntervalMilliseconds = MonitorTiming.NormalizeRoutineInterval(milliseconds);
+        RoutineIntervalUnitIndex = GetPreferredTimeUnit(routineIntervalMilliseconds);
+        isUpdatingRoutineInterval = true;
+        try
+        {
+            RoutineIntervalValue = ConvertMillisecondsToTimeUnit(routineIntervalMilliseconds, RoutineIntervalUnitIndex);
+        }
+        finally
+        {
+            isUpdatingRoutineInterval = false;
+        }
+    }
+
+    private void SetSegmentTime(long value, int unit)
+    {
+        segmentRawValue = Math.Max(1, value);
+        segmentRawUnit = SegmentTimeUnitHelper.NormalizeUnit(unit);
+        SegmentTimeUnitIndex = segmentRawUnit;
+        isUpdatingSegmentTime = true;
+        try
+        {
+            SegmentTimeValue = SegmentTimeUnitHelper.ToDisplayValue(segmentRawValue, segmentRawUnit);
+        }
+        finally
+        {
+            isUpdatingSegmentTime = false;
+        }
     }
 
     [RelayCommand]

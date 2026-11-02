@@ -480,10 +480,6 @@
                                         </Grid>
                                     </ui:CardExpander.Header>
                                     <StackPanel Margin="42,0,28,0">
-                                        <CheckBox Content="{I18N CreateOptimizedAudioTrack}"
-                                                  Margin="0,0,0,12"
-                                                  IsChecked="{Binding IsOptimizeAudio, Mode=TwoWay}"
-                                                  Visibility="{Binding IsTranscodedRecordFormat, Converter={x:Static c:BoolToVisibilityConverter.Instance}}" />
                                         <CheckBox Content="{I18N RecordFormatAutoRemove}"
                                                   IsChecked="{Binding IsRemoveTs, Mode=TwoWay}"
                                                   Visibility="{Binding IsTranscodedRecordFormat, Converter={x:Static c:BoolToVisibilityConverter.Instance}}" />
@@ -653,7 +649,6 @@
                                                 <Button Margin="0,0,8,8" Command="{Binding AppendSaveFileNameTokenCommand}" CommandParameter="{}{画质}" Content="{I18N TokenQuality}" />
                                                 <Button Margin="0,0,8,8" Command="{Binding AppendSaveFileNameTokenCommand}" CommandParameter="{}{视频编码}" Content="{I18N TokenVideoCodec}" />
                                                 <Button Margin="0,0,8,8" Command="{Binding AppendSaveFileNameTokenCommand}" CommandParameter="{}{音频编码}" Content="{I18N TokenAudioCodec}" />
-                                                <Button Margin="0,0,8,8" Command="{Binding AppendSaveFileNameTokenCommand}" CommandParameter="{}{优化音频}" Content="{I18N TokenOptimizedAudio}" />
                                                 <Border />
                                                 <Button Margin="0,0,8,8" Command="{Binding AppendSaveFileNameTokenCommand}" CommandParameter="{}{录制开始时间}" Content="{I18N TokenRecordStartTime}" />
                                                 <Button Margin="0,0,8,8" Command="{Binding AppendSaveFileNameTokenCommand}" CommandParameter="{}{录制结束时间}" Content="{I18N TokenRecordEndTime}" />

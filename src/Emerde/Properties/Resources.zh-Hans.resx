@@ -743,10 +743,6 @@
   <data name="OpenVideo" xml:space="preserve"><value>打开视频</value></data>
   <data name="TranscodeVideo" xml:space="preserve"><value>转码</value></data>
   <data name="TargetFormat" xml:space="preserve"><value>目标格式</value></data>
-  <data name="CreateOptimizedAudioTrack" xml:space="preserve"><value>创建优化音频轨道（推荐）</value></data>
-  <data name="OptimizedAudioTrackDescription" xml:space="preserve"><value>MP4 和 MKV 会保留原音轨，并额外创建经过增益、压缩和限幅处理的 AAC 音轨。</value></data>
-  <data name="OptimizeAudioFromVideo" xml:space="preserve"><value>建立优化音频</value></data>
-  <data name="OptimizedAudioCreated" xml:space="preserve"><value>已建立优化音频</value></data>
   <data name="DeleteSourceAfterTranscode" xml:space="preserve"><value>转码成功后删除源文件</value></data>
   <data name="SplitButton" xml:space="preserve"><value>分割</value></data>
   <data name="SplitVideo" xml:space="preserve"><value>分割视频</value></data>
@@ -779,7 +775,6 @@
   <data name="ProcessingFailedChip" xml:space="preserve"><value>处理失败</value></data>
   <data name="RepairedChip" xml:space="preserve"><value>已修复</value></data>
   <data name="MediaIssueChip" xml:space="preserve"><value>音画异常</value></data>
-  <data name="OptimizedAudioFailedChip" xml:space="preserve"><value>优化音频失败</value></data>
   <data name="SegmentPositionChip" xml:space="preserve"><value>分段 {0}/{1}</value></data>
   <data name="VideoAttributeStatusTitle" xml:space="preserve"><value>视频提示</value></data>
   <data name="SegmentPositionDescription" xml:space="preserve"><value>同一场直播的第 {0} 段，共 {1} 段。</value></data>
@@ -796,7 +791,6 @@
   <data name="MediaIssueDecodeErrorDescription" xml:space="preserve"><value>音频解码异常。</value></data>
   <data name="MediaIssueTimelineMismatchDescription" xml:space="preserve"><value>音画结束时间不一致。</value></data>
   <data name="MediaIssueGenericDescription" xml:space="preserve"><value>这段录像出现音画异常。</value></data>
-  <data name="OptimizedAudioFailedDescription" xml:space="preserve"><value>优化失败，已保留原音频。</value></data>
   <data name="StallSegmentDescription" xml:space="preserve"><value>直播卡住后从这里截成下一段。本段到此结束。</value></data>
   <data name="TranscodeComplete" xml:space="preserve"><value>转码完成</value></data>
   <data name="TranscodeFailed" xml:space="preserve"><value>转码失败</value></data>
@@ -839,9 +833,9 @@
   <data name="ReleaseNotes1610Items" xml:space="preserve"><value>新增音频、视频、容器、编码、分辨率、帧率、时间轴、流数量、解码错误、RMS、峰值和近静音区间等媒体诊断记录。|MKV 录制始终生成优化音频；优化音频无法生成但原音频有效时保留原音频，并明确标记优化音频问题。|增加录制时间轴和音频内容采样，用于判断异常发生在直播源、TS 输入、中间分段还是最终成品。|增加录制恢复用的自动兜底分段；兜底分段最后会合并为一个成品，设置中主动配置的分段仍保持独立。|录制中和整理中的同一直播间分段折叠为一个视频卡片，分段编号稳定，多个状态可以同时显示。|保留已有视频封面，新的封面生成流程只用于新生成的封面。|增加磁盘空间保护，空间不足时暂停录制相关处理，空间恢复前保持提示。|完善恢复流程和录像元数据写入，处理中断后可以继续恢复而不丢失录像状态。|磁盘空间不足导致的转码失败不再进行无意义的恢复重试。|空元数据流不再持续产生异常日志。</value></data>
   <data name="ReleaseNotes1610AdditionalItems" xml:space="preserve"><value>优化安装器版本显示、输出命名和弹窗背景蒙版一致性。|优化恢复配置对齐、过长状态文本换行、头像缓存清理和解析器取消处理。|记录处理速度用于后续对比，本版本没有修改转换性能逻辑。</value></data>
   <data name="ReleaseNotes171Title" xml:space="preserve"><value>Emerde 1.7.1</value></data>
-  <data name="ReleaseNotes171Date" xml:space="preserve"><value>2026-10-17</value></data>
-  <data name="ReleaseNotes171Items" xml:space="preserve"><value>修复转码校验过严导致完整录像仅因时间轴轻微漂移就被判定失败的问题。|优化音频失败时保留原音频并优先保证整场录像完整。|兼容的自动分段按顺序合并；后续不兼容的分段单独保存。|恢复任务会等待录制文件释放后再处理，减少误判失败和误清理。|修复封面生成的媒体资源异常导致转码被误判失败的问题，并降低封面生成的资源占用。|录制重连切换到刷新后的流地址后会重新计算重试次数。|减少普通音频采样、流切换和源文件暂时缺失造成的误报。|YouTube 直播在没有可用 HLS 时优先使用可直接播放的音视频格式，改善预览和录制兼容性。|成品视频按类型分别显示异常胶囊；点击任一胶囊只查看异常名称，不显示具体内容。|录制中的右键菜单仅保留打开目录，其他操作继续禁用。|屏蔽 Win+Tab、Alt+Tab 等系统 Tab 组合键触发 Emerde 焦点导航，保留 Ctrl+Tab 切换页面。</value></data>
-  <data name="ReleaseNotes171AdditionalItems" xml:space="preserve"><value>完善收尾阶段和分段处理相关的诊断与恢复状态记录。|强化分段录制输出和恢复流程，保留已完成分段、检测缺失分段，并在输出时间线漂移时触发重连。|拆分、合并、修复和最终输出现在都会在提交前验证；配置、日志、网络响应和扩展关闭流程失败时会安全处理。|增强安装器回滚、卸载清理和 Debug 诊断能力。|按当前 1.7.1 源码重新生成更新日志和安装器。|音画同步校验收紧到 0.5 秒，隔离被拒绝的优化音频候选；MKV 遵循音频开关，已完成的 MP4/MKV 可另存一份优化音频成品。|导出日志默认选择并置顶“全部日志”；MP4/MKV 优化音频默认关闭，并保留“推荐”字样。|日期标题按文字宽度布局，右侧空白可用于刷新列表。|文件未提供音视频轨道时长时，校验会采用合并过程中已观测到的音视频包尾时间，并写入诊断日志。</value></data>
+  <data name="ReleaseNotes171Date" xml:space="preserve"><value>2026-10-18</value></data>
+  <data name="ReleaseNotes171Items" xml:space="preserve"><value>修复转码校验过严导致完整录像仅因时间轴轻微漂移就被判定失败的问题。|恢复媒体会在最终输出前验证，被拒绝的源分段会保留以便重试。|兼容的自动分段按顺序合并；后续不兼容的分段单独保存。|恢复任务会等待录制文件释放后再处理，减少误判失败和误清理。|修复封面生成的媒体资源异常导致转码被误判失败的问题，并降低封面生成的资源占用。|录制重连切换到刷新的流地址后会重新计算重试次数。|减少普通音频采样、流切换和源文件暂时缺失造成的误报。|YouTube 直播在没有可用 HLS 时优先使用可直接播放的音视频格式，改善预览和录制兼容性。|成品视频按类型分别显示异常胶囊；点击任一胶囊只查看异常名称，不显示具体内容。|录制中的右键菜单仅保留打开目录，其他操作继续禁用。|屏蔽 Win+Tab、Alt+Tab 等系统 Tab 组合键触发 Emerde 焦点导航，保留 Ctrl+Tab 切换页面。</value></data>
+  <data name="ReleaseNotes171AdditionalItems" xml:space="preserve"><value>完善收尾阶段和分段处理相关的诊断与恢复状态记录。|强化分段录制输出和恢复流程，保留已完成分段、检测缺失分段，并在输出时间线漂移时触发重连。|拆分、合并、修复和最终输出现在都会在提交前验证；配置、日志、网络响应和扩展关闭流程失败时会安全处理。|增强安装器回滚、卸载清理和 Debug 诊断能力。|按当前 1.7.1 源码重新生成更新日志和安装器。|音画同步恢复为历史 2 秒容差，并结合源时间线验收最终成品；优化音频保留在仓库归档中，软件界面不再提供此功能。|导出日志默认选择并置顶“全部日志”。|日期标题按文字宽度布局，右侧空白可用于刷新列表。|文件未提供音视频轨道时，校验会采用合并过程中已观测到的音视频包尾时间，并写入诊断日志。|恢复时仅合并兼容的录制分段；损坏或不兼容的分段会隔离处理，其他可用分组仍可独立生成成品视频。|重封装诊断现在按片段记录输入/输出音画时间线和时间戳修正摘要。</value></data>
   <data name="ReleaseNotes1611Title" xml:space="preserve"><value>Emerde 1.6.11</value></data>
   <data name="ReleaseNotes1611Date" xml:space="preserve"><value>2026-09-13</value></data>
   <data name="ReleaseNotes1611Items" xml:space="preserve"><value>去掉添加房间、首页选中层、设置页、视频列表和通知里残留的旧界面，统一使用 UI-X。|关于页面补充自动分段说明：自动分段用于录制异常、重连和恢复兜底；默认自动分段最后会合并为一个成品，设置中的自定义分段仍保持独立。|音频内容持续异常时会重启当前录制，避免继续写入异常音轨。|卡顿恢复产生的内部临时分段不再作为额外成品出现在视频列表。|视频列表去掉旧表头占位，录制中和整理中的卡片不再留下大块空白。|连续且参数一致的自动分段会合并成一条；后面不兼容的单独保存，不再标成同一组分段。|优化音频失败时保留原音频并继续合并，优先保证整场完整。|成品卡片用一颗提示汇总异常；点击后可查看音画异常、优化音频失败、卡顿分段的发生时间。|B 站卡顿回退后会再尝试原画，不再钉在备用流。|视频列表滚动时保留已加载封面，滑回去不再先显示占位</value></data>
@@ -1126,9 +1120,6 @@
   <data name="NoExportableLogFiles" xml:space="preserve"><value>没有找到可导出的日志文件。</value></data>
   <data name="RecordingSaveFolderUnavailableTitle" xml:space="preserve"><value>保存目录不可用</value></data>
   <data name="RecordingSaveFolderFallback" xml:space="preserve"><value>本次录制已临时保存到：{0}</value></data>
-  <data name="OriginalAudioTrack" xml:space="preserve"><value>原音频</value></data>
-  <data name="OriginalAudioTrackNumbered" xml:space="preserve"><value>原音频 {0}</value></data>
-  <data name="OptimizedAudioTrack" xml:space="preserve"><value>优化音频</value></data>
   <data name="RecoveryJsonInvalid" xml:space="preserve"><value>JSON 语法损坏：{0}</value></data>
   <data name="RecoveryMarkerEmpty" xml:space="preserve"><value>恢复标记为空。</value></data>
   <data name="RecoverySourcePathAbsoluteInvalid" xml:space="preserve"><value>源文件路径不是有效的绝对路径。</value></data>
@@ -1161,6 +1152,8 @@
   <data name="ConfigFile" xml:space="preserve"><value>配置文件</value></data>
   <data name="AutomaticMonitoring" xml:space="preserve"><value>自动监控</value></data>
   <data name="AutomaticMonitoringHint" xml:space="preserve"><value>控制跟随全局设置的房间是否自动检查直播状态。</value></data>
+  <data name="RoomMonitorHint" xml:space="preserve"><value>开启后按监控计划自动检查此直播间的直播状态；关闭后不会自动发现开播。</value></data>
+  <data name="FollowAllGlobalSettings" xml:space="preserve"><value>全部跟随全局</value></data>
   <data name="MonitoringSchedule" xml:space="preserve"><value>监控计划</value></data>
   <data name="GlobalMonitoringScheduleHint" xml:space="preserve"><value>可组合日期范围、星期和时间段，限制全局自动监控。</value></data>
   <data name="RoomMonitoringScheduleHint" xml:space="preserve"><value>可组合日期范围、星期和时间段，限制此直播间的自动监控。</value></data>
@@ -1332,7 +1325,6 @@
   <data name="TokenQuality" xml:space="preserve"><value>画质</value></data>
   <data name="TokenVideoCodec" xml:space="preserve"><value>视频编码</value></data>
   <data name="TokenAudioCodec" xml:space="preserve"><value>音频编码</value></data>
-  <data name="TokenOptimizedAudio" xml:space="preserve"><value>优化音频</value></data>
   <data name="TokenRecordStartTime" xml:space="preserve"><value>录制开始时间</value></data>
   <data name="TokenRecordEndTime" xml:space="preserve"><value>录制结束时间</value></data>
   <data name="TokenDuration" xml:space="preserve"><value>视频时长</value></data>
@@ -1341,10 +1333,17 @@
   <data name="ReleaseNotesCategoryStability" xml:space="preserve"><value>性能与稳定性</value></data>
   <data name="ReleaseNotesCategoryUi" xml:space="preserve"><value>界面修改</value></data>
   <data name="ReleaseNotesCategoryInstall" xml:space="preserve"><value>安装与升级</value></data>
+  <data name="ReleaseNotesCategoryRemovedFeatures" xml:space="preserve"><value>移除功能</value></data>
   <data name="StorageSpaceLowTitle" xml:space="preserve"><value>磁盘空间不足</value></data>
   <data name="StorageSpaceLowMessage" xml:space="preserve"><value>检测到可用空间为 {0}。录制要求可用空间严格大于 10 GiB，请立即处理磁盘空间。</value></data>
   <data name="StorageExhaustedTitle" xml:space="preserve"><value>磁盘空间已耗尽</value></data>
   <data name="StorageExhaustedMessage" xml:space="preserve"><value>所有房间的录制已暂停，新的录制已禁止。请立即释放录制磁盘空间。</value></data>
   <data name="StorageExhaustedCurrentSpace" xml:space="preserve"><value>当前检测到的可用空间：{0}</value></data>
   <data name="StorageExhaustedRecovery" xml:space="preserve"><value>只有所有录制磁盘的可用空间都恢复到严格大于 10 GiB 后，此提示才会关闭。仅增加少量空间不会恢复录制。</value></data>
+  <data name="ReleaseNotes171UiFollowUp" xml:space="preserve"><value>异常提示胶囊补齐左右内边距，悬浮提示底色完整遵循圆角；更新日志正文滚动时保持圆角裁切；双击日期标题右侧空白可刷新列表；单独设置的继承复选框不再重复显示文字，继承时由右侧状态文字替代编辑控件。</value></data>
+  <data name="ReleaseNotes171MediaRecoveryItem" xml:space="preserve"><value>恢复流程会检测分段累计音画偏差，尝试通过校验的 MKV 修复回退，并清理未达标的部分修复产物、保留原始分段。</value></data>
+  <data name="ReleaseNotes171VideoListDeleteItem" xml:space="preserve"><value>删除折叠显示的录制卡片时，现在会一并删除已加载的全部关联分段。</value></data>
+  <data name="ReleaseNotes171RemovedFeaturesItem" xml:space="preserve"><value>优化音频处理已归档在 Git 仓库中，软件不再显示或调用该功能。</value></data>
+  <data name="ReleaseNotes171TimelineToleranceItem" xml:space="preserve"><value>音画验收恢复到既有的 2 秒容差，并依据源时间线校验最终成品。</value></data>
+  <data name="ReleaseNotes171PacketTimestampCorrectionItem" xml:space="preserve"><value>TS 重封装现在只对重复或倒退的视频解码时间戳做维持递增所需的最小修正，避免时间线随数据包累计拉长。</value></data>
 </root>

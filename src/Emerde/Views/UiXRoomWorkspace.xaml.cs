@@ -53,7 +53,7 @@ public sealed partial class UiXRoomWorkspace : WpfUserControl, IDisposable
 
     partial void OnSelectedStageChanged(int value)
     {
-        int normalized = Math.Clamp(value, 0, 3);
+        int normalized = Math.Clamp(value, 1, 3);
         if (normalized != value)
         {
             SelectedStage = normalized;
@@ -64,7 +64,7 @@ public sealed partial class UiXRoomWorkspace : WpfUserControl, IDisposable
         OnPropertyChanged(nameof(RecordingVisibility));
         OnPropertyChanged(nameof(OutputVisibility));
         StageScrollViewer?.ScrollToTop();
-        Dispatcher.BeginInvoke(new Action(() =>
+        Dispatcher.BeginInvoke(() =>
         {
             UpdateSurfaceSize();
             FrameworkElement? stage = SelectedStage switch
@@ -78,7 +78,7 @@ public sealed partial class UiXRoomWorkspace : WpfUserControl, IDisposable
             {
                 MotionAssist.PlayEntrance(stage);
             }
-        }), DispatcherPriority.Render);
+        }, DispatcherPriority.Render);
     }
 
     [ObservableProperty]
@@ -146,19 +146,7 @@ public sealed partial class UiXRoomWorkspace : WpfUserControl, IDisposable
         }
     }
 
-    public bool IsCustomMode
-    {
-        get => !Editor.IsFollowGlobalSettings;
-        set
-        {
-            if (value == IsCustomMode)
-            {
-                return;
-            }
-            Editor.IsFollowGlobalSettings = !value;
-            OnPropertyChanged();
-        }
-    }
+    public bool IsCustomMode => Editor.HasCustomSettings;
 
     public string TaskTitle => isAddMode ? "AddRoom".Tr() : "SingleSettings".Tr();
 
@@ -174,13 +162,17 @@ public sealed partial class UiXRoomWorkspace : WpfUserControl, IDisposable
 
     public Visibility LoadingVisibility => IsResolving ? Visibility.Visible : Visibility.Collapsed;
 
-    public Visibility CustomWorkspaceVisibility => IsCustomMode ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility CustomWorkspaceVisibility => Visibility.Visible;
 
     public Visibility RunVisibility => SelectedStage == 1 ? Visibility.Visible : Visibility.Collapsed;
 
     public Visibility RecordingVisibility => SelectedStage == 2 ? Visibility.Visible : Visibility.Collapsed;
 
     public Visibility OutputVisibility => SelectedStage == 3 ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility FollowAllGlobalButtonVisibility => IsCustomMode ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility FollowGlobalTextVisibility => IsCustomMode ? Visibility.Collapsed : Visibility.Visible;
 
     public bool CanResolve => isAddMode && !IsResolving && !string.IsNullOrWhiteSpace(RoomUrlInput);
 
@@ -251,7 +243,7 @@ public sealed partial class UiXRoomWorkspace : WpfUserControl, IDisposable
     {
         return new UiXRoomWorkspace(new RoomStatusReactive
         {
-            IsFollowGlobalSettings = true,
+            IsFollowGlobalSettings = false,
             IsToNotify = true,
             IsToMonitor = Configurations.IsToMonitor.Get(),
             IsToRecord = Configurations.IsToRecord.Get(),
@@ -322,7 +314,7 @@ public sealed partial class UiXRoomWorkspace : WpfUserControl, IDisposable
             return;
         }
 
-        double preferredWidth = IsCustomMode ? 832d : 680d;
+        double preferredWidth = IsCustomMode ? 900d : 680d;
         WorkspaceSurface.Width = Math.Max(1d, Math.Min(preferredWidth, owner.ActualWidth - 52d));
         WorkspaceSurface.Height = double.NaN;
         WorkspaceSurface.MaxHeight = Math.Max(1d, owner.ActualHeight - 74d);
@@ -330,10 +322,13 @@ public sealed partial class UiXRoomWorkspace : WpfUserControl, IDisposable
 
     private void EditorPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(LocalSettingsContentDialog.IsFollowGlobalSettings))
+        if (e.PropertyName == nameof(LocalSettingsContentDialog.IsFollowGlobalSettings)
+            || e.PropertyName == nameof(LocalSettingsContentDialog.HasCustomSettings))
         {
             OnPropertyChanged(nameof(IsCustomMode));
             OnPropertyChanged(nameof(CustomWorkspaceVisibility));
+            OnPropertyChanged(nameof(FollowAllGlobalButtonVisibility));
+            OnPropertyChanged(nameof(FollowGlobalTextVisibility));
             OnPropertyChanged(nameof(ModeSummary));
             Dispatcher.BeginInvoke(UpdateSurfaceSize);
         }
@@ -426,30 +421,17 @@ public sealed partial class UiXRoomWorkspace : WpfUserControl, IDisposable
         }
     }
 
+    private void FollowAllGlobalSettingsClick(object sender, RoutedEventArgs e)
+    {
+        Editor.IsFollowGlobalSettings = true;
+    }
+
     private void StageButtonClick(object sender, RoutedEventArgs e)
     {
         if (sender is WpfRadioButton { CommandParameter: string stage } && int.TryParse(stage, out int index))
         {
             SelectedStage = index;
         }
-    }
-
-    private void CustomModeChecked(object sender, RoutedEventArgs e)
-    {
-        if (!IsLoaded)
-        {
-            return;
-        }
-
-        SelectedStage = 1;
-        SetCheckedStage(1);
-    }
-
-    private void SetCheckedStage(int index)
-    {
-        RunStageButton.IsChecked = index == 1;
-        RecordingStageButton.IsChecked = index == 2;
-        OutputStageButton.IsChecked = index == 3;
     }
 
     private void StartLoadingAnimation()

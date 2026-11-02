@@ -570,6 +570,13 @@ namespace Emerde.Properties {
             }
         }
 
+        public static string RoomMonitorHint {
+            get {
+                return ResourceManager.GetString("RoomMonitorHint", resourceCulture);
+            }
+        }
+
+
         /// <summary>
         ///   Looks up a localized string similar to Auto Shutdown.
         /// </summary>
@@ -1370,15 +1377,6 @@ namespace Emerde.Properties {
         public static string CreateDesktopShortcutHint {
             get {
                 return ResourceManager.GetString("CreateDesktopShortcutHint", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Create optimized audio track (recommended).
-        /// </summary>
-        public static string CreateOptimizedAudioTrack {
-            get {
-                return ResourceManager.GetString("CreateOptimizedAudioTrack", resourceCulture);
             }
         }
 
@@ -2388,6 +2386,12 @@ namespace Emerde.Properties {
         public static string FollowGlobalSettings {
             get {
                 return ResourceManager.GetString("FollowGlobalSettings", resourceCulture);
+            }
+        }
+
+        public static string FollowAllGlobalSettings {
+            get {
+                return ResourceManager.GetString("FollowAllGlobalSettings", resourceCulture);
             }
         }
 
@@ -3609,54 +3613,6 @@ namespace Emerde.Properties {
         public static string OperationFailedWithLabel {
             get {
                 return ResourceManager.GetString("OperationFailedWithLabel", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Optimized audio.
-        /// </summary>
-        public static string OptimizedAudioTrack {
-            get {
-                return ResourceManager.GetString("OptimizedAudioTrack", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to MP4 keeps the original audio and adds an AAC track with gain, compression, and limiting..
-        /// </summary>
-        public static string OptimizedAudioTrackDescription {
-            get {
-                return ResourceManager.GetString("OptimizedAudioTrackDescription", resourceCulture);
-            }
-        }
-
-        public static string OptimizedAudioCreated {
-            get {
-                return ResourceManager.GetString("OptimizedAudioCreated", resourceCulture);
-            }
-        }
-
-        public static string OptimizeAudioFromVideo {
-            get {
-                return ResourceManager.GetString("OptimizeAudioFromVideo", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Original audio.
-        /// </summary>
-        public static string OriginalAudioTrack {
-            get {
-                return ResourceManager.GetString("OriginalAudioTrack", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Original audio {0}.
-        /// </summary>
-        public static string OriginalAudioTrackNumbered {
-            get {
-                return ResourceManager.GetString("OriginalAudioTrackNumbered", resourceCulture);
             }
         }
 
@@ -6237,12 +6193,6 @@ namespace Emerde.Properties {
         public static string TokenLiveTitle {
             get {
                 return ResourceManager.GetString("TokenLiveTitle", resourceCulture);
-            }
-        }
-
-        public static string TokenOptimizedAudio {
-            get {
-                return ResourceManager.GetString("TokenOptimizedAudio", resourceCulture);
             }
         }
 

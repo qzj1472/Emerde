@@ -227,16 +227,14 @@
                                   ToolTip="{I18N LiveNotification}">
                         <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.Ringer}" />
                     </ToggleButton>
-                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
-                        <RadioButton Content="{I18N FollowGlobalSettings}"
-                                     IsChecked="{Binding Editor.IsFollowGlobalSettings, Mode=TwoWay}"
-                                     Style="{StaticResource WorkspaceModeButtonStyle}" />
-                        <RadioButton Content="{I18N Custom}"
-                                     Checked="CustomModeChecked"
-                                     IsChecked="{Binding IsCustomMode, Mode=TwoWay}"
-                                     Margin="0"
-                                     Style="{StaticResource WorkspaceModeButtonStyle}" />
-                    </StackPanel>
+                    <Button Content="{I18N FollowAllGlobalSettings}"
+                            Click="FollowAllGlobalSettingsClick"
+                            Visibility="{Binding FollowAllGlobalButtonVisibility}" />
+                    <TextBlock Margin="8,0,0,0"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource UiXTextSecondaryBrush}"
+                               Text="{I18N FollowGlobalSettings}"
+                               Visibility="{Binding FollowGlobalTextVisibility}" />
                 </StackPanel>
             </Grid>
             <Grid Grid.Row="1" Margin="24,16,24,8">
@@ -301,60 +299,76 @@
                               FocusVisualStyle="{x:Null}"
                               HorizontalScrollBarVisibility="Disabled"
                               VerticalScrollBarVisibility="Auto">
-                    <Grid>
+                    <StackPanel>
                         <StackPanel x:Name="RunStage" Visibility="{Binding RunVisibility}">
                             <Border Style="{StaticResource WorkspaceSectionStyle}">
-                                <StackPanel IsEnabled="{Binding Editor.CanEditLocalSettings}">
+                                <StackPanel>
                                     <Border Style="{StaticResource WorkspaceSettingRowStyle}">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="220" />
                                             </Grid.ColumnDefinitions>
-                                            <StackPanel>
+                                            <CheckBox MinWidth="0" Margin="0,0,16,0" IsChecked="{Binding Editor.IsMonitorFollowingGlobal, Mode=TwoWay}" />
+                                            <StackPanel Grid.Column="1">
                                                 <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N Monitor}" />
-                                                <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{I18N AutomaticMonitoringHint}" />
+                                                <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{I18N RoomMonitorHint}" />
                                             </StackPanel>
-                                            <ui:ToggleSwitch Grid.Column="1" HorizontalAlignment="Right" IsChecked="{Binding Editor.IsToMonitor, Mode=TwoWay}" />
+                                            <Grid Grid.Column="2">
+                                                <ui:ToggleSwitch HorizontalAlignment="Right" IsChecked="{Binding Editor.IsToMonitor, Mode=TwoWay}" Visibility="{Binding Editor.CanEditMonitor, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}" />
+                                                <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource UiXTextSecondaryBrush}" Text="{I18N FollowGlobalSettings}" Visibility="{Binding Editor.IsMonitorFollowingGlobal, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}" />
+                                            </Grid>
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource WorkspaceSettingRowStyle}">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="220" />
                                             </Grid.ColumnDefinitions>
-                                            <StackPanel>
+                                            <CheckBox MinWidth="0" Margin="0,0,16,0" IsChecked="{Binding Editor.IsRecordFollowingGlobal, Mode=TwoWay}" />
+                                            <StackPanel Grid.Column="1">
                                                 <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N EnableRecord}" />
                                                 <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{I18N EnableRecordHint}" />
                                             </StackPanel>
-                                            <ui:ToggleSwitch Grid.Column="1" HorizontalAlignment="Right" IsChecked="{Binding Editor.IsToRecord, Mode=TwoWay}" />
+                                            <Grid Grid.Column="2">
+                                                <ui:ToggleSwitch HorizontalAlignment="Right" IsChecked="{Binding Editor.IsToRecord, Mode=TwoWay}" Visibility="{Binding Editor.CanEditRecord, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}" />
+                                                <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource UiXTextSecondaryBrush}" Text="{I18N FollowGlobalSettings}" Visibility="{Binding Editor.IsRecordFollowingGlobal, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}" />
+                                            </Grid>
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource WorkspaceSettingRowStyle}">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="220" />
                                             </Grid.ColumnDefinitions>
-                                            <StackPanel>
+                                            <CheckBox MinWidth="0" Margin="0,0,16,0" IsChecked="{Binding Editor.IsMonitoringScheduleFollowingGlobal, Mode=TwoWay}" />
+                                            <StackPanel Grid.Column="1">
                                                 <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N MonitoringSchedule}" />
                                                 <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{I18N RoomMonitoringScheduleHint}" />
                                             </StackPanel>
-                                            <ComboBox Grid.Column="1"
-                                                      controls:ScrollEdgeFade.IsEnabled="True"
-                                                      SelectedIndex="{Binding Editor.RoutineScheduleModeIndex, Mode=TwoWay}">
-                                                <ComboBoxItem Content="{I18N ScheduleAlways}" />
-                                                <ComboBoxItem Content="{I18N ScheduleWeekdays}" />
-                                                <ComboBoxItem Content="{I18N ScheduleWeekends}" />
-                                                <ComboBoxItem Content="{I18N ScheduleNight}" />
-                                                <ComboBoxItem Content="{I18N ScheduleCustom}" />
-                                            </ComboBox>
+                                            <Grid Grid.Column="2">
+                                                <ComboBox controls:ScrollEdgeFade.IsEnabled="True"
+                                                          SelectedIndex="{Binding Editor.RoutineScheduleModeIndex, Mode=TwoWay}"
+                                                          Visibility="{Binding Editor.CanEditMonitoringSchedule, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}">
+                                                    <ComboBoxItem Content="{I18N ScheduleAlways}" />
+                                                    <ComboBoxItem Content="{I18N ScheduleWeekdays}" />
+                                                    <ComboBoxItem Content="{I18N ScheduleWeekends}" />
+                                                    <ComboBoxItem Content="{I18N ScheduleNight}" />
+                                                    <ComboBoxItem Content="{I18N ScheduleCustom}" />
+                                                </ComboBox>
+                                                <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource UiXTextSecondaryBrush}" Text="{I18N FollowGlobalSettings}" Visibility="{Binding Editor.IsMonitoringScheduleFollowingGlobal, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}" />
+                                            </Grid>
                                         </Grid>
                                     </Border>
-                                    <Border Style="{StaticResource WorkspaceChildSectionStyle}"
-                                            Visibility="{Binding Editor.IsRoutineScheduleCustom, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}">
-                                        <StackPanel>
+                                    <Grid Visibility="{Binding Editor.CanEditMonitoringSchedule, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}">
+                                        <Border Style="{StaticResource WorkspaceChildSectionStyle}"
+                                                Visibility="{Binding Editor.IsRoutineScheduleCustom, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}">
+                                            <StackPanel>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="92" />
@@ -409,19 +423,23 @@
                                                     <controls:CompactNumberBox Grid.Column="6" Maximum="59" Minimum="0" Value="{Binding Editor.RoutineScheduleEndMinute, Mode=TwoWay}" />
                                                 </Grid>
                                             </Grid>
-                                        </StackPanel>
-                                    </Border>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
                                     <Border Style="{StaticResource WorkspaceSettingRowStyle}">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="220" />
                                             </Grid.ColumnDefinitions>
-                                            <StackPanel>
+                                            <CheckBox MinWidth="0" Margin="0,0,16,0" IsChecked="{Binding Editor.IsRoutineIntervalFollowingGlobal, Mode=TwoWay}" />
+                                            <StackPanel Grid.Column="1">
                                                 <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N RoutineInterval}" />
                                                 <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{I18N RoutineIntervalHint}" />
                                             </StackPanel>
-                                            <StackPanel Grid.Column="1" HorizontalAlignment="Right" Orientation="Horizontal">
+                                            <Grid Grid.Column="2">
+                                                <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Visibility="{Binding Editor.CanEditRoutineInterval, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}">
                                                 <controls:CompactNumberBox Width="112"
                                                                            Maximum="2147483647"
                                                                            Minimum="1"
@@ -433,79 +451,95 @@
                                                           ItemsSource="{Binding Editor.TimeUnitOptions}"
                                                           SelectedValue="{Binding Editor.RoutineIntervalUnitIndex, Mode=TwoWay}"
                                                           SelectedValuePath="Value" />
-                                            </StackPanel>
+                                                </StackPanel>
+                                                <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource UiXTextSecondaryBrush}" Text="{I18N FollowGlobalSettings}" Visibility="{Binding Editor.IsRoutineIntervalFollowingGlobal, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}" />
+                                            </Grid>
                                         </Grid>
                                     </Border>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
-                        <StackPanel x:Name="RecordingStage" Visibility="{Binding RecordingVisibility}">
+                        <StackPanel x:Name="RecordingStage" Margin="0,12,0,0" Visibility="{Binding RecordingVisibility}">
                             <Border Style="{StaticResource WorkspaceSectionStyle}">
-                                <StackPanel IsEnabled="{Binding Editor.CanEditLocalSettings}">
+                                <StackPanel>
                                     <Border Style="{StaticResource WorkspaceSettingRowStyle}">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="220" />
                                             </Grid.ColumnDefinitions>
-                                            <StackPanel>
+                                            <CheckBox MinWidth="0" Margin="0,0,16,0" IsChecked="{Binding Editor.IsQualityFollowingGlobal, Mode=TwoWay}" />
+                                            <StackPanel Grid.Column="1">
                                                 <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N QualityLabel}" />
                                                 <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{I18N StreamQualityHint}" />
                                             </StackPanel>
-                                            <ComboBox Grid.Column="1"
-                                                      controls:ScrollEdgeFade.IsEnabled="True"
-                                                      DisplayMemberPath="DisplayName"
-                                                      ItemsSource="{Binding Editor.QualityOptions}"
-                                                      SelectedValue="{Binding Editor.PreferredQuality, Mode=TwoWay}"
-                                                      SelectedValuePath="Value" />
+                                            <Grid Grid.Column="2">
+                                                <ComboBox controls:ScrollEdgeFade.IsEnabled="True"
+                                                          DisplayMemberPath="DisplayName"
+                                                          ItemsSource="{Binding Editor.QualityOptions}"
+                                                          SelectedValue="{Binding Editor.PreferredQuality, Mode=TwoWay}"
+                                                          SelectedValuePath="Value"
+                                                          Visibility="{Binding Editor.CanEditQuality, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}" />
+                                                <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource UiXTextSecondaryBrush}" Text="{I18N FollowGlobalSettings}" Visibility="{Binding Editor.IsQualityFollowingGlobal, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}" />
+                                            </Grid>
                                         </Grid>
                                     </Border>
                                     <Border Style="{StaticResource WorkspaceSettingRowStyle}">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="220" />
                                             </Grid.ColumnDefinitions>
-                                            <StackPanel>
+                                            <CheckBox MinWidth="0" Margin="0,0,16,0" IsChecked="{Binding Editor.IsRecordFormatFollowingGlobal, Mode=TwoWay}" />
+                                            <StackPanel Grid.Column="1">
                                                 <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N RecordFormat}" />
                                                 <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{I18N RecordFormatHint}" />
                                             </StackPanel>
-                                            <ComboBox Grid.Column="1"
-                                                      controls:ScrollEdgeFade.IsEnabled="True"
-                                                      SelectedIndex="{Binding Editor.RecordFormatIndex, Mode=TwoWay}">
-                                                <ComboBoxItem Content="TS/FLV" />
-                                                <ComboBoxItem Content="TS/FLV -&gt; MP4" />
-                                                <ComboBoxItem Content="TS/FLV -&gt; MKV" />
-                                            </ComboBox>
+                                            <Grid Grid.Column="2">
+                                                <ComboBox controls:ScrollEdgeFade.IsEnabled="True"
+                                                          SelectedIndex="{Binding Editor.RecordFormatIndex, Mode=TwoWay}"
+                                                          Visibility="{Binding Editor.CanEditRecordFormat, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}">
+                                                    <ComboBoxItem Content="TS/FLV" />
+                                                    <ComboBoxItem Content="TS/FLV -&gt; MP4" />
+                                                    <ComboBoxItem Content="TS/FLV -&gt; MKV" />
+                                                </ComboBox>
+                                                <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource UiXTextSecondaryBrush}" Text="{I18N FollowGlobalSettings}" Visibility="{Binding Editor.IsRecordFormatFollowingGlobal, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}" />
+                                            </Grid>
                                         </Grid>
                                     </Border>
-                                    <Border Style="{StaticResource WorkspaceChildSectionStyle}"
-                                            Visibility="{Binding Editor.IsTranscodedRecordFormat, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}">
-                                        <StackPanel>
+                                    <Grid Visibility="{Binding Editor.CanEditRecordFormat, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}">
+                                        <Border Style="{StaticResource WorkspaceChildSectionStyle}"
+                                                Visibility="{Binding Editor.IsTranscodedRecordFormat, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}">
+                                            <StackPanel>
                                             <CheckBox Content="{I18N RecordFormatAutoRemove}"
                                                       IsChecked="{Binding Editor.IsRemoveTs, Mode=TwoWay}" />
-                                            <CheckBox Margin="0,10,0,0"
-                                                      Content="{I18N CreateOptimizedAudioTrack}"
-                                                      IsChecked="{Binding Editor.IsOptimizeAudio, Mode=TwoWay}"
-                                                      Visibility="{Binding Editor.IsTranscodedRecordFormat, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}" />
-                                        </StackPanel>
-                                    </Border>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
                                     <Border Style="{StaticResource WorkspaceSettingRowStyle}">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="220" />
                                             </Grid.ColumnDefinitions>
-                                            <StackPanel>
+                                            <CheckBox MinWidth="0" Margin="0,0,16,0" IsChecked="{Binding Editor.IsSegmentFollowingGlobal, Mode=TwoWay}" />
+                                            <StackPanel Grid.Column="1">
                                                 <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N Segment}" />
                                                 <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{I18N SegmentHint}" />
                                             </StackPanel>
-                                            <ui:ToggleSwitch Grid.Column="1" HorizontalAlignment="Right" IsChecked="{Binding Editor.IsToSegment, Mode=TwoWay}" />
+                                            <Grid Grid.Column="2">
+                                                <ui:ToggleSwitch HorizontalAlignment="Right" IsChecked="{Binding Editor.IsToSegment, Mode=TwoWay}" Visibility="{Binding Editor.CanEditSegment, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}" />
+                                                <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource UiXTextSecondaryBrush}" Text="{I18N FollowGlobalSettings}" Visibility="{Binding Editor.IsSegmentFollowingGlobal, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}" />
+                                            </Grid>
                                         </Grid>
                                     </Border>
-                                    <Border Style="{StaticResource WorkspaceChildSectionStyle}"
-                                            Visibility="{Binding Editor.IsToSegment, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}">
-                                        <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                    <Grid Visibility="{Binding Editor.CanEditSegment, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}">
+                                        <Border Style="{StaticResource WorkspaceChildSectionStyle}"
+                                                Visibility="{Binding Editor.IsToSegment, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}">
+                                            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
                                             <controls:CompactNumberBox Width="112"
                                                                        Maximum="2147483647"
                                                                        Minimum="1"
@@ -517,64 +551,92 @@
                                                       ItemsSource="{Binding Editor.SegmentUnitOptions}"
                                                       SelectedValue="{Binding Editor.SegmentTimeUnitIndex, Mode=TwoWay}"
                                                       SelectedValuePath="Value" />
-                                        </StackPanel>
-                                    </Border>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
-                        <StackPanel x:Name="OutputStage" Visibility="{Binding OutputVisibility}">
+                        <StackPanel x:Name="OutputStage" Margin="0,12,0,0" Visibility="{Binding OutputVisibility}">
                             <Border Style="{StaticResource WorkspaceSectionStyle}">
-                                <StackPanel IsEnabled="{Binding Editor.CanEditLocalSettings}">
-                                    <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N SaveFolder}" />
-                                    <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{I18N SaveFolderHint}" />
-                                    <Grid Margin="0,12,0,0">
+                                <StackPanel>
+                                    <Grid>
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <ui:TextBox Height="38"
-                                                 VerticalContentAlignment="Center"
-                                                 PlaceholderText="EmerdeDownloads"
-                                                 Text="{Binding Editor.SaveFolder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <Button Grid.Column="1"
-                                                MinWidth="92"
-                                                Height="38"
-                                                Margin="8,0,0,0"
-                                                Command="{Binding Editor.SelectSaveFolderCommand}"
-                                                Content="{I18N SelectFolder}" />
-                                        <Button Grid.Column="2"
-                                                MinWidth="84"
-                                                Height="38"
-                                                Margin="8,0,0,0"
-                                                Command="{Binding Editor.OpenSaveFolderCommand}"
-                                                Content="{I18N OpenFolder}" />
+                                        <CheckBox MinWidth="0" Margin="0,0,16,0" IsChecked="{Binding Editor.IsOutputFolderFollowingGlobal, Mode=TwoWay}" />
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N SaveFolder}" />
+                                            <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{I18N SaveFolderHint}" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid Visibility="{Binding Editor.CanEditOutputFolder, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <ui:TextBox Height="38"
+                                                     VerticalContentAlignment="Center"
+                                                     PlaceholderText="EmerdeDownloads"
+                                                     Text="{Binding Editor.SaveFolder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <Button Grid.Column="1"
+                                                    MinWidth="92"
+                                                    Height="38"
+                                                    Margin="8,0,0,0"
+                                                    Command="{Binding Editor.SelectSaveFolderCommand}"
+                                                    Content="{I18N SelectFolder}" />
+                                            <Button Grid.Column="2"
+                                                    MinWidth="84"
+                                                    Height="38"
+                                                    Margin="8,0,0,0"
+                                                    Command="{Binding Editor.OpenSaveFolderCommand}"
+                                                    Content="{I18N OpenFolder}" />
+                                        </Grid>
+                                        <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource UiXTextSecondaryBrush}" Text="{I18N FollowGlobalSettings}" Visibility="{Binding Editor.IsOutputFolderFollowingGlobal, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}" />
                                     </Grid>
                                     <Grid Margin="0,18,0,0">
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="220" />
                                         </Grid.ColumnDefinitions>
-                                        <StackPanel>
+                                        <CheckBox MinWidth="0" Margin="0,0,16,0" IsChecked="{Binding Editor.IsOutputPathLevelFollowingGlobal, Mode=TwoWay}" />
+                                        <StackPanel Grid.Column="1">
                                             <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N UiXWorkspaceHierarchy}" />
                                             <TextBlock Style="{StaticResource WorkspaceHintStyle}" Text="{Binding OutputSummary}" />
                                         </StackPanel>
-                                        <ComboBox Grid.Column="1"
-                                                  controls:ScrollEdgeFade.IsEnabled="True"
-                                                  SelectedIndex="{Binding Editor.SaveFolderPathLevelIndex, Mode=TwoWay}">
-                                            <ComboBoxItem Content="{I18N SavePathLevelRootOnly}" />
-                                            <ComboBoxItem Content="{I18N SavePathLevelAuthor}" />
-                                            <ComboBoxItem Content="{I18N SavePathLevelAuthorYearMonth}" />
-                                            <ComboBoxItem Content="{I18N SavePathLevelAuthorDate}" />
-                                        </ComboBox>
+                                        <Grid Grid.Column="2">
+                                            <ComboBox controls:ScrollEdgeFade.IsEnabled="True"
+                                                      SelectedIndex="{Binding Editor.SaveFolderPathLevelIndex, Mode=TwoWay}"
+                                                      Visibility="{Binding Editor.CanEditOutputPathLevel, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}">
+                                                <ComboBoxItem Content="{I18N SavePathLevelRootOnly}" />
+                                                <ComboBoxItem Content="{I18N SavePathLevelAuthor}" />
+                                                <ComboBoxItem Content="{I18N SavePathLevelAuthorYearMonth}" />
+                                                <ComboBoxItem Content="{I18N SavePathLevelAuthorDate}" />
+                                            </ComboBox>
+                                            <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource UiXTextSecondaryBrush}" Text="{I18N FollowGlobalSettings}" Visibility="{Binding Editor.IsOutputPathLevelFollowingGlobal, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}" />
+                                        </Grid>
                                     </Grid>
-                                    <TextBlock Margin="20,18,0,0" Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N CustomRule}" />
-                                    <Grid Margin="20,8,0,0">
+                                    <Grid Margin="0,18,0,0">
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="2*" />
                                         </Grid.ColumnDefinitions>
+                                        <CheckBox MinWidth="0" Margin="0,0,16,0" IsChecked="{Binding Editor.IsOutputNamingFollowingGlobal, Mode=TwoWay}" />
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Style="{StaticResource WorkspaceLabelStyle}" Text="{I18N CustomRule}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Visibility="{Binding Editor.CanEditOutputNaming, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
                                          <ui:TextBox Height="40"
                                                      VerticalContentAlignment="Center"
                                                      controls:MotionAssist.EntranceOffsetY="3"
@@ -602,8 +664,8 @@
                                                 ToolTip="{I18N Clear}">
                                             <ui:FontIcon FontFamily="{DynamicResource SymbolThemeFontFamily}" Glyph="{x:Static ui:FontSymbols.CalculatorMultiply}" />
                                         </Button>
-                                    </Grid>
-                                    <UniformGrid Margin="40,10,0,0" Columns="4">
+                                            </Grid>
+                                            <UniformGrid Margin="0,10,0,0" Columns="4">
                                         <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{主播名}" Content="{I18N TokenAuthor}" />
                                         <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{平台}" Content="{I18N Platform}" />
                                         <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{直播标题}" Content="{I18N TokenLiveTitle}" />
@@ -614,16 +676,18 @@
                                         <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{画质}" Content="{I18N TokenQuality}" />
                                         <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{视频编码}" Content="{I18N TokenVideoCodec}" />
                                         <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{音频编码}" Content="{I18N TokenAudioCodec}" />
-                                        <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{优化音频}" Content="{I18N TokenOptimizedAudio}" />
                                         <Border />
                                         <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{录制开始时间}" Content="{I18N TokenRecordStartTime}" />
                                         <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{录制结束时间}" Content="{I18N TokenRecordEndTime}" />
                                         <Button Margin="0,0,8,8" Command="{Binding Editor.AppendSaveFileNameTokenCommand}" CommandParameter="{}{视频时长}" Content="{I18N TokenDuration}" />
-                                    </UniformGrid>
+                                            </UniformGrid>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource UiXTextSecondaryBrush}" Text="{I18N FollowGlobalSettings}" Visibility="{Binding Editor.IsOutputNamingFollowingGlobal, Converter={x:Static local:UiXRoomWorkspace.BoolToVisibility}}" />
+                                    </Grid>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
-                    </Grid>
+                    </StackPanel>
                 </ScrollViewer>
             </Grid>
             <Grid Grid.Row="3" Margin="24,12,24,22">

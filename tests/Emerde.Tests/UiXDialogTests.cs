@@ -161,7 +161,7 @@ public sealed class UiXDialogTests
         string workspaceSource = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "UiXRoomWorkspace.xaml.cs"));
 
         Assert.Contains("UiXWorkspaceHost.Content = workspace", source, StringComparison.Ordinal);
-        Assert.Contains("IsCustomMode ? 832d : 680d", workspaceSource, StringComparison.Ordinal);
+        Assert.Contains("IsCustomMode ? 900d : 680d", workspaceSource, StringComparison.Ordinal);
         Assert.Contains("WorkspaceSurface.Width = Math.Max", workspaceSource, StringComparison.Ordinal);
     }
 
