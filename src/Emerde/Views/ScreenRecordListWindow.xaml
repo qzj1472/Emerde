@@ -15,11 +15,14 @@
     <UserControl.Resources>
         <local:VideoDateGroupLabelConverter x:Key="VideoDateGroupLabelConverter" />
         <DataTemplate x:Key="VideoDateGroupHeaderTemplate">
-            <TextBlock FontSize="15"
-                       HorizontalAlignment="Left"
-                       FontWeight="SemiBold"
-                       Foreground="{DynamicResource UiXTextPrimaryBrush}"
-                       Text="{Binding Name, Converter={StaticResource VideoDateGroupLabelConverter}}" />
+            <Grid Background="Transparent"
+                  MouseLeftButtonDown="VideoDateGroupHeaderMouseLeftButtonDown">
+                <TextBlock FontSize="15"
+                           HorizontalAlignment="Left"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource UiXTextPrimaryBrush}"
+                           Text="{Binding Name, Converter={StaticResource VideoDateGroupLabelConverter}}" />
+            </Grid>
         </DataTemplate>
         <DataTemplate x:Key="VideoAttributeStatusChipTemplate">
             <Button Height="17"
@@ -35,6 +38,7 @@
                         <Border Background="{TemplateBinding Background}"
                                 CornerRadius="{StaticResource UiXNestedCornerRadius}">
                             <ContentPresenter HorizontalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"
                                               VerticalAlignment="Center" />
                         </Border>
                     </ControlTemplate>
@@ -646,8 +650,6 @@
                                               Tag="Rename" />
                                     <MenuItem Header="{I18N TranscodeVideo}"
                                               Tag="Transcode" />
-                                    <MenuItem Header="{I18N OptimizeAudioFromVideo}"
-                                              Tag="OptimizeAudio" />
                                     <Separator />
                                     <MenuItem Header="{I18N MergeVideos}"
                                               Tag="Merge" />
@@ -899,6 +901,7 @@
                                                              </ItemsControl.ItemsPanel>
                                                          </ItemsControl>
                                                          <Popup DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
+                                                                AllowsTransparency="True"
                                                                 IsOpen="{Binding IsAttributeStatusPopupOpen, Mode=TwoWay}"
                                                                 Placement="Bottom"
                                                                 PlacementTarget="{Binding ElementName=VideoAttributeStatusHost}"
@@ -906,10 +909,11 @@
                                                                 StaysOpen="False">
                                                              <Border MaxWidth="260"
                                                                      Padding="12,10"
-                                                                     Background="{DynamicResource UiXPanelBrush}"
+                                                                     Background="{DynamicResource UiXCardBrush}"
                                                                      BorderBrush="{DynamicResource UiXStrongStrokeBrush}"
                                                                      BorderThickness="1"
-                                                                     CornerRadius="6">
+                                                                     ClipToBounds="True"
+                                                                     CornerRadius="{StaticResource UiXNestedCornerRadius}">
                                                                  <ItemsControl ItemsSource="{Binding AttributeStatusSections}">
                                                                      <ItemsControl.ItemTemplate>
                                                                          <DataTemplate>

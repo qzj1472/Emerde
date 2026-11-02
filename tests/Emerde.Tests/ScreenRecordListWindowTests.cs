@@ -32,7 +32,8 @@ public sealed class ScreenRecordListWindowTests
         string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
 
         Assert.Contains("ContextMenuOpening=\"VideoCardContextMenuOpening\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("I18N OptimizeAudioFromVideo", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("OptimizeAudio", xaml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("optimized_audio", code, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("{I18N RepairVideo}", xaml, StringComparison.Ordinal);
         Assert.Contains("GetOverrides<IExtensionVideoAction>(ExtensionContractNames.VideoListActions)", code, StringComparison.Ordinal);
     }
@@ -50,67 +51,52 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Theory]
-    [InlineData(0, true, ".mp4", true)]
-    [InlineData(0, false, ".mp4", false)]
-    [InlineData(1, false, ".mkv", false)]
-    public void CreateTranscodeOptions_MapsDialogSelection(int selectedIndex, bool optimizeAudio, string targetFormat, bool expectedOptimization)
+    [InlineData(0, ".mp4")]
+    [InlineData(1, ".mkv")]
+    public void CreateTranscodeOptions_MapsDialogSelection(int selectedIndex, string targetFormat)
     {
-        ConverterOptions options = ScreenRecordListViewModel.CreateTranscodeOptions(selectedIndex, optimizeAudio);
+        ConverterOptions options = ScreenRecordListViewModel.CreateTranscodeOptions(selectedIndex);
         Assert.Equal(targetFormat, options.TargetFormat);
-        Assert.Equal(expectedOptimization, options.OptimizeAudio);
+        Assert.False(options.RemoveSource);
     }
 
     [Fact]
     public void CreateTranscodeOptions_RejectsMissingSelection()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => ScreenRecordListViewModel.CreateTranscodeOptions(-1, true));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ScreenRecordListViewModel.CreateTranscodeOptions(-1));
     }
 
     [Theory]
-    [InlineData(0, true, true)]
-    [InlineData(1, false, true)]
+    [InlineData(0, true)]
+    [InlineData(1, true)]
     public void CreateTranscodeOptions_PreservesSourceDeletionChoice(
         int selectedIndex,
-        bool expectedOptimization,
         bool removeSource)
     {
         ConverterOptions options = ScreenRecordListViewModel.CreateTranscodeOptions(
             selectedIndex,
-            optimizeAudio: expectedOptimization,
             removeSource);
 
         Assert.True(options.RemoveSource);
     }
 
     [Theory]
-    [InlineData(".mp4")]
-    [InlineData(".MKV")]
-    public void CreateOptimizedAudioOptions_UsesNewSameFormatOutput(string targetFormat)
+    [InlineData("TS/FLV -> MKV", 1)]
+    [InlineData("TS/FLV -> MP4", 0)]
+    [InlineData("TS/FLV", 0)]
+    public void TranscodeFormatSelection_FollowsTargetRecordFormat(string targetRecordFormat, int expectedIndex)
     {
-        ConverterOptions options = ScreenRecordListViewModel.CreateOptimizedAudioOptions(targetFormat);
-
-        Assert.Equal(targetFormat.ToLowerInvariant(), options.TargetFormat);
-        Assert.True(options.OptimizeAudio);
-        Assert.True(options.AllowSameFormat);
+        Assert.Equal(expectedIndex, ScreenRecordListViewModel.GetTranscodeFormatIndex(targetRecordFormat));
     }
 
-    [Theory]
-    [InlineData("video.mp4", false, true)]
-    [InlineData("video.mkv", false, true)]
-    [InlineData("video.mkv", true, false)]
-    [InlineData("video.ts", false, false)]
-    public void RecordedVideoItem_CreatesOptimizedAudioOnlyForUnoptimizedCompletedFiles(
-        string path,
-        bool hasOptimizedAudio,
-        bool expected)
+    [Fact]
+    public void ManualTranscode_ExpandsTheFullRecordingGroup()
     {
-        RecordedVideoItem item = new()
-        {
-            FullPath = path,
-            HasOptimizedAudio = hasOptimizedAudio,
-        };
+        string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
+        string method = ExtractMethod(source, "private async Task TranscodeVideoAsync", "private async Task RepairVideoAsync");
 
-        Assert.Equal(expected, item.CanCreateOptimizedAudio);
+        Assert.Contains("ExpandFailedRecordingGroups([item])", method, StringComparison.Ordinal);
+        Assert.Contains("foreach (RecordedVideoItem transcodeItem in transcodeItems)", method, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -414,8 +400,8 @@ public sealed class ScreenRecordListWindowTests
         string source = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
 
         Assert.Contains("if (!forceRefresh && !rootsChanged", source, StringComparison.Ordinal);
-        Assert.Contains("Dictionary<string, RecordedVideoItem> existingByPath = videos", source, StringComparison.Ordinal);
-        Assert.Contains("items = ReuseExistingVideoItems(videos, items);", source, StringComparison.Ordinal);
+        Assert.Contains("Dictionary<string, RecordedVideoItem> existingByPath = loadedVideoItems", source, StringComparison.Ordinal);
+        Assert.Contains("items = ReuseExistingVideoItems(loadedVideoItems, items);", source, StringComparison.Ordinal);
         Assert.DoesNotContain("reuseExistingItems: !forceRefresh", source, StringComparison.Ordinal);
     }
 
@@ -1141,6 +1127,7 @@ public sealed class ScreenRecordListWindowTests
         {
             FullPath = @"C:\videos\record_000.ts",
             IsRecordingFile = true,
+            SupportsTranscode = true,
             RecordingSessionId = "session",
             SegmentIndex = 0,
         };
@@ -1148,6 +1135,7 @@ public sealed class ScreenRecordListWindowTests
         {
             FullPath = @"C:\videos\record_001.ts",
             IsRecordingFile = true,
+            SupportsTranscode = true,
             RecordingSessionId = "session",
             SegmentIndex = 1,
         };
@@ -1166,7 +1154,7 @@ public sealed class ScreenRecordListWindowTests
     }
 
     [Fact]
-    public void ActiveSessionParts_DisplayCumulativeSourceLengthOnRepresentative()
+    public void ActiveSessionParts_DisplayTotalLengthOfGroupedFilesOnRepresentative()
     {
         RecordedVideoItem first = new()
         {
@@ -1190,6 +1178,7 @@ public sealed class ScreenRecordListWindowTests
             SourceLength = 900,
             IsInProgress = true,
             RecordingSessionId = "session",
+            LifecycleStatus = VideoLifecycleStatus.Merging,
         };
 
         RecordedVideoItem[] result = ScreenRecordListViewModel.CollapseActiveSessionParts([first, second, intermediate]);
@@ -1198,6 +1187,33 @@ public sealed class ScreenRecordListWindowTests
         Assert.Same(first, result[0]);
         Assert.Equal(350, first.DisplayLength);
         Assert.Equal(ScreenRecordListViewModel.FormatFileSize(350), first.FileSizeText);
+    }
+
+    [Fact]
+    public void CollapseActiveSessionParts_IncludesStablePartsWithoutAnAssignedIndex()
+    {
+        RecordedVideoItem indexedPart = new()
+        {
+            FullPath = @"C:\videos\session_000.ts",
+            SourceLength = 100,
+            IsInProgress = true,
+            SupportsTranscode = true,
+            RecordingSessionId = "session-id",
+            SegmentIndex = 0,
+        };
+        RecordedVideoItem unindexedPart = new()
+        {
+            FullPath = @"C:\videos\session_pending.ts",
+            SourceLength = 250,
+            IsInProgress = true,
+            SupportsTranscode = true,
+            RecordingSessionId = "session-id",
+        };
+
+        RecordedVideoItem[] collapsed = ScreenRecordListViewModel.CollapseActiveSessionParts([indexedPart, unindexedPart]);
+
+        Assert.Same(indexedPart, Assert.Single(collapsed));
+        Assert.Equal(350, indexedPart.DisplayLength);
     }
 
     [Fact]
@@ -1313,7 +1329,6 @@ public sealed class ScreenRecordListWindowTests
             [
                 ScreenRecordListViewModel.FormatResourceText("SegmentPositionChip", "Part {0}/{1}", 2, 3),
                 ScreenRecordListViewModel.GetResourceText("MediaIssueChip", "A/V issue"),
-                ScreenRecordListViewModel.GetResourceText("OptimizedAudioFailedChip", "Optimized audio failed"),
                 ScreenRecordListViewModel.GetResourceText("StallSegmentChip", "Stall split"),
             ],
             statuses);
@@ -1333,15 +1348,14 @@ public sealed class ScreenRecordListWindowTests
 
         VideoAttributeStatusChip[] chips = item.AttributeStatusChips.ToArray();
 
-        Assert.Equal(5, chips.Length);
+        Assert.Equal(4, chips.Length);
         Assert.Equal(
             [
                 ScreenRecordListViewModel.FormatResourceText("SegmentPositionChip", "Part {0}/{1}", 2, 3),
                 ScreenRecordListViewModel.GetResourceText("MediaIssueChip", "A/V issue"),
-                ScreenRecordListViewModel.GetResourceText("OptimizedAudioFailedChip", "Optimized audio failed"),
                 ScreenRecordListViewModel.GetResourceText("StallSegmentChip", "Stall split"),
             ],
-            chips.Take(4).Select(chip => chip.Title));
+            chips.Take(3).Select(chip => chip.Title));
         Assert.True(chips[^1].IsOverflowIndicator);
         Assert.Equal("…", chips[^1].Title);
     }
@@ -1376,25 +1390,21 @@ public sealed class ScreenRecordListWindowTests
 
         IReadOnlyList<VideoAttributeStatusSection> sections = item.BuildAttributeStatusSections();
 
-        Assert.Equal(4, sections.Count);
+        Assert.Equal(3, sections.Count);
         Assert.Equal(ScreenRecordListViewModel.FormatResourceText("SegmentPositionChip", "Part {0}/{1}", 2, 3), sections[0].Title);
         Assert.Equal(ScreenRecordListViewModel.GetResourceText("MediaIssueChip", "A/V issue"), sections[1].Title);
-        Assert.Equal(ScreenRecordListViewModel.GetResourceText("OptimizedAudioFailedChip", "Optimized audio failed"), sections[2].Title);
-        Assert.Equal(ScreenRecordListViewModel.GetResourceText("StallSegmentChip", "Stall split"), sections[3].Title);
+        Assert.Equal(ScreenRecordListViewModel.GetResourceText("StallSegmentChip", "Stall split"), sections[2].Title);
         Assert.Contains("00:08:12", sections[1].Details[0].TimeText, StringComparison.Ordinal);
         Assert.Equal(ScreenRecordListViewModel.GetResourceText("MediaIssueAudioStalledDescription", "The audio stopped while the picture kept going."), sections[1].Details[0].Description);
-        Assert.Equal(ScreenRecordListViewModel.GetResourceText("AttributeStatusEntireFile", "Entire file"), sections[2].Details[0].TimeText);
-        Assert.Equal(ScreenRecordListViewModel.GetResourceText("OptimizedAudioFailedDescription", "Optimization failed, original audio was kept."), sections[2].Details[0].Description);
         item.LifecycleStatus = VideoLifecycleStatus.Converting;
         item.LifecycleStatus = VideoLifecycleStatus.None;
         item.IsRecordingFile = true;
     }
 
     [Fact]
-    public void VideoCardStatusPopup_UnknownIntervalTimesUseUnknownLabelExceptOptimizedAudio()
+    public void VideoCardStatusPopup_UnknownIntervalTimesUseUnknownLabel()
     {
         string unknown = ScreenRecordListViewModel.GetResourceText("AttributeStatusTimeUnknown", "Time not recorded");
-        string entire = ScreenRecordListViewModel.GetResourceText("AttributeStatusEntireFile", "Entire file");
         VideoRecordingIssueInterval unknownInterval = new()
         {
             Kind = "timeline_mismatch",
@@ -1402,16 +1412,8 @@ public sealed class ScreenRecordListWindowTests
             EndSeconds = -1,
             Detail = "audio_stalled",
         };
-        VideoRecordingIssueInterval optimizedInterval = new()
-        {
-            Kind = "optimized_audio_failed",
-            StartSeconds = -1,
-            EndSeconds = -1,
-            Detail = "original_audio_preserved",
-        };
-
         Assert.Equal(unknown, RecordedVideoItem.FormatIssueTime(unknownInterval));
-        Assert.Equal(entire, RecordedVideoItem.FormatIssueTime(optimizedInterval, entireFileWhenUnknown: true));
+        Assert.Equal(unknown, RecordedVideoItem.FormatIssueTime(unknownInterval, entireFileWhenUnknown: false));
     }
 
     [Fact]
@@ -1437,11 +1439,15 @@ public sealed class ScreenRecordListWindowTests
         Assert.Contains("Click=\"VideoAttributeStatusChipClick\"", xaml, StringComparison.Ordinal);
         Assert.Contains("IsOverflowIndicator", xaml, StringComparison.Ordinal);
         Assert.Contains("IsAttributeStatusPopupOpen, Mode=TwoWay", xaml, StringComparison.Ordinal);
+        Assert.Contains("AllowsTransparency=\"True\"", xaml, StringComparison.Ordinal);
         Assert.Contains("ItemsSource=\"{Binding AttributeStatusSections}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding Title}\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("ToolTip=\"{Binding AttributeStatusText}\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"{Binding Description}\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"{Binding TimeText}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Margin=\"{TemplateBinding Padding}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Background=\"{DynamicResource UiXCardBrush}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ClipToBounds=\"True\"", xaml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1457,12 +1463,108 @@ public sealed class ScreenRecordListWindowTests
     public void VideoDateHeader_UsesOnlyTheTextWidthAndLeavesDividerSeparate()
     {
         string xaml = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml"));
+        string code = File.ReadAllText(FindRepositoryFile("src", "Emerde", "Views", "ScreenRecordListWindow.xaml.cs"));
         XDocument document = XDocument.Parse(xaml);
         XElement headerTemplate = document.Descendants().Single(element => (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "VideoDateGroupHeaderTemplate");
         XElement groupTemplate = document.Descendants().Single(element => (string?)element.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "UiXVideoGroupTemplate");
 
-        Assert.Equal("Left", (string?)headerTemplate.Element(XName.Get("TextBlock", "http://schemas.microsoft.com/winfx/2006/xaml/presentation"))?.Attribute("HorizontalAlignment"));
+        XElement headerGrid = headerTemplate.Element(XName.Get("Grid", "http://schemas.microsoft.com/winfx/2006/xaml/presentation"))!;
+        Assert.Equal("Transparent", (string?)headerGrid.Attribute("Background"));
+        Assert.Equal("VideoDateGroupHeaderMouseLeftButtonDown", (string?)headerGrid.Attribute("MouseLeftButtonDown"));
+        Assert.Equal("Left", (string?)headerGrid.Element(XName.Get("TextBlock", "http://schemas.microsoft.com/winfx/2006/xaml/presentation"))?.Attribute("HorizontalAlignment"));
+        Assert.Contains("ViewModel.RefreshCommand.Execute(null)", code, StringComparison.Ordinal);
         Assert.NotNull(groupTemplate.Descendants(XName.Get("Border", "http://schemas.microsoft.com/winfx/2006/xaml/presentation")).SingleOrDefault(element => (string?)element.Attribute("Height") == "1"));
+    }
+
+    [Fact]
+    public void DeleteFailedRecordingCard_ExpandsToAllLoadedPartsInItsSession()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-delete-recovery-group-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string firstPath = Path.Combine(directory, "part-000.ts");
+        string secondPath = Path.Combine(directory, "part-001.ts");
+        string unrelatedPath = Path.Combine(directory, "other.ts");
+        File.WriteAllBytes(firstPath, [1]);
+        File.WriteAllBytes(secondPath, [2]);
+        File.WriteAllBytes(unrelatedPath, [3]);
+
+        try
+        {
+            RecordedVideoItem failedPart = new()
+            {
+                FullPath = firstPath,
+                IsInProgress = true,
+                ProcessingSessionKey = "marker-a",
+                LifecycleStatus = VideoLifecycleStatus.Failed,
+            };
+            RecordedVideoItem siblingPart = new()
+            {
+                FullPath = secondPath,
+                IsInProgress = true,
+                ProcessingSessionKey = "marker-a",
+            };
+            RecordedVideoItem unrelatedPart = new()
+            {
+                FullPath = unrelatedPath,
+                ProcessingSessionKey = "marker-b",
+            };
+
+            RecordedVideoItem[] collapsed = ScreenRecordListViewModel.CollapseActiveSessionParts([failedPart, siblingPart]);
+            Assert.Same(failedPart, Assert.Single(collapsed));
+
+            RecordedVideoItem[] expanded = ScreenRecordListViewModel.ExpandFailedRecordingGroups(
+                collapsed,
+                [failedPart, siblingPart, unrelatedPart]);
+
+            Assert.Equal([firstPath, secondPath], expanded.Select(item => item.FullPath));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void DeleteSegmentCard_ExpandsToAllLoadedPartsEvenWhenSiblingIsNotFailed()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"emerde-delete-segment-group-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        string firstPath = Path.Combine(directory, "part-000.ts");
+        string secondPath = Path.Combine(directory, "part-001.ts");
+        string unrelatedPath = Path.Combine(directory, "other.ts");
+        File.WriteAllBytes(firstPath, [1]);
+        File.WriteAllBytes(secondPath, [2]);
+        File.WriteAllBytes(unrelatedPath, [3]);
+
+        try
+        {
+            RecordedVideoItem firstPart = new()
+            {
+                FullPath = firstPath,
+                SegmentGroupId = "group-a",
+                LifecycleStatus = VideoLifecycleStatus.Failed,
+            };
+            RecordedVideoItem secondPart = new()
+            {
+                FullPath = secondPath,
+                SegmentGroupId = "group-a",
+            };
+            RecordedVideoItem unrelatedPart = new()
+            {
+                FullPath = unrelatedPath,
+                SegmentGroupId = "group-b",
+            };
+
+            RecordedVideoItem[] expanded = ScreenRecordListViewModel.ExpandFailedRecordingGroups(
+                [firstPart],
+                [firstPart, secondPart, unrelatedPart]);
+
+            Assert.Equal([firstPath, secondPath], expanded.Select(item => item.FullPath));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     [Fact]

@@ -1164,6 +1164,17 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
         e.Handled = true;
     }
 
+    private void VideoDateGroupHeaderMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount < 2 || !ViewModel.RefreshCommand.CanExecute(null))
+        {
+            return;
+        }
+
+        ViewModel.RefreshCommand.Execute(null);
+        e.Handled = true;
+    }
+
     private void PopulateVideoCardContextMenu(FrameworkElement card)
     {
         if (card.ContextMenu is not { } contextMenu
@@ -1261,11 +1272,6 @@ public partial class ScreenRecordListWindow : System.Windows.Controls.UserContro
                 menuItem.Command = viewModel.TranscodeVideoCommand;
                 menuItem.CommandParameter = item;
                 menuItem.IsEnabled = item.CanTranscode;
-                break;
-            case "OptimizeAudio":
-                menuItem.Command = viewModel.OptimizeAudioFromVideoCommand;
-                menuItem.CommandParameter = item;
-                menuItem.IsEnabled = item.CanCreateOptimizedAudio;
                 break;
             case "Merge":
                 menuItem.Command = viewModel.OpenMergeSelectedCommand;
@@ -1762,6 +1768,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
     private static string UnknownBitrateText => GetResourceText("CommonUnknown", "Unknown");
 
     private readonly ObservableCollection<RecordedVideoItem> videos = [];
+    private RecordedVideoItem[] loadedVideoItems = [];
     internal const int SelectionHistoryLimit = 200;
     private readonly ConcurrentDictionary<string, Lazy<Task<string>>> thumbnailExtractionTasks = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentQueue<RecordedVideoItem> videoEnrichmentQueue = new();
@@ -2904,12 +2911,15 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             return;
         }
 
-        ConverterOptions? options = await ShowTranscodeOptionsAsync();
+        ConverterOptions? options = await ShowTranscodeOptionsAsync(item.TargetRecordFormat);
         if (options == null)
         {
             return;
         }
-        if (!File.Exists(item.FullPath) || !item.CanTranscode || !CanModifyVideo(item) || IsOperating)
+        RecordedVideoItem[] transcodeItems = ExpandFailedRecordingGroups([item])
+            .Where(candidate => candidate.CanTranscode && CanModifyVideo(candidate))
+            .ToArray();
+        if (transcodeItems.Length == 0 || !transcodeItems.Any(candidate => candidate.FullPath.Equals(item.FullPath, StringComparison.OrdinalIgnoreCase)) || IsOperating)
         {
             return;
         }
@@ -2921,69 +2931,33 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
         try
         {
-            bool converted = await new Converter().ExecuteAsync(item.FullPath, options);
-            if (converted)
+            int convertedCount = 0;
+            foreach (RecordedVideoItem transcodeItem in transcodeItems)
+            {
+                bool converted = await new Converter().ExecuteAsync(transcodeItem.FullPath, options);
+                if (!converted)
+                {
+                    VideoRepairResult repairResult = await new VideoRepairService().RepairAsync(transcodeItem.FullPath, options.TargetFormat);
+                    if (repairResult.Status == VideoRepairStatus.Repaired)
+                    {
+                        if (options.RemoveSource)
+                        {
+                            _ = Converter.TryDeleteSourceFiles([transcodeItem.FullPath]);
+                        }
+                        convertedCount++;
+                    }
+                    continue;
+                }
+
+                convertedCount++;
+            }
+            if (convertedCount == transcodeItems.Length)
             {
                 AppFeedback.Success(GetResourceText("TranscodeComplete", "Transcoding complete"));
             }
-            else
+            else if (convertedCount > 0)
             {
-                VideoRepairResult repairResult = await new VideoRepairService().RepairAsync(item.FullPath, options.TargetFormat);
-                switch (repairResult.Status)
-                {
-                    case VideoRepairStatus.Repaired:
-                        if (options.RemoveSource)
-                        {
-                            _ = Converter.TryDeleteSourceFiles([item.FullPath]);
-                        }
-                        AppFeedback.Success(GetResourceText("TranscodeComplete", "Transcoding complete"));
-                        break;
-                    case VideoRepairStatus.PartiallyRepaired:
-                        AppFeedback.Warning(GetResourceText("RepairVideoPartial", "Recoverable content was saved, but the timeline remains incomplete"));
-                        break;
-                    case VideoRepairStatus.Failed:
-                        AppFeedback.Warning(GetResourceText("TranscodeFailed", "Transcoding failed"));
-                        break;
-                }
-            }
-            await RefreshForDisplayAsync();
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        finally
-        {
-            if (IsUserTranscoding)
-            {
-                IsUserTranscoding = false;
-                IsOperating = false;
-                OperationProgressText = string.Empty;
-                OnPropertyChanged(nameof(IsIdle));
-            }
-        }
-    }
-
-    [RelayCommand]
-    private async Task OptimizeAudioFromVideoAsync(RecordedVideoItem? item)
-    {
-        if (item == null || !item.CanCreateOptimizedAudio || !CanModifyVideo(item) || IsOperating)
-        {
-            return;
-        }
-
-        string targetFormat = Path.GetExtension(item.FullPath).ToLowerInvariant();
-        ConverterOptions options = CreateOptimizedAudioOptions(targetFormat);
-        IsUserTranscoding = true;
-        IsOperating = true;
-        OperationProgressText = GetResourceText("TranscodingVideo", "Transcoding...");
-        OnPropertyChanged(nameof(IsIdle));
-
-        try
-        {
-            bool converted = await new Converter().ExecuteAsync(item.FullPath, options);
-            if (converted)
-            {
-                AppFeedback.Success(GetResourceText("OptimizedAudioCreated", "Optimized audio created"));
+                AppFeedback.Warning(GetResourceText("RepairVideoPartial", "Recoverable content was saved, but the timeline remains incomplete"));
             }
             else
             {
@@ -3109,7 +3083,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         return formatSelector.SelectedIndex == 1 ? ".mp4" : ".mkv";
     }
 
-    private static async Task<ConverterOptions?> ShowTranscodeOptionsAsync()
+    private static async Task<ConverterOptions?> ShowTranscodeOptionsAsync(string targetRecordFormat)
     {
         System.Windows.Controls.ComboBox formatSelector = new()
         {
@@ -3119,33 +3093,13 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
                 new ComboBoxItem { Content = "MP4" },
                 new ComboBoxItem { Content = "MKV" },
             },
-            SelectedIndex = 0,
-        };
-        System.Windows.Controls.CheckBox optimizeAudio = new()
-        {
-            Content = GetResourceText("CreateOptimizedAudioTrack", "Create optimized audio track (recommended)"),
-            IsChecked = Configurations.IsOptimizeAudio.Get(),
-            Margin = new Thickness(0, 16, 0, 0),
+            SelectedIndex = GetTranscodeFormatIndex(targetRecordFormat),
         };
         System.Windows.Controls.CheckBox removeSource = new()
         {
             Content = GetResourceText("DeleteSourceAfterTranscode", "Delete source file after successful transcode"),
             IsChecked = Configurations.IsRemoveTs.Get(),
             Margin = new Thickness(0, 16, 0, 0),
-        };
-        TextBlock description = new()
-        {
-            Text = GetResourceText("OptimizedAudioTrackDescription", "MP4 keeps the original audio and adds an AAC track with gain, compression, and limiting."),
-            TextWrapping = TextWrapping.Wrap,
-            Opacity = 0.72,
-            Margin = new Thickness(0, 8, 0, 0),
-        };
-        formatSelector.SelectionChanged += (_, _) =>
-        {
-            bool supportsOptimizedAudio = formatSelector.SelectedIndex is 0 or 1;
-            optimizeAudio.IsEnabled = supportsOptimizedAudio;
-            optimizeAudio.Visibility = supportsOptimizedAudio ? Visibility.Visible : Visibility.Collapsed;
-            description.Visibility = supportsOptimizedAudio ? Visibility.Visible : Visibility.Collapsed;
         };
         TextBlock targetFormatLabel = new()
         {
@@ -3159,8 +3113,6 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             {
                 targetFormatLabel,
                 formatSelector,
-                optimizeAudio,
-                description,
                 removeSource,
             },
         };
@@ -3194,38 +3146,25 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         }
         ConverterOptions options = CreateTranscodeOptions(
             formatSelector.SelectedIndex,
-            optimizeAudio.IsChecked == true,
             removeSource.IsChecked == true);
-        if (options.TargetFormat is ".mp4" or ".mkv")
-        {
-            Configurations.IsOptimizeAudio.Set(options.OptimizeAudio);
-            ConfigurationSaveScheduler.Request();
-            if (owner is MainWindow mainWindow)
-            {
-                mainWindow.SettingsPage.ViewModel.IsOptimizeAudio = options.OptimizeAudio;
-            }
-        }
         return options;
     }
 
-    internal static ConverterOptions CreateTranscodeOptions(int selectedIndex, bool optimizeAudio, bool removeSource = false)
+    internal static ConverterOptions CreateTranscodeOptions(int selectedIndex, bool removeSource = false)
     {
         return selectedIndex switch
         {
-            0 => new ConverterOptions(".mp4", optimizeAudio, removeSource),
-            1 => new ConverterOptions(".mkv", optimizeAudio, removeSource),
+            0 => new ConverterOptions(".mp4", removeSource),
+            1 => new ConverterOptions(".mkv", removeSource),
             _ => throw new ArgumentOutOfRangeException(nameof(selectedIndex)),
         };
     }
 
-    internal static ConverterOptions CreateOptimizedAudioOptions(string targetFormat)
+    internal static int GetTranscodeFormatIndex(string targetRecordFormat)
     {
-        string normalizedFormat = targetFormat.Trim().ToLowerInvariant();
-        if (normalizedFormat is not (".mp4" or ".mkv"))
-        {
-            throw new ArgumentOutOfRangeException(nameof(targetFormat));
-        }
-        return new ConverterOptions(normalizedFormat, OptimizeAudio: true, AllowSameFormat: true);
+        return string.Equals(Recorder.GetTargetFormat(targetRecordFormat), ".mkv", StringComparison.OrdinalIgnoreCase)
+            ? 1
+            : 0;
     }
 
     [RelayCommand]
@@ -3482,14 +3421,15 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
     private async Task DeleteVideosAsync(IReadOnlyCollection<RecordedVideoItem> items)
     {
+        RecordedVideoItem[] videosToDelete = ExpandFailedRecordingGroups(items);
         if (IsOperating && !IsUserTranscoding
-            || items.Count == 0
-            || items.Any(item => !CanModifyVideoForUserOperation(item)))
+            || videosToDelete.Length == 0
+            || videosToDelete.Any(item => !CanModifyVideoForUserOperation(item)))
         {
             return;
         }
 
-        string prompt = FormatResourceText("ConfirmDeleteVideos", "Delete {0} video files?", items.Count);
+        string prompt = FormatResourceText("ConfirmDeleteVideos", "Delete {0} video files?", videosToDelete.Length);
         bool confirmed;
         if (UiXDialogContent.IsEnabled)
         {
@@ -3518,7 +3458,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         BeginAutomaticRefreshSuppression();
         try
         {
-            if (!await CancelConversionsForUserOperationAsync(items))
+            if (!await CancelConversionsForUserOperationAsync(videosToDelete))
             {
                 return;
             }
@@ -3529,7 +3469,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             OperationProgressText = "PreparingDelete".Tr();
             OnPropertyChanged(nameof(IsIdle));
 
-            foreach (RecordedVideoItem item in items)
+            foreach (RecordedVideoItem item in videosToDelete)
             {
                 try
                 {
@@ -3570,6 +3510,45 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
                 OnPropertyChanged(nameof(IsIdle));
             }
             EndAutomaticRefreshSuppression();
+        }
+    }
+
+    private RecordedVideoItem[] ExpandFailedRecordingGroups(IReadOnlyCollection<RecordedVideoItem> items)
+    {
+        return ExpandFailedRecordingGroups(items, loadedVideoItems);
+    }
+
+    internal static RecordedVideoItem[] ExpandFailedRecordingGroups(
+        IReadOnlyCollection<RecordedVideoItem> items,
+        IEnumerable<RecordedVideoItem> allLoadedVideos)
+    {
+        HashSet<string> groupKeys = items
+            .SelectMany(GetRecordingGroupKeys)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return items
+            .Concat(allLoadedVideos.Where(item => GetRecordingGroupKeys(item).Any(groupKeys.Contains)))
+            .Where(item => File.Exists(item.FullPath))
+            .DistinctBy(item => item.FullPath, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static IEnumerable<string> GetRecordingGroupKeys(RecordedVideoItem item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.SortGroupKey))
+        {
+            yield return item.SortGroupKey;
+        }
+        if (!string.IsNullOrWhiteSpace(item.RecordingSessionId))
+        {
+            yield return item.RecordingSessionId;
+        }
+        if (!string.IsNullOrWhiteSpace(item.SegmentGroupId))
+        {
+            yield return item.SegmentGroupId;
+        }
+        if (!string.IsNullOrWhiteSpace(item.ProcessingSessionKey))
+        {
+            yield return item.ProcessingSessionKey;
         }
     }
 
@@ -3714,11 +3693,11 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         {
             IReadOnlyDictionary<string, RecordingRecoveryStatus> currentRecoveryStatuses = RecordingRecoveryService.GetStatusSnapshot();
             UpdateTargetRecordFormats(videos, globalRecordFormat, roomRecordFormats);
-            foreach (RecordedVideoItem item in videos)
+            foreach (RecordedVideoItem item in loadedVideoItems)
             {
                 UpdateOperationState(item, currentRecoveryStatuses);
             }
-            RecordedVideoItem[] collapsedItems = CollapseActiveSessionParts(videos);
+            RecordedVideoItem[] collapsedItems = CollapseActiveSessionParts(loadedVideoItems);
             if (collapsedItems.Length != videos.Count)
             {
                 HashSet<RecordedVideoItem> collapsedSet = new(collapsedItems, ReferenceEqualityComparer.Instance);
@@ -3741,7 +3720,7 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
 
         RecordedVideoItem[] items;
         IReadOnlyDictionary<string, RecordingRecoveryStatus> recoveryStatuses = RecordingRecoveryService.GetStatusSnapshot();
-        Dictionary<string, RecordedVideoItem> existingByPath = videos
+        Dictionary<string, RecordedVideoItem> existingByPath = loadedVideoItems
             .Where(item => !string.IsNullOrWhiteSpace(item.FullPath))
             .GroupBy(item => item.FullPath, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
@@ -3829,6 +3808,8 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             UpdateOperationState(item, recoveryStatuses);
         }
         AssignFallbackSegmentGroups(items);
+        items = ReuseExistingVideoItems(loadedVideoItems, items);
+        loadedVideoItems = items;
         items = CollapseActiveSessionParts(items);
 
         string[] selectedPaths = CaptureSelectedPaths();
@@ -3836,7 +3817,6 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             .Select((path, index) => new KeyValuePair<string, int>(path, index + 1))
             .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
         string regularSelectedPath = RegularSelectedItem?.FullPath ?? string.Empty;
-        items = ReuseExistingVideoItems(videos, items);
         if (videos.SequenceEqual(items))
         {
             lastSelectedItem = GetLastSelectedItem();
@@ -4039,7 +4019,6 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
             SegmentKind = metadata.SegmentKind,
             MediaIssue = metadata.MediaIssue,
             IssueIntervals = VideoRecordingMetadataStore.CloneIssueIntervals(metadata.IssueIntervals),
-            HasOptimizedAudio = metadata.HasOptimizedAudio,
             WasRepaired = metadata.WasRepaired,
             SourceLength = snapshot.Length,
             SourceLastWriteTimeUtc = snapshot.LastWriteTimeUtc,
@@ -5283,12 +5262,10 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
                     .ThenBy(item => item.SegmentIndex < 0 ? int.MaxValue : item.SegmentIndex)
                     .ThenBy(item => item.CreatedAt)
                     .First();
-                RecordedVideoItem[] indexedParts = group
-                    .Where(item => item.SegmentIndex >= 0)
-                    .ToArray();
-                long displayLength = indexedParts.Length > 0
-                    ? indexedParts.Sum(item => Math.Max(0, item.SourceLength))
-                    : Math.Max(0, representative.SourceLength);
+                long displayLength = group
+                    .Where(IsCountableSessionSourcePart)
+                    .GroupBy(item => Path.GetFullPath(item.FullPath), StringComparer.OrdinalIgnoreCase)
+                    .Sum(items => Math.Max(0, items.First().SourceLength));
                 representative.SetDisplayLength(displayLength);
                 return representative;
             }), ReferenceEqualityComparer.Instance);
@@ -5308,6 +5285,16 @@ public partial class ScreenRecordListViewModel : ObservableObject, IExtensionVid
         return item.IsRecordingFile
             || item.IsInProgress
             || !string.IsNullOrWhiteSpace(item.ProcessingSessionKey);
+    }
+
+    private static bool IsCountableSessionSourcePart(RecordedVideoItem item)
+    {
+        return item.IsRecordingFile
+            || item.SegmentIndex >= 0
+            || (item.SupportsTranscode
+                && item.LifecycleStatus is not (VideoLifecycleStatus.Merging
+                    or VideoLifecycleStatus.Converting
+                    or VideoLifecycleStatus.Repairing));
     }
 
     private static string GetActiveSessionGroupKey(RecordedVideoItem item)
@@ -6315,10 +6302,6 @@ public partial class RecordedVideoItem : ObservableObject
     private List<VideoRecordingIssueInterval> issueIntervals = [];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanCreateOptimizedAudio))]
-    private bool hasOptimizedAudio;
-
-    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AttributeStatusText))]
     [NotifyPropertyChangedFor(nameof(HasAttributeStatus))]
     private bool wasRepaired;
@@ -6393,10 +6376,6 @@ public partial class RecordedVideoItem : ObservableObject
             {
                 statuses.Add(ScreenRecordListViewModel.GetResourceText("MediaIssueChip", "A/V issue"));
             }
-            if (HasOptimizedAudioFailure)
-            {
-                statuses.Add(ScreenRecordListViewModel.GetResourceText("OptimizedAudioFailedChip", "Optimized audio failed"));
-            }
             if (IsStallSegment)
             {
                 statuses.Add(ScreenRecordListViewModel.GetResourceText("StallSegmentChip", "Stall split"));
@@ -6419,11 +6398,7 @@ public partial class RecordedVideoItem : ObservableObject
         }
     }
 
-    internal bool HasAudioVideoIssue => GetMediaIssueCodes().Any(issue =>
-        !issue.Equals("optimized_audio_failed", StringComparison.OrdinalIgnoreCase));
-
-    internal bool HasOptimizedAudioFailure => GetMediaIssueCodes().Any(issue =>
-        issue.Equals("optimized_audio_failed", StringComparison.OrdinalIgnoreCase));
+    internal bool HasAudioVideoIssue => GetMediaIssueCodes().Any();
 
     internal IReadOnlyList<VideoAttributeStatusSection> BuildAttributeStatusSections()
     {
@@ -6447,8 +6422,7 @@ public partial class RecordedVideoItem : ObservableObject
             List<VideoAttributeStatusDetail> details = [];
             foreach (VideoRecordingIssueInterval interval in IssueIntervals ?? [])
             {
-                if (interval.Kind.Equals("optimized_audio_failed", StringComparison.OrdinalIgnoreCase)
-                    || interval.Kind.Equals("stall_segment", StringComparison.OrdinalIgnoreCase))
+                if (interval.Kind.Equals("stall_segment", StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -6465,20 +6439,6 @@ public partial class RecordedVideoItem : ObservableObject
             sections.Add(new VideoAttributeStatusSection(
                 ScreenRecordListViewModel.GetResourceText("MediaIssueChip", "A/V issue"),
                 details));
-        }
-        if (HasOptimizedAudioFailure)
-        {
-            VideoRecordingIssueInterval? interval = (IssueIntervals ?? [])
-                .FirstOrDefault(item => item.Kind.Equals("optimized_audio_failed", StringComparison.OrdinalIgnoreCase));
-            sections.Add(new VideoAttributeStatusSection(
-                ScreenRecordListViewModel.GetResourceText("OptimizedAudioFailedChip", "Optimized audio failed"),
-                [
-                    new VideoAttributeStatusDetail(
-                        interval == null
-                            ? ScreenRecordListViewModel.GetResourceText("AttributeStatusEntireFile", "Entire file")
-                            : FormatIssueTime(interval, entireFileWhenUnknown: true),
-                        ScreenRecordListViewModel.GetResourceText("OptimizedAudioFailedDescription", "Optimization failed, original audio was kept."))
-                ]));
         }
         if (IsStallSegment)
         {
@@ -6638,10 +6598,6 @@ public partial class RecordedVideoItem : ObservableObject
     public bool CanModify => !IsInProgress && !IsRecordingFile;
 
     public bool CanTranscode => SupportsTranscode && !IsInProgress && !IsRecordingFile;
-
-    public bool CanCreateOptimizedAudio => CanModify
-        && !HasOptimizedAudio
-        && ScreenRecordListViewModel.IsCompletedVideoFormat(FullPath);
 
     public bool CanRepair => SupportsTranscode && !IsInProgress && !IsRecordingFile;
 
